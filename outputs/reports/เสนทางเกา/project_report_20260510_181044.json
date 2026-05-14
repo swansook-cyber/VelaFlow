@@ -1,0 +1,117 @@
+{
+  "project": "เส้นทางเก่า",
+  "created_at": "2026-05-10T18:10:44",
+  "status": {
+    "ok": false,
+    "message": "Missing: Storyboard, Images, Review, Render",
+    "data": {
+      "title": "เส้นทางเก่า",
+      "scene_count": 0,
+      "approved_images": 0,
+      "generated_image_versions": 0,
+      "stages": [
+        {
+          "name": "Song",
+          "ok": true,
+          "detail": "lyrics/style ready"
+        },
+        {
+          "name": "Storyboard",
+          "ok": false,
+          "detail": "needs MV Director storyboard"
+        },
+        {
+          "name": "Images",
+          "ok": false,
+          "detail": "0/0 approved"
+        },
+        {
+          "name": "Review",
+          "ok": false,
+          "detail": "needs image review approval"
+        },
+        {
+          "name": "Render",
+          "ok": false,
+          "detail": "needs draft/full render"
+        }
+      ],
+      "missing": [
+        "Storyboard",
+        "Images",
+        "Review",
+        "Render"
+      ]
+    },
+    "next_step": {
+      "stage": "Storyboard",
+      "page": "🎬 MV Director",
+      "label": "Generate storyboard"
+    },
+    "error": ""
+  },
+  "quality": {
+    "ok": false,
+    "message": "Quality checklist complete",
+    "data": {
+      "checks": [
+        {
+          "name": "Storyboard scenes",
+          "ok": false,
+          "message": "0 scenes",
+          "level": "ERROR"
+        },
+        {
+          "name": "Approved visuals",
+          "ok": false,
+          "message": "0/0 scenes approved",
+          "level": "WARN"
+        },
+        {
+          "name": "Weak scenes",
+          "ok": true,
+          "message": "0 weak scenes",
+          "level": "INFO"
+        },
+        {
+          "name": "Review scenes",
+          "ok": true,
+          "message": "0 scenes need review",
+          "level": "INFO"
+        },
+        {
+          "name": "Image prompts",
+          "ok": true,
+          "message": "0 missing prompts",
+          "level": "INFO"
+        },
+        {
+          "name": "Subtitle length",
+          "ok": true,
+          "message": "0 long subtitle lines",
+          "level": "INFO"
+        }
+      ],
+      "scenes": [],
+      "regenerate_images": [],
+      "tiktok_recommendations": []
+    },
+    "error": ""
+  },
+  "regenerate_images": {
+    "ok": true,
+    "message": "Image regeneration recommendations created",
+    "data": {
+      "scenes": []
+    },
+    "error": ""
+  },
+  "tiktok_recommendations": {
+    "ok": true,
+    "message": "Smart TikTok recommendations created without external API",
+    "data": {
+      "recommended_scenes": []
+    },
+    "error": ""
+  }
+}

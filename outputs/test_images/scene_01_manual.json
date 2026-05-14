@@ -1,0 +1,10 @@
+{
+  "prompt": "lonely singer in rain, character consistency: same Thai male singer",
+  "negative_prompt": "bad anatomy, extra fingers, deformed hands, deformed face, low quality, blurry, duplicate character, inconsistent character, watermark, text artifacts",
+  "metadata": {
+    "provider": "manual",
+    "size": "512x512",
+    "character_note": "same Thai male singer"
+  },
+  "created_at": 1778246970.4995844
+}

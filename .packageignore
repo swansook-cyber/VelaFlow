@@ -1,0 +1,29 @@
+# Source package hard exclusions
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Generated/heavy files
+outputs/cache/
+outputs/renders/_scene_cache/
+outputs/renders/**/_scene_cache/
+outputs/renders/**/temp/
+outputs/renders/**/*.mp4
+outputs/renders/**/*.mov
+outputs/renders/**/*.mkv
+outputs/renders/**/*.avi
+outputs/renders/**/*.wav
+outputs/renders/**/*.mp3
+outputs/generated_images/
+outputs/generated_videos/
+outputs/source_packages/
+
+# Runtime state
+project_data/locks/
+project_data/last_session.json

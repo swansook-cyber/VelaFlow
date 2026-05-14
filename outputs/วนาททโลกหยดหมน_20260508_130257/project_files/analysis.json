@@ -1,0 +1,218 @@
+{
+  "song_mood": "Wistful, Dreamy, Awe-struck, Romantic, Melancholy, Urban Solitude leading to Sudden Connection",
+  "visual_style": "Cinematic, realistic, with subtle magical realism elements during the 'world stopping' moments. Emphasizes character's internal state through external environment.",
+  "color_palette": [
+    "Muted blues",
+    "Cool greys",
+    "Warm golden hour (for the 'stopped' moment)",
+    "Soft whites",
+    "Deep emerald green (for accents)"
+  ],
+  "story_concept": "The mundane, hurried existence of a young woman in a bustling city is abruptly transformed by a 'love at first sight' encounter. The music video visualizes this internal emotional jolt as the external world literally freezes around her, creating a dreamlike, isolated moment of pure connection.",
+  "director_notes": "The core visual idea is the juxtaposition of a chaotic, fast-paced city and the sudden, profound stillness when the protagonist locks eyes with someone. We'll use slow-motion, frozen backgrounds, and subtle visual effects to convey the 'world stopping'. Character continuity is paramount; ensure Vela Moon's character maintains the same contemplative yet curious expression, consistent outfit (urban chic, muted tones), and hair (natural, slightly windswept) throughout. Lighting will shift from cool, diffused city light to a warmer, almost ethereal glow during the 'frozen' moments. Focus on emotional nuance through close-ups and deliberate pacing.",
+  "character_lock": {
+    "main_character": "A young woman (Vela Moon), mid-20s, with naturally wavy dark brown hair that falls past her shoulders, and a thoughtful, slightly introverted yet perceptive expression.",
+    "outfit": "A stylish, slightly oversized camel-colored trench coat over a dark grey turtleneck sweater, paired with dark wash straight-leg jeans and minimalistic white sneakers. Her accessories include a small black crossbody bag and delicate silver hoop earrings.",
+    "hair": "Naturally wavy, dark brown hair, styled loose and flowing, framing her face. No drastic changes in length or style.",
+    "key_props": [
+      "Crossbody bag",
+      "Small notebook and pen (briefly seen)",
+      "Headphones (worn but not actively listening initially)"
+    ],
+    "consistency_rule": "Maintain consistent facial features, hair style and color, exact outfit (trench coat, sweater, jeans, sneakers, bag, earrings), and general mood (pensive, then awestruck) across all scenes and camera angles. Lighting should consistently highlight her features, ensuring recognition."
+  },
+  "storyboard": [
+    {
+      "scene": 1,
+      "time_range": "00:00-00:10",
+      "lyric_part": "เดินสวนกันไปมา... ท่ามกลางผู้คนนับพัน ในเมืองที่แสนวุ่นวาย... และเร่งรีบ",
+      "emotion": "Indifference, monotony, feeling lost in the crowd.",
+      "visual_description": "Vela Moon walks through a busy city street, head slightly down, blending into the blurred background of rushing people and traffic. The camera is a steady follow shot from behind or slightly to her side, emphasizing her isolation amidst the crowd.",
+      "image_prompt": "Cinematic shot of a young woman, mid-20s, with wavy dark brown hair and a camel trench coat, walking through a bustling metropolitan street at daytime. Her head is slightly bowed, expression neutral, lost in thought. A sea of blurred, fast-moving people and cars surrounds her. Shot with a wide-angle lens (24mm), slightly elevated angle, natural diffused city light. Moody, realistic, urban.",
+      "video_prompt": "A young woman, mid-20s, with wavy dark brown hair and a camel trench coat, walks at a normal pace through a crowded city sidewalk. The background people and cars are moving quickly, blurring into streaks. Camera slowly tracks backward, maintaining focus on her. Her head remains slightly down. Atmosphere is chaotic, but she moves calmly through it. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow, steady backward track (dolly out) from a low angle, following Vela Moon.",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 2,
+      "time_range": "00:10-00:20",
+      "lyric_part": "ก้มหน้ามองทางเดิน... ไม่เคยสนใจใคร ชีวิตก็เหมือนเดิม... ในทุกๆ นาที",
+      "emotion": "Preoccupation, internal focus, a sense of routine.",
+      "visual_description": "Close-up on Vela Moon's face as she walks, still looking down. Her eyes might flick up briefly, but quickly return to the ground. The background is slightly out of focus, showing glimpses of movement but no clear details.",
+      "image_prompt": "Tight close-up cinematic shot of a young woman, mid-20s, with wavy dark brown hair and a camel trench coat, looking down. Her expression is pensive, almost weary. Her eyes are partially visible, conveying deep thought. Shallow depth of field, blurred urban background. Shot with a prime lens (85mm), eye-level, natural soft overcast lighting. Realistic, introspective mood.",
+      "video_prompt": "Tight close-up shot of a young woman, mid-20s, with wavy dark brown hair and a camel trench coat. Her eyes are cast downwards, but briefly, her gaze lifts just above the camera before returning to the ground. Subtle, almost imperceptible head bob with each step. Background remains softly blurred. Camera is static. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Static close-up.",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 3,
+      "time_range": "00:20-00:28",
+      "lyric_part": "จนเสี้ยววินาที... ที่ฉันบังเอิญ เงยหน้าขึ้นมา...",
+      "emotion": "Anticipation, a subtle shift from indifference.",
+      "visual_description": "A very slow-motion shot of Vela Moon slowly lifting her head. Her eyes slowly open wider as if realizing something, the movement almost imperceptible. The city background is still moving normally, but her action is unnaturally drawn out.",
+      "image_prompt": "Cinematic medium close-up of a young woman, mid-20s, with wavy dark brown hair and a camel trench coat, slowly lifting her head. Her eyes are just beginning to open, a flicker of curiosity appearing. Soft morning light catches her profile. Blurred city traffic in the background. Shot with a 50mm lens, slightly low angle. Dramatic, transitional moment.",
+      "video_prompt": "A very slow-motion video (high frame rate) of a young woman, mid-20s, with wavy dark brown hair and a camel trench coat, lifting her head gradually. Her eyes slowly transition from looking down to looking straight ahead. The background city movement is at normal speed. Camera is a slow, subtle zoom-in. Approx. 8 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow, subtle zoom-in (push-in).",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 4,
+      "time_range": "00:28-00:35",
+      "lyric_part": "...สบตากับคู่ดวงตานั้น...",
+      "emotion": "Sudden realization, direct connection, focus.",
+      "visual_description": "POV shot from Vela Moon's perspective. We see her line of sight, which lands on another person (back of head, or slightly obscured face to maintain mystery) standing still in the distance amidst the moving crowd. The focus is sharp on this person, blurring everything else.",
+      "image_prompt": "First-person POV cinematic shot looking down a busy city street. Focus is sharply on the back of a person's head or a slightly obscured figure in the mid-distance. The surrounding city traffic and pedestrians are heavily blurred, creating a tunnel vision effect. Warm, soft light illuminates the distant figure. Shot with a long telephoto lens (200mm) to compress depth. Sense of immediate connection, mystery.",
+      "video_prompt": "First-person POV shot from Vela Moon's eye level. The camera slowly pans and zooms slightly to fixate on a person standing in the distance amidst moving city traffic. The background is in motion but out of focus, while the target person is sharply focused. Subtle camera shake to indicate human perspective. Approx. 7 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow pan and subtle zoom.",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 5,
+      "time_range": "00:35-00:45",
+      "lyric_part": "วินาทีที่โลก... เหมือนหยุดหมุนไป เหมือนมีใครมาปิดสวิตช์...",
+      "emotion": "Awe, shock, disbelief, sudden calm.",
+      "visual_description": "Wide shot. Vela Moon is standing perfectly still, her gaze fixed. Around her, all the people and cars are completely frozen mid-action. A pigeon is frozen mid-flight. Dust motes are suspended in the air. The light might slightly shift to a warmer, softer glow.",
+      "image_prompt": "Cinematic wide shot of a young woman, mid-20s, with wavy dark brown hair and a camel trench coat, standing still on a bustling city street. All surrounding people, cars, and even a flying pigeon are completely frozen in motion. Dust motes hang suspended in the air. The lighting shifts to a soft, magical golden hour glow. Shot with a 35mm lens, eye-level. Surreal, tranquil, breathtaking.",
+      "video_prompt": "A wide shot showing a young woman, mid-20s, with wavy dark brown hair and a camel trench coat, standing absolutely still. All elements in the background – people, cars, objects – are frozen solid. The camera slowly pushes in towards her. Subtle shimmer effect on the frozen elements. Duration gives a sense of time stopping. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow, steady push-in (dolly in).",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 6,
+      "time_range": "00:45-00:55",
+      "lyric_part": "ทุกความเคลื่อนไหวรอบกาย เสียงรถราที่ดัง... กลับเงียบงันลงทันใด",
+      "emotion": "Pure focus, mesmerized, internal processing.",
+      "visual_description": "Extreme close-up on Vela Moon's eyes. They are wide with wonder, reflecting the soft, warm light. Subtle tears might well up, or her pupils might slightly dilate. The world is reflected in her eyes as still images.",
+      "image_prompt": "Extreme close-up cinematic shot of a young woman's eyes (Vela Moon, mid-20s, with naturally defined eyelashes and a thoughtful brow). Her eyes are wide with wonder and a hint of emotion, reflecting a blurred, frozen city scene. Soft, warm, ethereal light illuminates her face. Shot with a macro lens. Intense, emotional, mesmerizing.",
+      "video_prompt": "Extreme close-up on a young woman's eyes (Vela Moon). Her eyes are wide and focused, showing a slight tremor of emotion. The camera is static, holding the intense gaze. A subtle, almost imperceptible tear might form at the corner of her eye. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Static extreme close-up.",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 7,
+      "time_range": "00:55-01:05",
+      "lyric_part": "เหลือแค่ภาพเธอยืนชัดเจนอยู่ตรงหน้า... (Love at First Sight)",
+      "emotion": "Deep connection, singular focus, dreamlike state.",
+      "visual_description": "Over-the-shoulder shot from behind Vela Moon. We see the 'other person' clearly for the first time (still a silhouette or slightly obscured face, maintaining mystery) standing in the middle of the frozen chaos. Vela Moon reaches out a hand slightly, as if to confirm their reality.",
+      "image_prompt": "Cinematic over-the-shoulder shot from behind a young woman (Vela Moon, mid-20s, with wavy dark brown hair and a camel trench coat). Her hand is slightly raised, reaching out. In front of her, the 'other person' is clearly visible (silhouette or partially obscured face) standing in a brightly lit, ethereal golden light. The surrounding city remains frozen and subtly blurred. Shot with a 50mm lens, medium height. Romantic, longing, surreal.",
+      "video_prompt": "Over-the-shoulder shot of a young woman (Vela Moon) from behind. The 'other person' stands clearly in front, in a frozen city. Vela Moon's arm slowly extends forward, her fingers twitching slightly, as if reaching out to touch. The camera slowly arcs around her. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow arc (orbital) shot around Vela Moon.",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 8,
+      "time_range": "01:05-01:15",
+      "lyric_part": "หัวใจข้างใน... เต้นแรงจนแทบหลุดออกมา ขาที่เคยก้าวเดิน... กลับยืนแข็งทื่ออยู่อย่างนั้น",
+      "emotion": "Intense physical reaction, vulnerability, stillness.",
+      "visual_description": "Low angle shot, focusing on Vela Moon's feet and legs. Her body is rigid, but subtle vibrations or a slight tremor could be visible. The 'other person' is out of frame, implied. The frozen city elements are visible in the background, reinforcing the stillness.",
+      "image_prompt": "Cinematic low-angle shot focusing on the lower body of a young woman (Vela Moon, mid-20s, wearing dark wash jeans and white sneakers, camel trench coat visible). Her legs are rigid, feet planted firmly on the sidewalk. Subtle, almost imperceptible vibration. Blurred, frozen city background. Soft, slightly diffused light. Shot with a 35mm lens. Grounded, intense internal feeling.",
+      "video_prompt": "Low angle shot of a young woman's legs and feet (Vela Moon). Her legs are stiff, and there's a very subtle, almost trembling movement that suggests internal tension. The background shows frozen city life. Camera is static. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Static low-angle shot.",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 9,
+      "time_range": "01:15-01:25",
+      "lyric_part": "ลืมแม้กระทั่งหายใจ... ไม่รู้ต้องทำยังไง ไม่อยากละสายตา... ไปจากเธอเลย",
+      "emotion": "Breathless wonder, intense desire to prolong the moment.",
+      "visual_description": "Medium shot of Vela Moon, her expression a mix of awe and slight desperation. Her mouth is slightly agape, as if trying to catch her breath. Her gaze is unwavering, fixed on the 'other person' (who is now just out of frame or a soft bokeh in the background).",
+      "image_prompt": "Cinematic medium shot of a young woman (Vela Moon, mid-20s, with wavy dark brown hair and a camel trench coat). Her expression is one of breathless wonder, eyes wide and fixed, mouth slightly parted. Soft, warm light illuminates her face. The background is a soft, dreamlike blur of the frozen city. Shot with a 85mm lens, slightly high angle. Vulnerable, captivated, emotional.",
+      "video_prompt": "Medium shot of a young woman (Vela Moon). She is perfectly still, her mouth slightly open, eyes wide and unwavering. A very subtle, slow inhale and exhale that is almost missed. The camera slowly zooms out, revealing more of the frozen city around her. Approx. 10 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow, steady zoom-out (pull-out).",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    },
+    {
+      "scene": 10,
+      "time_range": "01:25-01:45",
+      "lyric_part": "(Bridge to Outro) ไม่อยากให้เข็มนาฬิกาเดินต่อ อยากหยุดภาพนี้เอาไว้... นานๆ (Love at First Sight)... คือเธอใช่ไหม ที่ทำให้โลกของฉัน... หยุดหมุน",
+      "emotion": "Deep longing, acceptance of the magic, lingering enchantment.",
+      "visual_description": "Long, dreamlike shot. Vela Moon stands facing the 'other person' (still partially obscured). She slowly raises her hand, and this time, gently reaches out and touches the 'other person's' hand or shoulder. A ripple effect or subtle distortion in the frozen world around them might occur, indicating the moment might soon end or is a dream. The light is very soft, almost glowing.",
+      "image_prompt": "Cinematic long shot of a young woman (Vela Moon, mid-20s, with wavy dark brown hair and a camel trench coat) standing facing another person (silhouette or soft focus). She is gently reaching out to touch their hand. The frozen city around them glows with a soft, ethereal light, slightly distorted at the edges, hinting at an imminent return to reality. Dreamlike, profound connection, poignant. Shot with a 50mm lens, slightly wide view.",
+      "video_prompt": "Long, dreamlike shot. A young woman (Vela Moon) slowly raises her hand and gently touches the 'other person's' hand/shoulder. A subtle, soft ripple or 'melting' effect around the edges of the frozen background. The camera slowly pulls back and elevates, revealing the two figures as small amidst the vast, frozen city. The golden light intensifies slightly. Approx. 20 seconds.",
+      "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts, cartoonish, oversaturated",
+      "camera_motion": "Slow crane up and zoom out (pedestal up and pull-out).",
+      "subtitle_style": "Clean white text, bottom center, semi-transparent black background."
+    }
+  ],
+  "cover_prompts": {
+    "spotify_1x1": "Album cover art: A young woman (Vela Moon, mid-20s, wavy dark brown hair, camel trench coat), seen in a tight medium shot, looking up with an expression of profound wonder and awe. Her face is softly lit by a warm, ethereal glow. Behind her, a bustling city street is perfectly frozen in time, rendered in muted, cool tones. Text: 'Vela Moon - วินาทีที่โลกหยุดหมุน' in a clean, elegant font. Cinematic, emotional, surreal, high-resolution.",
+    "youtube_thumbnail_16x9": "YouTube thumbnail: A cinematic still of a young woman (Vela Moon, mid-20s, wavy dark brown hair, camel trench coat) standing in the middle of a super-busy city street where all people and cars are completely frozen in motion. Her eyes are wide with wonder, fixed on something just out of frame. Overlaid title text 'วินาทีที่โลกหยุดหมุน - Vela Moon' prominently at the top or bottom. High contrast, warm glow on her, cool tones on the background. Catchy, dramatic.",
+    "tiktok_cover_9x16": "TikTok vertical cover: A dramatic close-up of a young woman's (Vela Moon, mid-20s, wavy dark brown hair, camel trench coat) eyes, wide open and reflecting a frozen, bustling city. Her expression is a mix of shock and wonder. Her face is lit with a warm, magical light, contrasting with the cool, muted tones of the reflection. Text 'Vela Moon' at top, 'วินาทีที่โลกหยุดหมุน' at bottom. Dynamic, emotional, high-impact."
+  },
+  "promo_clips": [
+    {
+      "platform": "TikTok/Reels/Shorts",
+      "duration": "15s",
+      "hook_idea": "Show the abrupt transition from mundane chaos to magical stillness in a single, mind-bending edit.",
+      "caption_angle": "คุณเคยเจอ 'วินาทีที่โลกหยุดหมุน' แบบนี้บ้างไหม? 😳 #VelaMoon #วินาทีที่โลกหยุดหมุน #LoveAtFirstSight",
+      "recommended_scenes": [
+        1,
+        3,
+        5,
+        6
+      ]
+    },
+    {
+      "platform": "YouTube Shorts",
+      "duration": "30s",
+      "hook_idea": "Build suspense with the character's journey through the city, leading to the dramatic 'world stopping' moment and her intense reaction.",
+      "caption_angle": "เมื่อโลกทั้งใบหยุดหมุน… เหลือแค่เราสองคน ⏳ เตรียมพบกับ MV เต็ม 'วินาทีที่โลกหยุดหมุน' จาก Vela Moon เร็วๆ นี้! #VelaMoon #เพลงใหม่ #MVทีเซอร์",
+      "recommended_scenes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "platform": "Facebook",
+      "duration": "60s",
+      "hook_idea": "A more emotional and narrative-driven teaser, showing Vela Moon's internal journey and the full impact of the 'love at first sight' moment, ending with a call to watch the full MV.",
+      "caption_angle": "ท่ามกลางความวุ่นวายของเมืองใหญ่… มีเพียง 'เธอ' ที่ทำให้โลกทั้งใบของฉันหยุดหมุนลงในเสี้ยววินาที 💖 ร่วมสัมผัสความรู้สึกนี้ไปพร้อมกับ Vela Moon ใน MV 'วินาทีที่โลกหยุดหมุน' ชมพร้อมกัน [วันที่/เวลา] บน YouTube! #VelaMoon #วินาทีที่โลกหยุดหมุน #เพลงรัก",
+      "recommended_scenes": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        7,
+        9,
+        10
+      ]
+    }
+  ],
+  "captions": {
+    "youtube_title_options": [
+      "Vela Moon - วินาทีที่โลกหยุดหมุน | Official Music Video",
+      "MV | วินาทีที่โลกหยุดหมุน - Vela Moon (Love At First Sight)",
+      "วินาทีที่โลกหยุดหมุน - Vela Moon | เมื่อความรักทำให้เวลาหยุดเดิน",
+      "Vela Moon - วินาทีที่โลกหยุดหมุน (ภาพยนตร์สั้นแห่งรักแรกพบ)",
+      "Official MV: วินาทีที่โลกหยุดหมุน - Vela Moon (Cinematic Sad Realistic)"
+    ],
+    "youtube_description": "ท่ามกลางความวุ่นวายของชีวิตในเมืองใหญ่ มีเพียง 'เธอ' ที่ทำให้ทุกสิ่งรอบตัวหยุดนิ่งลงในชั่วพริบตา.\n\nVela Moon ขอชวนคุณมาสัมผัสประสบการณ์ 'รักแรกพบ' ที่เปลี่ยนโลกทั้งใบให้หยุดหมุนไปพร้อมกัน ใน Official Music Video เพลง 'วินาทีที่โลกหยุดหมุน'\n\nฟังเพลง 'วินาทีที่โลกหยุดหมุน' ได้ทุกแพลตฟอร์มสตรีมมิ่ง: [ลิงก์ไป Spotify/Apple Music/Joox ฯลฯ]\n\nติดตาม Vela Moon:\nFacebook: [ลิงก์]\nInstagram: [ลิงก์]\nTikTok: [ลิงก์]\n\n#VelaMoon #วินาทีที่โลกหยุดหมุน #LoveAtFirstSight #เพลงใหม่ #MV",
+    "tiktok_caption": "เมื่อโลกหยุดหมุน... เหลือแค่เรา 😳 #วินาทีที่โลกหยุดหมุน #VelaMoon #เพลงรัก #รักแรกพบ #MVใหม่",
+    "facebook_caption": "คุณเชื่อใน 'รักแรกพบ' ไหม? 💖 วินาทีที่สบตาใครบางคน แล้วโลกทั้งใบหยุดหมุนไปพร้อมกัน… นั่นคือความรู้สึกที่ Vela Moon อยากจะถ่ายทอดใน MV เพลงใหม่ 'วินาทีที่โลกหยุดหมุน'\n\nเตรียมใจให้พร้อม แล้วมาเดินทางไปในโลกที่เวลาไม่มีความหมายพร้อมกัน! ✨\n\nชม MV เต็มได้ที่ YouTube: [ลิงก์ YouTube]\nฟังเพลง: [ลิงก์ไป Spotify/Apple Music]\n\n#VelaMoon #วินาทีที่โลกหยุดหมุน #เพลงใหม่มาแรง #MVรัก",
+    "pinned_comment": "คุณเคยเจอ 'วินาทีที่โลกหยุดหมุน' ของตัวเองบ้างไหม? คอมเมนต์เล่าให้ฟังหน่อยนะ! 👇 #VelaMoon #วินาทีที่โลกหยุดหมุน",
+    "hashtags": [
+      "#VelaMoon",
+      "#วินาทีที่โลกหยุดหมุน",
+      "#LoveAtFirstSight",
+      "#เพลงรัก",
+      "#MVใหม่",
+      "#รักแรกพบ",
+      "#เพลงเพราะ"
+    ]
+  }
+}

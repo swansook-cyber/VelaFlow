@@ -1,0 +1,170 @@
+{
+  "clips": [
+    {
+      "clip_type": "Hook Clip",
+      "mode": "preview",
+      "source_video": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\preview_smoke\\renders\\Preview_Smoke_V661_Preview_Scene_1\\20260509_062826_ac44c44c\\final_16x9.mp4",
+      "start_seconds": 0.0,
+      "duration_seconds": 5,
+      "target_duration_seconds": 30,
+      "aspect_ratio": "9:16",
+      "selected_scene": {
+        "scene_id": "1",
+        "scene_index": 0,
+        "start_seconds": 0.0,
+        "score": {
+          "scene_id": "1",
+          "scene_index": 0,
+          "status": "Needs Review",
+          "status_color": "#a86600",
+          "quality_score": 63,
+          "emotional_impact": 87,
+          "hook_potential": 90,
+          "teaser_score": 82,
+          "duration_seconds": 5.0,
+          "recommended_motion": "hook_energy_zoom",
+          "recommended_subtitle": "tiktok_bold",
+          "recommended_actions": [
+            "approve_or_regenerate_image",
+            "preview_tiktok_hook"
+          ],
+          "notes": "hook/chorus candidate, strong emotion, fast social pacing, needs approved visual"
+        },
+        "scene": {
+          "scene": 1,
+          "duration_seconds": 5,
+          "lyric_part": "??????????????????",
+          "emotion": "lonely emotional hook",
+          "pacing_note": "hook energy",
+          "camera": "slow dolly in"
+        }
+      },
+      "caption": {
+        "clip_type": "Hook Clip",
+        "scene_id": "1",
+        "title": "Clip Factory Real Smoke",
+        "caption": "??????????????????\n\nClip Factory Real Smoke\n#เพลงไทย #AIStudio #MV #VelaAI #TikTokเพลง #เพลงใหม่",
+        "hashtags": [
+          "#เพลงไทย",
+          "#AIStudio",
+          "#MV",
+          "#VelaAI",
+          "#TikTokเพลง",
+          "#เพลงใหม่"
+        ],
+        "lyric_quote": "??????????????????",
+        "recommended_motion": "hook_energy_zoom",
+        "recommended_subtitle": "tiktok_bold",
+        "teaser_score": 82
+      },
+      "caption_paths": {
+        "txt": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16_caption.txt",
+        "json": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16_caption.json"
+      },
+      "output_path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16.mp4",
+      "status": "ready",
+      "command": [
+        "D:\\Project AI\\vela_ai_studio_v5\\ffmpeg-2026-05-06-git-f2e5eff3ff-full_build\\bin\\ffmpeg.exe",
+        "-y",
+        "-ss",
+        "0.000",
+        "-i",
+        "D:\\Project AI\\vela_ai_studio_v5\\outputs\\preview_smoke\\renders\\Preview_Smoke_V661_Preview_Scene_1\\20260509_062826_ac44c44c\\final_16x9.mp4",
+        "-t",
+        "5",
+        "-vf",
+        "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p",
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-shortest",
+        "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16.mp4"
+      ],
+      "error": ""
+    }
+  ],
+  "latest": {
+    "clip_type": "Hook Clip",
+    "mode": "preview",
+    "source_video": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\preview_smoke\\renders\\Preview_Smoke_V661_Preview_Scene_1\\20260509_062826_ac44c44c\\final_16x9.mp4",
+    "start_seconds": 0.0,
+    "duration_seconds": 5,
+    "target_duration_seconds": 30,
+    "aspect_ratio": "9:16",
+    "selected_scene": {
+      "scene_id": "1",
+      "scene_index": 0,
+      "start_seconds": 0.0,
+      "score": {
+        "scene_id": "1",
+        "scene_index": 0,
+        "status": "Needs Review",
+        "status_color": "#a86600",
+        "quality_score": 63,
+        "emotional_impact": 87,
+        "hook_potential": 90,
+        "teaser_score": 82,
+        "duration_seconds": 5.0,
+        "recommended_motion": "hook_energy_zoom",
+        "recommended_subtitle": "tiktok_bold",
+        "recommended_actions": [
+          "approve_or_regenerate_image",
+          "preview_tiktok_hook"
+        ],
+        "notes": "hook/chorus candidate, strong emotion, fast social pacing, needs approved visual"
+      },
+      "scene": {
+        "scene": 1,
+        "duration_seconds": 5,
+        "lyric_part": "??????????????????",
+        "emotion": "lonely emotional hook",
+        "pacing_note": "hook energy",
+        "camera": "slow dolly in"
+      }
+    },
+    "caption": {
+      "clip_type": "Hook Clip",
+      "scene_id": "1",
+      "title": "Clip Factory Real Smoke",
+      "caption": "??????????????????\n\nClip Factory Real Smoke\n#เพลงไทย #AIStudio #MV #VelaAI #TikTokเพลง #เพลงใหม่",
+      "hashtags": [
+        "#เพลงไทย",
+        "#AIStudio",
+        "#MV",
+        "#VelaAI",
+        "#TikTokเพลง",
+        "#เพลงใหม่"
+      ],
+      "lyric_quote": "??????????????????",
+      "recommended_motion": "hook_energy_zoom",
+      "recommended_subtitle": "tiktok_bold",
+      "teaser_score": 82
+    },
+    "caption_paths": {
+      "txt": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16_caption.txt",
+      "json": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16_caption.json"
+    },
+    "output_path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16.mp4",
+    "status": "ready",
+    "command": [
+      "D:\\Project AI\\vela_ai_studio_v5\\ffmpeg-2026-05-06-git-f2e5eff3ff-full_build\\bin\\ffmpeg.exe",
+      "-y",
+      "-ss",
+      "0.000",
+      "-i",
+      "D:\\Project AI\\vela_ai_studio_v5\\outputs\\preview_smoke\\renders\\Preview_Smoke_V661_Preview_Scene_1\\20260509_062826_ac44c44c\\final_16x9.mp4",
+      "-t",
+      "5",
+      "-vf",
+      "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,format=yuv420p",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      "-shortest",
+      "D:\\Project AI\\vela_ai_studio_v5\\outputs\\clip_factory_real_smoke\\clips\\preview_hook_clip_9x16.mp4"
+    ],
+    "error": ""
+  }
+}

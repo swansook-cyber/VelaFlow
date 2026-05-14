@@ -1,0 +1,88 @@
+{
+  "artist_id": "dark_emotional",
+  "artist_name": "Dark Emotional",
+  "category": "General Creator Presets",
+  "description": "Moody preset for darker heartbreak and night themes.",
+  "mood": "dark, lonely, intense",
+  "vocal_feeling": "deep emotional vocal, restrained but heavy feeling",
+  "pacing": "slow tension, darker chorus, dramatic final release",
+  "instrumentation_style": "dark piano, muted electric guitar, deep bass, cinematic drums, low pad",
+  "brand_style": "dark, lonely, intense, dark pop, emotional pop rock",
+  "default_language": "Thai lyrics",
+  "music_prompt_language": "English only",
+  "instrument_tags_language": "English only",
+  "genre": "dark pop, emotional pop rock",
+  "vocal_style": "deep emotional vocal, restrained but heavy feeling",
+  "main_instruments": [
+    "dark piano",
+    "muted electric guitar",
+    "deep bass",
+    "cinematic drums"
+  ],
+  "supporting_instruments": [
+    "low pad"
+  ],
+  "atmosphere_elements": [
+    "dark, lonely, intense",
+    "slow tension, darker chorus, dramatic final release",
+    "complete song structure"
+  ],
+  "default_music_style_prompt": "dark emotional pop rock, moody piano, muted electric guitar, deep bass, cinematic drums, low ambient pad, restrained intense vocal",
+  "lyric_style": "natural conversational Thai lyrics, clear emotional story, not overly poetic",
+  "hook_style": "short, catchy, caption-friendly Thai hook",
+  "suno_advanced_settings": {
+    "weirdness": 20,
+    "style_influence": 58,
+    "reason_th": "Public beta preset values are controlled and safe for consistent creator output."
+  },
+  "song_structure": [
+    "Intro",
+    "Verse 1",
+    "Pre-Chorus",
+    "Chorus",
+    "Verse 2",
+    "Bridge",
+    "Final Chorus",
+    "Outro"
+  ],
+  "writing_rules": [
+    "Thai lyrics must sound natural and conversational",
+    "Hook must be short, emotional, catchy, and caption-friendly",
+    "Do not reference real artists or copyrighted artist styles",
+    "Instrument and production tags inside parentheses must be English only",
+    "Final Chorus should feel stronger than previous chorus"
+  ],
+  "section_instrument_tags": {
+    "Intro": "dark piano, low ambient pad, tense atmosphere",
+    "Verse 1": "gentle guitar, warm bass, intimate vocal",
+    "Pre-Chorus": "drums build softly, rising emotional tension",
+    "Chorus": "dark full band chorus, deep bass, cinematic drums",
+    "Verse 2": "rhythmic guitar and bass, steady groove",
+    "Bridge": "stripped-down piano, emotional pause",
+    "Final Chorus": "bigger drums, layered backing vocals, expanded emotion",
+    "Outro": "soft fade out, lingering piano and guitar"
+  },
+  "mv_identity": {
+    "render_profile": "Cinematic",
+    "subtitle_style": "cinematic",
+    "color_profile": "dark night, lonely, moody cinematic",
+    "camera_language": [
+      "slow push in",
+      "emotional close-up",
+      "soft handheld",
+      "cinematic drift"
+    ],
+    "visual_mood": "dark night, lonely, moody cinematic"
+  },
+  "marketing_identity": {
+    "tone": "relatable, creator-friendly, emotional",
+    "target_platforms": [
+      "YouTube",
+      "TikTok",
+      "Facebook",
+      "Shorts"
+    ],
+    "hook_style": "short, catchy, caption-friendly Thai hook"
+  },
+  "locked": true
+}

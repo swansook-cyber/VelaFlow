@@ -1,0 +1,706 @@
+{
+  "version": "VelaFlow V7.8.6",
+  "created_at": "2026-05-11T22:12:03",
+  "title": "เพลงใหม่ของฉัน",
+  "artist": "Vela Moon",
+  "song": {
+    "artist_preset": "vela_moon",
+    "song_structure_plan": {
+      "preset_id": "vela_moon_pop_rock",
+      "preset_name": "Vela Moon Pop Rock",
+      "created_at": "2026-05-11T22:12:16",
+      "topic": "Heartbreak",
+      "mood": "Emotional",
+      "genre": "Emotional Pop Rock",
+      "artist_preset": "vela_moon",
+      "target_platform": "Full Pipeline",
+      "selected_hook": "",
+      "recommended_hook_placement": "Chorus, Post-Chorus, Final Chorus",
+      "recommended_section_order": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "sections": [
+        {
+          "section": "Intro",
+          "weight": 1,
+          "energy": 20,
+          "purpose": "set mood",
+          "emotion": "lonely / reflective",
+          "hook_role": "none",
+          "lyric_density": "low",
+          "arrangement_density": "light",
+          "suggested_tag": "acoustic guitar strumming, soft rhodes piano, relaxed emotional mood"
+        },
+        {
+          "section": "Verse 1",
+          "weight": 2,
+          "energy": 35,
+          "purpose": "storytelling",
+          "emotion": "intimate / honest",
+          "hook_role": "setup",
+          "lyric_density": "medium",
+          "arrangement_density": "light",
+          "suggested_tag": "clean electric guitar picking, warm bass, smooth male vocal"
+        },
+        {
+          "section": "Pre-Chorus",
+          "weight": 1,
+          "energy": 60,
+          "purpose": "build tension",
+          "emotion": "rising emotion",
+          "hook_role": "prepares hook",
+          "lyric_density": "medium",
+          "arrangement_density": "medium",
+          "suggested_tag": "drum pattern builds up slightly, light synth pad"
+        },
+        {
+          "section": "Chorus",
+          "weight": 2,
+          "energy": 85,
+          "purpose": "main emotional release",
+          "emotion": "open / memorable",
+          "hook_role": "main hook",
+          "lyric_density": "medium",
+          "arrangement_density": "full",
+          "suggested_tag": "full band drops in, catchy pop rock groove, tambourine added"
+        },
+        {
+          "section": "Post-Chorus",
+          "weight": 1,
+          "energy": 65,
+          "purpose": "memorable phrase",
+          "emotion": "afterglow",
+          "hook_role": "repeatable hook",
+          "lyric_density": "low",
+          "arrangement_density": "medium",
+          "suggested_tag": "melodic electric guitar solo, easy listening vibe"
+        },
+        {
+          "section": "Verse 2",
+          "weight": 2,
+          "energy": 45,
+          "purpose": "storytelling",
+          "emotion": "clearer realization",
+          "hook_role": "deepens hook meaning",
+          "lyric_density": "medium",
+          "arrangement_density": "medium",
+          "suggested_tag": "bass and drum focus, rhythmic acoustic strumming"
+        },
+        {
+          "section": "Pre-Chorus",
+          "weight": 1,
+          "energy": 65,
+          "purpose": "build tension",
+          "emotion": "stronger lift",
+          "hook_role": "prepares hook",
+          "lyric_density": "medium",
+          "arrangement_density": "medium",
+          "suggested_tag": "drum pattern builds up slightly, light synth pad"
+        },
+        {
+          "section": "Chorus",
+          "weight": 2,
+          "energy": 88,
+          "purpose": "main emotional release",
+          "emotion": "open / singable",
+          "hook_role": "main hook repeat",
+          "lyric_density": "medium",
+          "arrangement_density": "full",
+          "suggested_tag": "full band arrangement, catchy pop rock groove, emotional vocal delivery"
+        },
+        {
+          "section": "Bridge",
+          "weight": 1,
+          "energy": 45,
+          "purpose": "emotional reflection",
+          "emotion": "vulnerable",
+          "hook_role": "contrast",
+          "lyric_density": "medium",
+          "arrangement_density": "stripped",
+          "suggested_tag": "music strips down, rhodes piano and vocal focus, emotional build up"
+        },
+        {
+          "section": "Guitar Solo",
+          "weight": 1,
+          "energy": 75,
+          "purpose": "instrumental emotion",
+          "emotion": "expressive",
+          "hook_role": "instrumental release",
+          "lyric_density": "none",
+          "arrangement_density": "medium full",
+          "suggested_tag": "melodic and expressive pop-rock guitar solo, driving rhythm"
+        },
+        {
+          "section": "Final Chorus",
+          "weight": 2,
+          "energy": 100,
+          "purpose": "peak release",
+          "emotion": "maximum emotional release",
+          "hook_role": "biggest hook",
+          "lyric_density": "medium",
+          "arrangement_density": "maximum",
+          "suggested_tag": "maximum energy, full band, brighter vocal delivery, expanded emotion"
+        },
+        {
+          "section": "Outro",
+          "weight": 1,
+          "energy": 25,
+          "purpose": "soft ending",
+          "emotion": "lingering",
+          "hook_role": "echo",
+          "lyric_density": "low",
+          "arrangement_density": "light",
+          "suggested_tag": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+        }
+      ],
+      "energy_curve": [
+        {
+          "section": "Intro",
+          "energy": 20
+        },
+        {
+          "section": "Verse 1",
+          "energy": 35
+        },
+        {
+          "section": "Pre-Chorus",
+          "energy": 60
+        },
+        {
+          "section": "Chorus",
+          "energy": 85
+        },
+        {
+          "section": "Post-Chorus",
+          "energy": 65
+        },
+        {
+          "section": "Verse 2",
+          "energy": 45
+        },
+        {
+          "section": "Pre-Chorus",
+          "energy": 65
+        },
+        {
+          "section": "Chorus",
+          "energy": 88
+        },
+        {
+          "section": "Bridge",
+          "energy": 45
+        },
+        {
+          "section": "Guitar Solo",
+          "energy": 75
+        },
+        {
+          "section": "Final Chorus",
+          "energy": 100
+        },
+        {
+          "section": "Outro",
+          "energy": 25
+        }
+      ],
+      "emotional_arc": "lonely / reflective -> intimate / honest -> rising emotion -> open / memorable -> afterglow -> clearer realization -> stronger lift -> open / singable -> vulnerable -> expressive -> maximum emotional release -> lingering",
+      "notes_for_lyrics_generation": "Follow section order: Intro, Verse 1, Pre-Chorus, Chorus, Post-Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Guitar Solo, Final Chorus, Outro. Place the selected hook around Chorus, Post-Chorus, Final Chorus. Thai lyrics must remain natural; production tags inside parentheses must stay English only.",
+      "notes_for_mv_director": "Use energy curve to pace cuts and motion. Softer sections need quieter visuals; chorus and final chorus need stronger motion, clearer subtitle emphasis, and more emotional close-ups."
+    },
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+    "advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "weirdness": 10,
+    "style_influence": 65,
+    "instrument_tags_language": "English only",
+    "normalized_song_output": "",
+    "complete_lyrics": "",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": ""
+    },
+    "hook_candidates": [
+      {
+        "name": "ใจไม่ยอม",
+        "hook_text": "รู้ว่าต้องไป แต่ใจมันไม่ยอม",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 90,
+        "reason_th": "สะท้อนความขัดแย้งระหว่างสิ่งที่สมองรู้ว่าต้องทำ (ปล่อยวาง) กับสิ่งที่หัวใจรู้สึก (ยังยึดติดและเจ็บปวด) ซึ่งเป็นแก่นของความเจ็บปวดจากอกหักได้ดี คำสั้น กระชับ และมีพลัง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ยังรออยู่ทำไม",
+        "hook_text": "จบไปแล้ว ทำไมยังรอ?",
+        "emotional_score": 88,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "สื่อถึงความสับสนและความเจ็บปวดที่แม้จะรู้ว่าทุกอย่างจบลงแล้ว แต่ก็ยังอดตั้งคำถามกับตัวเองไม่ได้ว่าทำไมความรู้สึกยังคงวนเวียนอยู่กับความหวัง เป็นประโยคคำถามที่ติดหูและสร้างอารมณ์ร่วม",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "เจ็บจนชิน",
+        "hook_text": "เจ็บจนชิน หรือยังไม่ชิน",
+        "emotional_score": 92,
+        "catchy_score": 88,
+        "tiktok_potential": 95,
+        "reason_th": "แสดงถึงความเจ็บปวดที่ยาวนานจนเกิดความสงสัยในตัวเองว่าความเจ็บปวดนี้เป็นส่วนหนึ่งของชีวิตไปแล้วหรือยัง และแท้จริงแล้วหัวใจยังคงเจ็บอยู่ตลอดเวลา เป็นคำที่กระตุ้นให้คิดตามและเข้าถึงง่าย",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "มีแต่เธอในใจ",
+        "hook_text": "แค่มองฟ้า ก็มีแต่เธอ",
+        "emotional_score": 85,
+        "catchy_score": 82,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นภาพเปรียบเทียบที่สวยงามและสื่อถึงความรู้สึกว่าไม่ว่าจะมองไปที่ไหน ภาพและความทรงจำของเธอก็ยังคงปรากฏอยู่ในใจเสมอ แม้ความรักจะจบลงแล้วก็ตาม เป็นการแสดงความเจ็บปวดที่ละมุนแต่ลึกซึ้ง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "เหลือแค่น้ำตา",
+        "hook_text": "ไม่เหลืออะไร นอกจากน้ำตา",
+        "emotional_score": 95,
+        "catchy_score": 90,
+        "tiktok_potential": 92,
+        "reason_th": "สื่อถึงความรู้สึกว่างเปล่าและสูญเสียทุกสิ่งทุกอย่างที่เคยมี เหลือเพียงความเจ็บปวดที่แสดงออกผ่านการหลั่งน้ำตา ซึ่งเป็นจุดสูงสุดของความทุกข์ระทม คำพูดตรงไปตรงมา เข้าถึงความรู้สึกได้ทันที",
+        "suggested_usage": "title line"
+      }
+    ],
+    "candidate_hooks": [
+      {
+        "name": "ใจไม่ยอม",
+        "hook_text": "รู้ว่าต้องไป แต่ใจมันไม่ยอม",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 90,
+        "reason_th": "สะท้อนความขัดแย้งระหว่างสิ่งที่สมองรู้ว่าต้องทำ (ปล่อยวาง) กับสิ่งที่หัวใจรู้สึก (ยังยึดติดและเจ็บปวด) ซึ่งเป็นแก่นของความเจ็บปวดจากอกหักได้ดี คำสั้น กระชับ และมีพลัง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ยังรออยู่ทำไม",
+        "hook_text": "จบไปแล้ว ทำไมยังรอ?",
+        "emotional_score": 88,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "สื่อถึงความสับสนและความเจ็บปวดที่แม้จะรู้ว่าทุกอย่างจบลงแล้ว แต่ก็ยังอดตั้งคำถามกับตัวเองไม่ได้ว่าทำไมความรู้สึกยังคงวนเวียนอยู่กับความหวัง เป็นประโยคคำถามที่ติดหูและสร้างอารมณ์ร่วม",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "เจ็บจนชิน",
+        "hook_text": "เจ็บจนชิน หรือยังไม่ชิน",
+        "emotional_score": 92,
+        "catchy_score": 88,
+        "tiktok_potential": 95,
+        "reason_th": "แสดงถึงความเจ็บปวดที่ยาวนานจนเกิดความสงสัยในตัวเองว่าความเจ็บปวดนี้เป็นส่วนหนึ่งของชีวิตไปแล้วหรือยัง และแท้จริงแล้วหัวใจยังคงเจ็บอยู่ตลอดเวลา เป็นคำที่กระตุ้นให้คิดตามและเข้าถึงง่าย",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "มีแต่เธอในใจ",
+        "hook_text": "แค่มองฟ้า ก็มีแต่เธอ",
+        "emotional_score": 85,
+        "catchy_score": 82,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นภาพเปรียบเทียบที่สวยงามและสื่อถึงความรู้สึกว่าไม่ว่าจะมองไปที่ไหน ภาพและความทรงจำของเธอก็ยังคงปรากฏอยู่ในใจเสมอ แม้ความรักจะจบลงแล้วก็ตาม เป็นการแสดงความเจ็บปวดที่ละมุนแต่ลึกซึ้ง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "เหลือแค่น้ำตา",
+        "hook_text": "ไม่เหลืออะไร นอกจากน้ำตา",
+        "emotional_score": 95,
+        "catchy_score": 90,
+        "tiktok_potential": 92,
+        "reason_th": "สื่อถึงความรู้สึกว่างเปล่าและสูญเสียทุกสิ่งทุกอย่างที่เคยมี เหลือเพียงความเจ็บปวดที่แสดงออกผ่านการหลั่งน้ำตา ซึ่งเป็นจุดสูงสุดของความทุกข์ระทม คำพูดตรงไปตรงมา เข้าถึงความรู้สึกได้ทันที",
+        "suggested_usage": "title line"
+      }
+    ],
+    "hook_generation_seed": "2026-05-11T22:12:39.129891-742899",
+    "hook_generation_offline": false,
+    "selected_hook": {
+      "name": "เหลือแค่น้ำตา",
+      "hook_text": "ไม่เหลืออะไร นอกจากน้ำตา",
+      "emotional_score": 95,
+      "catchy_score": 90,
+      "tiktok_potential": 92,
+      "reason_th": "สื่อถึงความรู้สึกว่างเปล่าและสูญเสียทุกสิ่งทุกอย่างที่เคยมี เหลือเพียงความเจ็บปวดที่แสดงออกผ่านการหลั่งน้ำตา ซึ่งเป็นจุดสูงสุดของความทุกข์ระทม คำพูดตรงไปตรงมา เข้าถึงความรู้สึกได้ทันที",
+      "suggested_usage": "title line"
+    },
+    "selected_hook_text": "ไม่เหลืออะไร นอกจากน้ำตา"
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {
+    "render_profile": "Cinematic",
+    "subtitle_style": "cinematic"
+  },
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": [],
+  "creative_direction": {
+    "topic": "Heartbreak",
+    "mood": "Emotional",
+    "music_direction": "Emotional Pop Rock",
+    "artist_preset": "vela_moon",
+    "target_platform": "Full Pipeline",
+    "project_concept": "A emotional emotional pop rock song about heartbreak with a clear emotional payoff.",
+    "hook_direction": "short Thai phrase about knowing love is over but the heart still hurts",
+    "lyric_direction": "natural Thai lyrics, relatable, conversational, not overly poetic",
+    "music_style_direction": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+    "emotional_arc": "hurt -> reflection -> acceptance -> release",
+    "visual_mood": "empty bedroom, rain window, soft close-up, quiet street",
+    "suggested_template": "Emotional Pop Rock",
+    "suggested_render_profile": "Cinematic",
+    "suggested_subtitle_style": "cinematic",
+    "suggested_marketing_angle": "complete song-to-MV workflow with hook and marketing angle",
+    "created_at": "2026-05-11T22:12:13"
+  },
+  "song_structure_plan": {
+    "preset_id": "vela_moon_pop_rock",
+    "preset_name": "Vela Moon Pop Rock",
+    "created_at": "2026-05-11T22:12:16",
+    "topic": "Heartbreak",
+    "mood": "Emotional",
+    "genre": "Emotional Pop Rock",
+    "artist_preset": "vela_moon",
+    "target_platform": "Full Pipeline",
+    "selected_hook": "",
+    "recommended_hook_placement": "Chorus, Post-Chorus, Final Chorus",
+    "recommended_section_order": [
+      "Intro",
+      "Verse 1",
+      "Pre-Chorus",
+      "Chorus",
+      "Post-Chorus",
+      "Verse 2",
+      "Pre-Chorus",
+      "Chorus",
+      "Bridge",
+      "Guitar Solo",
+      "Final Chorus",
+      "Outro"
+    ],
+    "sections": [
+      {
+        "section": "Intro",
+        "weight": 1,
+        "energy": 20,
+        "purpose": "set mood",
+        "emotion": "lonely / reflective",
+        "hook_role": "none",
+        "lyric_density": "low",
+        "arrangement_density": "light",
+        "suggested_tag": "acoustic guitar strumming, soft rhodes piano, relaxed emotional mood"
+      },
+      {
+        "section": "Verse 1",
+        "weight": 2,
+        "energy": 35,
+        "purpose": "storytelling",
+        "emotion": "intimate / honest",
+        "hook_role": "setup",
+        "lyric_density": "medium",
+        "arrangement_density": "light",
+        "suggested_tag": "clean electric guitar picking, warm bass, smooth male vocal"
+      },
+      {
+        "section": "Pre-Chorus",
+        "weight": 1,
+        "energy": 60,
+        "purpose": "build tension",
+        "emotion": "rising emotion",
+        "hook_role": "prepares hook",
+        "lyric_density": "medium",
+        "arrangement_density": "medium",
+        "suggested_tag": "drum pattern builds up slightly, light synth pad"
+      },
+      {
+        "section": "Chorus",
+        "weight": 2,
+        "energy": 85,
+        "purpose": "main emotional release",
+        "emotion": "open / memorable",
+        "hook_role": "main hook",
+        "lyric_density": "medium",
+        "arrangement_density": "full",
+        "suggested_tag": "full band drops in, catchy pop rock groove, tambourine added"
+      },
+      {
+        "section": "Post-Chorus",
+        "weight": 1,
+        "energy": 65,
+        "purpose": "memorable phrase",
+        "emotion": "afterglow",
+        "hook_role": "repeatable hook",
+        "lyric_density": "low",
+        "arrangement_density": "medium",
+        "suggested_tag": "melodic electric guitar solo, easy listening vibe"
+      },
+      {
+        "section": "Verse 2",
+        "weight": 2,
+        "energy": 45,
+        "purpose": "storytelling",
+        "emotion": "clearer realization",
+        "hook_role": "deepens hook meaning",
+        "lyric_density": "medium",
+        "arrangement_density": "medium",
+        "suggested_tag": "bass and drum focus, rhythmic acoustic strumming"
+      },
+      {
+        "section": "Pre-Chorus",
+        "weight": 1,
+        "energy": 65,
+        "purpose": "build tension",
+        "emotion": "stronger lift",
+        "hook_role": "prepares hook",
+        "lyric_density": "medium",
+        "arrangement_density": "medium",
+        "suggested_tag": "drum pattern builds up slightly, light synth pad"
+      },
+      {
+        "section": "Chorus",
+        "weight": 2,
+        "energy": 88,
+        "purpose": "main emotional release",
+        "emotion": "open / singable",
+        "hook_role": "main hook repeat",
+        "lyric_density": "medium",
+        "arrangement_density": "full",
+        "suggested_tag": "full band arrangement, catchy pop rock groove, emotional vocal delivery"
+      },
+      {
+        "section": "Bridge",
+        "weight": 1,
+        "energy": 45,
+        "purpose": "emotional reflection",
+        "emotion": "vulnerable",
+        "hook_role": "contrast",
+        "lyric_density": "medium",
+        "arrangement_density": "stripped",
+        "suggested_tag": "music strips down, rhodes piano and vocal focus, emotional build up"
+      },
+      {
+        "section": "Guitar Solo",
+        "weight": 1,
+        "energy": 75,
+        "purpose": "instrumental emotion",
+        "emotion": "expressive",
+        "hook_role": "instrumental release",
+        "lyric_density": "none",
+        "arrangement_density": "medium full",
+        "suggested_tag": "melodic and expressive pop-rock guitar solo, driving rhythm"
+      },
+      {
+        "section": "Final Chorus",
+        "weight": 2,
+        "energy": 100,
+        "purpose": "peak release",
+        "emotion": "maximum emotional release",
+        "hook_role": "biggest hook",
+        "lyric_density": "medium",
+        "arrangement_density": "maximum",
+        "suggested_tag": "maximum energy, full band, brighter vocal delivery, expanded emotion"
+      },
+      {
+        "section": "Outro",
+        "weight": 1,
+        "energy": 25,
+        "purpose": "soft ending",
+        "emotion": "lingering",
+        "hook_role": "echo",
+        "lyric_density": "low",
+        "arrangement_density": "light",
+        "suggested_tag": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      }
+    ],
+    "energy_curve": [
+      {
+        "section": "Intro",
+        "energy": 20
+      },
+      {
+        "section": "Verse 1",
+        "energy": 35
+      },
+      {
+        "section": "Pre-Chorus",
+        "energy": 60
+      },
+      {
+        "section": "Chorus",
+        "energy": 85
+      },
+      {
+        "section": "Post-Chorus",
+        "energy": 65
+      },
+      {
+        "section": "Verse 2",
+        "energy": 45
+      },
+      {
+        "section": "Pre-Chorus",
+        "energy": 65
+      },
+      {
+        "section": "Chorus",
+        "energy": 88
+      },
+      {
+        "section": "Bridge",
+        "energy": 45
+      },
+      {
+        "section": "Guitar Solo",
+        "energy": 75
+      },
+      {
+        "section": "Final Chorus",
+        "energy": 100
+      },
+      {
+        "section": "Outro",
+        "energy": 25
+      }
+    ],
+    "emotional_arc": "lonely / reflective -> intimate / honest -> rising emotion -> open / memorable -> afterglow -> clearer realization -> stronger lift -> open / singable -> vulnerable -> expressive -> maximum emotional release -> lingering",
+    "notes_for_lyrics_generation": "Follow section order: Intro, Verse 1, Pre-Chorus, Chorus, Post-Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Guitar Solo, Final Chorus, Outro. Place the selected hook around Chorus, Post-Chorus, Final Chorus. Thai lyrics must remain natural; production tags inside parentheses must stay English only.",
+    "notes_for_mv_director": "Use energy curve to pace cuts and motion. Softer sections need quieter visuals; chorus and final chorus need stronger motion, clearer subtitle emphasis, and more emotional close-ups."
+  }
+}

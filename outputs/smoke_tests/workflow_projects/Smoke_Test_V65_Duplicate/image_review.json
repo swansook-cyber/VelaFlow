@@ -1,0 +1,12 @@
+{
+  "images": {},
+  "image_versions": {},
+  "approved_images": {
+    "1": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png",
+    "2": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png"
+  },
+  "rejected_images": {},
+  "locked_images": {},
+  "hero_shot": "",
+  "character_references": {}
+}

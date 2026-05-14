@@ -1,0 +1,99 @@
+{
+  "generated_by": "VelaFlow",
+  "brand": "VelaLab",
+  "app_version": "7.8.6a",
+  "build_version": "2026.05.10",
+  "build_date": "2026-05-10",
+  "freeze_name": "VelaFlow V7.7 Stable Candidate 1",
+  "freeze_policy": "Core pipeline is frozen after this snapshot except for bug fixes.",
+  "project": "Smoke Test V65",
+  "created_at": "2026-05-13T20:49:24",
+  "snapshot_dir": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\stable_candidates\\stable_candidate_20260513_204924",
+  "features_ready": [
+    "Song Studio and MV Director workflow",
+    "Character Studio and character lock prompt injection",
+    "Image Lab, Image Review, approval/reject/regenerate/version flow",
+    "Video Lab with manual/offline placeholder providers",
+    "Queue Monitor and persistent job state",
+    "Render Lab with FFmpeg render pipeline, subtitles, motion, profiles, and recovery tools",
+    "Clip Factory, Marketing Package, and Final Package exports",
+    "Asset Manager, System Logs, System Health, Safe Mode, and diagnostics",
+    "Beta Test Mode with ratings, issue log, reports, and stable candidate marker"
+  ],
+  "known_issues": [
+    {
+      "source": "production_audit",
+      "area": "Assets",
+      "severity": "ERROR",
+      "description": "Approve or reuse images for missing scenes",
+      "status": "OPEN"
+    },
+    {
+      "source": "production_audit",
+      "area": "Final Package",
+      "severity": "WARN",
+      "description": "Build final render, clips, captions, and marketing package",
+      "status": "OPEN"
+    },
+    {
+      "source": "production_audit",
+      "area": "Character",
+      "severity": "WARN",
+      "description": "Apply character lock to storyboard prompts",
+      "status": "OPEN"
+    },
+    {
+      "source": "production_audit",
+      "area": "TikTok",
+      "severity": "WARN",
+      "description": "Generate clips/9:16 render and TikTok caption",
+      "status": "OPEN"
+    },
+    {
+      "source": "production_audit",
+      "area": "YouTube",
+      "severity": "WARN",
+      "description": "Render 16:9 and review YouTube copy",
+      "status": "OPEN"
+    },
+    {
+      "source": "production_audit",
+      "area": "Render",
+      "severity": "WARN",
+      "description": "Add audio file in Render Lab",
+      "status": "OPEN"
+    },
+    {
+      "source": "production_audit",
+      "area": "Render",
+      "severity": "WARN",
+      "description": "Render final 16:9 output",
+      "status": "OPEN"
+    },
+    {
+      "source": "beta_test",
+      "id": "ISSUE-001",
+      "area": "Render",
+      "severity": "HIGH",
+      "description": "Smoke issue",
+      "status": "OPEN",
+      "created_at": "2026-05-13T20:49:24"
+    }
+  ],
+  "not_done": [
+    "No online license activation, payment, or subscription system",
+    "No cloud sync, team accounts, or collaborative editing",
+    "No full AI video generation pipeline by default",
+    "No auto upload to social platforms",
+    "No installer, EXE launcher, or hidden CMD packaging yet"
+  ],
+  "evidence": {
+    "diagnostic_bundle": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\stable_candidates\\stable_candidate_20260513_204924\\release_evidence\\diagnostics\\Smoke_Test_V65_diagnostics_20260513_204924.zip",
+    "audit_json": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\stable_candidates\\stable_candidate_20260513_204924\\release_evidence\\audit\\production_audit_20260513_204924.json",
+    "audit_markdown": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\stable_candidates\\stable_candidate_20260513_204924\\release_evidence\\audit\\production_audit_20260513_204924.md",
+    "beta_report_json": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\stable_candidates\\stable_candidate_20260513_204924\\release_evidence\\beta_report\\beta_20260513_204924_beta_report.json",
+    "beta_report_markdown": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\stable_candidates\\stable_candidate_20260513_204924\\release_evidence\\beta_report\\beta_20260513_204924_beta_report.md",
+    "smoke_test_json": "",
+    "smoke_test_ok": true
+  }
+}

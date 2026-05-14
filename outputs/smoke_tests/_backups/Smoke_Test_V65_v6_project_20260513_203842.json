@@ -1,0 +1,747 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-13T20:05:07",
+  "title": "Smoke Test V65",
+  "artist": "VelaLab",
+  "workflow_type": "music_pipeline",
+  "project_type": "music_pipeline",
+  "song": {
+    "complete_lyrics": "[Intro]\n(acoustic guitar, soft ambient pad, ambient pad, gentle accompaniment)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(music slowly fades out, gradually, music)",
+    "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+    "advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "tiktok_clip_cut_recommendation": [
+      {
+        "rank": 1,
+        "start_seconds": 0,
+        "section": "Chorus"
+      }
+    ],
+    "artist_preset": "vela_moon",
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "normalized_song_output": "[Intro]\n(acoustic guitar, soft ambient pad, ambient pad, gentle accompaniment)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(music slowly fades out, gradually, music)",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": "[Intro]\n(acoustic guitar, soft ambient pad, ambient pad, gentle accompaniment)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(music slowly fades out, gradually, music)"
+    },
+    "hook_candidates": [
+      {
+        "name": "Hook A",
+        "hook_text": "ยังคิดถึงเธออยู่ดี",
+        "emotional_score": 93,
+        "catchy_score": 100,
+        "tiktok_potential": 96,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook B",
+        "hook_text": "ฝนตกในใจฉัน",
+        "emotional_score": 95,
+        "catchy_score": 100,
+        "tiktok_potential": 100,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "Hook C",
+        "hook_text": "คิดถึงจนไม่รู้จะหยุดยังไง",
+        "emotional_score": 87,
+        "catchy_score": 89,
+        "tiktok_potential": 82,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "Hook D",
+        "hook_text": "ฝนหยุดแล้ว ใจยังไม่หยุด",
+        "emotional_score": 89,
+        "catchy_score": 94,
+        "tiktok_potential": 87,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "title line"
+      },
+      {
+        "name": "Hook E",
+        "hook_text": "ใจยังอยู่ที่เพลงเดิม",
+        "emotional_score": 81,
+        "catchy_score": 91,
+        "tiktok_potential": 84,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "chorus"
+      }
+    ],
+    "selected_hook": {
+      "name": "Hook B",
+      "hook_text": "ฝนตกในใจฉัน",
+      "emotional_score": 95,
+      "catchy_score": 100,
+      "tiktok_potential": 100,
+      "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+      "suggested_usage": "post-chorus"
+    },
+    "original_song_output": "[Intro]\n(กีต้าร์โปร่งคลอเบาๆ คลอด้วยแพดนุ่มๆ)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(ดนตรีค่อยๆ เฟด)",
+    "song_structure_plan": {
+      "preset_id": "vela_moon_pop_rock",
+      "preset_name": "Vela Moon Pop Rock",
+      "created_at": "2026-05-13T20:05:07",
+      "topic": "เพลงทดสอบเริ่มจากวิซาร์ด",
+      "mood": "Emotional",
+      "genre": "Emotional Pop Rock",
+      "artist_preset": "vela_moon",
+      "target_platform": "Full Pipeline",
+      "selected_hook": "ยังคิดถึงเธอทุกคืน",
+      "recommended_hook_placement": "Chorus, Post-Chorus, Final Chorus",
+      "recommended_section_order": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "sections": [
+        {
+          "section": "Intro",
+          "weight": 1,
+          "energy": 20,
+          "purpose": "set mood",
+          "emotion": "lonely / reflective",
+          "hook_role": "none",
+          "lyric_density": "low",
+          "arrangement_density": "light",
+          "suggested_tag": "acoustic guitar strumming, soft rhodes piano, relaxed emotional mood"
+        },
+        {
+          "section": "Verse 1",
+          "weight": 2,
+          "energy": 35,
+          "purpose": "storytelling",
+          "emotion": "intimate / honest",
+          "hook_role": "setup",
+          "lyric_density": "medium",
+          "arrangement_density": "light",
+          "suggested_tag": "clean electric guitar picking, warm bass, smooth male vocal"
+        },
+        {
+          "section": "Pre-Chorus",
+          "weight": 1,
+          "energy": 60,
+          "purpose": "build tension",
+          "emotion": "rising emotion",
+          "hook_role": "prepares hook",
+          "lyric_density": "medium",
+          "arrangement_density": "medium",
+          "suggested_tag": "drum pattern builds up slightly, light synth pad"
+        },
+        {
+          "section": "Chorus",
+          "weight": 2,
+          "energy": 85,
+          "purpose": "main emotional release",
+          "emotion": "open / memorable",
+          "hook_role": "main hook",
+          "lyric_density": "medium",
+          "arrangement_density": "full",
+          "suggested_tag": "full band drops in, catchy pop rock groove, tambourine added"
+        },
+        {
+          "section": "Post-Chorus",
+          "weight": 1,
+          "energy": 65,
+          "purpose": "memorable phrase",
+          "emotion": "afterglow",
+          "hook_role": "repeatable hook",
+          "lyric_density": "low",
+          "arrangement_density": "medium",
+          "suggested_tag": "melodic electric guitar solo, easy listening vibe"
+        },
+        {
+          "section": "Verse 2",
+          "weight": 2,
+          "energy": 45,
+          "purpose": "storytelling",
+          "emotion": "clearer realization",
+          "hook_role": "deepens hook meaning",
+          "lyric_density": "medium",
+          "arrangement_density": "medium",
+          "suggested_tag": "bass and drum focus, rhythmic acoustic strumming"
+        },
+        {
+          "section": "Pre-Chorus",
+          "weight": 1,
+          "energy": 65,
+          "purpose": "build tension",
+          "emotion": "stronger lift",
+          "hook_role": "prepares hook",
+          "lyric_density": "medium",
+          "arrangement_density": "medium",
+          "suggested_tag": "drum pattern builds up slightly, light synth pad"
+        },
+        {
+          "section": "Chorus",
+          "weight": 2,
+          "energy": 88,
+          "purpose": "main emotional release",
+          "emotion": "open / singable",
+          "hook_role": "main hook repeat",
+          "lyric_density": "medium",
+          "arrangement_density": "full",
+          "suggested_tag": "full band arrangement, catchy pop rock groove, emotional vocal delivery"
+        },
+        {
+          "section": "Bridge",
+          "weight": 1,
+          "energy": 45,
+          "purpose": "emotional reflection",
+          "emotion": "vulnerable",
+          "hook_role": "contrast",
+          "lyric_density": "medium",
+          "arrangement_density": "stripped",
+          "suggested_tag": "music strips down, rhodes piano and vocal focus, emotional build up"
+        },
+        {
+          "section": "Guitar Solo",
+          "weight": 1,
+          "energy": 75,
+          "purpose": "instrumental emotion",
+          "emotion": "expressive",
+          "hook_role": "instrumental release",
+          "lyric_density": "none",
+          "arrangement_density": "medium full",
+          "suggested_tag": "melodic and expressive pop-rock guitar solo, driving rhythm"
+        },
+        {
+          "section": "Final Chorus",
+          "weight": 2,
+          "energy": 100,
+          "purpose": "peak release",
+          "emotion": "maximum emotional release",
+          "hook_role": "biggest hook",
+          "lyric_density": "medium",
+          "arrangement_density": "maximum",
+          "suggested_tag": "maximum energy, full band, brighter vocal delivery, expanded emotion"
+        },
+        {
+          "section": "Outro",
+          "weight": 1,
+          "energy": 25,
+          "purpose": "soft ending",
+          "emotion": "lingering",
+          "hook_role": "echo",
+          "lyric_density": "low",
+          "arrangement_density": "light",
+          "suggested_tag": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+        }
+      ],
+      "energy_curve": [
+        {
+          "section": "Intro",
+          "energy": 20
+        },
+        {
+          "section": "Verse 1",
+          "energy": 35
+        },
+        {
+          "section": "Pre-Chorus",
+          "energy": 60
+        },
+        {
+          "section": "Chorus",
+          "energy": 85
+        },
+        {
+          "section": "Post-Chorus",
+          "energy": 65
+        },
+        {
+          "section": "Verse 2",
+          "energy": 45
+        },
+        {
+          "section": "Pre-Chorus",
+          "energy": 65
+        },
+        {
+          "section": "Chorus",
+          "energy": 88
+        },
+        {
+          "section": "Bridge",
+          "energy": 45
+        },
+        {
+          "section": "Guitar Solo",
+          "energy": 75
+        },
+        {
+          "section": "Final Chorus",
+          "energy": 100
+        },
+        {
+          "section": "Outro",
+          "energy": 25
+        }
+      ],
+      "emotional_arc": "lonely / reflective -> intimate / honest -> rising emotion -> open / memorable -> afterglow -> clearer realization -> stronger lift -> open / singable -> vulnerable -> expressive -> maximum emotional release -> lingering",
+      "notes_for_lyrics_generation": "Follow section order: Intro, Verse 1, Pre-Chorus, Chorus, Post-Chorus, Verse 2, Pre-Chorus, Chorus, Bridge, Guitar Solo, Final Chorus, Outro. Place the selected hook around Chorus, Post-Chorus, Final Chorus. Thai lyrics must remain natural; production tags inside parentheses must stay English only.",
+      "notes_for_mv_director": "Use energy curve to pace cuts and motion. Softer sections need quieter visuals; chorus and final chorus need stronger motion, clearer subtitle emphasis, and more emotional close-ups."
+    },
+    "candidate_hooks": [
+      {
+        "name": "Hook A",
+        "hook_text": "ยังคิดถึงเธออยู่ดี",
+        "emotional_score": 93,
+        "catchy_score": 100,
+        "tiktok_potential": 96,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook B",
+        "hook_text": "ฝนตกในใจฉัน",
+        "emotional_score": 95,
+        "catchy_score": 100,
+        "tiktok_potential": 100,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "Hook C",
+        "hook_text": "คิดถึงจนไม่รู้จะหยุดยังไง",
+        "emotional_score": 87,
+        "catchy_score": 89,
+        "tiktok_potential": 82,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "Hook D",
+        "hook_text": "ฝนหยุดแล้ว ใจยังไม่หยุด",
+        "emotional_score": 89,
+        "catchy_score": 94,
+        "tiktok_potential": 87,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "title line"
+      },
+      {
+        "name": "Hook E",
+        "hook_text": "ใจยังอยู่ที่เพลงเดิม",
+        "emotional_score": 81,
+        "catchy_score": 91,
+        "tiktok_potential": 84,
+        "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+        "suggested_usage": "chorus"
+      }
+    ],
+    "selected_hook_text": "ฝนตกในใจฉัน",
+    "weirdness": 10,
+    "style_influence": 65,
+    "instrument_tags_language": "English only",
+    "saved_at": "2026-05-13T20:05:07",
+    "title": "Smoke Song Workflow",
+    "genre": "Modern Pop / Pop Rock",
+    "mood": "lonely emotional",
+    "music_preset": "VelaFlow Default",
+    "vocal_direction": "Male Emotional"
+  },
+  "mv": {
+    "storyboard": [
+      {
+        "scene": 1,
+        "scene_number": 1,
+        "scene_title": "Night Apartment Loneliness",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional",
+        "transition_idea": "soft light leak transition",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "soft light leak transition",
+        "scene_visual": "young Thai singer sitting beside a window in a small apartment at night with rain outside",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 7,
+        "pacing_note": "cinematic emotional pacing",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 2,
+        "scene_number": 2,
+        "scene_title": "Rain Street Reflection",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional",
+        "transition_idea": "rain ripple dissolve",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "rain ripple dissolve",
+        "scene_visual": "empty city street after rain with neon reflections on wet asphalt",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 7,
+        "pacing_note": "cinematic emotional pacing",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 3,
+        "scene_number": 3,
+        "scene_title": "Rooftop Emotional Distance",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional, emotional hook emphasis",
+        "transition_idea": "gentle whip pan for hook energy",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional, emotional hook emphasis",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "gentle whip pan for hook energy",
+        "scene_visual": "lonely rooftop overlooking Bangkok city lights",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 5,
+        "pacing_note": "strong hook cut",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 4,
+        "scene_number": 4,
+        "scene_title": "Bedroom Memory Glow",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional",
+        "transition_idea": "crossfade into a close-up",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "crossfade into a close-up",
+        "scene_visual": "bedroom lit by a television glow with scattered memories on the floor",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 7,
+        "pacing_note": "cinematic emotional pacing",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 5,
+        "scene_number": 5,
+        "scene_title": "Midnight Convenience Store",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional",
+        "transition_idea": "flash cut on emotional lyric",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "flash cut on emotional lyric",
+        "scene_visual": "quiet convenience store exterior at midnight with soft rain",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 7,
+        "pacing_note": "cinematic emotional pacing",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 6,
+        "scene_number": 6,
+        "scene_title": "Mirror Regret Close-Up",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: mirror reflection close-up with tired emotional eyes. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional, emotional hook emphasis",
+        "transition_idea": "smooth cinematic dissolve",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional, emotional hook emphasis",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "smooth cinematic dissolve",
+        "scene_visual": "mirror reflection close-up with tired emotional eyes",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: mirror reflection close-up with tired emotional eyes. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: mirror reflection close-up with tired emotional eyes. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: mirror reflection close-up with tired emotional eyes. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 5,
+        "pacing_note": "strong hook cut",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 7,
+        "scene_number": 7,
+        "scene_title": "Bridge Walk Release",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: slow walk across a pedestrian bridge under warm street lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional",
+        "transition_idea": "fade into city lights",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "fade into city lights",
+        "scene_visual": "slow walk across a pedestrian bridge under warm street lights",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: slow walk across a pedestrian bridge under warm street lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: slow walk across a pedestrian bridge under warm street lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: slow walk across a pedestrian bridge under warm street lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 7,
+        "pacing_note": "cinematic emotional pacing",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      },
+      {
+        "scene": 8,
+        "scene_number": 8,
+        "scene_title": "Car Window Confession",
+        "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: inside an old car parked by the roadside with blurred city bokeh. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "camera_direction": "slow push-in camera move toward the subject",
+        "lighting": "neon night lighting with colorful reflections",
+        "mood": "lonely emotional",
+        "transition_idea": "blur dissolve to the next memory",
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional",
+        "camera": "slow push-in camera move toward the subject",
+        "transition": "blur dissolve to the next memory",
+        "scene_visual": "inside an old car parked by the roadside with blurred city bokeh",
+        "image_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: inside an old car parked by the roadside with blurred city bokeh. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+        "video_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: inside an old car parked by the roadside with blurred city bokeh. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "vertical_shorts_prompt": "9:16 vertical short, vertical 9:16 AI-ready visual prompt for music_mv: inside an old car parked by the roadside with blurred city bokeh. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+        "duration_seconds": 7,
+        "pacing_note": "cinematic emotional pacing",
+        "visual_engine": {
+          "camera_preset": "Slow Push",
+          "lighting_preset": "Neon Night",
+          "motion_preset": "Slow Cinematic",
+          "visual_mood": "Lonely",
+          "camera_description": "slow push-in camera move toward the subject",
+          "lighting_description": "neon night lighting with colorful reflections",
+          "motion_description": "slow cinematic pacing with smooth motion",
+          "visual_mood_description": "lonely, quiet, reflective visual mood"
+        }
+      }
+    ]
+  },
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": [],
+  "creative_direction": {
+    "topic": "เพลงทดสอบเริ่มจากวิซาร์ด",
+    "mood": "Emotional",
+    "music_direction": "Emotional Pop Rock",
+    "artist_preset": "vela_moon",
+    "target_platform": "Full Pipeline",
+    "project_concept": "A emotional emotional pop rock song about เพลงทดสอบเริ่มจากวิซาร์ด with a clear emotional payoff.",
+    "hook_direction": "short, emotional, caption-friendly Thai phrase that feels like real life",
+    "lyric_direction": "natural Thai lyrics, relatable, conversational, not overly poetic",
+    "music_style_direction": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+    "emotional_arc": "hurt -> reflection -> acceptance -> release",
+    "visual_mood": "cinematic close-up, relatable room, night street lights, emotional performance shots",
+    "suggested_template": "Emotional Pop Rock",
+    "suggested_render_profile": "Cinematic",
+    "suggested_subtitle_style": "cinematic",
+    "suggested_marketing_angle": "complete song-to-MV workflow with hook and marketing angle",
+    "created_at": "2026-05-13T20:05:07"
+  }
+}

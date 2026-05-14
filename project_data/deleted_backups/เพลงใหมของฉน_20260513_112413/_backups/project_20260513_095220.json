@@ -1,0 +1,278 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-12T17:17:32",
+  "title": "เพลงใหม่ของฉัน",
+  "artist": "Vela Moon",
+  "song": {
+    "artist_preset": "vela_moon",
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure\nMusic preset direction: Modern Pop / Pop Rock; balanced, emotional, clean, radio-friendly; clear natural vocal, expressive but not overdramatic; warm piano, acoustic/electric guitar, bass, drums, light pad. Make the song polished, easy to listen to, emotionally clear, and suitable for general release.",
+    "advanced_settings": {
+      "weirdness": 12,
+      "style_influence": 58,
+      "reason_th": "ค่าแนะนำจาก Music Preset: VelaFlow Default เพื่อให้เพลงมีความต่างเล็กน้อยแต่ยังคุมโทนได้",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ],
+      "manual": false
+    },
+    "weirdness": 12,
+    "style_influence": 58,
+    "instrument_tags_language": "English only",
+    "normalized_song_output": "",
+    "complete_lyrics": "",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": ""
+    },
+    "hook_candidates": [
+      {
+        "name": "Hook_PermissionToRest",
+        "hook_text": "ไม่เป็นไรจริง ๆ แค่ใจเธอพัก",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำคำว่า 'ไม่เป็นไร' อย่างจริงใจและให้การอนุญาตให้ใจได้พักผ่อนอย่างเต็มที่ สั้น กระชับ เข้าใจง่าย เหมาะกับ Pop Rock ที่ต้องการความชัดเจนทางอารมณ์และเมโลดี้ที่ติดหู",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_NoRush",
+        "hook_text": "ไม่ต้องฝืน ไม่ต้องรีบเลย",
+        "emotional_score": 88,
+        "catchy_score": 82,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงการไม่กดดันตัวเองและให้เวลาตัวเองได้เยียวยา เหมาะกับการให้กำลังใจในแนว Pop Rock ที่ต้องการความนุ่มนวลและเข้าใจ เน้นย้ำการยอมรับในจังหวะของตนเอง",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "Hook_SmallProgress",
+        "hook_text": "วันนี้แค่ไหว ก็เก่งแล้ว",
+        "emotional_score": 92,
+        "catchy_score": 80,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นการยอมรับและชื่นชมความพยายามเล็กๆ น้อยๆ ในวันที่ไม่ดี ถ้อยคำไม่ซับซ้อน แต่ให้กำลังใจได้อย่างลึกซึ้งและจริงใจ เหมาะเป็นแคปชั่นหรือท่อนสั้นๆ ที่สร้างแรงบันดาลใจได้ง่าย",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "Hook_TomorrowIsBetter",
+        "hook_text": "เดี๋ยวก็ผ่านไป ไม่เป็นไรนะ",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 85,
+        "reason_th": "ให้ความหวังว่าทุกอย่างจะดีขึ้นและเป็นเพียงแค่ช่วงเวลาหนึ่ง โดยยังคงเน้นย้ำความ 'ไม่เป็นไร' เป็นการเตือนใจที่อ่อนโยนและติดหู เหมาะเป็นท่อนสำคัญของเพลงที่สร้างความหวัง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_YouHaveMe",
+        "hook_text": "แค่เธอมีฉัน ก็พอแล้ว",
+        "emotional_score": 95,
+        "catchy_score": 83,
+        "tiktok_potential": 88,
+        "reason_th": "เน้นย้ำถึงการสนับสนุนจากคนรอบข้างหรือผู้ร้อง เป็นอีกมุมของการให้กำลังใจที่อบอุ่นและตรงไปตรงมา สร้างความรู้สึกปลอดภัยและความผูกพันกับผู้ฟังได้เป็นอย่างดี",
+        "suggested_usage": "post-chorus"
+      }
+    ],
+    "candidate_hooks": [
+      {
+        "name": "Hook_PermissionToRest",
+        "hook_text": "ไม่เป็นไรจริง ๆ แค่ใจเธอพัก",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำคำว่า 'ไม่เป็นไร' อย่างจริงใจและให้การอนุญาตให้ใจได้พักผ่อนอย่างเต็มที่ สั้น กระชับ เข้าใจง่าย เหมาะกับ Pop Rock ที่ต้องการความชัดเจนทางอารมณ์และเมโลดี้ที่ติดหู",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_NoRush",
+        "hook_text": "ไม่ต้องฝืน ไม่ต้องรีบเลย",
+        "emotional_score": 88,
+        "catchy_score": 82,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงการไม่กดดันตัวเองและให้เวลาตัวเองได้เยียวยา เหมาะกับการให้กำลังใจในแนว Pop Rock ที่ต้องการความนุ่มนวลและเข้าใจ เน้นย้ำการยอมรับในจังหวะของตนเอง",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "Hook_SmallProgress",
+        "hook_text": "วันนี้แค่ไหว ก็เก่งแล้ว",
+        "emotional_score": 92,
+        "catchy_score": 80,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นการยอมรับและชื่นชมความพยายามเล็กๆ น้อยๆ ในวันที่ไม่ดี ถ้อยคำไม่ซับซ้อน แต่ให้กำลังใจได้อย่างลึกซึ้งและจริงใจ เหมาะเป็นแคปชั่นหรือท่อนสั้นๆ ที่สร้างแรงบันดาลใจได้ง่าย",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "Hook_TomorrowIsBetter",
+        "hook_text": "เดี๋ยวก็ผ่านไป ไม่เป็นไรนะ",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 85,
+        "reason_th": "ให้ความหวังว่าทุกอย่างจะดีขึ้นและเป็นเพียงแค่ช่วงเวลาหนึ่ง โดยยังคงเน้นย้ำความ 'ไม่เป็นไร' เป็นการเตือนใจที่อ่อนโยนและติดหู เหมาะเป็นท่อนสำคัญของเพลงที่สร้างความหวัง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_YouHaveMe",
+        "hook_text": "แค่เธอมีฉัน ก็พอแล้ว",
+        "emotional_score": 95,
+        "catchy_score": 83,
+        "tiktok_potential": 88,
+        "reason_th": "เน้นย้ำถึงการสนับสนุนจากคนรอบข้างหรือผู้ร้อง เป็นอีกมุมของการให้กำลังใจที่อบอุ่นและตรงไปตรงมา สร้างความรู้สึกปลอดภัยและความผูกพันกับผู้ฟังได้เป็นอย่างดี",
+        "suggested_usage": "post-chorus"
+      }
+    ],
+    "music_preset": "VelaFlow Default",
+    "music_preset_data": {
+      "name": "VelaFlow Default",
+      "description": "A safe general-purpose preset for polished emotional pop and pop rock releases.",
+      "genre": "Modern Pop / Pop Rock",
+      "mood": "balanced, emotional, clean, radio-friendly",
+      "vocal_style": "clear natural vocal, expressive but not overdramatic",
+      "arrangement": "warm piano, acoustic/electric guitar, bass, drums, light pad",
+      "structure_guide": "Intro, Verse, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, Outro",
+      "prompt_suffix": "Make the song polished, easy to listen to, emotionally clear, and suitable for general release.",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ]
+    },
+    "hook_generation_seed": "2026-05-12T17:18:47.931470-458668",
+    "hook_generation_offline": false,
+    "song_structure_plan": {}
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

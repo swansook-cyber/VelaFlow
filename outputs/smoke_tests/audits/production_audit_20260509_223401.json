@@ -1,0 +1,260 @@
+{
+  "project": "Smoke Test V65",
+  "created_at": "2026-05-09T22:34:01",
+  "score": 55,
+  "verdict": "Needs producer review before final render",
+  "ready_for_final_render": false,
+  "checks": [
+    {
+      "area": "Narrative",
+      "name": "Storyboard exists",
+      "ok": true,
+      "message": "1 scenes found",
+      "level": "ERROR",
+      "weight": 10,
+      "fix": "Generate storyboard in MV Director"
+    },
+    {
+      "area": "Narrative",
+      "name": "Has setup and ending",
+      "ok": false,
+      "message": "roles: setup",
+      "level": "WARN",
+      "weight": 6,
+      "fix": "Add clear opening and resolution scenes"
+    },
+    {
+      "area": "Narrative",
+      "name": "Has emotional peak",
+      "ok": false,
+      "message": "peak scene: 1",
+      "level": "WARN",
+      "weight": 8,
+      "fix": "Strengthen chorus/final chorus scene role"
+    },
+    {
+      "area": "Narrative",
+      "name": "Visual story consistency",
+      "ok": true,
+      "message": "score 100",
+      "level": "WARN",
+      "weight": 8,
+      "fix": "Review character/color/emotion/lighting continuity"
+    },
+    {
+      "area": "Character",
+      "name": "Character profile",
+      "ok": true,
+      "message": "character lock metadata present",
+      "level": "WARN",
+      "weight": 5,
+      "fix": "Fill Character Studio profile"
+    },
+    {
+      "area": "Character",
+      "name": "Prompt character consistency",
+      "ok": false,
+      "message": "average score 50.0",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Apply character lock to storyboard prompts"
+    },
+    {
+      "area": "Subtitle",
+      "name": "Readable subtitle length",
+      "ok": true,
+      "message": "0 long subtitle lines",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Split long subtitle lines"
+    },
+    {
+      "area": "Subtitle",
+      "name": "Subtitle text coverage",
+      "ok": true,
+      "message": "0 scenes may miss subtitle text",
+      "level": "WARN",
+      "weight": 4,
+      "fix": "Add lyric_part/subtitle_text to scenes"
+    },
+    {
+      "area": "Subtitle",
+      "name": "Dynamic subtitle emotion",
+      "ok": true,
+      "message": "1 scenes have emotion style",
+      "level": "INFO",
+      "weight": 3,
+      "fix": "Run Narrative Intelligence subtitle injection"
+    },
+    {
+      "area": "Hook",
+      "name": "Hook candidate",
+      "ok": true,
+      "message": "top hook score 94",
+      "level": "WARN",
+      "weight": 8,
+      "fix": "Clarify hook/chorus lyrics"
+    },
+    {
+      "area": "Hook",
+      "name": "Hook clip readiness",
+      "ok": true,
+      "message": "1 TikTok candidates",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Preview hook clip and strengthen subtitle emphasis"
+    },
+    {
+      "area": "Render",
+      "name": "Audio source",
+      "ok": false,
+      "message": "missing audio",
+      "level": "WARN",
+      "weight": 6,
+      "fix": "Add audio file in Render Lab"
+    },
+    {
+      "area": "Render",
+      "name": "Final 16:9 render",
+      "ok": false,
+      "message": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\renders\\Smoke_Test_V65\\temp_smoke\\final_16x9.mp4",
+      "level": "WARN",
+      "weight": 5,
+      "fix": "Render final 16:9 output"
+    },
+    {
+      "area": "Render",
+      "name": "Final 9:16 render",
+      "ok": false,
+      "message": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\renders\\Smoke_Test_V65\\temp_smoke\\final_9x16.mp4",
+      "level": "INFO",
+      "weight": 4,
+      "fix": "Render 9:16 for Shorts/TikTok"
+    },
+    {
+      "area": "Assets",
+      "name": "Missing asset check",
+      "ok": true,
+      "message": "missing scenes: none",
+      "level": "INFO",
+      "weight": 12,
+      "fix": "Approve or reuse images for missing scenes"
+    },
+    {
+      "area": "Assets",
+      "name": "Hero shot selected",
+      "ok": true,
+      "message": "hero/approved image available",
+      "level": "WARN",
+      "weight": 4,
+      "fix": "Mark hero shot in Image Review"
+    },
+    {
+      "area": "TikTok",
+      "name": "TikTok package readiness",
+      "ok": false,
+      "message": "needs caption or 9:16 render",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Generate clips/9:16 render and TikTok caption"
+    },
+    {
+      "area": "YouTube",
+      "name": "YouTube package readiness",
+      "ok": false,
+      "message": "title/description + 16:9 render",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Render 16:9 and review YouTube copy"
+    },
+    {
+      "area": "Marketing",
+      "name": "Upload checklist",
+      "ok": true,
+      "message": "6 checklist items",
+      "level": "INFO",
+      "weight": 3,
+      "fix": "Build marketing package"
+    },
+    {
+      "area": "Final Package",
+      "name": "Final package checklist",
+      "ok": false,
+      "message": "3/9 ready",
+      "level": "WARN",
+      "weight": 8,
+      "fix": "Build final render, clips, captions, and marketing package"
+    }
+  ],
+  "fix_first": [
+    {
+      "area": "Narrative",
+      "name": "Has emotional peak",
+      "ok": false,
+      "message": "peak scene: 1",
+      "level": "WARN",
+      "weight": 8,
+      "fix": "Strengthen chorus/final chorus scene role"
+    },
+    {
+      "area": "Final Package",
+      "name": "Final package checklist",
+      "ok": false,
+      "message": "3/9 ready",
+      "level": "WARN",
+      "weight": 8,
+      "fix": "Build final render, clips, captions, and marketing package"
+    },
+    {
+      "area": "Character",
+      "name": "Prompt character consistency",
+      "ok": false,
+      "message": "average score 50.0",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Apply character lock to storyboard prompts"
+    },
+    {
+      "area": "TikTok",
+      "name": "TikTok package readiness",
+      "ok": false,
+      "message": "needs caption or 9:16 render",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Generate clips/9:16 render and TikTok caption"
+    },
+    {
+      "area": "YouTube",
+      "name": "YouTube package readiness",
+      "ok": false,
+      "message": "title/description + 16:9 render",
+      "level": "WARN",
+      "weight": 7,
+      "fix": "Render 16:9 and review YouTube copy"
+    },
+    {
+      "area": "Narrative",
+      "name": "Has setup and ending",
+      "ok": false,
+      "message": "roles: setup",
+      "level": "WARN",
+      "weight": 6,
+      "fix": "Add clear opening and resolution scenes"
+    },
+    {
+      "area": "Render",
+      "name": "Audio source",
+      "ok": false,
+      "message": "missing audio",
+      "level": "WARN",
+      "weight": 6,
+      "fix": "Add audio file in Render Lab"
+    }
+  ],
+  "summary": {
+    "total": 20,
+    "passed": 11,
+    "errors": 0,
+    "warnings": 8
+  }
+}

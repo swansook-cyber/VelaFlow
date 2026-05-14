@@ -1,0 +1,2 @@
+[INFO] Render 20260510_152131_b6defbb3 started
+[WARN] ffmpeg is not available; manifest, timeline, subtitles, and assets log were created.

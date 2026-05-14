@@ -1,0 +1,331 @@
+{
+  "version": "VelaFlow V7.8.3f",
+  "created_at": "2026-05-10T18:37:38",
+  "title": "แสงแห่งหวัง",
+  "artist": "Vela Moon",
+  "song": {
+    "title": "แสงแห่งหวัง",
+    "target_analysis": "เพลงนี้มุ่งเป้าไปที่กลุ่มคนรุ่นใหม่และวัยทำงานที่กำลังเผชิญกับความท้าทายในชีวิตประจำวัน ไม่ว่าจะเป็นเรื่องงาน ความสัมพันธ์ หรือความคาดหวังส่วนตัว ที่บางครั้งรู้สึกท้อแท้หรือมองไม่เห็นทางออก พวกเขาต้องการกำลังใจ คำปลอบโยนที่เข้าใจง่าย และเพลงที่ช่วยให้รู้สึกผ่อนคลายและมีความหวังอีกครั้ง Hook ที่เลือกมาจะสื่อสารตรงไปยังความรู้สึกหนักอึ้งในใจและมอบความเบาและความหวังให้ ซึ่งเหมาะสำหรับการแชร์บนโซเชียลมีเดียเพื่อสร้างแรงบันดาลใจและเชื่อมโยงกับประสบการณ์ร่วมของผู้ฟัง",
+    "hook_type": "Emotional / Uplifting Anthem",
+    "hook_candidates": [
+      {
+        "name": "วงล้อชีวิต",
+        "hook_text": "สุข เศร้า ก็แค่หมุนไป วันใหม่เริ่มอีกที",
+        "emotional_score": 85,
+        "catchy_score": 80,
+        "tiktok_potential": 70,
+        "reason_th": "สื่อถึงวัฏจักรของชีวิตที่หมุนเวียนไป ทั้งสุขและเศร้า เป็นการบอกให้ปล่อยวางและมองเห็นโอกาสใหม่ๆ ในทุกวันใหม่ สอดคล้องกับธีม 'ชีวิตก็แบบนี้แหละ' และให้กำลังใจ",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "บทเรียนวันใหม่",
+        "hook_text": "บททดสอบในวันนี้ ให้เธอเติบโต",
+        "emotional_score": 90,
+        "catchy_score": 75,
+        "tiktok_potential": 85,
+        "reason_th": "เน้นย้ำถึงมุมมองเชิงบวกต่ออุปสรรคว่าคือบททดสอบที่ทำให้เราเติบโตขึ้น ให้กำลังใจให้เผชิญหน้าและก้าวผ่านไปได้ สอดคล้องกับ 'แต่ละวันเราต่างเจอ บททอสที่แตกต่างกันไป'",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "แสงแห่งหวัง",
+        "hook_text": "หัวใจเธอจะเบา เมื่อแสงแห่งหวังมา",
+        "emotional_score": 95,
+        "catchy_score": 88,
+        "tiktok_potential": 90,
+        "reason_th": "เน้นย้ำถึงความหวังและความเชื่อว่าเมื่อเวลาผ่านไป ความทุกข์จะจางหายและหัวใจจะเบาลงด้วยแสงแห่งความหวังที่เข้ามาแทนที่ สื่อถึง 'จนลืมทุกข์ไปเลย'",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ดั่งสายน้ำ",
+        "hook_text": "แค่ปล่อยให้ไหลไป... เหมือนสายน้ำ",
+        "emotional_score": 80,
+        "catchy_score": 82,
+        "tiktok_potential": 95,
+        "reason_th": "ใช้ภาพเปรียบเทียบที่เรียบง่ายแต่ทรงพลัง สื่อถึงการปล่อยวางและยอมรับความเป็นไปของชีวิต ให้ไหลไปตามธรรมชาติ ไม่ต้องฝืนหรือคิดมาก สอดคล้องกับ 'อย่าคิดมาก' และ 'easy-listening'",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "นี่แหละชีวิต",
+        "hook_text": "สุข เศร้า ปนกันไป... นี่แหละชีวิต",
+        "emotional_score": 88,
+        "catchy_score": 90,
+        "tiktok_potential": 92,
+        "reason_th": "เป็นการสรุปแก่นของธีมได้อย่างชัดเจนและตรงไปตรงมาว่าชีวิตมีความหลากหลายทั้งสุขและเศร้าผสมกันไป เป็นประโยคที่ติดหูและปลอบใจในความจริงที่ทุกคนเผชิญ",
+        "suggested_usage": "title line"
+      }
+    ],
+    "selected_hook": {
+      "name": "แสงแห่งหวัง",
+      "hook_text": "หัวใจเธอจะเบา เมื่อแสงแห่งหวังมา",
+      "emotional_score": 95,
+      "catchy_score": 88,
+      "tiktok_potential": 90,
+      "reason_th": "เน้นย้ำถึงความหวังและความเชื่อว่าเมื่อเวลาผ่านไป ความทุกข์จะจางหายและหัวใจจะเบาลงด้วยแสงแห่งความหวังที่เข้ามาแทนที่ สื่อถึง 'จนลืมทุกข์ไปเลย'",
+      "suggested_usage": "chorus"
+    },
+    "selected_hook_text": "หัวใจเธอจะเบา เมื่อแสงแห่งหวังมา",
+    "selected_hook_reason": "Hook นี้ตรงตามโจทย์ที่ต้องการให้เป็น Main Chorus และเป็นประโยคที่แข็งแกร่งที่สุดในการสื่อสารธีม 'กำลังใจ' และ 'ความหวัง' ด้วยคำที่เรียบง่ายแต่เปี่ยมความหมาย ทำให้ติดหูและสร้างอารมณ์ร่วมได้ง่าย ซึ่งเป็นปัจจัยสำคัญสำหรับเพลงที่ต้องการ Viral level สูง",
+    "instrument_selection": {
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_texture_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure",
+        "uplifting mood"
+      ],
+      "reason": "เครื่องดนตรีหลักถูกเลือกมาเพื่อให้ได้ซาวด์ Pop Rock ที่เป็นเอกลักษณ์ของ Vela Moon โดยเน้นความ 'easy-listening' และ 'emotional' เป็นสำคัญ Acoustic guitar strumming และ clean electric guitar สร้างบรรยากาศที่อบอุ่นและเป็นกันเอง ขณะที่ warm bass และ soft drum kit ให้จังหวะที่มั่นคงแต่ไม่หนักจนเกินไป Light rhodes piano และ soft synth pad ถูกเพิ่มเข้ามาเพื่อสร้างมิติทางอารมณ์และความรู้สึกที่ผ่อนคลาย โดยมี tambourine เพิ่มความสดใสในท่อน Chorus และ melodic electric guitar solo เพื่อเติมเต็มความสมบูรณ์ของเพลงตามโครงสร้างที่กำหนด"
+    },
+    "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, soft synth pad, tambourine, smooth emotional male vocal, relaxed but heartfelt delivery, catchy melody, uplifting and hopeful mood, full band arrangement, complete song structure, resonant and warm production, dynamic build-ups.",
+    "advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "complete_lyrics": "[Intro]\n(Acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat, warm atmosphere)\nโอ้ว…\n\n[Verse 1]\n(Clean electric guitar picking, warm bass, soft drum kit, smooth male vocal)\nวันที่ฟ้ามันไม่เป็นใจ แบกความเหนื่อยล้าจนใจท้อ\nบางทีก็มีน้ำตาไหล ไม่รู้จะสู้ไปเพื่อใครต่อ\nเส้นทางชีวิตที่วกวน มีบางช่วงที่มืดมน\nเดินชนกำแพงไม่รู้กี่หน จะมองเห็นแสงได้อีกไหม\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Post-Chorus]\n(Melodic electric guitar riff, easy listening vibe, vocal harmonies)\nแสงแห่งหวัง... ที่ส่องทาง\n\n[Verse 2]\n(Bass and drum focus, rhythmic acoustic strumming, smooth male vocal)\nบางวันก็สุขจนลืมทุกข์ บางวันก็ทุกข์จนใจหม่น\nชีวิตคือการเดินทาง ให้เราได้ค้นพบผู้คน\nทุกๆ นาทีที่หมุนไป มันสอนให้เราเข้มแข็ง\nแม้ต้องล้มลงอีกกี่ครั้ง ก็ลุกขึ้นยืนด้วยกำลังใจ\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Bridge]\n(Music strips down, rhodes piano and vocal focus, emotional build up, gentle drum beat)\nไม่ว่าวันนี้เธอเจออะไร ไม่ว่าพรุ่งนี้จะเป็นอย่างไร\nแค่เชื่อมั่นในตัวเอง ว่าเธอจะผ่านมันไป\n\n[Guitar Solo]\n(Melodic and expressive pop-rock guitar solo, driving rhythm from full band)\n\n[Final Chorus]\n(Maximum energy, full band, brighter vocal delivery, expanded emotion, powerful drums)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา (maximum energy, full band, brighter vocal delivery, expanded emotion)\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป (maximum energy, full band, brighter vocal delivery, expanded emotion)\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า (maximum energy, full band, brighter vocal delivery, expanded emotion)\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n(maximum energy, full band, brighter vocal delivery, expanded emotion) (maximum energy, full band, brighter vocal delivery, expanded emotion) (maximum energy, full band, brighter vocal delivery, expanded emotion)\n\n[Outro]\n(Fading out with acoustic guitar and soft piano, lingering clean guitar note, ambient pads)\nวันใหม่... แสงแห่งหวัง...\n(Soft drums fade, gentle sustain of clean guitar)",
+    "tiktok_clip_cut_recommendation": [
+      {
+        "rank": 1,
+        "section": "Chorus",
+        "lyric_excerpt": "หัวใจเธอจะเบา เมื่อแสงแห่งหวังมา โอบกอดทุกความอ่อนล้า ให้มันจางหายไป",
+        "reason": "ท่อนฮุกติดหูและเป็นข้อความให้กำลังใจที่ทรงพลัง สามารถใช้ประกอบคลิปที่ต้องการสร้างแรงบันดาลใจ หรือคลิปที่เล่าเรื่องราวการก้าวผ่านความยากลำบาก",
+        "clip_type": "Uplifting / Motivational"
+      },
+      {
+        "rank": 2,
+        "section": "Pre-Chorus",
+        "lyric_excerpt": "แต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก เรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน",
+        "reason": "ท่อนนี้มีความ relatable สูงมากสำหรับผู้ที่กำลังเผชิญปัญหา เป็นท่อนที่สะท้อนถึงความมุ่งมั่นและบทเรียนจากชีวิต เหมาะกับการใช้ประกอบคลิปแนว Storytelling หรือการแชร์ประสบการณ์ส่วนตัว",
+        "clip_type": "Relatable / Storytelling"
+      },
+      {
+        "rank": 3,
+        "section": "Bridge",
+        "lyric_excerpt": "ไม่ว่าวันนี้เธอเจออะไร ไม่ว่าพรุ่งนี้จะเป็นอย่างไร แค่เชื่อมั่นในตัวเอง ว่าเธอจะผ่านมันไป",
+        "reason": "เป็นท่อนที่ให้คำแนะนำและสร้างความเชื่อมั่นอย่างตรงไปตรงมา เหมาะสำหรับใช้เป็นเพลงประกอบคลิปที่ต้องการให้กำลังใจเพื่อน หรือสร้างข้อความเชิงบวกสั้นๆ",
+        "clip_type": "Encouragement / Positive Affirmation"
+      }
+    ],
+    "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว",
+    "candidate_hooks": [
+      {
+        "name": "วงล้อชีวิต",
+        "hook_text": "สุข เศร้า ก็แค่หมุนไป วันใหม่เริ่มอีกที",
+        "emotional_score": 85,
+        "catchy_score": 80,
+        "tiktok_potential": 70,
+        "reason_th": "สื่อถึงวัฏจักรของชีวิตที่หมุนเวียนไป ทั้งสุขและเศร้า เป็นการบอกให้ปล่อยวางและมองเห็นโอกาสใหม่ๆ ในทุกวันใหม่ สอดคล้องกับธีม 'ชีวิตก็แบบนี้แหละ' และให้กำลังใจ",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "บทเรียนวันใหม่",
+        "hook_text": "บททดสอบในวันนี้ ให้เธอเติบโต",
+        "emotional_score": 90,
+        "catchy_score": 75,
+        "tiktok_potential": 85,
+        "reason_th": "เน้นย้ำถึงมุมมองเชิงบวกต่ออุปสรรคว่าคือบททดสอบที่ทำให้เราเติบโตขึ้น ให้กำลังใจให้เผชิญหน้าและก้าวผ่านไปได้ สอดคล้องกับ 'แต่ละวันเราต่างเจอ บททอสที่แตกต่างกันไป'",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "แสงแห่งหวัง",
+        "hook_text": "หัวใจเธอจะเบา เมื่อแสงแห่งหวังมา",
+        "emotional_score": 95,
+        "catchy_score": 88,
+        "tiktok_potential": 90,
+        "reason_th": "เน้นย้ำถึงความหวังและความเชื่อว่าเมื่อเวลาผ่านไป ความทุกข์จะจางหายและหัวใจจะเบาลงด้วยแสงแห่งความหวังที่เข้ามาแทนที่ สื่อถึง 'จนลืมทุกข์ไปเลย'",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ดั่งสายน้ำ",
+        "hook_text": "แค่ปล่อยให้ไหลไป... เหมือนสายน้ำ",
+        "emotional_score": 80,
+        "catchy_score": 82,
+        "tiktok_potential": 95,
+        "reason_th": "ใช้ภาพเปรียบเทียบที่เรียบง่ายแต่ทรงพลัง สื่อถึงการปล่อยวางและยอมรับความเป็นไปของชีวิต ให้ไหลไปตามธรรมชาติ ไม่ต้องฝืนหรือคิดมาก สอดคล้องกับ 'อย่าคิดมาก' และ 'easy-listening'",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "นี่แหละชีวิต",
+        "hook_text": "สุข เศร้า ปนกันไป... นี่แหละชีวิต",
+        "emotional_score": 88,
+        "catchy_score": 90,
+        "tiktok_potential": 92,
+        "reason_th": "เป็นการสรุปแก่นของธีมได้อย่างชัดเจนและตรงไปตรงมาว่าชีวิตมีความหลากหลายทั้งสุขและเศร้าผสมกันไป เป็นประโยคที่ติดหูและปลอบใจในความจริงที่ทุกคนเผชิญ",
+        "suggested_usage": "title line"
+      }
+    ],
+    "instrument_tags": {
+      "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+      "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+      "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+      "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+      "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+      "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+      "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+      "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+      "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+      "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+    },
+    "energy_curve": {
+      "Intro": 25,
+      "Verse 1": 35,
+      "Pre-Chorus": 60,
+      "Chorus": 88,
+      "Post-Chorus": 78,
+      "Verse 2": 42,
+      "Bridge": 50,
+      "Final Chorus": 98,
+      "Outro": 20
+    },
+    "arrangement_preset": "",
+    "artist_preset": "vela_moon",
+    "artist_preset_name": "Vela Moon",
+    "instrument_tags_language": "English only",
+    "original_song_output": "[Intro]\n(Acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat, warm atmosphere)\nโอ้ว…\n\n[Verse 1]\n(Clean electric guitar picking, warm bass, soft drum kit, smooth male vocal)\nวันที่ฟ้ามันไม่เป็นใจ แบกความเหนื่อยล้าจนใจท้อ\nบางทีก็มีน้ำตาไหล ไม่รู้จะสู้ไปเพื่อใครต่อ\nเส้นทางชีวิตที่วกวน มีบางช่วงที่มืดมน\nเดินชนกำแพงไม่รู้กี่หน จะมองเห็นแสงได้อีกไหม\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Post-Chorus]\n(Melodic electric guitar riff, easy listening vibe, vocal harmonies)\nแสงแห่งหวัง... ที่ส่องทาง\n\n[Verse 2]\n(Bass and drum focus, rhythmic acoustic strumming, smooth male vocal)\nบางวันก็สุขจนลืมทุกข์ บางวันก็ทุกข์จนใจหม่น\nชีวิตคือการเดินทาง ให้เราได้ค้นพบผู้คน\nทุกๆ นาทีที่หมุนไป มันสอนให้เราเข้มแข็ง\nแม้ต้องล้มลงอีกกี่ครั้ง ก็ลุกขึ้นยืนด้วยกำลังใจ\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Bridge]\n(Music strips down, rhodes piano and vocal focus, emotional build up, gentle drum beat)\nไม่ว่าวันนี้เธอเจออะไร ไม่ว่าพรุ่งนี้จะเป็นอย่างไร\nแค่เชื่อมั่นในตัวเอง ว่าเธอจะผ่านมันไป\n\n[Guitar Solo]\n(Melodic and expressive pop-rock guitar solo, driving rhythm from full band)\n\n[Final Chorus]\n(Maximum energy, full band, brighter vocal delivery, expanded emotion, powerful drums)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา (เมื่อแสงแห่งหวังมา!)\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป (ให้จางหาย!)\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า (มองให้ไกล!)\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n(หัวใจเธอจะเบา...) (เมื่อแสงแห่งหวังมา...) (มีวันใหม่...)\n\n[Outro]\n(Fading out with acoustic guitar and soft piano, lingering clean guitar note, ambient pads)\nวันใหม่... แสงแห่งหวัง...\n(Soft drums fade, gentle sustain of clean guitar)\n",
+    "normalized_song_output": "[Intro]\n(Acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat, warm atmosphere)\nโอ้ว…\n\n[Verse 1]\n(Clean electric guitar picking, warm bass, soft drum kit, smooth male vocal)\nวันที่ฟ้ามันไม่เป็นใจ แบกความเหนื่อยล้าจนใจท้อ\nบางทีก็มีน้ำตาไหล ไม่รู้จะสู้ไปเพื่อใครต่อ\nเส้นทางชีวิตที่วกวน มีบางช่วงที่มืดมน\nเดินชนกำแพงไม่รู้กี่หน จะมองเห็นแสงได้อีกไหม\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Post-Chorus]\n(Melodic electric guitar riff, easy listening vibe, vocal harmonies)\nแสงแห่งหวัง... ที่ส่องทาง\n\n[Verse 2]\n(Bass and drum focus, rhythmic acoustic strumming, smooth male vocal)\nบางวันก็สุขจนลืมทุกข์ บางวันก็ทุกข์จนใจหม่น\nชีวิตคือการเดินทาง ให้เราได้ค้นพบผู้คน\nทุกๆ นาทีที่หมุนไป มันสอนให้เราเข้มแข็ง\nแม้ต้องล้มลงอีกกี่ครั้ง ก็ลุกขึ้นยืนด้วยกำลังใจ\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Bridge]\n(Music strips down, rhodes piano and vocal focus, emotional build up, gentle drum beat)\nไม่ว่าวันนี้เธอเจออะไร ไม่ว่าพรุ่งนี้จะเป็นอย่างไร\nแค่เชื่อมั่นในตัวเอง ว่าเธอจะผ่านมันไป\n\n[Guitar Solo]\n(Melodic and expressive pop-rock guitar solo, driving rhythm from full band)\n\n[Final Chorus]\n(Maximum energy, full band, brighter vocal delivery, expanded emotion, powerful drums)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา (maximum energy, full band, brighter vocal delivery, expanded emotion)\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป (maximum energy, full band, brighter vocal delivery, expanded emotion)\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า (maximum energy, full band, brighter vocal delivery, expanded emotion)\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n(maximum energy, full band, brighter vocal delivery, expanded emotion) (maximum energy, full band, brighter vocal delivery, expanded emotion) (maximum energy, full band, brighter vocal delivery, expanded emotion)\n\n[Outro]\n(Fading out with acoustic guitar and soft piano, lingering clean guitar note, ambient pads)\nวันใหม่... แสงแห่งหวัง...\n(Soft drums fade, gentle sustain of clean guitar)",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": "[Intro]\n(Acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat, warm atmosphere)\nโอ้ว…\n\n[Verse 1]\n(Clean electric guitar picking, warm bass, soft drum kit, smooth male vocal)\nวันที่ฟ้ามันไม่เป็นใจ แบกความเหนื่อยล้าจนใจท้อ\nบางทีก็มีน้ำตาไหล ไม่รู้จะสู้ไปเพื่อใครต่อ\nเส้นทางชีวิตที่วกวน มีบางช่วงที่มืดมน\nเดินชนกำแพงไม่รู้กี่หน จะมองเห็นแสงได้อีกไหม\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Post-Chorus]\n(Melodic electric guitar riff, easy listening vibe, vocal harmonies)\nแสงแห่งหวัง... ที่ส่องทาง\n\n[Verse 2]\n(Bass and drum focus, rhythmic acoustic strumming, smooth male vocal)\nบางวันก็สุขจนลืมทุกข์ บางวันก็ทุกข์จนใจหม่น\nชีวิตคือการเดินทาง ให้เราได้ค้นพบผู้คน\nทุกๆ นาทีที่หมุนไป มันสอนให้เราเข้มแข็ง\nแม้ต้องล้มลงอีกกี่ครั้ง ก็ลุกขึ้นยืนด้วยกำลังใจ\n\n[Pre-Chorus]\n(Drum pattern builds up slightly, light synth pad, emotional vocal delivery)\nแต่ชีวิตก็สอนให้เรา ต้องเดินต่อไปไม่หยุดพัก\nเรียนรู้ทุกบททดสอบที่เจอ แม้มันจะหนักแค่ไหน\n\n[Chorus]\n(Full band drops in, catchy pop rock groove, tambourine added, brighter vocal)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n\n[Bridge]\n(Music strips down, rhodes piano and vocal focus, emotional build up, gentle drum beat)\nไม่ว่าวันนี้เธอเจออะไร ไม่ว่าพรุ่งนี้จะเป็นอย่างไร\nแค่เชื่อมั่นในตัวเอง ว่าเธอจะผ่านมันไป\n\n[Guitar Solo]\n(Melodic and expressive pop-rock guitar solo, driving rhythm from full band)\n\n[Final Chorus]\n(Maximum energy, full band, brighter vocal delivery, expanded emotion, powerful drums)\nหัวใจเธอจะเบา เมื่อแสงแห่งหวังมา (maximum energy, full band, brighter vocal delivery, expanded emotion)\nโอบกอดทุกความอ่อนล้า ให้มันจางหายไป (maximum energy, full band, brighter vocal delivery, expanded emotion)\nเพียงแค่เธอลองเปิดใจ มองไปให้ไกลกว่า (maximum energy, full band, brighter vocal delivery, expanded emotion)\nแล้วเธอจะพบว่าโลกนี้ยังมีวันใหม่\n(maximum energy, full band, brighter vocal delivery, expanded emotion) (maximum energy, full band, brighter vocal delivery, expanded emotion) (maximum energy, full band, brighter vocal delivery, expanded emotion)\n\n[Outro]\n(Fading out with acoustic guitar and soft piano, lingering clean guitar note, ambient pads)\nวันใหม่... แสงแห่งหวัง...\n(Soft drums fade, gentle sustain of clean guitar)"
+    },
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      }
+    },
+    "weirdness": 10,
+    "style_influence": 65,
+    "saved_at": "2026-05-10T18:49:31"
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

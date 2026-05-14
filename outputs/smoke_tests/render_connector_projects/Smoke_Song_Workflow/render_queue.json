@@ -1,0 +1,1258 @@
+[
+  {
+    "queue_id": "render_20260513_203842_688786",
+    "created_at": "2026-05-13T20:38:42",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204158_476962",
+    "created_at": "2026-05-13T20:41:58",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204900_550758",
+    "created_at": "2026-05-13T20:49:00",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T20:49:00"
+  },
+  {
+    "queue_id": "render_20260513_204924_137931",
+    "created_at": "2026-05-13T20:49:24",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T20:49:24"
+  },
+  {
+    "queue_id": "render_20260513_211052_810556",
+    "created_at": "2026-05-13T21:10:52",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T21:10:52"
+  },
+  {
+    "queue_id": "render_20260513_211422_718409",
+    "created_at": "2026-05-13T21:14:22",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, Modern Pop / Pop Rock. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T21:14:22"
+  },
+  {
+    "queue_id": "render_20260513_213603_340447",
+    "created_at": "2026-05-13T21:36:03",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T21:36:03"
+  },
+  {
+    "queue_id": "render_20260513_215651_860687",
+    "created_at": "2026-05-13T21:56:51",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T21:56:51"
+  },
+  {
+    "queue_id": "render_20260513_215830_913064",
+    "created_at": "2026-05-13T21:58:30",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T21:58:30"
+  },
+  {
+    "queue_id": "render_20260513_221737_661929",
+    "created_at": "2026-05-13T22:17:37",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T22:17:37"
+  },
+  {
+    "queue_id": "render_20260513_221804_436058",
+    "created_at": "2026-05-13T22:18:04",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-13T22:18:04"
+  },
+  {
+    "queue_id": "render_20260514_100347_947224",
+    "created_at": "2026-05-14T10:03:47",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-14T10:03:47"
+  },
+  {
+    "queue_id": "render_20260514_100943_209861",
+    "created_at": "2026-05-14T10:09:43",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-14T10:09:43"
+  },
+  {
+    "queue_id": "render_20260514_101625_785862",
+    "created_at": "2026-05-14T10:16:25",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-14T10:16:25"
+  },
+  {
+    "queue_id": "render_20260514_102929_891201",
+    "created_at": "2026-05-14T10:29:29",
+    "project_name": "Smoke Song Workflow",
+    "workflow_type": "music_mv",
+    "provider": "Veo",
+    "aspect_ratio": "16:9",
+    "duration": "10s",
+    "quality": "Cinematic",
+    "status": "Exported",
+    "payload": {
+      "workflow_type": "music_mv",
+      "project_type": "music_mv",
+      "provider": "Veo",
+      "provider_preset": {
+        "provider_name": "Veo",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "10s-15s",
+        "cinematic_strength": "very high",
+        "motion_strength": "medium",
+        "prompt_style": "director-style scene description with camera, lighting, pacing, and mood",
+        "notes": "Prepared as a high-quality cinematic provider target."
+      },
+      "aspect_ratio": "16:9",
+      "duration": "10s",
+      "quality": "Cinematic",
+      "motion_intensity": "Medium",
+      "camera_preset": "Slow Push",
+      "lighting_preset": "Neon Night",
+      "motion_preset": "Slow Cinematic",
+      "visual_mood": "Lonely",
+      "bundle_name": "Cinematic Sad",
+      "scene_structure": [
+        {
+          "beat": "Night Apartment Loneliness",
+          "scene": 1
+        },
+        {
+          "beat": "Rain Street Reflection",
+          "scene": 2
+        },
+        {
+          "beat": "Rooftop Emotional Distance",
+          "scene": 3
+        },
+        {
+          "beat": "Bedroom Memory Glow",
+          "scene": 4
+        },
+        {
+          "beat": "Midnight Convenience Store",
+          "scene": 5
+        },
+        {
+          "beat": "Mirror Regret Close-Up",
+          "scene": 6
+        },
+        {
+          "beat": "Bridge Walk Release",
+          "scene": 7
+        },
+        {
+          "beat": "Car Window Confession",
+          "scene": 8
+        }
+      ],
+      "visual_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: empty city street after rain with neon reflections on wet asphalt. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: lonely rooftop overlooking Bangkok city lights. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional hook emphasis, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: bedroom lit by a television glow with scattered memories on the floor. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design\nvertical 9:16 AI-ready visual prompt for music_mv: quiet convenience store exterior at midnight with soft rain. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark., subtle natural motion, realistic human emotion, concise shot design",
+      "thumbnail_prompt": "vertical 9:16 AI-ready visual prompt for music_mv: young Thai singer sitting beside a window in a small apartment at night with rain outside. Context: lyric moment: ยังคิดถึงเธอทุกคืน, lonely emotional, emotional, relatable, cinematic but accessible, Modern Pop / Pop Rock, artist camera language: slow push in, emotional drift, soft handheld, cinematic close-up. Camera: slow push-in camera move toward the subject. Lighting: neon night lighting with colorful reflections. Motion: slow cinematic pacing with smooth motion. Mood: lonely, quiet, reflective visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "b_roll_ideas": [
+        "Night Apartment Loneliness",
+        "Rain Street Reflection",
+        "Rooftop Emotional Distance",
+        "Bedroom Memory Glow",
+        "Midnight Convenience Store",
+        "Mirror Regret Close-Up",
+        "Bridge Walk Release",
+        "Car Window Confession"
+      ]
+    },
+    "updated_at": "2026-05-14T10:29:29"
+  }
+]

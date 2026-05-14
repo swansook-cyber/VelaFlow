@@ -1,0 +1,1125 @@
+[
+  {
+    "queue_id": "render_20260513_203842_704877",
+    "created_at": "2026-05-13T20:38:42",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204158_502833",
+    "created_at": "2026-05-13T20:41:58",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204900_593287",
+    "created_at": "2026-05-13T20:49:00",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204924_173793",
+    "created_at": "2026-05-13T20:49:24",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_211052_841477",
+    "created_at": "2026-05-13T21:10:52",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_211422_766837",
+    "created_at": "2026-05-13T21:14:22",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_213603_398532",
+    "created_at": "2026-05-13T21:36:03",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_215651_915940",
+    "created_at": "2026-05-13T21:56:51",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_215830_966329",
+    "created_at": "2026-05-13T21:58:30",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_221737_720174",
+    "created_at": "2026-05-13T22:17:37",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_221804_492077",
+    "created_at": "2026-05-13T22:18:04",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_100348_029891",
+    "created_at": "2026-05-14T10:03:48",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_100943_258238",
+    "created_at": "2026-05-14T10:09:43",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_101625_835359",
+    "created_at": "2026-05-14T10:16:25",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_102929_944852",
+    "created_at": "2026-05-14T10:29:29",
+    "project_name": "Smoke Podcast Project",
+    "workflow_type": "podcast",
+    "provider": "Luma",
+    "aspect_ratio": "9:16",
+    "duration": "10s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "podcast",
+      "project_type": "podcast",
+      "provider": "Luma",
+      "provider_preset": {
+        "provider_name": "Luma",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "realistic camera language with spatial detail and natural motion",
+        "notes": "Prepared for realistic cinematic shots and camera movement."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "10s",
+      "quality": "Standard",
+      "motion_intensity": "Low",
+      "camera_preset": "Documentary",
+      "lighting_preset": "Office Fluorescent",
+      "motion_preset": "Documentary Realism",
+      "visual_mood": "Dark Office",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Emotional Opening",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Story Beat",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Relatable Moment",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        },
+        {
+          "beat": "Closing Thought",
+          "camera": "Documentary",
+          "lighting": "Office Fluorescent",
+          "motion": "Documentary Realism",
+          "visual_mood": "Dark Office"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 cinematic podcast visual for an episode about ชีวิตออฟฟิศที่ทำให้หมดไฟ, Thai urban realistic mood, dark office tone, close-up microphone, soft studio light, subtle b-roll of city night, office desk, reflective window, emotional storytelling, clean composition, no random text. Visual direction: vertical 9:16 AI-ready visual prompt for podcast: ชีวิตออฟฟิศที่ทำให้หมดไฟ. Context: เล่าความเหนื่อยของคนทำงานและการกลับมาเลือกตัวเอง. Camera: observational documentary camera, realistic and grounded. Lighting: office fluorescent lighting, realistic work environment. Motion: realistic documentary motion with natural imperfections. Mood: dark office mood, tired corporate realism. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality realistic podcast thumbnail about ชีวิตออฟฟิศที่ทำให้หมดไฟ, emotional Thai storyteller, dark office mood, bold clean composition, space for episode title only, no logo, no watermark, no random text. Visual mood: dark office mood, tired corporate realism; lighting: office fluorescent lighting, realistic work environment",
+      "b_roll_ideas": [
+        "ตัดช่วงเปิด hook 8-12 วินาทีแรกเป็นคลิปตั้งคำถาม",
+        "ตัด emotional monologue ช่วง 'มันหนักจริงนะ' เป็นคลิปปลอบใจ",
+        "ตัด viral rant เป็นคลิป POV สำหรับ TikTok",
+        "ตัดช่วงบทเรียนท้าย episode เป็น Shorts แบบ reflective"
+      ]
+    }
+  }
+]

@@ -1,0 +1,1155 @@
+[
+  {
+    "queue_id": "render_20260513_203842_711146",
+    "created_at": "2026-05-13T20:38:42",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204158_511040",
+    "created_at": "2026-05-13T20:41:58",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204900_605687",
+    "created_at": "2026-05-13T20:49:00",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204924_182961",
+    "created_at": "2026-05-13T20:49:24",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_211052_849695",
+    "created_at": "2026-05-13T21:10:52",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_211422_774452",
+    "created_at": "2026-05-13T21:14:22",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_213603_406761",
+    "created_at": "2026-05-13T21:36:03",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_215651_924333",
+    "created_at": "2026-05-13T21:56:51",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_215830_975179",
+    "created_at": "2026-05-13T21:58:30",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_221737_730050",
+    "created_at": "2026-05-13T22:17:37",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_221804_505719",
+    "created_at": "2026-05-13T22:18:04",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_100348_043736",
+    "created_at": "2026-05-14T10:03:48",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_100943_265441",
+    "created_at": "2026-05-14T10:09:43",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_101625_842689",
+    "created_at": "2026-05-14T10:16:25",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_102929_953212",
+    "created_at": "2026-05-14T10:29:29",
+    "project_name": "Smoke Viral Clips Project",
+    "workflow_type": "clips",
+    "provider": "PixVerse",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Draft",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "clips",
+      "project_type": "clips",
+      "provider": "PixVerse",
+      "provider_preset": {
+        "provider_name": "PixVerse",
+        "recommended_aspect_ratios": [
+          "9:16",
+          "16:9",
+          "1:1"
+        ],
+        "recommended_duration": "5s",
+        "cinematic_strength": "medium",
+        "motion_strength": "high",
+        "prompt_style": "short, direct, action-first prompt optimized for social clips",
+        "notes": "Good for quick short-form motion concepts."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Draft",
+      "motion_intensity": "High",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Natural Daylight",
+      "motion_preset": "Fast TikTok Cuts",
+      "visual_mood": "Viral",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Fast Context",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "Viral Beat",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Natural Daylight",
+          "motion": "Fast TikTok Cuts",
+          "visual_mood": "Viral"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 short-form video, Thai creator style, viral energy tone, concept about คนทำงานหมดไฟแต่ยังต้องยิ้ม, concise cinematic realistic shots, fast readable subtitles, optimized for TikTok, no random text, no watermark. Visual direction: vertical 9:16 AI-ready visual prompt for clips: คนทำงานหมดไฟแต่ยังต้องยิ้ม. Context: ถ้าคุณเคยเจอเรื่องนี้ คลิปนี้พูดแทนใจคุณ ฟังให้จบแล้วบอกว่าคิดเหมือนกันไหม. Camera: vertical creator-style camera, close and direct to audience. Lighting: natural daylight, clean realistic ambience. Motion: fast TikTok-style cuts with punchy pacing. Mood: viral, attention-grabbing, high-retention visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "high quality vertical thumbnail for TikTok, Thai creator emotional expression, concept: คนทำงานหมดไฟแต่ยังต้องยิ้ม, bold clean composition, short title space only, no logo, no watermark. Visual mood: viral, attention-grabbing, high-retention visual mood; lighting: natural daylight, clean realistic ambience",
+      "b_roll_ideas": [
+        "มือหยิบโทรศัพท์แล้วหยุดเลื่อน",
+        "เดินผ่านไฟเมืองตอนกลางคืน",
+        "โต๊ะทำงานหรือห้องนอนที่ดูจริง",
+        "close-up รายละเอียดสินค้าหรือสีหน้าคนเล่า",
+        "reaction shot สั้น ๆ ก่อนจบคลิป"
+      ]
+    }
+  }
+]

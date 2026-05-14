@@ -1,0 +1,24 @@
+{
+  "packs": [
+    {
+      "name": "TikTok Fast Pack",
+      "description": "Strong motion, bold subtitles, hook-heavy cuts, vertical-first output.",
+      "render_profile": "TikTok Fast",
+      "motion_style": "hook_energy_zoom",
+      "subtitle_style": "tiktok_bold",
+      "transition_style": "flash cut",
+      "color_profile": "neon",
+      "beat_sync": true
+    },
+    {
+      "name": "Cinematic Pack",
+      "description": "Film look, soft motion, emotional pacing, slow transitions.",
+      "render_profile": "Cinematic",
+      "motion_style": "cinematic_drift",
+      "subtitle_style": "cinematic",
+      "transition_style": "emotional dip to black",
+      "color_profile": "film_look",
+      "beat_sync": false
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+[INFO] Render 20260509_060941_4917121a started
+$ "D:\Project AI\vela_ai_studio_v5\ffmpeg-2026-05-06-git-f2e5eff3ff-full_build\bin\ffmpeg.exe" -y -loop 1 -framerate 24 -t 2.000 -i outputs\ffmpeg_smoke\scene.png -vf scale=960:540:force_original_aspect_ratio=increase,crop=960:540,zoompan=z='min(zoom+0.0014,1.18)':x='(iw-iw/zoom)/2+sin(on/8)*5':y='(ih-ih/zoom)/2':d=48:s=960x540:fps=24,setsar=1,format=yuv420p -an -c:v libx264 -preset veryfast -crf 28 -pix_fmt yuv420p outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\cache\16x9\scene_01.mp4
+ffmpeg version 2026-05-06-git-f2e5eff3ff-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 15.2.0 (Rev13, Built by MSYS2 project)
+  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper
+  libavutil      60. 30.100 / 60. 30.100
+  libavcodec     62. 30.100 / 62. 30.100
+  libavformat    62. 15.100 / 62. 15.100
+  libavdevice    62.  4.100 / 62.  4.100
+  libavfilter    11. 17.100 / 11. 17.100
+  libswscale      9.  7.100 /  9.  7.100
+  libswresample   6.  4.100 /  6.  4.100
+Input #0, png_pipe, from 'outputs\ffmpeg_smoke\scene.png':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: png, rgb24(pc, gbr/unknown/unknown), 512x512, 24 fps, 24 tbr, 24 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (png (native) -> h264 (libx264))
+Press [q] to stop, [?] for help
+[libx264 @ 000002106a219940] using SAR=1/1
+[libx264 @ 000002106a219940] using cpu capabilities: MMX2 SSE2Fast SSSE3 SSE4.2 AVX FMA3 BMI2 AVX2
+[libx264 @ 000002106a219940] profile High, level 3.1, 4:2:0, 8-bit
+[libx264 @ 000002106a219940] 264 - core 165 r3223 0480cb0 - H.264/MPEG-4 AVC codec - Copyleft 2003-2025 - http://www.videolan.org/x264.html - options: cabac=1 ref=1 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=2 psy=1 psy_rd=1.00:0.00 mixed_ref=0 me_range=16 chroma_me=1 trellis=0 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=0 threads=17 lookahead_threads=4 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=1 keyint=250 keyint_min=24 scenecut=40 intra_refresh=0 rc_lookahead=10 rc=crf mbtree=1 crf=28.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+Output #0, mp4, to 'outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\cache\16x9\scene_01.mp4':
+  Metadata:
+    encoder         : Lavf62.15.100
+  Stream #0:0: Video: h264 (avc1 / 0x31637661), yuv420p(tv, progressive), 960x540 [SAR 1:1 DAR 16:9], q=2-31, 24 fps, 12288 tbn
+    Metadata:
+      encoder         : Lavc62.30.100 libx264
+    Side data:
+      CPB properties: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: N/A
+frame=  552 fps=0.0 q=33.0 size=       0KiB time=00:00:22.91 bitrate=   0.0kbits/s speed=43.9x elapsed=0:00:00.52    
+frame= 1125 fps=1093 q=33.0 size=       0KiB time=00:00:46.79 bitrate=   0.0kbits/s speed=45.5x elapsed=0:00:01.02    
+frame= 1718 fps=1106 q=33.0 size=       0KiB time=00:01:11.50 bitrate=   0.0kbits/s speed=46.1x elapsed=0:00:01.55    
+[out#0/mp4 @ 0000021068123600] video:339KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 8.178558%
+frame= 2304 fps=1129 q=-1.0 Lsize=     366KiB time=00:01:35.91 bitrate=  31.3kbits/s speed=  47x elapsed=0:00:02.04    
+[libx264 @ 000002106a219940] frame I:18    Avg QP:14.28  size:  2214
+[libx264 @ 000002106a219940] frame P:591   Avg QP:23.20  size:   281
+[libx264 @ 000002106a219940] frame B:1695  Avg QP:29.90  size:    83
+[libx264 @ 000002106a219940] consecutive B-frames:  1.0%  1.6%  3.5% 93.9%
+[libx264 @ 000002106a219940] mb I  I16..4: 96.7%  0.3%  3.1%
+[libx264 @ 000002106a219940] mb P  I16..4:  4.3%  0.0%  0.1%  P16..4:  3.2%  0.3%  0.2%  0.0%  0.0%    skip:91.9%
+[libx264 @ 000002106a219940] mb B  I16..4:  0.8%  0.0%  0.0%  B16..8:  1.7%  0.1%  0.0%  direct: 0.1%  skip:97.3%  L0:50.5% L1:45.3% BI: 4.2%
+[libx264 @ 000002106a219940] 8x8 transform intra:0.4% inter:30.4%
+[libx264 @ 000002106a219940] coded y,uvDC,uvAC intra: 1.5% 0.7% 0.5% inter: 0.1% 0.1% 0.0%
+[libx264 @ 000002106a219940] i16 v,h,dc,p: 96%  2%  1%  0%
+[libx264 @ 000002106a219940] i8 v,h,dc,ddl,ddr,vr,hd,vl,hu: 52%  2% 43%  2%  0%  0%  0%  0%  0%
+[libx264 @ 000002106a219940] i4 v,h,dc,ddl,ddr,vr,hd,vl,hu: 34% 14% 27%  2%  4%  4%  5%  3%  6%
+[libx264 @ 000002106a219940] i8c dc,h,v,p: 81%  0% 19%  0%
+[libx264 @ 000002106a219940] Weighted P-Frames: Y:0.0% UV:0.0%
+[libx264 @ 000002106a219940] kb/s:28.85
+$ "D:\Project AI\vela_ai_studio_v5\ffmpeg-2026-05-06-git-f2e5eff3ff-full_build\bin\ffmpeg.exe" -y -f concat -safe 0 -i outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\temp\concat_16x9.txt -c copy outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\temp\joined_16x9.mp4
+ffmpeg version 2026-05-06-git-f2e5eff3ff-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 15.2.0 (Rev13, Built by MSYS2 project)
+  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper
+  libavutil      60. 30.100 / 60. 30.100
+  libavcodec     62. 30.100 / 62. 30.100
+  libavformat    62. 15.100 / 62. 15.100
+  libavdevice    62.  4.100 / 62.  4.100
+  libavfilter    11. 17.100 / 11. 17.100
+  libswscale      9.  7.100 /  9.  7.100
+  libswresample   6.  4.100 /  6.  4.100
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0000019f608a5e00] Auto-inserting h264_mp4toannexb bitstream filter
+Input #0, concat, from 'outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\temp\concat_16x9.txt':
+  Duration: N/A, start: 0.000000, bitrate: 28 kb/s
+  Stream #0:0(und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(progressive), 960x540 [SAR 1:1 DAR 16:9], 28 kb/s, 24 fps, 24 tbr, 12288 tbn
+    Metadata:
+      handler_name    : VideoHandler
+      encoder         : Lavc62.30.100 libx264
+Stream mapping:
+  Stream #0:0 -> #0:0 (copy)
+Output #0, mp4, to 'outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\temp\joined_16x9.mp4':
+  Metadata:
+    encoder         : Lavf62.15.100
+  Stream #0:0(und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(progressive), 960x540 [SAR 1:1 DAR 16:9], q=2-31, 28 kb/s, 24 fps, 24 tbr, 12288 tbn
+    Metadata:
+      handler_name    : VideoHandler
+      encoder         : Lavc62.30.100 libx264
+Press [q] to stop, [?] for help
+[out#0/mp4 @ 0000019f60822440] video:339KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 8.167752%
+frame= 2304 fps=0.0 q=-1.0 Lsize=     367KiB time=00:01:35.91 bitrate=  31.4kbits/s speed=7.5e+03x elapsed=0:00:00.01
+$ "D:\Project AI\vela_ai_studio_v5\ffmpeg-2026-05-06-git-f2e5eff3ff-full_build\bin\ffmpeg.exe" -y -i outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\temp\joined_16x9.mp4 -an -c:v libx264 -preset veryfast -crf 28 -pix_fmt yuv420p outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\final_16x9.mp4
+ffmpeg version 2026-05-06-git-f2e5eff3ff-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 15.2.0 (Rev13, Built by MSYS2 project)
+  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-cairo --enable-fontconfig --enable-iconv --enable-gnutls --enable-lcms2 --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --enable-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-libcaca --enable-libdvdnav --enable-libdvdread --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjpeg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-liboapv --enable-libqrencode --enable-librav1e --enable-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --enable-libxvid --enable-libaom --enable-libjxl --enable-libsvtjpegxs --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --enable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-ffnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libplacebo --enable-opencl --enable-libcdio --enable-openal --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrwb --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enable-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsoxr --enable-chromaprint --enable-whisper
+  libavutil      60. 30.100 / 60. 30.100
+  libavcodec     62. 30.100 / 62. 30.100
+  libavformat    62. 15.100 / 62. 15.100
+  libavdevice    62.  4.100 / 62.  4.100
+  libavfilter    11. 17.100 / 11. 17.100
+  libswscale      9.  7.100 /  9.  7.100
+  libswresample   6.  4.100 /  6.  4.100
+Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\temp\joined_16x9.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf62.15.100
+  Duration: 00:01:36.00, start: 0.000000, bitrate: 31 kb/s
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p(progressive), 960x540 [SAR 1:1 DAR 16:9], 28 kb/s, 24 fps, 24 tbr, 12288 tbn (default)
+    Metadata:
+      handler_name    : VideoHandler
+      encoder         : Lavc62.30.100 libx264
+Stream mapping:
+  Stream #0:0 -> #0:0 (h264 (native) -> h264 (libx264))
+Press [q] to stop, [?] for help
+[libx264 @ 00000141aee3c180] using SAR=1/1
+[libx264 @ 00000141aee3c180] using cpu capabilities: MMX2 SSE2Fast SSSE3 SSE4.2 AVX FMA3 BMI2 AVX2
+[libx264 @ 00000141aee3c180] profile High, level 3.1, 4:2:0, 8-bit
+[libx264 @ 00000141aee3c180] 264 - core 165 r3223 0480cb0 - H.264/MPEG-4 AVC codec - Copyleft 2003-2025 - http://www.videolan.org/x264.html - options: cabac=1 ref=1 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=2 psy=1 psy_rd=1.00:0.00 mixed_ref=0 me_range=16 chroma_me=1 trellis=0 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=0 threads=17 lookahead_threads=4 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=1 keyint=250 keyint_min=24 scenecut=40 intra_refresh=0 rc_lookahead=10 rc=crf mbtree=1 crf=28.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+Output #0, mp4, to 'outputs\ffmpeg_smoke\renders\FFmpeg_Smoke\20260509_060941_4917121a\final_16x9.mp4':
+  Metadata:
+    major_brand     : isom
+    minor_version   : 512
+    compatible_brands: isomiso2avc1mp41
+    encoder         : Lavf62.15.100
+  Stream #0:0(und): Video: h264 (avc1 / 0x31637661), yuv420p(tv, progressive), 960x540 [SAR 1:1 DAR 16:9], q=2-31, 24 fps, 12288 tbn (default)
+    Metadata:
+      encoder         : Lavc62.30.100 libx264
+      handler_name    : VideoHandler
+    Side data:
+      CPB properties: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: N/A
+frame=  519 fps=0.0 q=33.0 size=       0KiB time=00:00:21.54 bitrate=   0.0kbits/s speed=41.8x elapsed=0:00:00.51    
+frame= 1092 fps=1069 q=33.0 size=       0KiB time=00:00:45.41 bitrate=   0.0kbits/s speed=44.4x elapsed=0:00:01.02    
+frame= 1677 fps=1084 q=33.0 size=       0KiB time=00:01:09.79 bitrate=   0.0kbits/s speed=45.1x elapsed=0:00:01.54    
+frame= 2239 fps=1089 q=33.0 size=     256KiB time=00:01:33.20 bitrate=  22.5kbits/s speed=45.3x elapsed=0:00:02.05    
+[out#0/mp4 @ 00000141aedc1500] video:341KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: 8.064248%
+frame= 2304 fps=1101 q=-1.0 Lsize=     368KiB time=00:01:35.91 bitrate=  31.5kbits/s speed=45.8x elapsed=0:00:02.09    
+[libx264 @ 00000141aee3c180] frame I:12    Avg QP:13.48  size:  2224
+[libx264 @ 00000141aee3c180] frame P:618   Avg QP:22.80  size:   295
+[libx264 @ 00000141aee3c180] frame B:1674  Avg QP:29.47  size:    83
+[libx264 @ 00000141aee3c180] consecutive B-frames:  1.2%  3.7%  6.4% 88.7%
+[libx264 @ 00000141aee3c180] mb I  I16..4: 96.5%  0.4%  3.1%
+[libx264 @ 00000141aee3c180] mb P  I16..4:  4.1%  0.1%  0.1%  P16..4:  3.2%  0.4%  0.2%  0.0%  0.0%    skip:92.0%
+[libx264 @ 00000141aee3c180] mb B  I16..4:  0.8%  0.0%  0.0%  B16..8:  1.6%  0.1%  0.0%  direct: 0.1%  skip:97.4%  L0:48.9% L1:46.7% BI: 4.4%
+[libx264 @ 00000141aee3c180] 8x8 transform intra:1.3% inter:28.0%
+[libx264 @ 00000141aee3c180] coded y,uvDC,uvAC intra: 1.8% 1.1% 0.7% inter: 0.1% 0.1% 0.0%
+[libx264 @ 00000141aee3c180] i16 v,h,dc,p: 97%  2%  1%  0%
+[libx264 @ 00000141aee3c180] i8 v,h,dc,ddl,ddr,vr,hd,vl,hu: 54%  1% 44%  1%  0%  0%  0%  0%  0%
+[libx264 @ 00000141aee3c180] i4 v,h,dc,ddl,ddr,vr,hd,vl,hu: 34% 13% 30%  2%  4%  4%  5%  2%  6%
+[libx264 @ 00000141aee3c180] i8c dc,h,v,p: 81%  0% 19%  0%
+[libx264 @ 00000141aee3c180] Weighted P-Frames: Y:0.2% UV:0.0%
+[libx264 @ 00000141aee3c180] kb/s:29.03

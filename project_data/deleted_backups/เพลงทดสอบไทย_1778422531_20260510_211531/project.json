@@ -1,0 +1,42 @@
+{
+  "version": "VelaFlow V7.8.5",
+  "created_at": "2026-05-10T21:15:31",
+  "title": "เพลงทดสอบไทย 1778422531",
+  "artist": "VelaLab",
+  "song": {},
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

@@ -1,0 +1,364 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-12T17:17:32",
+  "title": "ไม่เป็นไร",
+  "artist": "Vela Moon",
+  "song": {
+    "title": "ไม่เป็นไร",
+    "target_analysis": "เพลงนี้มุ่งเป้าไปที่กลุ่มผู้ฟังที่กำลังเผชิญกับความท้อแท้ ความเหนื่อยล้า หรือความรู้สึกไม่ดีในชีวิตประจำวัน โดยต้องการสร้างความรู้สึกปลอบโยน ให้กำลังใจ และยืนยันว่าการไม่เป็นไรในบางครั้งก็เป็นเรื่องปกติ กลยุทธ์ของ Hook คือการใช้ถ้อยคำที่เรียบง่าย เข้าใจง่าย และสื่อถึงการอยู่เคียงข้างอย่างไม่มีเงื่อนไข ทำให้ผู้ฟังรู้สึกถึงการมีอยู่ของใครสักคนที่พร้อมจะรับฟังและอยู่ข้างๆ ไม่ว่าสถานการณ์จะเป็นอย่างไร เหมาะสำหรับการแชร์บนโซเชียลมีเดียเพื่อสร้างกำลังใจและเป็นแคปชั่นแทนความรู้สึก",
+    "hook_type": "Supportive and comforting emotional hook",
+    "hook_candidates": [
+      {
+        "name": "Hook_PermissionToRest",
+        "hook_text": "ไม่เป็นไรจริง ๆ แค่ใจเธอพัก",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำคำว่า 'ไม่เป็นไร' อย่างจริงใจและให้การอนุญาตให้ใจได้พักผ่อนอย่างเต็มที่ สั้น กระชับ เข้าใจง่าย เหมาะกับ Pop Rock ที่ต้องการความชัดเจนทางอารมณ์และเมโลดี้ที่ติดหู",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_NoRush",
+        "hook_text": "ไม่ต้องฝืน ไม่ต้องรีบเลย",
+        "emotional_score": 88,
+        "catchy_score": 82,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงการไม่กดดันตัวเองและให้เวลาตัวเองได้เยียวยา เหมาะกับการให้กำลังใจในแนว Pop Rock ที่ต้องการความนุ่มนวลและเข้าใจ เน้นย้ำการยอมรับในจังหวะของตนเอง",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "Hook_SmallProgress",
+        "hook_text": "วันนี้แค่ไหว ก็เก่งแล้ว",
+        "emotional_score": 92,
+        "catchy_score": 80,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นการยอมรับและชื่นชมความพยายามเล็กๆ น้อยๆ ในวันที่ไม่ดี ถ้อยคำไม่ซับซ้อน แต่ให้กำลังใจได้อย่างลึกซึ้งและจริงใจ เหมาะเป็นแคปชั่นหรือท่อนสั้นๆ ที่สร้างแรงบันดาลใจได้ง่าย",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "Hook_TomorrowIsBetter",
+        "hook_text": "เดี๋ยวก็ผ่านไป ไม่เป็นไรนะ",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 85,
+        "reason_th": "ให้ความหวังว่าทุกอย่างจะดีขึ้นและเป็นเพียงแค่ช่วงเวลาหนึ่ง โดยยังคงเน้นย้ำความ 'ไม่เป็นไร' เป็นการเตือนใจที่อ่อนโยนและติดหู เหมาะเป็นท่อนสำคัญของเพลงที่สร้างความหวัง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_YouHaveMe",
+        "hook_text": "แค่เธอมีฉัน ก็พอแล้ว",
+        "emotional_score": 95,
+        "catchy_score": 83,
+        "tiktok_potential": 88,
+        "reason_th": "เน้นย้ำถึงการสนับสนุนจากคนรอบข้างหรือผู้ร้อง เป็นอีกมุมของการให้กำลังใจที่อบอุ่นและตรงไปตรงมา สร้างความรู้สึกปลอดภัยและความผูกพันกับผู้ฟังได้เป็นอย่างดี",
+        "suggested_usage": "post-chorus"
+      }
+    ],
+    "selected_hook": {
+      "name": "Hook_YouHaveMe",
+      "hook_text": "แค่เธอมีฉัน ก็พอแล้ว",
+      "emotional_score": 95,
+      "catchy_score": 83,
+      "tiktok_potential": 88,
+      "reason_th": "เน้นย้ำถึงการสนับสนุนจากคนรอบข้างหรือผู้ร้อง เป็นอีกมุมของการให้กำลังใจที่อบอุ่นและตรงไปตรงมา สร้างความรู้สึกปลอดภัยและความผูกพันกับผู้ฟังได้เป็นอย่างดี",
+      "suggested_usage": "post-chorus"
+    },
+    "selected_hook_text": "แค่เธอมีฉัน ก็พอแล้ว",
+    "selected_hook_reason": "เลือก Hook นี้เพราะมีความเรียบง่าย แต่ทรงพลังทางอารมณ์ สื่อสารเจตนาของการให้กำลังใจและการอยู่เคียงข้างได้อย่างชัดเจนและตรงไปตรงมาที่สุด 'แค่เธอมีฉัน ก็พอแล้ว' เป็นประโยคที่คนฟังสามารถจดจำและร้องตามได้ง่าย สร้างความรู้สึกอบอุ่นใจ และสามารถนำไปใช้เป็นแคปชั่นหรือข้อความสั้นๆ ที่ให้กำลังใจได้ดีบนแพลตฟอร์มโซเชียลมีเดียต่างๆ ซึ่งสอดคล้องกับเป้าหมายของเพลงที่ต้องการเข้าถึงกลุ่มผู้ฟังที่ต้องการกำลังใจและเป็นที่พึ่งทางอารมณ์",
+    "instrument_selection": {
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_texture_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure",
+        "uplifting but gentle vibe"
+      ],
+      "reason": "การเลือกเครื่องดนตรีนี้ยึดตาม Vela Moon Artist Preset เพื่อคงเอกลักษณ์ของ Pop Rock ฟังสบายและเข้าถึงง่าย 'clean electric guitar' และ 'acoustic guitar strumming' เป็นแกนหลักที่ให้ความรู้สึกอบอุ่นและร่วมสมัย 'warm bass' และ 'soft drum kit' ให้จังหวะที่มั่นคงแต่ไม่หนักหน่วงเกินไป 'light rhodes piano' และ 'soft synth pad' เพิ่มความละมุนและมิติทางอารมณ์ ในขณะที่ 'tambourine' ช่วยเพิ่มความสดใสให้กับท่อน Chorus และ 'melodic electric guitar solo' จะเป็นจุดเด่นที่แสดงอารมณ์ได้อย่างเต็มที่ องค์ประกอบทั้งหมดถูกจัดวางเพื่อให้เกิด 'relaxed emotional atmosphere' และ 'catchy melody' ในรูปแบบ 'full band arrangement' ที่ polished และ radio-friendly."
+    },
+    "music_style_prompt": "mid-tempo easy-listening pop rock, supportive mood, comforting atmosphere, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, soft synth pad, smooth emotional male vocal, relaxed but heartfelt delivery, catchy melody, full band arrangement, polished radio-friendly production, complete song structure, expressive melodic guitar solo, tambourine on chorus, gentle fade out",
+    "advanced_settings": {
+      "weirdness": 14,
+      "style_influence": 62,
+      "reason_th": "ค่าแนะนำจาก Music Preset: VelaFlow Default เพื่อให้เพลงมีความต่างเล็กน้อยแต่ยังคุมโทนได้",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ],
+      "manual": false
+    },
+    "complete_lyrics": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nวันนี้อาจจะดูไม่เป็นใจ\nทุกๆ อย่างมันคงจะยากเกินไป\nความผิดหวังวนเวียนอยู่ข้างใน\nฉันเข้าใจดีว่าเธอรู้สึกยังไง\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าเก็บเอาไว้คนเดียวเลยนะ\nระบายมันออกมา ไม่ต้องกังวล\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Post-Chorus] (melodic electric guitar line, easy listening vibe, warm synth pad)\n(melodic electric guitar solo, easy listening vibe)\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming, clean electric guitar accents)\nให้เวลาได้เยียวยาหัวใจ\nไม่ต้องเร่ง ไม่ต้องรีบไปไหน\nไม่มีใครที่ต้องสมบูรณ์แบบ\nแค่เธอเป็นเธอ ฉันก็รักเธอแล้ว\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าแบกเอาไว้คนเดียวเลยนะ\nแบ่งเบาให้ฉัน ไม่ต้องกลัว\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up, light bass)\nบางทีแค่ได้อยู่ข้างๆ กัน\nไม่ต้องพูดอะไร แค่มองตาก็เข้าใจ\nทุกก้าวที่เดิน ฉันจะอยู่ตรงนี้ไม่ห่างไปไหน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm, full band backing)\n(Guitar solo, heartfelt and soaring)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion, more prominent drums)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\nไม่ว่าพรุ่งนี้จะเป็นเช่นไร\nแค่มีฉันอยู่ข้างๆ เธอตลอดไป\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note, light cymbal wash)\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Acoustic guitar and piano fade out with a final gentle strum)",
+    "tiktok_clip_cut_recommendation": [
+      {
+        "rank": 1,
+        "section": "Chorus",
+        "lyric_excerpt": "ไม่ต้องฝืน ไม่ต้องพยายาม ถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป ไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร แค่เธอมีฉัน ก็พอแล้ว",
+        "reason": "ท่อนฮุกหลักของเพลง เป็นส่วนที่ติดหูที่สุด มีเนื้อหาให้กำลังใจและปลอบโยน เหมาะกับการใช้เป็นพื้นหลังสำหรับคลิปที่ต้องการส่งต่อความรู้สึกดีๆ หรือบอกเล่าเรื่องราวที่ต้องเผชิญหน้ากับความยากลำบาก",
+        "clip_type": "Emotional Support / Relatable Moment / Caption Background"
+      },
+      {
+        "rank": 2,
+        "section": "Pre-Chorus to Chorus transition",
+        "lyric_excerpt": "อย่าเก็บเอาไว้คนเดียวเลยนะ ระบายมันออกมา ไม่ต้องกังวล... ไม่ต้องฝืน ไม่ต้องพยายาม",
+        "reason": "เป็นช่วงที่เนื้อเพลงสร้างสถานการณ์และเสนอทางออกอย่างนุ่มนวล การเชื่อมโยงจาก 'ระบายมันออกมา' ไปสู่ 'ไม่ต้องฝืน' มีพลังในการเชิญชวนให้ผู้ฟังเปิดใจ และรับฟังคำปลอบโยน",
+        "clip_type": "Call to Action (for emotional sharing) / Comforting Message"
+      },
+      {
+        "rank": 3,
+        "section": "Bridge",
+        "lyric_excerpt": "บางทีแค่ได้อยู่ข้างๆ กัน ไม่ต้องพูดอะไร แค่มองตาก็เข้าใจ ทุกก้าวที่เดิน ฉันจะอยู่ตรงนี้ไม่ห่างไปไหน",
+        "reason": "ท่อนนี้เน้นย้ำถึงความสำคัญของการอยู่เคียงข้างและความเข้าใจโดยไม่ต้องใช้คำพูด ซึ่งเป็นความรู้สึกที่ลึกซึ้งและจริงใจ เหมาะสำหรับคลิปที่ต้องการสื่อสารความผูกพันที่เงียบสงบแต่แข็งแกร่ง",
+        "clip_type": "Deep Emotional Connection / Silent Support"
+      }
+    ],
+    "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว",
+    "candidate_hooks": [
+      {
+        "name": "Hook_PermissionToRest",
+        "hook_text": "ไม่เป็นไรจริง ๆ แค่ใจเธอพัก",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำคำว่า 'ไม่เป็นไร' อย่างจริงใจและให้การอนุญาตให้ใจได้พักผ่อนอย่างเต็มที่ สั้น กระชับ เข้าใจง่าย เหมาะกับ Pop Rock ที่ต้องการความชัดเจนทางอารมณ์และเมโลดี้ที่ติดหู",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_NoRush",
+        "hook_text": "ไม่ต้องฝืน ไม่ต้องรีบเลย",
+        "emotional_score": 88,
+        "catchy_score": 82,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงการไม่กดดันตัวเองและให้เวลาตัวเองได้เยียวยา เหมาะกับการให้กำลังใจในแนว Pop Rock ที่ต้องการความนุ่มนวลและเข้าใจ เน้นย้ำการยอมรับในจังหวะของตนเอง",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "Hook_SmallProgress",
+        "hook_text": "วันนี้แค่ไหว ก็เก่งแล้ว",
+        "emotional_score": 92,
+        "catchy_score": 80,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นการยอมรับและชื่นชมความพยายามเล็กๆ น้อยๆ ในวันที่ไม่ดี ถ้อยคำไม่ซับซ้อน แต่ให้กำลังใจได้อย่างลึกซึ้งและจริงใจ เหมาะเป็นแคปชั่นหรือท่อนสั้นๆ ที่สร้างแรงบันดาลใจได้ง่าย",
+        "suggested_usage": "TikTok clip"
+      },
+      {
+        "name": "Hook_TomorrowIsBetter",
+        "hook_text": "เดี๋ยวก็ผ่านไป ไม่เป็นไรนะ",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 85,
+        "reason_th": "ให้ความหวังว่าทุกอย่างจะดีขึ้นและเป็นเพียงแค่ช่วงเวลาหนึ่ง โดยยังคงเน้นย้ำความ 'ไม่เป็นไร' เป็นการเตือนใจที่อ่อนโยนและติดหู เหมาะเป็นท่อนสำคัญของเพลงที่สร้างความหวัง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "Hook_YouHaveMe",
+        "hook_text": "แค่เธอมีฉัน ก็พอแล้ว",
+        "emotional_score": 95,
+        "catchy_score": 83,
+        "tiktok_potential": 88,
+        "reason_th": "เน้นย้ำถึงการสนับสนุนจากคนรอบข้างหรือผู้ร้อง เป็นอีกมุมของการให้กำลังใจที่อบอุ่นและตรงไปตรงมา สร้างความรู้สึกปลอดภัยและความผูกพันกับผู้ฟังได้เป็นอย่างดี",
+        "suggested_usage": "post-chorus"
+      }
+    ],
+    "instrument_tags": {
+      "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+      "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+      "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+      "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+      "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+      "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+      "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+      "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+      "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+      "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+    },
+    "energy_curve": {
+      "Intro": 25,
+      "Verse 1": 35,
+      "Pre-Chorus": 60,
+      "Chorus": 88,
+      "Post-Chorus": 78,
+      "Verse 2": 42,
+      "Bridge": 50,
+      "Final Chorus": 98,
+      "Outro": 20
+    },
+    "arrangement_preset": "",
+    "artist_preset": "vela_moon",
+    "artist_preset_name": "Vela Moon",
+    "instrument_tags_language": "English only",
+    "original_song_output": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nวันนี้อาจจะดูไม่เป็นใจ\nทุกๆ อย่างมันคงจะยากเกินไป\nความผิดหวังวนเวียนอยู่ข้างใน\nฉันเข้าใจดีว่าเธอรู้สึกยังไง\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าเก็บเอาไว้คนเดียวเลยนะ\nระบายมันออกมา ไม่ต้องกังวล\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Post-Chorus] (melodic electric guitar line, easy listening vibe, warm synth pad)\n(Hmm-mm, ก็พอแล้ว)\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming, clean electric guitar accents)\nให้เวลาได้เยียวยาหัวใจ\nไม่ต้องเร่ง ไม่ต้องรีบไปไหน\nไม่มีใครที่ต้องสมบูรณ์แบบ\nแค่เธอเป็นเธอ ฉันก็รักเธอแล้ว\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าแบกเอาไว้คนเดียวเลยนะ\nแบ่งเบาให้ฉัน ไม่ต้องกลัว\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up, light bass)\nบางทีแค่ได้อยู่ข้างๆ กัน\nไม่ต้องพูดอะไร แค่มองตาก็เข้าใจ\nทุกก้าวที่เดิน ฉันจะอยู่ตรงนี้ไม่ห่างไปไหน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm, full band backing)\n(Guitar solo, heartfelt and soaring)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion, more prominent drums)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\nไม่ว่าพรุ่งนี้จะเป็นเช่นไร\nแค่มีฉันอยู่ข้างๆ เธอตลอดไป\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note, light cymbal wash)\n(แค่เธอมีฉัน ก็พอแล้ว...)\n(Acoustic guitar and piano fade out with a final gentle strum)",
+    "normalized_song_output": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nวันนี้อาจจะดูไม่เป็นใจ\nทุกๆ อย่างมันคงจะยากเกินไป\nความผิดหวังวนเวียนอยู่ข้างใน\nฉันเข้าใจดีว่าเธอรู้สึกยังไง\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าเก็บเอาไว้คนเดียวเลยนะ\nระบายมันออกมา ไม่ต้องกังวล\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Post-Chorus] (melodic electric guitar line, easy listening vibe, warm synth pad)\n(melodic electric guitar solo, easy listening vibe)\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming, clean electric guitar accents)\nให้เวลาได้เยียวยาหัวใจ\nไม่ต้องเร่ง ไม่ต้องรีบไปไหน\nไม่มีใครที่ต้องสมบูรณ์แบบ\nแค่เธอเป็นเธอ ฉันก็รักเธอแล้ว\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าแบกเอาไว้คนเดียวเลยนะ\nแบ่งเบาให้ฉัน ไม่ต้องกลัว\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up, light bass)\nบางทีแค่ได้อยู่ข้างๆ กัน\nไม่ต้องพูดอะไร แค่มองตาก็เข้าใจ\nทุกก้าวที่เดิน ฉันจะอยู่ตรงนี้ไม่ห่างไปไหน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm, full band backing)\n(Guitar solo, heartfelt and soaring)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion, more prominent drums)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\nไม่ว่าพรุ่งนี้จะเป็นเช่นไร\nแค่มีฉันอยู่ข้างๆ เธอตลอดไป\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note, light cymbal wash)\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Acoustic guitar and piano fade out with a final gentle strum)",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nวันนี้อาจจะดูไม่เป็นใจ\nทุกๆ อย่างมันคงจะยากเกินไป\nความผิดหวังวนเวียนอยู่ข้างใน\nฉันเข้าใจดีว่าเธอรู้สึกยังไง\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าเก็บเอาไว้คนเดียวเลยนะ\nระบายมันออกมา ไม่ต้องกังวล\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Post-Chorus] (melodic electric guitar line, easy listening vibe, warm synth pad)\n(melodic electric guitar solo, easy listening vibe)\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming, clean electric guitar accents)\nให้เวลาได้เยียวยาหัวใจ\nไม่ต้องเร่ง ไม่ต้องรีบไปไหน\nไม่มีใครที่ต้องสมบูรณ์แบบ\nแค่เธอเป็นเธอ ฉันก็รักเธอแล้ว\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nอย่าแบกเอาไว้คนเดียวเลยนะ\nแบ่งเบาให้ฉัน ไม่ต้องกลัว\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added, smooth emotional male vocal)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up, light bass)\nบางทีแค่ได้อยู่ข้างๆ กัน\nไม่ต้องพูดอะไร แค่มองตาก็เข้าใจ\nทุกก้าวที่เดิน ฉันจะอยู่ตรงนี้ไม่ห่างไปไหน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm, full band backing)\n(Guitar solo, heartfelt and soaring)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion, more prominent drums)\nไม่ต้องฝืน ไม่ต้องพยายาม\nถ้าวันนี้ยังไม่ดีขึ้น ก็แค่ปล่อยมันไป\nไม่ต้องคิดว่าต้องเข้มแข็งกว่าใคร\nแค่เธอมีฉัน ก็พอแล้ว\nไม่ว่าพรุ่งนี้จะเป็นเช่นไร\nแค่มีฉันอยู่ข้างๆ เธอตลอดไป\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note, light cymbal wash)\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Acoustic guitar and piano fade out with a final gentle strum)"
+    },
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_preset": "VelaFlow Default",
+    "music_preset_data": {
+      "name": "VelaFlow Default",
+      "description": "A safe general-purpose preset for polished emotional pop and pop rock releases.",
+      "genre": "Modern Pop / Pop Rock",
+      "mood": "balanced, emotional, clean, radio-friendly",
+      "vocal_style": "clear natural vocal, expressive but not overdramatic",
+      "arrangement": "warm piano, acoustic/electric guitar, bass, drums, light pad",
+      "structure_guide": "Intro, Verse, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, Outro",
+      "prompt_suffix": "Make the song polished, easy to listen to, emotionally clear, and suitable for general release.",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ]
+    },
+    "weirdness": 14,
+    "style_influence": 62,
+    "song_structure_plan": {},
+    "saved_at": "2026-05-12T17:47:18",
+    "workflow_mode": "Full Pipeline"
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

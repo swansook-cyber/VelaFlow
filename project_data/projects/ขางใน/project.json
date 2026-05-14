@@ -1,0 +1,345 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-12T12:28:56",
+  "title": "ข้างใน",
+  "artist": "Vela Moon",
+  "song": {
+    "title": "ข้างใน",
+    "target_analysis": "เพลงนี้เหมาะสำหรับกลุ่มคนหนุ่มสาวและผู้ใหญ่ที่ภายนอกดูเหมือนจะมีความสุขดี ใช้ชีวิตปกติ แต่ลึกๆ ข้างในกลับรู้สึกว่างเปล่า โหยหาบางสิ่งบางอย่างที่อธิบายไม่ได้ การที่ฮุกตั้งคำถามโดยตรงว่าจะต้องตามหาสิ่งไหนมาเติมเต็ม ทำให้เพลงนี้เป็นเหมือนกระจกสะท้อนความรู้สึกภายในที่หลายคนอาจจะเก็บงำไว้ ช่วยให้พวกเขารู้สึกว่าไม่ได้โดดเดี่ยวในความรู้สึกนี้ และสามารถระบายความอึดอัดผ่านเพลงได้ เป็นเพลงที่เข้าถึงง่ายและกระตุ้นอารมณ์ร่วมได้สูง",
+    "hook_type": "Emotional Question & Relatable Internal Struggle",
+    "hook_candidates": [
+      {
+        "name": "ยิ้มไร้จุดหมาย",
+        "hook_text": "ยิ้มทั้งที่ข้างในมันไร้จุดหมาย",
+        "emotional_score": 85,
+        "catchy_score": 75,
+        "tiktok_potential": 70,
+        "reason_th": "สื่อถึงความขัดแย้งภายในได้อย่างชัดเจนว่าภายนอกยิ้มได้แต่ภายในกลับรู้สึกว่างเปล่าและไม่มีทิศทาง เป็นประโยคที่กระชับและโดนใจ เหมาะกับท่อนฮุกที่ต้องการสะท้อนความรู้สึกสวนทางกัน",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ชีวิตยังเดินต่อ",
+        "hook_text": "ชีวิตยังเดินต่อ แต่ใจไม่เคยเต็ม",
+        "emotional_score": 90,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "แสดงถึงการดำเนินชีวิตไปตามปกติแต่ความรู้สึกข้างในกลับขาดหายและไม่เติมเต็ม เป็นประโยคที่สื่อความหมายได้ลึกซึ้งและมีความเป็นสากล ทำให้คนฟังเข้าถึงความรู้สึกของการขาดอะไรบางอย่างไปได้ง่าย",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "ว่างเปล่าที่ไม่มีใครเห็น",
+        "hook_text": "ความว่างเปล่าที่ไม่มีใครเห็น",
+        "emotional_score": 88,
+        "catchy_score": 78,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำถึงความรู้สึกว่างเปล่าที่ต้องเก็บซ่อนไว้และไม่มีใครเข้าใจ ซึ่งตรงกับธีมที่ว่ายิ้มได้หัวเราะได้แต่ลึกๆ กลับรู้สึกว่างเปล่า ประโยคนี้สร้างความรู้สึกเข้าถึงและดึงดูดใจได้ดี เหมาะกับการเป็นชื่อเพลงที่ชวนให้ติดตาม",
+        "suggested_usage": "title line"
+      },
+      {
+        "name": "ทำไมข้างในยังหายไป",
+        "hook_text": "ทำไมข้างในมันยังหายไป?",
+        "emotional_score": 92,
+        "catchy_score": 82,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นคำถามที่สะท้อนความรู้สึกภายในที่ยังคงขาดหายไปอย่างไม่รู้สาเหตุ ตรงกับความรู้สึกว่างเปล่าที่บอกไม่ถูก เป็นประโยคที่เชื้อเชิญให้คนฟังร่วมคิดตามและรู้สึกร่วมไปกับความสับสนภายในจิตใจได้ดี",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รอยยิ้มบังความรู้สึก",
+        "hook_text": "รอยยิ้มบังความรู้สึกข้างใน",
+        "emotional_score": 87,
+        "catchy_score": 85,
+        "tiktok_potential": 92,
+        "reason_th": "เป็นประโยคที่ตรงไปตรงมาและเข้าใจง่ายที่สุดในการสื่อถึงการแกล้งทำเป็นมีความสุขในขณะที่ภายในรู้สึกว่างเปล่า เหมาะกับการเป็นแคปชั่นหรือประโยคเด็ดที่โดนใจคนฟังอย่างรวดเร็ว โดยเฉพาะในแพลตฟอร์มที่เน้นภาพและข้อความสั้นๆ",
+        "suggested_usage": "TikTok clip"
+      }
+    ],
+    "selected_hook": {
+      "name": "ชีวิตยังเดินต่อ",
+      "hook_text": "ชีวิตยังเดินต่อ แต่ใจไม่เคยเต็ม",
+      "emotional_score": 90,
+      "catchy_score": 80,
+      "tiktok_potential": 85,
+      "reason_th": "แสดงถึงการดำเนินชีวิตไปตามปกติแต่ความรู้สึกข้างในกลับขาดหายและไม่เติมเต็ม เป็นประโยคที่สื่อความหมายได้ลึกซึ้งและมีความเป็นสากล ทำให้คนฟังเข้าถึงความรู้สึกของการขาดอะไรบางอย่างไปได้ง่าย",
+      "suggested_usage": "post-chorus"
+    },
+    "selected_hook_text": "ชีวิตยังเดินต่อ แต่ใจไม่เคยเต็ม",
+    "selected_hook_reason": "ฮุกนี้มีความโดดเด่นและตรงประเด็นกับธีมเพลงมากที่สุด เป็นคำถามที่เจาะลึกความรู้สึกว่างเปล่าที่บอกไม่ถูก ทำให้ผู้ฟังรู้สึกเชื่อมโยงได้ทันทีและมีพลังทางอารมณ์ที่จดจำง่าย เหมาะจะเป็นแกนหลักของเพลง",
+    "instrument_selection": {
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_texture_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "reason": "การเลือกเครื่องดนตรีนี้อิงตาม Vela Moon Artist Preset โดยตรง เพื่อให้ได้แนว Pop Rock ที่ฟังสบาย อบอุ่น และสื่ออารมณ์ความรู้สึกได้ชัดเจน กีตาร์ไฟฟ้าและอะคูสติกสร้างความสมดุลระหว่างความสมัยใหม่และความเข้าถึงง่าย ส่วน Rhodes Piano และ synth pad ช่วยเพิ่มมิติทางอารมณ์โดยไม่ทำให้เพลงหนักเกินไป เหมาะสำหรับเพลงที่ต้องการสื่อถึงความรู้สึกว่างเปล่าอย่างละมุนแต่ลึกซึ้ง"
+    },
+    "music_style_prompt": "mid-tempo pop rock, emotional easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth emotional male vocal with warm tone, relaxed but deeply reflective and melancholic mood, catchy melody, full band arrangement, polished radio-friendly production, complete song structure, expressive but not overdramatic, clean mix, suitable for general release",
+    "advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "complete_lyrics": "[Intro] (warm piano chords, gentle acoustic guitar intro)\nนานเท่าไรแล้วนะ\nที่ฉันต้องอยู่กับความรู้สึกที่อธิบาย\n\n[Verse 1] (vocal starts softly over clean electric guitar and warm bass)\nทุกเช้าที่ตื่นลืมตา ฉันยังยิ้มได้เหมือนเก่า\nทักทายผู้คนรอบตัว เล่าเรื่องตลกให้ใครฟัง\nหัวเราะไปกับเรื่องราว ไม่ได้มีปัญหาอะไร\nมองจากข้างนอกคงดูเหมือนว่าฉันสบายดี\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad, vocal becomes a bit more urgent)\nแต่ความจริงที่ซ่อนอยู่ข้างใน\nบางครั้งมันก็สะท้อนออกมาในแววตา\nคำถามเดิมๆ ที่วนเวียนไม่เคยจาง\n\n[Chorus] (full band kicks in with a clear, emotional melody, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา (vocal swells with emotion)\n\n[Post-Chorus] (melodic electric guitar plays a catchy, reflective line, easy listening vibe)\nโอ้... หายไปไหน...\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming enters prominently)\nลองหาอะไรมาเติมเต็ม ลองไปในที่ที่เคยฝัน\nเจอผู้คนใหม่ๆ ที่พูดคุย เปิดใจเล่าเรื่องทุกวัน\nพยายามทำทุกอย่างให้เหมือนว่าฉันเข้มแข็ง\nแต่พออยู่คนเดียว ก็เหลือแค่เพียงความว่างเปล่า\n\n[Pre-Chorus] (drums build up, synth pad returns, vocal slightly strained with emotion)\nและมันก็วนกลับมาอีกครั้ง\nความรู้สึกที่มันยากเกินจะเข้าใจ\nเป็นคำถามที่ยังค้างคาในใจ\n\n[Chorus] (full band, strong and emotional, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\n\n[Bridge] (music softens dramatically, just rhodes piano and vocal focus, vocal builds with raw emotion, light pad swells)\nบางทีฉันก็อยากรู้ ว่าคนอื่นเขาเป็นอย่างฉันไหม\nมันคืออะไรที่ขาดหายไป หรือว่าฉันแค่คิดไปเอง\nความรู้สึกนี้มันกัดกินข้างใน...\nจนฉันอยากจะหาทาง...ให้มันหายไป\n\n[Guitar Solo] (energetic and melodic pop-rock guitar solo over a driving full band rhythm, showcasing emotion and skill)\n\n[Final Chorus] (full, powerful band sound, vocal is more urgent and heartfelt, maximum energy, brighter vocal delivery, expanded emotion)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\nให้ใจได้เต็มขึ้นมา!\n\n[Outro] (music gradually fades, acoustic guitar and piano chords, a final clean electric guitar note hangs in the air)\nทำไมข้างในมันยัง...หายไป...\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Piano and guitar fade)",
+    "tiktok_clip_cut_recommendation": [
+      {
+        "rank": 1,
+        "section": "Chorus",
+        "lyric_excerpt": "ทำไมข้างในมันยังหายไป? หายไปจากที่ไหน? ทำไมไม่เคยรู้ ฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ ต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา",
+        "reason": "ท่อนฮุกคือจุดเด่นที่สุดของเพลง ด้วยคำถามที่สื่ออารมณ์ความรู้สึกว่างเปล่าได้อย่างลึกซึ้งและเป็นสากล ทำให้ผู้ฟังสามารถนำไปใช้กับสถานการณ์ส่วนตัวได้ง่าย ทั้งยังกระตุ้นให้เกิดการแสดงความคิดเห็นและเชื่อมโยงกันในแพลตฟอร์มโซเชียล",
+        "clip_type": "Emotional monologue, text overlay, relatable scenario, 'POV' content"
+      },
+      {
+        "rank": 2,
+        "section": "Pre-Chorus (ก่อนเข้า Chorus แรก)",
+        "lyric_excerpt": "แต่ความจริงที่ซ่อนอยู่ข้างใน บางครั้งมันก็สะท้อนออกมาในแววตา คำถามเดิมๆ ที่วนเวียนไม่เคยจาง",
+        "reason": "ท่อนนี้สร้างอารมณ์ร่วมก่อนเข้าฮุกหลักได้เป็นอย่างดี สื่อถึงความรู้สึกที่ซ่อนอยู่ภายใต้ภายนอกที่ดูปกติ เหมาะสำหรับคอนเทนต์แนว 'สิ่งที่เห็น vs สิ่งที่เป็น' หรือการเปิดเผยความรู้สึกภายใน",
+        "clip_type": "Transition video, storytelling, emotional reveal"
+      },
+      {
+        "rank": 3,
+        "section": "Bridge",
+        "lyric_excerpt": "บางทีฉันก็อยากรู้ ว่าคนอื่นเขาเป็นอย่างฉันไหม มันคืออะไรที่ขาดหายไป หรือว่าฉันแค่คิดไปเอง",
+        "reason": "ท่อน Bridge สื่อถึงความรู้สึกเปราะบางและคำถามที่ต้องการหาคำตอบว่าคนอื่นรู้สึกเหมือนกันหรือไม่ เป็นการเชิญชวนให้เกิดการมีส่วนร่วมและแบ่งปันประสบการณ์ ทำให้เกิดคอมเมนต์และการสนทนาได้ดี",
+        "clip_type": "Direct address to camera, 'Am I the only one?' trend, reflective content"
+      }
+    ],
+    "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว",
+    "candidate_hooks": [
+      {
+        "name": "ยิ้มไร้จุดหมาย",
+        "hook_text": "ยิ้มทั้งที่ข้างในมันไร้จุดหมาย",
+        "emotional_score": 85,
+        "catchy_score": 75,
+        "tiktok_potential": 70,
+        "reason_th": "สื่อถึงความขัดแย้งภายในได้อย่างชัดเจนว่าภายนอกยิ้มได้แต่ภายในกลับรู้สึกว่างเปล่าและไม่มีทิศทาง เป็นประโยคที่กระชับและโดนใจ เหมาะกับท่อนฮุกที่ต้องการสะท้อนความรู้สึกสวนทางกัน",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ชีวิตยังเดินต่อ",
+        "hook_text": "ชีวิตยังเดินต่อ แต่ใจไม่เคยเต็ม",
+        "emotional_score": 90,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "แสดงถึงการดำเนินชีวิตไปตามปกติแต่ความรู้สึกข้างในกลับขาดหายและไม่เติมเต็ม เป็นประโยคที่สื่อความหมายได้ลึกซึ้งและมีความเป็นสากล ทำให้คนฟังเข้าถึงความรู้สึกของการขาดอะไรบางอย่างไปได้ง่าย",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "ว่างเปล่าที่ไม่มีใครเห็น",
+        "hook_text": "ความว่างเปล่าที่ไม่มีใครเห็น",
+        "emotional_score": 88,
+        "catchy_score": 78,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำถึงความรู้สึกว่างเปล่าที่ต้องเก็บซ่อนไว้และไม่มีใครเข้าใจ ซึ่งตรงกับธีมที่ว่ายิ้มได้หัวเราะได้แต่ลึกๆ กลับรู้สึกว่างเปล่า ประโยคนี้สร้างความรู้สึกเข้าถึงและดึงดูดใจได้ดี เหมาะกับการเป็นชื่อเพลงที่ชวนให้ติดตาม",
+        "suggested_usage": "title line"
+      },
+      {
+        "name": "ทำไมข้างในยังหายไป",
+        "hook_text": "ทำไมข้างในมันยังหายไป?",
+        "emotional_score": 92,
+        "catchy_score": 82,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นคำถามที่สะท้อนความรู้สึกภายในที่ยังคงขาดหายไปอย่างไม่รู้สาเหตุ ตรงกับความรู้สึกว่างเปล่าที่บอกไม่ถูก เป็นประโยคที่เชื้อเชิญให้คนฟังร่วมคิดตามและรู้สึกร่วมไปกับความสับสนภายในจิตใจได้ดี",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รอยยิ้มบังความรู้สึก",
+        "hook_text": "รอยยิ้มบังความรู้สึกข้างใน",
+        "emotional_score": 87,
+        "catchy_score": 85,
+        "tiktok_potential": 92,
+        "reason_th": "เป็นประโยคที่ตรงไปตรงมาและเข้าใจง่ายที่สุดในการสื่อถึงการแกล้งทำเป็นมีความสุขในขณะที่ภายในรู้สึกว่างเปล่า เหมาะกับการเป็นแคปชั่นหรือประโยคเด็ดที่โดนใจคนฟังอย่างรวดเร็ว โดยเฉพาะในแพลตฟอร์มที่เน้นภาพและข้อความสั้นๆ",
+        "suggested_usage": "TikTok clip"
+      }
+    ],
+    "instrument_tags": {
+      "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+      "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+      "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+      "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+      "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+      "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+      "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+      "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+      "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+      "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+    },
+    "energy_curve": {
+      "Intro": 25,
+      "Verse 1": 35,
+      "Pre-Chorus": 60,
+      "Chorus": 88,
+      "Post-Chorus": 78,
+      "Verse 2": 42,
+      "Bridge": 50,
+      "Final Chorus": 98,
+      "Outro": 20
+    },
+    "arrangement_preset": "",
+    "artist_preset": "vela_moon",
+    "artist_preset_name": "Vela Moon",
+    "instrument_tags_language": "English only",
+    "original_song_output": "[Intro] (warm piano chords, gentle acoustic guitar intro)\nนานเท่าไรแล้วนะ\nที่ฉันต้องอยู่กับความรู้สึกที่อธิบาย\n\n[Verse 1] (vocal starts softly over clean electric guitar and warm bass)\nทุกเช้าที่ตื่นลืมตา ฉันยังยิ้มได้เหมือนเก่า\nทักทายผู้คนรอบตัว เล่าเรื่องตลกให้ใครฟัง\nหัวเราะไปกับเรื่องราว ไม่ได้มีปัญหาอะไร\nมองจากข้างนอกคงดูเหมือนว่าฉันสบายดี\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad, vocal becomes a bit more urgent)\nแต่ความจริงที่ซ่อนอยู่ข้างใน\nบางครั้งมันก็สะท้อนออกมาในแววตา\nคำถามเดิมๆ ที่วนเวียนไม่เคยจาง\n\n[Chorus] (full band kicks in with a clear, emotional melody, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา (vocal swells with emotion)\n\n[Post-Chorus] (melodic electric guitar plays a catchy, reflective line, easy listening vibe)\nโอ้... หายไปไหน...\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming enters prominently)\nลองหาอะไรมาเติมเต็ม ลองไปในที่ที่เคยฝัน\nเจอผู้คนใหม่ๆ ที่พูดคุย เปิดใจเล่าเรื่องทุกวัน\nพยายามทำทุกอย่างให้เหมือนว่าฉันเข้มแข็ง\nแต่พออยู่คนเดียว ก็เหลือแค่เพียงความว่างเปล่า\n\n[Pre-Chorus] (drums build up, synth pad returns, vocal slightly strained with emotion)\nและมันก็วนกลับมาอีกครั้ง\nความรู้สึกที่มันยากเกินจะเข้าใจ\nเป็นคำถามที่ยังค้างคาในใจ\n\n[Chorus] (full band, strong and emotional, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\n\n[Bridge] (music softens dramatically, just rhodes piano and vocal focus, vocal builds with raw emotion, light pad swells)\nบางทีฉันก็อยากรู้ ว่าคนอื่นเขาเป็นอย่างฉันไหม\nมันคืออะไรที่ขาดหายไป หรือว่าฉันแค่คิดไปเอง\nความรู้สึกนี้มันกัดกินข้างใน...\nจนฉันอยากจะหาทาง...ให้มันหายไป\n\n[Guitar Solo] (energetic and melodic pop-rock guitar solo over a driving full band rhythm, showcasing emotion and skill)\n\n[Final Chorus] (full, powerful band sound, vocal is more urgent and heartfelt, maximum energy, brighter vocal delivery, expanded emotion)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\nให้ใจได้เต็มขึ้นมา!\n\n[Outro] (music gradually fades, acoustic guitar and piano chords, a final clean electric guitar note hangs in the air)\nทำไมข้างในมันยัง...หายไป...\n(Soft vocal echo: หายไป...)\n(Piano and guitar fade)",
+    "normalized_song_output": "[Intro] (warm piano chords, gentle acoustic guitar intro)\nนานเท่าไรแล้วนะ\nที่ฉันต้องอยู่กับความรู้สึกที่อธิบาย\n\n[Verse 1] (vocal starts softly over clean electric guitar and warm bass)\nทุกเช้าที่ตื่นลืมตา ฉันยังยิ้มได้เหมือนเก่า\nทักทายผู้คนรอบตัว เล่าเรื่องตลกให้ใครฟัง\nหัวเราะไปกับเรื่องราว ไม่ได้มีปัญหาอะไร\nมองจากข้างนอกคงดูเหมือนว่าฉันสบายดี\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad, vocal becomes a bit more urgent)\nแต่ความจริงที่ซ่อนอยู่ข้างใน\nบางครั้งมันก็สะท้อนออกมาในแววตา\nคำถามเดิมๆ ที่วนเวียนไม่เคยจาง\n\n[Chorus] (full band kicks in with a clear, emotional melody, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา (vocal swells with emotion)\n\n[Post-Chorus] (melodic electric guitar plays a catchy, reflective line, easy listening vibe)\nโอ้... หายไปไหน...\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming enters prominently)\nลองหาอะไรมาเติมเต็ม ลองไปในที่ที่เคยฝัน\nเจอผู้คนใหม่ๆ ที่พูดคุย เปิดใจเล่าเรื่องทุกวัน\nพยายามทำทุกอย่างให้เหมือนว่าฉันเข้มแข็ง\nแต่พออยู่คนเดียว ก็เหลือแค่เพียงความว่างเปล่า\n\n[Pre-Chorus] (drums build up, synth pad returns, vocal slightly strained with emotion)\nและมันก็วนกลับมาอีกครั้ง\nความรู้สึกที่มันยากเกินจะเข้าใจ\nเป็นคำถามที่ยังค้างคาในใจ\n\n[Chorus] (full band, strong and emotional, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\n\n[Bridge] (music softens dramatically, just rhodes piano and vocal focus, vocal builds with raw emotion, light pad swells)\nบางทีฉันก็อยากรู้ ว่าคนอื่นเขาเป็นอย่างฉันไหม\nมันคืออะไรที่ขาดหายไป หรือว่าฉันแค่คิดไปเอง\nความรู้สึกนี้มันกัดกินข้างใน...\nจนฉันอยากจะหาทาง...ให้มันหายไป\n\n[Guitar Solo] (energetic and melodic pop-rock guitar solo over a driving full band rhythm, showcasing emotion and skill)\n\n[Final Chorus] (full, powerful band sound, vocal is more urgent and heartfelt, maximum energy, brighter vocal delivery, expanded emotion)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\nให้ใจได้เต็มขึ้นมา!\n\n[Outro] (music gradually fades, acoustic guitar and piano chords, a final clean electric guitar note hangs in the air)\nทำไมข้างในมันยัง...หายไป...\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Piano and guitar fade)",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": "[Intro] (warm piano chords, gentle acoustic guitar intro)\nนานเท่าไรแล้วนะ\nที่ฉันต้องอยู่กับความรู้สึกที่อธิบาย\n\n[Verse 1] (vocal starts softly over clean electric guitar and warm bass)\nทุกเช้าที่ตื่นลืมตา ฉันยังยิ้มได้เหมือนเก่า\nทักทายผู้คนรอบตัว เล่าเรื่องตลกให้ใครฟัง\nหัวเราะไปกับเรื่องราว ไม่ได้มีปัญหาอะไร\nมองจากข้างนอกคงดูเหมือนว่าฉันสบายดี\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad, vocal becomes a bit more urgent)\nแต่ความจริงที่ซ่อนอยู่ข้างใน\nบางครั้งมันก็สะท้อนออกมาในแววตา\nคำถามเดิมๆ ที่วนเวียนไม่เคยจาง\n\n[Chorus] (full band kicks in with a clear, emotional melody, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา (vocal swells with emotion)\n\n[Post-Chorus] (melodic electric guitar plays a catchy, reflective line, easy listening vibe)\nโอ้... หายไปไหน...\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming enters prominently)\nลองหาอะไรมาเติมเต็ม ลองไปในที่ที่เคยฝัน\nเจอผู้คนใหม่ๆ ที่พูดคุย เปิดใจเล่าเรื่องทุกวัน\nพยายามทำทุกอย่างให้เหมือนว่าฉันเข้มแข็ง\nแต่พออยู่คนเดียว ก็เหลือแค่เพียงความว่างเปล่า\n\n[Pre-Chorus] (drums build up, synth pad returns, vocal slightly strained with emotion)\nและมันก็วนกลับมาอีกครั้ง\nความรู้สึกที่มันยากเกินจะเข้าใจ\nเป็นคำถามที่ยังค้างคาในใจ\n\n[Chorus] (full band, strong and emotional, catchy pop rock groove, tambourine added)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\n\n[Bridge] (music softens dramatically, just rhodes piano and vocal focus, vocal builds with raw emotion, light pad swells)\nบางทีฉันก็อยากรู้ ว่าคนอื่นเขาเป็นอย่างฉันไหม\nมันคืออะไรที่ขาดหายไป หรือว่าฉันแค่คิดไปเอง\nความรู้สึกนี้มันกัดกินข้างใน...\nจนฉันอยากจะหาทาง...ให้มันหายไป\n\n[Guitar Solo] (energetic and melodic pop-rock guitar solo over a driving full band rhythm, showcasing emotion and skill)\n\n[Final Chorus] (full, powerful band sound, vocal is more urgent and heartfelt, maximum energy, brighter vocal delivery, expanded emotion)\nทำไมข้างในมันยังหายไป? (Why is it still missing inside?)\nหายไปจากที่ไหน? ทำไมไม่เคยรู้\nฉันไม่เข้าใจ ความสุขที่มีมันไม่พอ\nต้องตามหาสิ่งไหน ให้ใจได้เต็มขึ้นมา\nให้ใจได้เต็มขึ้นมา!\n\n[Outro] (music gradually fades, acoustic guitar and piano chords, a final clean electric guitar note hangs in the air)\nทำไมข้างในมันยัง...หายไป...\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Piano and guitar fade)"
+    },
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_preset": "VelaFlow Default",
+    "music_preset_data": {
+      "name": "VelaFlow Default",
+      "description": "A safe general-purpose preset for polished emotional pop and pop rock releases.",
+      "genre": "Modern Pop / Pop Rock",
+      "mood": "balanced, emotional, clean, radio-friendly",
+      "vocal_style": "clear natural vocal, expressive but not overdramatic",
+      "arrangement": "warm piano, acoustic/electric guitar, bass, drums, light pad",
+      "structure_guide": "Intro, Verse, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, Outro",
+      "prompt_suffix": "Make the song polished, easy to listen to, emotionally clear, and suitable for general release."
+    },
+    "song_structure_plan": {},
+    "weirdness": 10,
+    "style_influence": 65,
+    "saved_at": "2026-05-12T12:34:02"
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

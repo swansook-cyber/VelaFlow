@@ -1,0 +1,289 @@
+{
+  "title": "เส้นทางเก่า",
+  "target_analysis": "เพลง Pop Rock ฟังสบายในสไตล์ Vela Moon เนื้อหาเกี่ยวกับความคิดถึงในอดีตและการยอมรับความจริงที่ต้องเดินหน้าต่อไป โดยมีฮุก 'กลับมาไม่ได้ ก็ไม่เป็นไร' เป็นหัวใจสำคัญที่สื่อถึงการปล่อยวางแต่ยังคงความรู้สึก 'คิดถึง' ไว้ เพลงนี้ตั้งเป้าหมายให้เข้าถึงง่าย มีเมโลดี้ติดหู และเนื้อเพลงที่ผู้ฟังรู้สึกร่วมได้ เพื่อให้มีโอกาสเป็นไวรัลสูง",
+  "hook_type": "Acceptance and bittersweet longing",
+  "candidate_hooks": [
+    {
+      "name": "Hook A",
+      "hook_text": "พอได้แล้วใจ",
+      "emotional_score": 98,
+      "catchy_score": 100,
+      "tiktok_potential": 100,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "chorus"
+    },
+    {
+      "name": "Hook B",
+      "hook_text": "ยังคิดถึงเธออยู่ดี",
+      "emotional_score": 90,
+      "catchy_score": 100,
+      "tiktok_potential": 93,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "post-chorus"
+    },
+    {
+      "name": "Hook C",
+      "hook_text": "ฝนตกในใจฉัน",
+      "emotional_score": 92,
+      "catchy_score": 100,
+      "tiktok_potential": 100,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "TikTok clip"
+    },
+    {
+      "name": "Hook D",
+      "hook_text": "กลับมาไม่ได้ ก็ไม่เป็นไร",
+      "emotional_score": 84,
+      "catchy_score": 94,
+      "tiktok_potential": 87,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "title line"
+    },
+    {
+      "name": "Hook E",
+      "hook_text": "รักที่เหลือคือความเงียบ",
+      "emotional_score": 81,
+      "catchy_score": 91,
+      "tiktok_potential": 84,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "chorus"
+    }
+  ],
+  "selected_hook": {
+    "name": "Hook D",
+    "hook_text": "กลับมาไม่ได้ ก็ไม่เป็นไร",
+    "emotional_score": 84,
+    "catchy_score": 94,
+    "tiktok_potential": 87,
+    "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+    "suggested_usage": "title line"
+  },
+  "selected_hook_reason": "เป็นประโยคที่สั้น กระชับ มีความหมายที่ลึกซึ้งทั้งการยอมรับความจริง (accepting reality) และการปล่อยวาง (letting go) แต่ยังคงแฝงไว้ด้วยความคิดถึง (bittersweet longing) เหมาะกับ Mood เพลง Pop Rock ฟังสบายที่เน้นอารมณ์ และเป็นประโยคที่สามารถใช้เป็นแคปชั่นหรือติดหูได้ง่าย",
+  "instrument_selection": {
+    "main_instruments": [
+      "clean electric guitar",
+      "acoustic guitar strumming",
+      "warm bass",
+      "soft drum kit"
+    ],
+    "supporting_instruments": [
+      "light rhodes piano",
+      "soft synth pad",
+      "tambourine",
+      "melodic electric guitar solo"
+    ],
+    "atmosphere_texture_elements": [
+      "relaxed emotional atmosphere",
+      "catchy melody",
+      "full band arrangement",
+      "complete song structure"
+    ],
+    "reason": "เครื่องดนตรีเหล่านี้ถูกคัดเลือกมาอย่างดีเพื่อให้เข้ากับ Brand Style ของ Vela Moon ซึ่งเน้น Pop Rock ฟังสบาย มีความอบอุ่นและอารมณ์เพลงที่ลึกซึ้ง โดย Clean electric guitar และ Acoustic strumming สร้างพื้นผิวที่ผ่อนคลาย Warm bass และ Soft drum kit ให้จังหวะที่ไม่หนักจนเกินไป ส่วน Rhodes piano และ Synth pad ช่วยเพิ่มมิติของอารมณ์ คิดถึง ได้อย่างลงตัว และ Melodic electric guitar solo เป็นจุดเด่นของ Pop Rock ที่เพิ่มความน่าสนใจให้กับเพลง"
+  },
+  "music_style_prompt": "mid-tempo pop rock, easy listening, bittersweet and reflective mood, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth emotional male vocal, relaxed but heartfelt delivery, memorable and catchy melody, full band arrangement, complete song structure, designed for high virality.",
+  "advanced_settings": {
+    "weirdness": 10,
+    "style_influence": 65,
+    "reason": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+  },
+  "complete_lyrics": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nมองดูรูปเก่าๆ ที่เราเคยยืนข้างกัน\nภาพความทรงจำเหล่านั้น ยังคงวนเวียนในใจ\nรู้ว่าเวลาหมุนไป ไม่มีอะไรเหมือนเดิม\nแต่บางทีก็เผลอ คิดถึงเธออยู่เรื่อยไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Ooh-ooh-ooh-ooh, ooh-ooh)\nไม่เป็นไร ไม่เป็นไร\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nวันนี้ฉันยืนอยู่ตรงนี้ เพียงลำพัง\nมองฟ้าที่ว่างเปล่า ไม่เหมือนเมื่อก่อน\nยอมรับความจริงที่ต้องเจอ ไม่มีเธอแล้ว\nแต่ความรักและความผูกพัน ไม่เคยเลือนหายไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nบางครั้งก็ยังสงสัย เธอเป็นอย่างไรบ้าง\nมีความสุขดีไหม ในทางที่เธอเลือกเดิน\nหวังว่าเธอจะเจอ สิ่งดีๆ เหมือนที่ฉัน\nกำลังจะเจอในทางของฉันเอง\n\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nกลับมาไม่ได้ ก็ไม่เป็นไร!\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ!\nเส้นทางของฉัน จะเดินต่อไป!\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว!\n(Higher energy) กลับมาไม่ได้ ก็ไม่เป็นไร!\nฉันยังคงคิดถึงเธอเสมอ!\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเส้นทางของฉัน...\nไม่เป็นไร...\n(Fade out with music)",
+  "tiktok_clip_cut_recommendation": [
+    {
+      "rank": 1,
+      "section": "[Chorus]",
+      "lyric_excerpt": "กลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว",
+      "reason": "เป็นท่อนฮุกที่ติดหู มีความหมายกินใจ เข้าถึงอารมณ์ 'คิดถึง' และ 'ยอมรับ' ได้ดี เป็นประโยคที่คนนำไปใช้เป็นแคปชั่นหรือคอนเทนต์ได้ง่าย",
+      "clip_type": "Emotional, relatable, caption-friendly"
+    },
+    {
+      "rank": 2,
+      "section": "[Pre-Chorus] + [Chorus] (First Line)",
+      "lyric_excerpt": "ไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\nกลับมาไม่ได้ ก็ไม่เป็นไร",
+      "reason": "ท่อน Pre-Chorus สร้างอารมณ์ร่วมก่อนเข้าฮุกได้อย่างลงตัว ทำให้รู้สึกถึงการไตร่ตรองและยอมรับความจริง ก่อนจะตบท้ายด้วยฮุกที่แข็งแรง",
+      "clip_type": "Storytelling, reflective, build-up"
+    },
+    {
+      "rank": 3,
+      "section": "[Bridge]",
+      "lyric_excerpt": "บางครั้งก็ยังสงสัย เธอเป็นอย่างไรบ้าง\nมีความสุขดีไหม ในทางที่เธอเลือกเดิน\nหวังว่าเธอจะเจอ สิ่งดีๆ เหมือนที่ฉัน\nกำลังจะเจอในทางของฉันเอง",
+      "reason": "ท่อน Bridge แสดงถึงความคิดถึงที่ยังคงมีอยู่และปรารถนาดีต่ออีกฝ่าย พร้อมกับการเดินหน้าต่อของตัวเอง เป็นเนื้อหาที่ละเอียดอ่อนและ relatable สูง",
+      "clip_type": "Heartfelt, introspective, wishing well"
+    }
+  ],
+  "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว",
+  "instrument_tags": {
+    "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+    "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+    "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+    "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+    "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+    "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+    "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+    "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+    "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+    "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+  },
+  "energy_curve": {
+    "Intro": 25,
+    "Verse 1": 35,
+    "Pre-Chorus": 60,
+    "Chorus": 88,
+    "Post-Chorus": 78,
+    "Verse 2": 42,
+    "Bridge": 50,
+    "Final Chorus": 98,
+    "Outro": 20
+  },
+  "arrangement_preset": "",
+  "artist_preset": "vela_moon",
+  "artist_preset_name": "Vela Moon",
+  "instrument_tags_language": "English only",
+  "original_song_output": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nมองดูรูปเก่าๆ ที่เราเคยยืนข้างกัน\nภาพความทรงจำเหล่านั้น ยังคงวนเวียนในใจ\nรู้ว่าเวลาหมุนไป ไม่มีอะไรเหมือนเดิม\nแต่บางทีก็เผลอ คิดถึงเธออยู่เรื่อยไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Ooh-ooh-ooh-ooh, ooh-ooh)\nไม่เป็นไร ไม่เป็นไร\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nวันนี้ฉันยืนอยู่ตรงนี้ เพียงลำพัง\nมองฟ้าที่ว่างเปล่า ไม่เหมือนเมื่อก่อน\nยอมรับความจริงที่ต้องเจอ ไม่มีเธอแล้ว\nแต่ความรักและความผูกพัน ไม่เคยเลือนหายไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nบางครั้งก็ยังสงสัย เธอเป็นอย่างไรบ้าง\nมีความสุขดีไหม ในทางที่เธอเลือกเดิน\nหวังว่าเธอจะเจอ สิ่งดีๆ เหมือนที่ฉัน\nกำลังจะเจอในทางของฉันเอง\n\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nกลับมาไม่ได้ ก็ไม่เป็นไร!\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ!\nเส้นทางของฉัน จะเดินต่อไป!\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว!\n(Higher energy) กลับมาไม่ได้ ก็ไม่เป็นไร!\nฉันยังคงคิดถึงเธอเสมอ!\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเส้นทางของฉัน...\nไม่เป็นไร...\n(Fade out with music)",
+  "normalized_song_output": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nมองดูรูปเก่าๆ ที่เราเคยยืนข้างกัน\nภาพความทรงจำเหล่านั้น ยังคงวนเวียนในใจ\nรู้ว่าเวลาหมุนไป ไม่มีอะไรเหมือนเดิม\nแต่บางทีก็เผลอ คิดถึงเธออยู่เรื่อยไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Ooh-ooh-ooh-ooh, ooh-ooh)\nไม่เป็นไร ไม่เป็นไร\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nวันนี้ฉันยืนอยู่ตรงนี้ เพียงลำพัง\nมองฟ้าที่ว่างเปล่า ไม่เหมือนเมื่อก่อน\nยอมรับความจริงที่ต้องเจอ ไม่มีเธอแล้ว\nแต่ความรักและความผูกพัน ไม่เคยเลือนหายไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nบางครั้งก็ยังสงสัย เธอเป็นอย่างไรบ้าง\nมีความสุขดีไหม ในทางที่เธอเลือกเดิน\nหวังว่าเธอจะเจอ สิ่งดีๆ เหมือนที่ฉัน\nกำลังจะเจอในทางของฉันเอง\n\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nกลับมาไม่ได้ ก็ไม่เป็นไร!\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ!\nเส้นทางของฉัน จะเดินต่อไป!\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว!\n(Higher energy) กลับมาไม่ได้ ก็ไม่เป็นไร!\nฉันยังคงคิดถึงเธอเสมอ!\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเส้นทางของฉัน...\nไม่เป็นไร...\n(Fade out with music)",
+  "instrument_tag_validation": {
+    "ok": true,
+    "thai_tags_found": [],
+    "fixed_lyrics": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nมองดูรูปเก่าๆ ที่เราเคยยืนข้างกัน\nภาพความทรงจำเหล่านั้น ยังคงวนเวียนในใจ\nรู้ว่าเวลาหมุนไป ไม่มีอะไรเหมือนเดิม\nแต่บางทีก็เผลอ คิดถึงเธออยู่เรื่อยไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Ooh-ooh-ooh-ooh, ooh-ooh)\nไม่เป็นไร ไม่เป็นไร\n\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nวันนี้ฉันยืนอยู่ตรงนี้ เพียงลำพัง\nมองฟ้าที่ว่างเปล่า ไม่เหมือนเมื่อก่อน\nยอมรับความจริงที่ต้องเจอ ไม่มีเธอแล้ว\nแต่ความรักและความผูกพัน ไม่เคยเลือนหายไป\n\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nไม่ใช่ว่าไม่เข้าใจ ไม่ใช่ว่าฉันไม่รู้\nว่าทางที่เราเลือกเดิน มันต่างกันแค่ไหน\n\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nกลับมาไม่ได้ ก็ไม่เป็นไร\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ\nเส้นทางของฉัน จะเดินต่อไป\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว\n\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nบางครั้งก็ยังสงสัย เธอเป็นอย่างไรบ้าง\nมีความสุขดีไหม ในทางที่เธอเลือกเดิน\nหวังว่าเธอจะเจอ สิ่งดีๆ เหมือนที่ฉัน\nกำลังจะเจอในทางของฉันเอง\n\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nกลับมาไม่ได้ ก็ไม่เป็นไร!\nแค่อยากให้เธอรู้ ฉันยังคงคิดถึงเธอเสมอ!\nเส้นทางของฉัน จะเดินต่อไป!\nแม้ไม่มีเธอข้างๆ ก็ต้องไหว!\n(Higher energy) กลับมาไม่ได้ ก็ไม่เป็นไร!\nฉันยังคงคิดถึงเธอเสมอ!\n\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเส้นทางของฉัน...\nไม่เป็นไร...\n(Fade out with music)"
+  },
+  "hook_candidates": [
+    {
+      "name": "Hook A",
+      "hook_text": "พอได้แล้วใจ",
+      "emotional_score": 98,
+      "catchy_score": 100,
+      "tiktok_potential": 100,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "chorus"
+    },
+    {
+      "name": "Hook B",
+      "hook_text": "ยังคิดถึงเธออยู่ดี",
+      "emotional_score": 90,
+      "catchy_score": 100,
+      "tiktok_potential": 93,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "post-chorus"
+    },
+    {
+      "name": "Hook C",
+      "hook_text": "ฝนตกในใจฉัน",
+      "emotional_score": 92,
+      "catchy_score": 100,
+      "tiktok_potential": 100,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "TikTok clip"
+    },
+    {
+      "name": "Hook D",
+      "hook_text": "กลับมาไม่ได้ ก็ไม่เป็นไร",
+      "emotional_score": 84,
+      "catchy_score": 94,
+      "tiktok_potential": 87,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "title line"
+    },
+    {
+      "name": "Hook E",
+      "hook_text": "รักที่เหลือคือความเงียบ",
+      "emotional_score": 81,
+      "catchy_score": 91,
+      "tiktok_potential": 84,
+      "reason_th": "สั้น จำง่าย และเหมาะกับการนำไปทำท่อนฮุก",
+      "suggested_usage": "chorus"
+    }
+  ],
+  "selected_hook_text": "กลับมาไม่ได้ ก็ไม่เป็นไร",
+  "artist_preset_data": {
+    "artist_id": "vela_moon",
+    "artist_name": "Vela Moon",
+    "brand_style": "emotional easy-listening Thai pop rock",
+    "default_language": "Thai lyrics",
+    "music_prompt_language": "English only",
+    "instrument_tags_language": "English only",
+    "genre": "mid-tempo pop rock, easy listening",
+    "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+    "main_instruments": [
+      "clean electric guitar",
+      "acoustic guitar strumming",
+      "warm bass",
+      "soft drum kit"
+    ],
+    "supporting_instruments": [
+      "light rhodes piano",
+      "soft synth pad",
+      "tambourine",
+      "melodic electric guitar solo"
+    ],
+    "atmosphere_elements": [
+      "relaxed emotional atmosphere",
+      "catchy melody",
+      "full band arrangement",
+      "complete song structure"
+    ],
+    "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+    "suno_advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "song_structure": [
+      "Intro",
+      "Verse 1",
+      "Pre-Chorus",
+      "Chorus",
+      "Post-Chorus",
+      "Verse 2",
+      "Pre-Chorus",
+      "Chorus",
+      "Bridge",
+      "Guitar Solo",
+      "Final Chorus",
+      "Outro"
+    ],
+    "writing_rules": [
+      "Thai lyrics must sound natural and conversational",
+      "Hook must be short, emotional, catchy, and caption-friendly",
+      "Avoid overly poetic or unnatural Thai words",
+      "Chorus should be easy to sing after 1-2 listens",
+      "Final Chorus must feel bigger than previous chorus",
+      "Do not make the song feel like a short demo"
+    ],
+    "section_instrument_tags": {
+      "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+      "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+      "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+      "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+      "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+      "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+      "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+      "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+      "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+      "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+    },
+    "mv_identity": {
+      "render_profile": "Cinematic",
+      "subtitle_style": "cinematic",
+      "color_profile": "warm / lonely night / film look",
+      "camera_language": [
+        "slow push in",
+        "emotional drift",
+        "soft handheld",
+        "cinematic close-up"
+      ],
+      "visual_mood": "emotional, relatable, cinematic but accessible"
+    },
+    "marketing_identity": {
+      "tone": "emotional, relatable, caption-friendly",
+      "target_platforms": [
+        "YouTube",
+        "TikTok",
+        "Facebook",
+        "Shorts"
+      ],
+      "hook_style": "short Thai phrase that feels like real life"
+    }
+  },
+  "weirdness": 10,
+  "style_influence": 65,
+  "saved_at": "2026-05-10T18:27:00"
+}

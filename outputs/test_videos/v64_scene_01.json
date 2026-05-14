@@ -1,0 +1,18 @@
+{
+  "prompt": "slow dolly in rain",
+  "metadata": {
+    "provider": "offline",
+    "status": "placeholder",
+    "reason": "Offline video mode creates a render slot only.",
+    "scene": 1,
+    "image_path": "",
+    "duration_seconds": 5,
+    "aspect_ratio": "16:9",
+    "negative_prompt": "warped face, changing identity, flicker, jitter, melted hands, extra fingers, bad anatomy, duplicate character, unstable camera, low quality, blurry frames, watermark",
+    "character_note": "",
+    "reference_image_path": "",
+    "output_path": "outputs\\test_videos\\v64_scene_01.mp4",
+    "ready_for_render": false
+  },
+  "created_at": 1778248899.0306711
+}

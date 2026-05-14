@@ -1,0 +1,695 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-13T20:50:19",
+  "title": "เหนื่อยเกินไป",
+  "artist": "Vela Moon",
+  "workflow_type": "podcast",
+  "project_type": "podcast",
+  "song": {
+    "title": "เหนื่อยเกินไป",
+    "target_analysis": "เพลงนี้เหมาะสำหรับกลุ่มผู้ฟังวัยรุ่นตอนปลายถึงวัยทำงาน (20-40 ปี) ที่เคยผ่านประสบการณ์ความรักที่ต้องใช้ความพยายามอย่างหนัก จนรู้สึกเหนื่อยล้า แม้จะยังมีความรักอยู่ แต่ก็ต้องตัดสินใจปล่อยมือเพื่อรักษาใจตัวเอง กลุ่มคนเหล่านี้จะเข้าใจและเข้าถึงอารมณ์ของเพลงได้ง่าย เพราะสะท้อนความจริงในความสัมพันธ์ที่ไม่ได้สวยงามเสมอไป Hook ของเพลงถูกออกแบบมาให้ตรงไปตรงมา เข้าใจง่าย และมีความเป็น 'แคปชั่น' สูง เพื่อให้สามารถแชร์บนโซเชียลมีเดียได้อย่างแพร่หลาย โดยเฉพาะ TikTok และ Reels.",
+    "hook_type": "Relatable Emotional Confession",
+    "hook_candidates": [
+      {
+        "name": "ใจอ่อนล้า",
+        "hook_text": "ต้องปล่อยเธอไป ไม่ใช่ไม่รัก แค่ใจมันอ่อนล้าเกินไป",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงความขัดแย้งภายในใจอย่างชัดเจนว่ายังรักแต่ต้องปล่อยเพราะความเหนื่อยล้าที่สะสมจนใจอ่อนแรง เป็นประโยคที่ติดหูและเข้าใจง่าย",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ก่อนใจจะพัง",
+        "hook_text": "พอแล้วกับความเจ็บช้ำ... ก่อนที่ใจจะพังไปทั้งดวง",
+        "emotional_score": 95,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "เน้นย้ำจุดแตกหักและความเจ็บปวดที่ถึงขีดสุด เป็นประโยคที่ทรงพลังและสื่อถึงการตัดสินใจเพื่อปกป้องตัวเอง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รักแล้วมันเหนื่อย",
+        "hook_text": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน",
+        "emotional_score": 88,
+        "catchy_score": 90,
+        "tiktok_potential": 95,
+        "reason_th": "เป็นประโยคที่ตรงประเด็นและสื่อสารความรู้สึกเหนื่อยล้าจากการประคับประคองความสัมพันธ์ได้ชัดเจนมาก เป็นคำพูดที่คนมักใช้ในชีวิตจริง ทำให้เข้าถึงง่ายและติดหู",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "หมดแรงจะรั้ง",
+        "hook_text": "หมดแรงจะรั้งเธอไว้... ต้องปล่อยให้เธอไป",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นความรู้สึกหมดหนทางและยอมแพ้ในการประคับประคองความสัมพันธ์ สื่อถึงการตัดสินใจปล่อยมือที่เจ็บปวดแต่จำเป็น",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ใจได้หายใจ",
+        "hook_text": "ยอมปล่อยมือวันนี้... เพื่อให้ใจได้หายใจ",
+        "emotional_score": 92,
+        "catchy_score": 87,
+        "tiktok_potential": 90,
+        "reason_th": "ใช้คำเปรียบเปรยที่สวยงาม 'ใจได้หายใจ' สื่อถึงการปลดปล่อยตัวเองจากความอึดอัดเพื่อให้ใจได้มีพื้นที่และฟื้นฟูตัวเอง เป็นการจบที่ให้ความหวังเล็กๆ",
+        "suggested_usage": "title line"
+      }
+    ],
+    "selected_hook": {
+      "name": "รักแล้วมันเหนื่อย",
+      "hook_text": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน",
+      "emotional_score": 88,
+      "catchy_score": 90,
+      "tiktok_potential": 95,
+      "reason_th": "เป็นประโยคที่ตรงประเด็นและสื่อสารความรู้สึกเหนื่อยล้าจากการประคับประคองความสัมพันธ์ได้ชัดเจนมาก เป็นคำพูดที่คนมักใช้ในชีวิตจริง ทำให้เข้าถึงง่ายและติดหู",
+      "suggested_usage": "post-chorus"
+    },
+    "selected_hook_text": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน",
+    "selected_hook_reason": "ท่อนฮุกนี้ถูกเลือกเพราะสามารถสื่อสารแก่นของเพลงได้อย่างชัดเจนและทรงพลังที่สุด สะท้อนความขัดแย้งภายในใจระหว่างความรักกับความเหนื่อยล้าได้อย่างตรงไปตรงมา และมีศักยภาพสูงในการเป็นท่อนจำและประโยคที่ถูกนำไปใช้เป็นแคปชั่นบนโซเชียลมีเดีย",
+    "instrument_selection": {
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_texture_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "reason": "การเลือกเครื่องดนตรีนี้สอดคล้องกับแนวเพลง Modern Pop / Pop Rock ที่เน้นความ Emotional Easy-Listening ตามสไตล์ Vela Moon. Main instruments สร้างแกนหลักที่มั่นคงและอบอุ่น Supporting instruments เพิ่มมิติทางอารมณ์และสีสันให้กับเพลงโดยไม่ทำให้ซับซ้อนเกินไป Atmosphere elements ช่วยสร้างบรรยากาศโดยรวมที่ผ่อนคลายแต่เปี่ยมด้วยความรู้สึก ทำให้เพลงเข้าถึงง่ายและเหมาะกับการเผยแพร่ทั่วไป"
+    },
+    "music_style_prompt": "mid-tempo pop rock, easy listening, radio-friendly, balanced, emotional, clean production, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, soft synth pad, smooth warm emotional male vocal, intimate heartfelt delivery, expressive but controlled, catchy melody, full band arrangement, complete song structure",
+    "advanced_settings": {
+      "weirdness": 13,
+      "style_influence": 67,
+      "reason_th": "ค่าแนะนำจาก Music Preset: VelaFlow Default เพื่อให้เพลงมีความต่างเล็กน้อยแต่ยังคุมโทนได้",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ],
+      "manual": false
+    },
+    "complete_lyrics": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nเราเคยฝันถึงวันพรุ่งนี้ด้วยกัน\nจับมือกันแน่น ไม่เคยคิดจะปล่อย\nแต่เวลาที่เดินไปช้าๆ\nกลับทำให้เห็นว่ารักมันเริ่มเลือนลาง\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Oh-oh-oh) เหนื่อยเกินไป...\n(Oh-oh-oh) ที่จะรั้งเธอไว้\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nรู้ดีว่าเธอไม่ได้ตั้งใจทำร้าย\nแต่บางทีแค่ความรักมันไม่พอ\nในเมื่อเราต่างเดินกันคนละทาง\nจะฝืนแค่ไหน ก็มีแต่รอยน้ำตา\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะยื้อ อยากจะขอให้เธออยู่\nแต่ภาพสะท้อนในกระจก มันบอกว่าฉันไม่ไหว\nต้องยอมรับความจริง ว่าความรักครั้งนี้\nมันเกินกำลังที่ใจจะทน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่ใช่ไม่รัก (maximum energy, full band, brighter vocal delivery, expanded emotion) แต่แค่รักแล้วมันเหนื่อยเหลือเกิน (maximum energy, full band, brighter vocal delivery, expanded emotion)\nต้องปล่อยเธอไป (maximum energy, full band, brighter vocal delivery, expanded emotion) ทั้งที่ใจยังคงรัก (maximum energy, full band, brighter vocal delivery, expanded emotion)\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง... ปล่อยมันไป!\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเหนื่อยเกินไปแล้ว... (fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Acoustic guitar fades with soft piano)",
+    "tiktok_clip_cut_recommendation": [
+      {
+        "rank": 1,
+        "section": "[Chorus]",
+        "lyric_excerpt": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน / ต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก",
+        "reason": "เป็นท่อนฮุกหลักของเพลงที่สื่อสารความรู้สึกได้อย่างตรงไปตรงมาและเข้าถึงง่าย เหมาะสำหรับคอนเทนต์แนวตัดพ้อ ความรักที่ต้องยอมแพ้ หรือการตัดสินใจเพื่อตัวเอง",
+        "clip_type": "Emotional reveal, POV: when you have to let go"
+      },
+      {
+        "rank": 2,
+        "section": "[Bridge]",
+        "lyric_excerpt": "อยากจะยื้อ อยากจะขอให้เธออยู่ / แต่ภาพสะท้อนในกระจก มันบอกว่าฉันไม่ไหว / ต้องยอมรับความจริง ว่าความรักครั้งนี้ / มันเกินกำลังที่ใจจะทน",
+        "reason": "ท่อนนี้มีการถ่ายทอดอารมณ์ที่เข้มข้น แสดงความขัดแย้งภายในใจและการยอมรับความจริง เหมาะสำหรับคอนเทนต์แนวการตัดสินใจครั้งสำคัญ การมองย้อนกลับไป หรือช่วงเวลาแห่งความเปราะบาง",
+        "clip_type": "Self-reflection, breakdown moment, 'talking to myself' style"
+      },
+      {
+        "rank": 3,
+        "section": "[Pre-Chorus]",
+        "lyric_excerpt": "พยายามเท่าไหร่ ก็เหมือนยิ่งไกล / ยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ",
+        "reason": "เป็นท่อนที่สรุปความรู้สึกของความพยายามที่ไร้ผลและความเจ็บปวดที่เพิ่มขึ้นได้อย่างกระชับ เหมาะสำหรับคลิปสั้นๆ ที่ต้องการสื่อถึงความรู้สึก 'ท้อ' หรือ 'พยายามเท่าไหร่ก็ไม่พอ'",
+        "clip_type": "Frustration, feeling distant, 'relatable struggles'"
+      }
+    ],
+    "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว",
+    "candidate_hooks": [
+      {
+        "name": "ใจอ่อนล้า",
+        "hook_text": "ต้องปล่อยเธอไป ไม่ใช่ไม่รัก แค่ใจมันอ่อนล้าเกินไป",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงความขัดแย้งภายในใจอย่างชัดเจนว่ายังรักแต่ต้องปล่อยเพราะความเหนื่อยล้าที่สะสมจนใจอ่อนแรง เป็นประโยคที่ติดหูและเข้าใจง่าย",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ก่อนใจจะพัง",
+        "hook_text": "พอแล้วกับความเจ็บช้ำ... ก่อนที่ใจจะพังไปทั้งดวง",
+        "emotional_score": 95,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "เน้นย้ำจุดแตกหักและความเจ็บปวดที่ถึงขีดสุด เป็นประโยคที่ทรงพลังและสื่อถึงการตัดสินใจเพื่อปกป้องตัวเอง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รักแล้วมันเหนื่อย",
+        "hook_text": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน",
+        "emotional_score": 88,
+        "catchy_score": 90,
+        "tiktok_potential": 95,
+        "reason_th": "เป็นประโยคที่ตรงประเด็นและสื่อสารความรู้สึกเหนื่อยล้าจากการประคับประคองความสัมพันธ์ได้ชัดเจนมาก เป็นคำพูดที่คนมักใช้ในชีวิตจริง ทำให้เข้าถึงง่ายและติดหู",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "หมดแรงจะรั้ง",
+        "hook_text": "หมดแรงจะรั้งเธอไว้... ต้องปล่อยให้เธอไป",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นความรู้สึกหมดหนทางและยอมแพ้ในการประคับประคองความสัมพันธ์ สื่อถึงการตัดสินใจปล่อยมือที่เจ็บปวดแต่จำเป็น",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ใจได้หายใจ",
+        "hook_text": "ยอมปล่อยมือวันนี้... เพื่อให้ใจได้หายใจ",
+        "emotional_score": 92,
+        "catchy_score": 87,
+        "tiktok_potential": 90,
+        "reason_th": "ใช้คำเปรียบเปรยที่สวยงาม 'ใจได้หายใจ' สื่อถึงการปลดปล่อยตัวเองจากความอึดอัดเพื่อให้ใจได้มีพื้นที่และฟื้นฟูตัวเอง เป็นการจบที่ให้ความหวังเล็กๆ",
+        "suggested_usage": "title line"
+      }
+    ],
+    "instrument_tags": {
+      "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+      "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+      "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+      "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+      "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+      "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+      "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+      "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+      "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+      "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+    },
+    "energy_curve": {
+      "Intro": 25,
+      "Verse 1": 35,
+      "Pre-Chorus": 60,
+      "Chorus": 88,
+      "Post-Chorus": 78,
+      "Verse 2": 42,
+      "Bridge": 50,
+      "Final Chorus": 98,
+      "Outro": 20
+    },
+    "arrangement_preset": "",
+    "artist_preset": "vela_moon",
+    "artist_preset_name": "Vela Moon",
+    "instrument_tags_language": "English only",
+    "original_song_output": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nเราเคยฝันถึงวันพรุ่งนี้ด้วยกัน\nจับมือกันแน่น ไม่เคยคิดจะปล่อย\nแต่เวลาที่เดินไปช้าๆ\nกลับทำให้เห็นว่ารักมันเริ่มเลือนลาง\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Oh-oh-oh) เหนื่อยเกินไป...\n(Oh-oh-oh) ที่จะรั้งเธอไว้\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nรู้ดีว่าเธอไม่ได้ตั้งใจทำร้าย\nแต่บางทีแค่ความรักมันไม่พอ\nในเมื่อเราต่างเดินกันคนละทาง\nจะฝืนแค่ไหน ก็มีแต่รอยน้ำตา\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะยื้อ อยากจะขอให้เธออยู่\nแต่ภาพสะท้อนในกระจก มันบอกว่าฉันไม่ไหว\nต้องยอมรับความจริง ว่าความรักครั้งนี้\nมันเกินกำลังที่ใจจะทน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่ใช่ไม่รัก (ไม่รัก) แต่แค่รักแล้วมันเหนื่อยเหลือเกิน (เหนื่อยเหลือเกิน)\nต้องปล่อยเธอไป (ปล่อยเธอไป) ทั้งที่ใจยังคงรัก (ยังรักเธอ)\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง... ปล่อยมันไป!\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเหนื่อยเกินไปแล้ว... (Yeah, เหนื่อยเกินไป)\n(Acoustic guitar fades with soft piano)",
+    "normalized_song_output": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nเราเคยฝันถึงวันพรุ่งนี้ด้วยกัน\nจับมือกันแน่น ไม่เคยคิดจะปล่อย\nแต่เวลาที่เดินไปช้าๆ\nกลับทำให้เห็นว่ารักมันเริ่มเลือนลาง\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Oh-oh-oh) เหนื่อยเกินไป...\n(Oh-oh-oh) ที่จะรั้งเธอไว้\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nรู้ดีว่าเธอไม่ได้ตั้งใจทำร้าย\nแต่บางทีแค่ความรักมันไม่พอ\nในเมื่อเราต่างเดินกันคนละทาง\nจะฝืนแค่ไหน ก็มีแต่รอยน้ำตา\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะยื้อ อยากจะขอให้เธออยู่\nแต่ภาพสะท้อนในกระจก มันบอกว่าฉันไม่ไหว\nต้องยอมรับความจริง ว่าความรักครั้งนี้\nมันเกินกำลังที่ใจจะทน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่ใช่ไม่รัก (maximum energy, full band, brighter vocal delivery, expanded emotion) แต่แค่รักแล้วมันเหนื่อยเหลือเกิน (maximum energy, full band, brighter vocal delivery, expanded emotion)\nต้องปล่อยเธอไป (maximum energy, full band, brighter vocal delivery, expanded emotion) ทั้งที่ใจยังคงรัก (maximum energy, full band, brighter vocal delivery, expanded emotion)\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง... ปล่อยมันไป!\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเหนื่อยเกินไปแล้ว... (fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Acoustic guitar fades with soft piano)",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": "[Intro] (acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\n[Verse 1] (clean electric guitar picking, warm bass, smooth male vocal)\nเราเคยฝันถึงวันพรุ่งนี้ด้วยกัน\nจับมือกันแน่น ไม่เคยคิดจะปล่อย\nแต่เวลาที่เดินไปช้าๆ\nกลับทำให้เห็นว่ารักมันเริ่มเลือนลาง\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Post-Chorus] (melodic electric guitar solo, easy listening vibe)\n(Oh-oh-oh) เหนื่อยเกินไป...\n(Oh-oh-oh) ที่จะรั้งเธอไว้\n[Verse 2] (bass and drum focus, rhythmic acoustic strumming)\nรู้ดีว่าเธอไม่ได้ตั้งใจทำร้าย\nแต่บางทีแค่ความรักมันไม่พอ\nในเมื่อเราต่างเดินกันคนละทาง\nจะฝืนแค่ไหน ก็มีแต่รอยน้ำตา\n[Pre-Chorus] (drum pattern builds up slightly, light synth pad)\nพยายามเท่าไหร่ ก็เหมือนยิ่งไกล\nยิ่งรั้งเท่าไหร่ ยิ่งเจ็บในใจ\n[Chorus] (full band drops in, catchy pop rock groove, tambourine added)\nไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน\nต้องปล่อยเธอไป ทั้งที่ใจยังคงรัก\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง\n[Bridge] (music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะยื้อ อยากจะขอให้เธออยู่\nแต่ภาพสะท้อนในกระจก มันบอกว่าฉันไม่ไหว\nต้องยอมรับความจริง ว่าความรักครั้งนี้\nมันเกินกำลังที่ใจจะทน\n[Guitar Solo] (melodic and expressive pop-rock guitar solo, driving rhythm)\n[Final Chorus] (maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่ใช่ไม่รัก (maximum energy, full band, brighter vocal delivery, expanded emotion) แต่แค่รักแล้วมันเหนื่อยเหลือเกิน (maximum energy, full band, brighter vocal delivery, expanded emotion)\nต้องปล่อยเธอไป (maximum energy, full band, brighter vocal delivery, expanded emotion) ทั้งที่ใจยังคงรัก (maximum energy, full band, brighter vocal delivery, expanded emotion)\nสุดท้ายคนที่พัง ก็คือฉันคนเดิม\nที่ต้องฝืนทนกับความจริง... ปล่อยมันไป!\n[Outro] (fading out with acoustic guitar and soft piano, lingering clean guitar note)\nเหนื่อยเกินไปแล้ว... (fading out with acoustic guitar and soft piano, lingering clean guitar note)\n(Acoustic guitar fades with soft piano)"
+    },
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_preset": "VelaFlow Default",
+    "music_preset_data": {
+      "name": "VelaFlow Default",
+      "description": "A safe general-purpose preset for polished emotional pop and pop rock releases.",
+      "genre": "Modern Pop / Pop Rock",
+      "mood": "balanced, emotional, clean, radio-friendly",
+      "vocal_style": "clear natural vocal, expressive but not overdramatic",
+      "arrangement": "warm piano, acoustic/electric guitar, bass, drums, light pad",
+      "structure_guide": "Intro, Verse, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, Outro",
+      "prompt_suffix": "Make the song polished, easy to listen to, emotionally clear, and suitable for general release.",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ]
+    },
+    "vocal_direction": "Male Emotional",
+    "vocal_direction_data": {
+      "name": "Male Emotional",
+      "description": "เสียงผู้ชายอบอุ่น ถ่ายทอดอารมณ์จริงใจ เหมาะกับเพลงรักและเพลงเศร้า",
+      "vocal_style": "warm emotional male vocal",
+      "delivery": "intimate heartfelt delivery",
+      "emotional_tone": "expressive but controlled"
+    },
+    "weirdness": 13,
+    "style_influence": 67,
+    "song_structure_plan": {},
+    "saved_at": "2026-05-13T20:56:46",
+    "workflow_mode": "Full Pipeline"
+  },
+  "mv": {
+    "song_mood": "Melancholic, Exhausted, Bittersweet, Cinematic, Emotional",
+    "visual_style": "Thai Cinematic Pop-Rock, Moody Teal and Orange, Film Grain, Anamorphic Lens, Urban Loneliness",
+    "color_palette": [
+      "#1A2B3C (Deep Midnight Blue)",
+      "#D48C45 (Warm Streetlamp Orange)",
+      "#E0E0E0 (Cold Rainy Gray)"
+    ],
+    "story_concept": "A visual journey of a man wandering through a neon-lit, rainy Bangkok night, grappling with the weight of a dying relationship. The visuals transition from soft, nostalgic memories to a raw, emotional breakdown under the city lights, ending in a quiet, lonely acceptance.",
+    "director_notes": "Focus on the 'weight' in the actor's eyes. Use heavy rain and reflections to symbolize the internal tears. The pacing should start slow and breathy, then explode during the final chorus with shaky, high-energy handheld shots.",
+    "character_lock": {
+      "main_character": "25-year-old Thai male, melancholic expression, tired eyes",
+      "outfit": "Oversized dark denim jacket, plain white t-shirt, black slim trousers",
+      "hair": "Slightly messy middle-parted black hair, damp from rain",
+      "face_style": "Clean-shaven, expressive eyes, realistic skin texture",
+      "key_props": [
+        "Vintage acoustic guitar",
+        "Smartphone with cracked screen",
+        "Old film photo"
+      ],
+      "consistency_rule": "Maintain the same facial structure, damp hair texture, and denim jacket across all lighting conditions."
+    },
+    "storyboard": [
+      {
+        "scene": 1,
+        "time_range": "00:00-00:15",
+        "duration_seconds": 15,
+        "pacing_note": "Slow emotional intro",
+        "lyric_part": "[Intro]",
+        "emotion": "Loneliness, Stillness",
+        "scene_visual": "Close-up of hands strumming an acoustic guitar in a dimly lit room",
+        "visual_description": "Warm lamp light hitting the guitar strings, dust motes dancing in the air, moody shadows.",
+        "camera": "Extreme close-up / Static",
+        "camera_motion": "Slow focus pull from strings to the character's blurred face in background",
+        "lighting": "Low-key, warm tungsten side lighting",
+        "transition": "Fade from black",
+        "subtitle_style": "Minimalist white sans-serif, bottom center",
+        "prompt_core": "Hands playing acoustic guitar, cinematic lighting, moody room",
+        "expanded_prompt": "Cinematic 8k, extreme close-up of Thai male hands strumming a vintage acoustic guitar, warm tungsten lighting, dust particles in sunbeams, shallow depth of field, blurred background of a messy apartment, melancholic atmosphere, highly detailed skin texture.",
+        "image_prompt": "Extreme close-up, Thai man's hands on acoustic guitar strings, moody apartment, warm lamp light, 8k, cinematic film grain, anamorphic lens --ar 16:9",
+        "video_prompt": "Slow focus pull from the guitar strings to the man's face in the blurred background, subtle hand movement, dust floating in light.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 2,
+        "time_range": "00:15-00:30",
+        "duration_seconds": 15,
+        "pacing_note": "Soft and nostalgic",
+        "lyric_part": "เราเคยฝันถึงวันพรุ่งนี้ด้วยกัน...",
+        "emotion": "Nostalgia, Sadness",
+        "scene_visual": "Character walking alone through a park at dusk",
+        "visual_description": "A ghostly silhouette of a girl walking beside him for a second before vanishing.",
+        "camera": "Wide cinematic shot / Tracking shot",
+        "camera_motion": "Side tracking, following the character's pace",
+        "lighting": "Blue hour, soft natural light",
+        "transition": "Soft dissolve",
+        "subtitle_style": "Minimalist white sans-serif",
+        "prompt_core": "Man walking alone in park, blue hour, ghostly memory",
+        "expanded_prompt": "Wide shot, a Thai man in a denim jacket walking through a public park at dusk, blue hour lighting, city skyline in the distance, a faint translucent silhouette of a woman walking beside him, emotional cinematic look, 35mm film style.",
+        "image_prompt": "Wide shot, Thai man walking alone in a park at dusk, blue hour, soft city lights in background, cinematic, 8k, highly detailed --ar 16:9",
+        "video_prompt": "Tracking shot from the side, the man walks slowly, a ghostly figure of a woman appears briefly and fades away, leaves rustling.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 3,
+        "time_range": "00:30-00:45",
+        "duration_seconds": 15,
+        "pacing_note": "Building tension",
+        "lyric_part": "พยายามเท่าไหร่ ก็เหมือนยิ่งไกล...",
+        "emotion": "Frustration, Anxiety",
+        "scene_visual": "Character standing at a busy pedestrian crossing",
+        "visual_description": "Time-lapse of people moving fast around him while he stands perfectly still.",
+        "camera": "Medium shot / Static",
+        "camera_motion": "Static with fast-motion crowd",
+        "lighting": "Harsh neon signs, teal and orange",
+        "transition": "Match cut",
+        "subtitle_style": "Minimalist white sans-serif",
+        "prompt_core": "Man standing still in busy crowd, neon lights, time-lapse",
+        "expanded_prompt": "Medium shot, Thai man standing still amidst a blurred crowd of people moving fast, busy Bangkok street, neon signs reflecting on wet pavement, teal and orange color grading, cinematic motion blur.",
+        "image_prompt": "Medium shot, Thai man in denim jacket looking lost in a busy neon-lit street, motion blur of people around him, cinematic lighting, 8k --ar 16:9",
+        "video_prompt": "Character remains still while the crowd around him moves in fast-motion time-lapse, neon lights flickering.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 4,
+        "time_range": "00:45-01:10",
+        "duration_seconds": 25,
+        "pacing_note": "Full band drop / High energy",
+        "lyric_part": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน...",
+        "emotion": "Emotional Outburst",
+        "scene_visual": "Character singing passionately in heavy rain",
+        "visual_description": "Rain pouring down, neon lights reflecting in puddles, character looking up at the sky.",
+        "camera": "Low angle / Handheld",
+        "camera_motion": "Shaky handheld, circling the character",
+        "lighting": "Dramatic backlighting from streetlamps, high contrast",
+        "transition": "Hard cut on drum beat",
+        "subtitle_style": "Bold white, center",
+        "prompt_core": "Man singing in heavy rain, neon lights, emotional",
+        "expanded_prompt": "Low angle cinematic shot, Thai man singing emotionally in heavy rain, wet denim jacket, water dripping from hair, streetlamp backlighting, cinematic blue and orange tones, raw emotion, 8k resolution.",
+        "image_prompt": "Cinematic shot, Thai man looking up at the rain, wet hair, heavy rain falling, neon lights, urban background, emotional, 8k --ar 16:9",
+        "video_prompt": "Handheld camera circles the man as he sings, rain falling intensely, water splashing, dramatic lighting.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 5,
+        "time_range": "01:10-01:25",
+        "duration_seconds": 15,
+        "pacing_note": "Breathing room",
+        "lyric_part": "[Post-Chorus / Guitar Solo]",
+        "emotion": "Melancholy, Reflection",
+        "scene_visual": "Character leaning against a bridge railing, looking at the river",
+        "visual_description": "City lights reflecting on the water, wind blowing through his hair.",
+        "camera": "Wide shot / Slow dolly in",
+        "camera_motion": "Slow zoom towards his back",
+        "lighting": "Soft moonlight and distant city glow",
+        "transition": "Slow cross-fade",
+        "subtitle_style": "Italicized white",
+        "prompt_core": "Man on bridge at night, city lights, river reflection",
+        "expanded_prompt": "Wide shot, Thai man leaning on a metal bridge railing, looking at a river, city skyline in the background with glowing lights, melancholic atmosphere, cinematic composition, soft moonlight.",
+        "image_prompt": "Wide shot, man's back as he looks at city lights over a river, night, cinematic, moody, 8k --ar 16:9",
+        "video_prompt": "Slow dolly zoom in on the man's back, city lights reflecting on the moving water, wind blowing his hair.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 6,
+        "time_range": "01:25-01:45",
+        "duration_seconds": 20,
+        "pacing_note": "Intimate and quiet",
+        "lyric_part": "รู้ดีว่าเธอไม่ได้ตั้งใจทำร้าย...",
+        "emotion": "Resignation",
+        "scene_visual": "Character sitting alone in a late-night Thai diner",
+        "visual_description": "An empty chair and an untouched glass of water across from him.",
+        "camera": "Eye level / Medium close-up",
+        "camera_motion": "Static",
+        "lighting": "Flickering fluorescent light, cold tones",
+        "transition": "Cut",
+        "subtitle_style": "Minimalist white sans-serif",
+        "prompt_core": "Man alone in diner, flickering light, sad",
+        "expanded_prompt": "Medium close-up, Thai man sitting in a vintage Thai street diner at night, cold fluorescent lighting, empty seat opposite him, sad expression, steam rising from a bowl of noodles, cinematic film look.",
+        "image_prompt": "Thai man sitting alone in a diner, cold lighting, sad atmosphere, empty chair, cinematic, 8k --ar 16:9",
+        "video_prompt": "Static shot, the man stares blankly at the empty chair, fluorescent light flickers slightly, steam moves in the air.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 7,
+        "time_range": "01:45-02:00",
+        "duration_seconds": 15,
+        "pacing_note": "Building momentum",
+        "lyric_part": "พยายามเท่าไหร่ ก็เหมือนยิ่งไกล...",
+        "emotion": "Despair",
+        "scene_visual": "Close-up of the character's reflection in a rainy window",
+        "visual_description": "Raindrops racing down the glass, distorting his face.",
+        "camera": "Macro / Close-up",
+        "camera_motion": "Slow pan across the glass",
+        "lighting": "Reflected neon lights",
+        "transition": "Blur transition",
+        "subtitle_style": "Minimalist white sans-serif",
+        "prompt_core": "Reflection in rainy window, neon lights, distorted face",
+        "expanded_prompt": "Macro shot, Thai man's face reflected in a window covered in raindrops, neon city lights in the background creating a bokeh effect, melancholic and distorted, cinematic photography.",
+        "image_prompt": "Reflection of a sad Thai man in a rainy window, raindrops on glass, neon bokeh, cinematic, 8k --ar 16:9",
+        "video_prompt": "Focus on raindrops moving down the glass with the man's reflection behind it, neon lights blurring in and out.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 8,
+        "time_range": "02:00-02:25",
+        "duration_seconds": 25,
+        "pacing_note": "Chorus energy",
+        "lyric_part": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน...",
+        "emotion": "Release",
+        "scene_visual": "Character running through a narrow alleyway",
+        "visual_description": "Wet pavement, trash cans, dramatic shadows, feeling of trying to escape.",
+        "camera": "Gimbal / Tracking shot",
+        "camera_motion": "Fast tracking from the front, running with the character",
+        "lighting": "High contrast, harsh shadows, streetlamps",
+        "transition": "Fast cuts",
+        "subtitle_style": "Bold white, center",
+        "prompt_core": "Man running in rain, alleyway, cinematic, fast",
+        "expanded_prompt": "Cinematic tracking shot, Thai man running through a dark, wet Bangkok alleyway in the rain, splashing through puddles, dramatic shadows, intense expression, denim jacket, cinematic lighting.",
+        "image_prompt": "Action shot, Thai man running in a rainy alley at night, splashing water, dramatic lighting, 8k --ar 16:9",
+        "video_prompt": "Fast tracking shot running ahead of the character, camera shakes slightly, rain and water splashes everywhere.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 9,
+        "time_range": "02:25-02:45",
+        "duration_seconds": 20,
+        "pacing_note": "Bridge / Emotional breakdown",
+        "lyric_part": "อยากจะยื้อ อยากจะขอให้เธออยู่...",
+        "emotion": "Heartbreak, Exhaustion",
+        "scene_visual": "Character in a bathroom, splashing water on his face",
+        "visual_description": "Looking into a cracked mirror, water dripping, eyes red and tired.",
+        "camera": "Close-up / Point of view (POV) mirror",
+        "camera_motion": "Slow zoom into the eyes",
+        "lighting": "Harsh white top-down light",
+        "transition": "Dip to black",
+        "subtitle_style": "Minimalist white sans-serif",
+        "prompt_core": "Man looking in mirror, splashing water, emotional breakdown",
+        "expanded_prompt": "Close-up, Thai man in a bathroom looking into a cracked mirror, splashing water on his face, water dripping from chin, red tired eyes, harsh overhead lighting, cinematic realism, intense emotion.",
+        "image_prompt": "Close-up, man's face in a cracked mirror, water dripping, emotional, tired eyes, harsh lighting, 8k --ar 16:9",
+        "video_prompt": "The man splashes water on his face then looks intensely into the mirror, slow zoom into his eyes.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 10,
+        "time_range": "02:45-03:10",
+        "duration_seconds": 25,
+        "pacing_note": "Guitar Solo / Peak Energy",
+        "lyric_part": "[Guitar Solo]",
+        "emotion": "Catharsis",
+        "scene_visual": "Character playing electric guitar on a rooftop",
+        "visual_description": "Bangkok skyline at night, heavy rain, wind, strobe-like lightning flashes.",
+        "camera": "Low angle / Circular tracking",
+        "camera_motion": "Fast 360-degree rotation around the character",
+        "lighting": "Flashy, lightning, city lights",
+        "transition": "Glitch transition",
+        "subtitle_style": "None",
+        "prompt_core": "Man playing electric guitar on rooftop, rain, skyline, lightning",
+        "expanded_prompt": "Epic low angle shot, Thai man playing a white electric guitar on a rooftop during a storm, Bangkok skyline with glowing skyscrapers, heavy rain, lightning flashes, high energy, cinematic pop-rock aesthetic.",
+        "image_prompt": "Epic rooftop shot, man playing electric guitar in the rain, city skyline background, lightning, cinematic, 8k --ar 16:9",
+        "video_prompt": "Fast circular camera movement around the guitarist, lightning flashes illuminating the rain, high energy performance.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 11,
+        "time_range": "03:10-03:35",
+        "duration_seconds": 25,
+        "pacing_note": "Final Chorus / Maximum Energy",
+        "lyric_part": "ไม่ใช่ไม่รัก... ปล่อยมันไป!",
+        "emotion": "Explosive Release",
+        "scene_visual": "Montage of the character screaming/singing into the rain",
+        "visual_description": "Intercut with scenes of him letting go of the old photo into the wind.",
+        "camera": "Close-up / Shaky handheld",
+        "camera_motion": "Aggressive shaking, zooming in and out",
+        "lighting": "Chaotic neon, flashing lights",
+        "transition": "Fast rhythmic cuts",
+        "subtitle_style": "Large bold white, center",
+        "prompt_core": "Man screaming in rain, letting go of photo, chaotic lighting",
+        "expanded_prompt": "Extreme close-up, Thai man screaming lyrics in the rain, intense emotion, letting go of a photograph that flies away in the wind, chaotic neon lighting, cinematic motion blur, grainy film texture.",
+        "image_prompt": "Extreme close-up, man screaming in the rain, intense emotion, neon lights, grainy film, 8k --ar 16:9",
+        "video_prompt": "Rapid intercutting between him singing and the photo flying away, shaky camera, intense rain.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      },
+      {
+        "scene": 12,
+        "time_range": "03:35-04:00",
+        "duration_seconds": 25,
+        "pacing_note": "Fading out / Peace",
+        "lyric_part": "เหนื่อยเกินไปแล้ว... [Outro]",
+        "emotion": "Acceptance, Peace",
+        "scene_visual": "Character walking away from the camera into a foggy street",
+        "visual_description": "The rain has stopped, only a light mist remains. The sun is starting to rise slightly.",
+        "camera": "Wide shot / Static",
+        "camera_motion": "Character walks further away until disappearing into the fog",
+        "lighting": "Early dawn, soft gray and pink light",
+        "transition": "Fade to black",
+        "subtitle_style": "Minimalist white sans-serif",
+        "prompt_core": "Man walking into fog, dawn, peace",
+        "expanded_prompt": "Wide shot, Thai man walking away down a long, foggy street at dawn, soft morning light, mist on the ground, sense of quiet acceptance and moving on, cinematic ending shot.",
+        "image_prompt": "Wide shot, man walking away into a foggy street at dawn, soft light, peaceful, cinematic, 8k --ar 16:9",
+        "video_prompt": "The man walks slowly away from the camera into the thick fog until he is just a silhouette, then fades to black.",
+        "negative_prompt": "bad anatomy, deformed hands, extra fingers, blurry face, inconsistent character, low quality, watermark, text artifacts"
+      }
+    ],
+    "cover_prompts": {
+      "spotify_1x1": "Cinematic portrait of a Thai man in a wet denim jacket, looking down sadly, rain droplets on his face, neon teal and orange lighting, 8k, highly detailed, emotional.",
+      "youtube_thumbnail_16x9": "Dramatic shot of a Thai man singing in heavy rain under a streetlamp, text 'เหนื่อยเกินไป' in bold emotional Thai typography, high contrast, cinematic pop-rock vibe.",
+      "tiktok_cover_9x16": "Close-up of a Thai man's face reflected in a rainy window with neon lights, looking exhausted, vertical cinematic composition."
+    },
+    "promo_clips": [
+      {
+        "platform": "TikTok/Reels/Shorts",
+        "duration": "15s",
+        "hook_idea": "The emotional climax of the rain scene with the hook 'ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน'",
+        "caption_angle": "เมื่อความรักมันกลายเป็นความเหนื่อย... #เหนื่อยเกินไป #VelaMoon",
+        "recommended_scenes": [
+          4,
+          11
+        ]
+      },
+      {
+        "platform": "YouTube Shorts",
+        "duration": "30s",
+        "hook_idea": "A mix of the nostalgic 'ghost' silhouette and the powerful guitar solo on the rooftop.",
+        "caption_angle": "บางครั้งการปล่อยมืออาจจะเป็นทางออกที่ดีที่สุด #เหนื่อยเกินไป #VelaMoon #ThaiPopRock",
+        "recommended_scenes": [
+          2,
+          10,
+          11
+        ]
+      },
+      {
+        "platform": "Facebook",
+        "duration": "60s",
+        "hook_idea": "Story-driven teaser showing the diner scene, the bathroom breakdown, and the final walk into the fog.",
+        "caption_angle": "ถ้าความรักที่เคยฝันไว้ มันเริ่มทำให้ใจพัง... เพลงใหม่จาก Vela Moon 'เหนื่อยเกินไป'",
+        "recommended_scenes": [
+          1,
+          6,
+          9,
+          12
+        ]
+      }
+    ],
+    "captions": {
+      "youtube_title_options": [
+        "Vela Moon - เหนื่อยเกินไป (Too Tired) | Official MV",
+        "เหนื่อยเกินไป - Vela Moon [Official Music Video]",
+        "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อย... 'เหนื่อยเกินไป' - Vela Moon",
+        "Vela Moon - เหนื่อยเกินไป (OFFICIAL MV) 4K",
+        "เหนื่อยเกินไป : Vela Moon | ปล่อยมือทั้งที่ยังรัก"
+      ],
+      "youtube_description": "เพลง: เหนื่อยเกินไป\nศิลปิน: Vela Moon\n\n'ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน...'\nซิงเกิลใหม่จาก Vela Moon ที่จะพาคุณไปสำรวจความรู้สึกของคนที่พยายามจนถึงที่สุด แต่สุดท้ายก็ต้องยอมรับความจริงว่าการปล่อยมือคือทางออกเดียวที่เหลืออยู่\n\nเนื้อร้อง/ทำนอง: Vela Moon\nเรียบเรียง: Vela Moon Team\n\nติดตาม Vela Moon ได้ที่:\nFacebook: Vela Moon Official\nTikTok: @velamoon_music\nInstagram: @velamoon_music\n\n#เหนื่อยเกินไป #VelaMoon #ThaiPopRock #NewMusic",
+      "tiktok_caption": "รักนะ... แต่รั้งไม่ไหวแล้วจริงๆ 🖤🥀 #เหนื่อยเกินไป #VelaMoon #เพลงเศร้า #อกหัก #ขึ้นฟีดเถอะ",
+      "facebook_caption": "เคยไหม... ที่พยายามรั้งใครสักคนไว้จนตัวเองพัง? \n'เหนื่อยเกินไป' เพลงใหม่จาก Vela Moon สำหรับคนที่ต้องฝืนทนกับความจริงที่เจ็บปวด \nชม MV พร้อมกันได้แล้ววันนี้! \n#เหนื่อยเกินไป #VelaMoon #ThaiPopRock",
+      "pinned_comment": "ขอบคุณทุกคนที่เข้ามาฟังเพลงนี้นะครับ ใครที่กำลังตกอยู่ในสถานการณ์แบบนี้ ขอให้ผ่านมันไปได้นะครับ... 'เหนื่อยเกินไป' สำหรับคุณคือตอนไหน? คอมเมนต์บอกกันหน่อยนะ 👇",
+      "hashtags": [
+        "เหนื่อยเกินไป",
+        "VelaMoon",
+        "ThaiPopRock"
+      ]
+    }
+  },
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

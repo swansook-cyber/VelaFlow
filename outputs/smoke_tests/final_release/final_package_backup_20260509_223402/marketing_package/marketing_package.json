@@ -1,0 +1,133 @@
+{
+  "generated_by": "VelaFlow",
+  "brand": "VelaLab",
+  "app_version": "7.8.1",
+  "build_version": "2026.05.09",
+  "build_date": "2026-05-09",
+  "project": "Smoke Test V65",
+  "artist": "VelaLab",
+  "created_at": "2026-05-09T22:00:28",
+  "youtube": {
+    "title": "Smoke Test V65 - VelaLab | Official AI Music Video",
+    "title_options": [
+      "Smoke Test V65 - VelaLab | Official AI Music Video",
+      "Smoke Test V65 | ยังคิดถึงเธอทุกคืน | VelaFlow",
+      "VelaLab - Smoke Test V65 (Cinematic MV)"
+    ],
+    "description": "Smoke Test V65 by VelaLab\n\nยังคิดถึงเธอทุกคืน\n\nCreated with VelaFlow, AI Content Automation Pipeline."
+  },
+  "tiktok": {
+    "caption": "ยังคิดถึงเธอทุกคืน\n\nSmoke Test V65 - VelaLab\n#เพลงไทย #เพลงใหม่ #MV #VelaFlow #VelaLab #PopRock #เพลงเศร้า",
+    "recommended_scenes": [
+      {
+        "scene_id": "1",
+        "teaser_score": 82,
+        "hook_potential": 85,
+        "emotional_impact": 87,
+        "motion": "hook_energy_zoom",
+        "subtitle": "tiktok_bold",
+        "aspect_ratio": "9:16",
+        "render_profile": "TikTok Fast",
+        "notes": "hook/chorus candidate, strong emotion, fast social pacing, approved image"
+      }
+    ]
+  },
+  "facebook": {
+    "caption": "Smoke Test V65 - VelaLab\n\nยังคิดถึงเธอทุกคืน\n\nชม MV และบอกเราว่าท่อนไหนโดนใจที่สุด"
+  },
+  "hashtags": [
+    "#เพลงไทย",
+    "#เพลงใหม่",
+    "#MV",
+    "#VelaFlow",
+    "#VelaLab",
+    "#PopRock",
+    "#เพลงเศร้า"
+  ],
+  "pinned_comment": "ท่อนไหนของเพลง Smoke Test V65 ที่คุณชอบที่สุด? คอมเมนต์ไว้ได้เลย",
+  "thumbnail_prompt": "cinematic YouTube thumbnail, Thai music video emotional moment, expressive singer, strong readable Thai title area, dramatic lighting, high contrast, premium pop music campaign, visual mood inspired by lyric: ยังคิดถึงเธอทุกคืน",
+  "spotify_canvas_prompt": "8 second seamless vertical Spotify Canvas loop, cinematic close-up motion, emotional Thai singer, soft film grain, subtle camera drift, no text, loopable ending, premium music release visual",
+  "upload_checklist": [
+    {
+      "item": "Final render exported",
+      "ok": true
+    },
+    {
+      "item": "9:16 short clips generated",
+      "ok": true
+    },
+    {
+      "item": "Thumbnail prompt ready",
+      "ok": true
+    },
+    {
+      "item": "Captions ready",
+      "ok": true
+    },
+    {
+      "item": "Hashtags ready",
+      "ok": true
+    },
+    {
+      "item": "Quality checklist reviewed",
+      "ok": true
+    }
+  ],
+  "release_note": "Release: Smoke Test V65\nArtist: VelaLab\nHook: ยังคิดถึงเธอทุกคืน\nNext operational step: Export package/report\n",
+  "post_plan": [
+    "Day 0: Publish YouTube MV and pin comment.",
+    "Day 0: Post 15s TikTok teaser using the strongest hook scene.",
+    "Day 1: Post Emotional Quote Clip with lyric caption.",
+    "Day 2: Post 30s promo clip and link back to full MV.",
+    "Day 3: Repost Spotify Canvas / short loop as story content."
+  ],
+  "status": {
+    "ok": true,
+    "message": "Project status complete",
+    "data": {
+      "title": "Smoke Test V65",
+      "scene_count": 1,
+      "approved_images": 1,
+      "generated_image_versions": 0,
+      "stages": [
+        {
+          "name": "Song",
+          "ok": true,
+          "detail": "lyrics/style ready"
+        },
+        {
+          "name": "Storyboard",
+          "ok": true,
+          "detail": "1 scenes"
+        },
+        {
+          "name": "Images",
+          "ok": true,
+          "detail": "1/1 approved"
+        },
+        {
+          "name": "Review",
+          "ok": true,
+          "detail": "approved visuals ready"
+        },
+        {
+          "name": "Render",
+          "ok": true,
+          "detail": "render exists"
+        }
+      ],
+      "missing": []
+    },
+    "next_step": {
+      "stage": "Export",
+      "page": "📦 Export Center",
+      "label": "Export package/report"
+    },
+    "error": ""
+  },
+  "export_policy": {
+    "watermark_enabled": false,
+    "watermark_text": "VelaFlow",
+    "export_without_watermark": true
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "storyboard": [
+    {
+      "scene": 1,
+      "duration_seconds": 2,
+      "lyric_part": "ยังคิดถึงเธอทุกคืน",
+      "emotion": "lonely emotional hook",
+      "camera": "slow dolly in",
+      "pacing_note": "hook energy",
+      "transition": "flash cut",
+      "image_prompt": "cinematic Thai singer in rain, rain soaked atmosphere, emotional close-up, moody film look, soft shadows",
+      "video_prompt": "slow cinematic push in, rain atmosphere",
+      "motion_effect": "hook_energy_zoom",
+      "color_profile": "moody",
+      "shot_type": "wide",
+      "director_shot_note": "Show isolation and emotional distance.",
+      "camera_language": "whip transition",
+      "director_note": "Scene 1 should feel isolated and intimate. Use wide framing with whip transition and fast rhythm.",
+      "prompt_director_note": "Director note: Scene 1 should feel isolated and intimate. Use wide framing with whip transition and fast rhythm.",
+      "motion_director_note": "hook_energy_zoom",
+      "subtitle_director_note": "emphasize hook line",
+      "render_director_note": "fast",
+      "lighting": "soft rainy low key lighting"
+    }
+  ]
+}

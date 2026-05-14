@@ -1,0 +1,288 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-13T20:50:19",
+  "title": "ตอนใหม่ของฉัน",
+  "artist": "Vela Moon",
+  "workflow_type": "podcast",
+  "project_type": "podcast",
+  "song": {
+    "artist_preset": "vela_moon",
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure\nMusic preset direction: Modern Pop / Pop Rock; balanced, emotional, clean, radio-friendly; clear natural vocal, expressive but not overdramatic; warm piano, acoustic/electric guitar, bass, drums, light pad. Make the song polished, easy to listen to, emotionally clear, and suitable for general release.\nVocal direction: warm emotional male vocal; intimate heartfelt delivery; expressive but controlled.",
+    "advanced_settings": {
+      "weirdness": 9,
+      "style_influence": 58,
+      "reason_th": "ค่าแนะนำจาก Music Preset: VelaFlow Default เพื่อให้เพลงมีความต่างเล็กน้อยแต่ยังคุมโทนได้",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ],
+      "manual": false
+    },
+    "weirdness": 9,
+    "style_influence": 58,
+    "instrument_tags_language": "English only",
+    "normalized_song_output": "",
+    "complete_lyrics": "",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": ""
+    },
+    "hook_candidates": [
+      {
+        "name": "ใจอ่อนล้า",
+        "hook_text": "ต้องปล่อยเธอไป ไม่ใช่ไม่รัก แค่ใจมันอ่อนล้าเกินไป",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงความขัดแย้งภายในใจอย่างชัดเจนว่ายังรักแต่ต้องปล่อยเพราะความเหนื่อยล้าที่สะสมจนใจอ่อนแรง เป็นประโยคที่ติดหูและเข้าใจง่าย",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ก่อนใจจะพัง",
+        "hook_text": "พอแล้วกับความเจ็บช้ำ... ก่อนที่ใจจะพังไปทั้งดวง",
+        "emotional_score": 95,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "เน้นย้ำจุดแตกหักและความเจ็บปวดที่ถึงขีดสุด เป็นประโยคที่ทรงพลังและสื่อถึงการตัดสินใจเพื่อปกป้องตัวเอง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รักแล้วมันเหนื่อย",
+        "hook_text": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน",
+        "emotional_score": 88,
+        "catchy_score": 90,
+        "tiktok_potential": 95,
+        "reason_th": "เป็นประโยคที่ตรงประเด็นและสื่อสารความรู้สึกเหนื่อยล้าจากการประคับประคองความสัมพันธ์ได้ชัดเจนมาก เป็นคำพูดที่คนมักใช้ในชีวิตจริง ทำให้เข้าถึงง่ายและติดหู",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "หมดแรงจะรั้ง",
+        "hook_text": "หมดแรงจะรั้งเธอไว้... ต้องปล่อยให้เธอไป",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นความรู้สึกหมดหนทางและยอมแพ้ในการประคับประคองความสัมพันธ์ สื่อถึงการตัดสินใจปล่อยมือที่เจ็บปวดแต่จำเป็น",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ใจได้หายใจ",
+        "hook_text": "ยอมปล่อยมือวันนี้... เพื่อให้ใจได้หายใจ",
+        "emotional_score": 92,
+        "catchy_score": 87,
+        "tiktok_potential": 90,
+        "reason_th": "ใช้คำเปรียบเปรยที่สวยงาม 'ใจได้หายใจ' สื่อถึงการปลดปล่อยตัวเองจากความอึดอัดเพื่อให้ใจได้มีพื้นที่และฟื้นฟูตัวเอง เป็นการจบที่ให้ความหวังเล็กๆ",
+        "suggested_usage": "title line"
+      }
+    ],
+    "candidate_hooks": [
+      {
+        "name": "ใจอ่อนล้า",
+        "hook_text": "ต้องปล่อยเธอไป ไม่ใช่ไม่รัก แค่ใจมันอ่อนล้าเกินไป",
+        "emotional_score": 90,
+        "catchy_score": 85,
+        "tiktok_potential": 75,
+        "reason_th": "สื่อถึงความขัดแย้งภายในใจอย่างชัดเจนว่ายังรักแต่ต้องปล่อยเพราะความเหนื่อยล้าที่สะสมจนใจอ่อนแรง เป็นประโยคที่ติดหูและเข้าใจง่าย",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ก่อนใจจะพัง",
+        "hook_text": "พอแล้วกับความเจ็บช้ำ... ก่อนที่ใจจะพังไปทั้งดวง",
+        "emotional_score": 95,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "เน้นย้ำจุดแตกหักและความเจ็บปวดที่ถึงขีดสุด เป็นประโยคที่ทรงพลังและสื่อถึงการตัดสินใจเพื่อปกป้องตัวเอง",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รักแล้วมันเหนื่อย",
+        "hook_text": "ไม่ใช่ไม่รัก แต่แค่รักแล้วมันเหนื่อยเหลือเกิน",
+        "emotional_score": 88,
+        "catchy_score": 90,
+        "tiktok_potential": 95,
+        "reason_th": "เป็นประโยคที่ตรงประเด็นและสื่อสารความรู้สึกเหนื่อยล้าจากการประคับประคองความสัมพันธ์ได้ชัดเจนมาก เป็นคำพูดที่คนมักใช้ในชีวิตจริง ทำให้เข้าถึงง่ายและติดหู",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "หมดแรงจะรั้ง",
+        "hook_text": "หมดแรงจะรั้งเธอไว้... ต้องปล่อยให้เธอไป",
+        "emotional_score": 85,
+        "catchy_score": 88,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นความรู้สึกหมดหนทางและยอมแพ้ในการประคับประคองความสัมพันธ์ สื่อถึงการตัดสินใจปล่อยมือที่เจ็บปวดแต่จำเป็น",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ใจได้หายใจ",
+        "hook_text": "ยอมปล่อยมือวันนี้... เพื่อให้ใจได้หายใจ",
+        "emotional_score": 92,
+        "catchy_score": 87,
+        "tiktok_potential": 90,
+        "reason_th": "ใช้คำเปรียบเปรยที่สวยงาม 'ใจได้หายใจ' สื่อถึงการปลดปล่อยตัวเองจากความอึดอัดเพื่อให้ใจได้มีพื้นที่และฟื้นฟูตัวเอง เป็นการจบที่ให้ความหวังเล็กๆ",
+        "suggested_usage": "title line"
+      }
+    ],
+    "music_preset": "VelaFlow Default",
+    "music_preset_data": {
+      "name": "VelaFlow Default",
+      "description": "A safe general-purpose preset for polished emotional pop and pop rock releases.",
+      "genre": "Modern Pop / Pop Rock",
+      "mood": "balanced, emotional, clean, radio-friendly",
+      "vocal_style": "clear natural vocal, expressive but not overdramatic",
+      "arrangement": "warm piano, acoustic/electric guitar, bass, drums, light pad",
+      "structure_guide": "Intro, Verse, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, Outro",
+      "prompt_suffix": "Make the song polished, easy to listen to, emotionally clear, and suitable for general release.",
+      "weirdness_range": [
+        8,
+        14
+      ],
+      "style_influence_range": [
+        55,
+        68
+      ]
+    },
+    "vocal_direction": "Male Emotional",
+    "vocal_direction_data": {
+      "name": "Male Emotional",
+      "description": "เสียงผู้ชายอบอุ่น ถ่ายทอดอารมณ์จริงใจ เหมาะกับเพลงรักและเพลงเศร้า",
+      "vocal_style": "warm emotional male vocal",
+      "delivery": "intimate heartfelt delivery",
+      "emotional_tone": "expressive but controlled"
+    },
+    "hook_generation_seed": "2026-05-13T20:54:38.236718-174295",
+    "hook_generation_offline": false,
+    "song_structure_plan": {}
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

@@ -1,0 +1,39 @@
+{
+  "scenes": [
+    {
+      "name": "lonely room",
+      "scene_visual": "a lonely singer sitting in a small dark bedroom with soft window light",
+      "camera": "slow dolly in",
+      "lighting": "soft warm practical light",
+      "mood": "intimate heartbreak"
+    },
+    {
+      "name": "rooftop rain",
+      "scene_visual": "a singer standing alone on a rooftop in light rain above city lights",
+      "camera": "wide cinematic shot",
+      "lighting": "moody rain and distant neon",
+      "mood": "lonely cinematic"
+    },
+    {
+      "name": "neon city",
+      "scene_visual": "walking alone through neon city reflections on a wet street at midnight",
+      "camera": "handheld soft tracking shot",
+      "lighting": "blue and magenta neon",
+      "mood": "night drive loneliness"
+    },
+    {
+      "name": "heartbreak car ride",
+      "scene_visual": "inside a car at night, passing street lights across the singer's face",
+      "camera": "emotional close-up",
+      "lighting": "moving street light reflections",
+      "mood": "quiet regret"
+    },
+    {
+      "name": "emotional close-up",
+      "scene_visual": "close-up of the singer's face holding back tears during the hook",
+      "camera": "close-up slow push in",
+      "lighting": "soft cinematic key light",
+      "mood": "raw emotional hook"
+    }
+  ]
+}

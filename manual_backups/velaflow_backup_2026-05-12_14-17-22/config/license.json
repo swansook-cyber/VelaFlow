@@ -1,0 +1,19 @@
+{
+  "package": "Studio",
+  "expires_at": "2027-05-09",
+  "feature_flags": {
+    "core_enabled": true,
+    "director_enabled": true,
+    "motion_enabled": true,
+    "render_enabled": true,
+    "clips_enabled": true,
+    "canvas_enabled": true,
+    "marketing_enabled": true,
+    "assets_enabled": true,
+    "providers_enabled": true,
+    "licensing_enabled": true,
+    "batch_render_enabled": true,
+    "export_without_watermark": true,
+    "commercial_use": true
+  }
+}

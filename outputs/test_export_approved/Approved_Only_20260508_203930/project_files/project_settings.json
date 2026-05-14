@@ -1,0 +1,14 @@
+{
+  "assets": {
+    "approved_images": {
+      "1": "outputs/test_images/openai_missing_key.png"
+    },
+    "images": {
+      "2": "outputs/test_images/scene_01_manual.png"
+    },
+    "image_versions": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "1"
+  }
+}

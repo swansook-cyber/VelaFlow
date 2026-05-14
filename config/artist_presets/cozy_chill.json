@@ -1,0 +1,88 @@
+{
+  "artist_id": "cozy_chill",
+  "artist_name": "Cozy Chill",
+  "category": "General Creator Presets",
+  "description": "Relaxed preset for warm, easy-listening creator songs.",
+  "mood": "cozy, relaxed, comforting",
+  "vocal_feeling": "soft warm vocal, relaxed delivery",
+  "pacing": "easy groove, gentle hook, calm ending",
+  "instrumentation_style": "rhodes piano, soft guitar, warm bass, light drums, mellow pad",
+  "brand_style": "cozy, relaxed, comforting, chill pop, easy listening",
+  "default_language": "Thai lyrics",
+  "music_prompt_language": "English only",
+  "instrument_tags_language": "English only",
+  "genre": "chill pop, easy listening",
+  "vocal_style": "soft warm vocal, relaxed delivery",
+  "main_instruments": [
+    "rhodes piano",
+    "soft guitar",
+    "warm bass",
+    "light drums"
+  ],
+  "supporting_instruments": [
+    "mellow pad"
+  ],
+  "atmosphere_elements": [
+    "cozy, relaxed, comforting",
+    "easy groove, gentle hook, calm ending",
+    "complete song structure"
+  ],
+  "default_music_style_prompt": "cozy chill pop, rhodes piano, soft guitar, warm bass, light drums, mellow pad, relaxed warm vocal, easy-listening hook",
+  "lyric_style": "natural conversational Thai lyrics, clear emotional story, not overly poetic",
+  "hook_style": "short, catchy, caption-friendly Thai hook",
+  "suno_advanced_settings": {
+    "weirdness": 13,
+    "style_influence": 60,
+    "reason_th": "Public beta preset values are controlled and safe for consistent creator output."
+  },
+  "song_structure": [
+    "Intro",
+    "Verse 1",
+    "Pre-Chorus",
+    "Chorus",
+    "Verse 2",
+    "Bridge",
+    "Final Chorus",
+    "Outro"
+  ],
+  "writing_rules": [
+    "Thai lyrics must sound natural and conversational",
+    "Hook must be short, emotional, catchy, and caption-friendly",
+    "Do not reference real artists or copyrighted artist styles",
+    "Instrument and production tags inside parentheses must be English only",
+    "Final Chorus should feel stronger than previous chorus"
+  ],
+  "section_instrument_tags": {
+    "Intro": "soft rhodes piano, mellow pad, relaxed groove",
+    "Verse 1": "gentle guitar, warm bass, intimate vocal",
+    "Pre-Chorus": "drums build softly, rising emotional tension",
+    "Chorus": "cozy chill chorus, light drums, warm bass",
+    "Verse 2": "rhythmic guitar and bass, steady groove",
+    "Bridge": "stripped-down piano, emotional pause",
+    "Final Chorus": "bigger drums, layered backing vocals, expanded emotion",
+    "Outro": "soft fade out, lingering piano and guitar"
+  },
+  "mv_identity": {
+    "render_profile": "Cinematic",
+    "subtitle_style": "cinematic",
+    "color_profile": "cozy, warm indoor, soft light",
+    "camera_language": [
+      "slow push in",
+      "emotional close-up",
+      "soft handheld",
+      "cinematic drift"
+    ],
+    "visual_mood": "cozy, warm indoor, soft light"
+  },
+  "marketing_identity": {
+    "tone": "relatable, creator-friendly, emotional",
+    "target_platforms": [
+      "YouTube",
+      "TikTok",
+      "Facebook",
+      "Shorts"
+    ],
+    "hook_style": "short, catchy, caption-friendly Thai hook"
+  },
+  "locked": true
+}

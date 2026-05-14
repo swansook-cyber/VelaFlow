@@ -1,0 +1,26 @@
+{
+  "project": "Smoke Test V65 Preview Scene 1",
+  "total_duration_seconds": 2.0,
+  "scene_count": 1,
+  "items": [
+    {
+      "scene_id": "1",
+      "start_time": 0.0,
+      "duration_seconds": 2.0,
+      "source_type": "approved_image",
+      "source_path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png",
+      "lyric_part": "ยังคิดถึงเธอทุกคืน",
+      "emotion": "lonely emotional hook",
+      "camera": "slow dolly in",
+      "pacing_note": "hook energy",
+      "transition": "flash cut",
+      "motion_effect": "hook_energy_zoom",
+      "section_type": "hook",
+      "edit_intelligence": "hook/chorus gets faster cuts and stronger motion",
+      "beat_count": 0,
+      "beat_times": [],
+      "audio_reactive_strength": 0,
+      "subtitle_text": "ยังคิดถึงเธอทุกคืน"
+    }
+  ]
+}

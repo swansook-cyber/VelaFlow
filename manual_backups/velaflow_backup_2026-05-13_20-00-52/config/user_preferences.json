@@ -1,0 +1,4 @@
+{
+  "workflow_mode": "Full Pipeline",
+  "default_ai_provider": "gemini"
+}

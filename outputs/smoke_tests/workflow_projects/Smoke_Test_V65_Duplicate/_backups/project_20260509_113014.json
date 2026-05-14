@@ -1,0 +1,74 @@
+{
+  "version": "V6.5",
+  "created_at": "2026-05-09T06:59:29",
+  "title": "Smoke Test V65 Duplicate",
+  "artist": "Vela Moon",
+  "song": {
+    "complete_lyrics": "[Chorus]\nยังคิดถึงเธอทุกคืน",
+    "music_style_prompt": "Thai pop rock ballad, emotional male vocal, full-length arrangement",
+    "advanced_settings": {
+      "weirdness": "30%",
+      "style_influence": "70%"
+    },
+    "tiktok_clip_cut_recommendation": [
+      {
+        "rank": 1,
+        "start_seconds": 0,
+        "section": "Chorus"
+      }
+    ]
+  },
+  "mv": {
+    "storyboard": [
+      {
+        "scene": 1,
+        "duration_seconds": 2,
+        "lyric_part": "ยังคิดถึงเธอทุกคืน",
+        "emotion": "lonely emotional hook",
+        "camera": "slow dolly in",
+        "pacing_note": "hook energy",
+        "transition": "fade",
+        "image_prompt": "cinematic Thai singer in rain",
+        "video_prompt": "slow cinematic push in, rain atmosphere"
+      }
+    ]
+  },
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {
+      "1": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png"
+    },
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": [],
+  "duplicated_from": "Smoke Test V65",
+  "duplicated_at": "2026-05-09T06:59:30"
+}

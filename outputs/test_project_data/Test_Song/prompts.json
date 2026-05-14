@@ -1,0 +1,11 @@
+{
+  "image_prompts": [
+    "x"
+  ],
+  "video_prompts": [
+    "y"
+  ],
+  "negative_prompts": [
+    "z"
+  ]
+}

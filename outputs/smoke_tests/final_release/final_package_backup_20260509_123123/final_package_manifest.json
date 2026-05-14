@@ -1,0 +1,107 @@
+{
+  "generated_by": "VelaFlow",
+  "brand": "VelaLab",
+  "app_version": "7.0",
+  "build_version": "2026.05.09",
+  "build_date": "2026-05-09",
+  "project": "Smoke Test V65",
+  "created_at": "2026-05-09T12:21:13",
+  "render_dir": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source",
+  "missing": [
+    "mv/final_9x16.mp4",
+    "mv/final_1x1.mp4"
+  ],
+  "copied": [
+    {
+      "label": "song/song.json",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\song\\song.json"
+    },
+    {
+      "label": "song/lyrics.txt",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\song\\lyrics.txt"
+    },
+    {
+      "label": "song/suno_style_prompt.txt",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\song\\suno_style_prompt.txt"
+    },
+    {
+      "label": "prompts/storyboard.json",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\prompts\\storyboard.json"
+    },
+    {
+      "label": "prompts/mv.json",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\prompts\\mv.json"
+    },
+    {
+      "label": "prompts/scene_prompts.txt",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\prompts\\scene_prompts.txt"
+    },
+    {
+      "label": "mv/final_16x9.mp4",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\final_16x9.mp4",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\mv\\final_16x9.mp4"
+    },
+    {
+      "label": "mv/render_manifest.json",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\render_manifest.json",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\mv\\render_manifest.json"
+    },
+    {
+      "label": "mv/timeline.json",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\timeline.json",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\mv\\timeline.json"
+    },
+    {
+      "label": "captions/subtitle.srt",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\subtitle.srt",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\captions\\subtitle.srt"
+    },
+    {
+      "label": "captions/subtitle.ass",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\subtitle.ass",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\captions\\subtitle.ass"
+    },
+    {
+      "label": "clips/hook_clip_9x16.mp4",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\clips\\hook_clip_9x16.mp4",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\clips\\hook_clip_9x16.mp4"
+    },
+    {
+      "label": "captions/hook_clip_9x16_caption.txt",
+      "source": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_render_source\\clips\\hook_clip_9x16_caption.txt",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\captions\\hook_clip_9x16_caption.txt"
+    },
+    {
+      "label": "thumbnails/thumbnail_prompt.txt",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\thumbnails\\thumbnail_prompt.txt"
+    },
+    {
+      "label": "thumbnails/spotify_canvas_prompt.txt",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\thumbnails\\spotify_canvas_prompt.txt"
+    },
+    {
+      "label": "project_report.md",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\project_report.md"
+    },
+    {
+      "label": "upload_checklist.md",
+      "source": "generated",
+      "target": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\final_release\\final_package\\upload_checklist.md"
+    }
+  ],
+  "auto_upload": false,
+  "export_policy": {
+    "watermark_enabled": false,
+    "watermark_text": "VelaFlow",
+    "export_without_watermark": true
+  }
+}

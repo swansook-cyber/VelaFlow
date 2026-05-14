@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Hook A",
+    "hook_text": "ฝนหยุดแล้ว ใจยังไม่หยุด",
+    "emotional_score": 98,
+    "catchy_score": 100,
+    "tiktok_potential": 96,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "chorus"
+  },
+  {
+    "name": "Hook B",
+    "hook_text": "เปียกทั้งใจเพราะคิดถึงเธอ",
+    "emotional_score": 95,
+    "catchy_score": 92,
+    "tiktok_potential": 85,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "post-chorus"
+  },
+  {
+    "name": "Hook C",
+    "hook_text": "ยิ้มได้ แต่ไม่ได้แปลว่าลืม",
+    "emotional_score": 87,
+    "catchy_score": 89,
+    "tiktok_potential": 82,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "TikTok clip"
+  },
+  {
+    "name": "Hook D",
+    "hook_text": "คืนที่ไม่มีเธอมันยาวเกินไป",
+    "emotional_score": 84,
+    "catchy_score": 86,
+    "tiktok_potential": 79,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "title line"
+  },
+  {
+    "name": "Hook E",
+    "hook_text": "เจ็บเบา ๆ แต่ลืมไม่ลง",
+    "emotional_score": 86,
+    "catchy_score": 91,
+    "tiktok_potential": 84,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "chorus"
+  }
+]

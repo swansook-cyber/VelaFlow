@@ -1,0 +1,12 @@
+{
+  "project": "Preview Smoke V661 Preview Scene 1",
+  "audio_path": "",
+  "timeline_sources": [
+    {
+      "scene_id": "1",
+      "source_type": "approved_image",
+      "source_path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\preview_smoke\\preview_source.png",
+      "duration_seconds": 3.0
+    }
+  ]
+}

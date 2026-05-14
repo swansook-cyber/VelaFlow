@@ -1,0 +1,6 @@
+{
+  "motion_presets": ["still", "slow_zoom_in", "slow_zoom_out", "pan_left", "pan_right", "handheld_soft", "cinematic_drift", "emotional_push_in", "hook_energy_zoom"],
+  "subtitle_presets": ["none", "simple", "karaoke", "tiktok_bold", "cinematic"],
+  "render_presets": ["Draft", "Standard", "TikTok Fast", "Cinematic"],
+  "prompt_presets": ["cinematic sad realistic", "dark emotional neon", "luxury music video", "anime emotional", "thai cinematic drama", "minimal acoustic mood"]
+}

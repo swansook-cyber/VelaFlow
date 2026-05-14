@@ -1,0 +1,1275 @@
+[
+  {
+    "queue_id": "render_20260513_203842_691684",
+    "created_at": "2026-05-13T20:38:42",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204158_485963",
+    "created_at": "2026-05-13T20:41:58",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204900_574153",
+    "created_at": "2026-05-13T20:49:00",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_204924_157406",
+    "created_at": "2026-05-13T20:49:24",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_211052_826849",
+    "created_at": "2026-05-13T21:10:52",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_211422_751710",
+    "created_at": "2026-05-13T21:14:22",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_213603_382467",
+    "created_at": "2026-05-13T21:36:03",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_215651_900244",
+    "created_at": "2026-05-13T21:56:51",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_215830_950793",
+    "created_at": "2026-05-13T21:58:30",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_221737_701238",
+    "created_at": "2026-05-13T22:17:37",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260513_221804_476624",
+    "created_at": "2026-05-13T22:18:04",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_100348_003833",
+    "created_at": "2026-05-14T10:03:48",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_100943_244770",
+    "created_at": "2026-05-14T10:09:43",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_101625_819043",
+    "created_at": "2026-05-14T10:16:25",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  },
+  {
+    "queue_id": "render_20260514_102929_926349",
+    "created_at": "2026-05-14T10:29:29",
+    "project_name": "Smoke Seller Project",
+    "workflow_type": "seller",
+    "provider": "Runway",
+    "aspect_ratio": "9:16",
+    "duration": "15s",
+    "quality": "Standard",
+    "status": "Ready",
+    "payload": {
+      "workflow_type": "seller",
+      "project_type": "seller",
+      "provider": "Runway",
+      "provider_preset": {
+        "provider_name": "Runway",
+        "recommended_aspect_ratios": [
+          "16:9",
+          "9:16",
+          "1:1"
+        ],
+        "recommended_duration": "5s-10s",
+        "cinematic_strength": "high",
+        "motion_strength": "medium",
+        "prompt_style": "cinematic, concise, shot-based image-to-video prompt",
+        "notes": "Good general-purpose cinematic and social video workflow target."
+      },
+      "aspect_ratio": "9:16",
+      "duration": "15s",
+      "quality": "Standard",
+      "motion_intensity": "Medium",
+      "camera_preset": "TikTok Creator",
+      "lighting_preset": "Clean Studio",
+      "motion_preset": "Smooth Product Showcase",
+      "visual_mood": "Premium",
+      "bundle_name": "",
+      "scene_structure": [
+        {
+          "beat": "Hook",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Problem",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Product Showcase",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "Demo",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        },
+        {
+          "beat": "CTA",
+          "camera": "TikTok Creator",
+          "lighting": "Clean Studio",
+          "motion": "Smooth Product Showcase",
+          "visual_mood": "Premium"
+        }
+      ],
+      "visual_prompt": "vertical 9:16 TikTok product video for Smoke Bottle, Lifestyle Gadget, creator-style selling, realistic handheld shots, clean product close-ups, natural lifestyle lighting, show benefits: พกง่าย, ใช้ง่าย, ดีไซน์สวย, ทำความสะอาดง่าย, quick cuts, conversational mood, optimized for Reels and Shorts. Visual direction: vertical 9:16 AI-ready visual prompt for seller: Smoke Bottle. Context: Smoke Bottle สำหรับสาย Lifestyle Gadget ที่อยากได้ พกง่าย, ใช้ง่าย, ดีไซน์สวย เล่าง่าย ใช้จริง เหมาะกับ busy creators. Camera: vertical creator-style camera, close and direct to audience. Lighting: clean studio lighting, bright and controlled. Motion: smooth product showcase motion with clean detail shots. Mood: premium, polished, high-quality visual mood. Realistic, clean composition, optimized for AI video generation, no random text, no watermark.",
+      "thumbnail_prompt": "vertical TikTok/Reels thumbnail for Smoke Bottle, realistic product hero shot, clean readable composition, highlight benefit: พกง่าย, creator-style selling visual, trustworthy, high contrast product focus, no random text. Visual mood: premium, polished, high-quality visual mood; lighting: clean studio lighting, bright and controlled",
+      "b_roll_ideas": [
+        "product close-up on clean table with natural light",
+        "creator demonstrating benefit: พกง่าย",
+        "quick detail shot showing ใช้ง่าย",
+        "hands-on demonstration in a real everyday environment",
+        "packaging reveal and texture/detail close-up",
+        "final hero shot with product centered for vertical frame"
+      ]
+    }
+  }
+]

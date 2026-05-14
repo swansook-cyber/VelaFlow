@@ -1,0 +1,14 @@
+{
+  "storyboard": [
+    {
+      "scene": 1,
+      "expanded_prompt": "cinematic rain scene",
+      "image_prompt": "cinematic rain scene",
+      "negative_prompt": "bad anatomy",
+      "character_prompt": "Keep one consistent character across every scene; name: Niran; role: lead singer; gender: unspecified; ethnicity: Thai; hair: short black hair; outfit: dark hoodie; core mood: lonely; continuity guardrails: do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity",
+      "image_prompt_with_character": "cinematic rain scene\n\nCharacter lock: Keep one consistent character across every scene; name: Niran; role: lead singer; gender: unspecified; ethnicity: Thai; hair: short black hair; outfit: dark hoodie; core mood: lonely; continuity guardrails: do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity",
+      "character_consistency_score": 100,
+      "character_consistency_missing": []
+    }
+  ]
+}

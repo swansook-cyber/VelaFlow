@@ -1,0 +1,16 @@
+{
+  "artist": "Vela Moon",
+  "style": "cinematic sad realistic",
+  "style_preset": "realistic Thai cinematic drama, emotional night lighting, 35mm film, shallow depth of field",
+  "quality": "balanced",
+  "text_ai": "gemini",
+  "image_ai": "manual",
+  "video_ai": "manual",
+  "scene_count": 10,
+  "character_note": "",
+  "export_youtube": true,
+  "export_tiktok": true,
+  "export_facebook": true,
+  "make_cover": true,
+  "make_caption": true
+}

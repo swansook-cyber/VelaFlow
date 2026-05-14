@@ -1,0 +1,8 @@
+[
+  {
+    "scene": 1,
+    "image_prompt": "x",
+    "video_prompt": "y",
+    "negative_prompt": "z"
+  }
+]

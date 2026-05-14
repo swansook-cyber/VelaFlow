@@ -1,0 +1,12 @@
+{
+  "project": "Smoke Test V65",
+  "audio_path": "",
+  "timeline_sources": [
+    {
+      "scene_id": "1",
+      "source_type": "approved_image",
+      "source_path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png",
+      "duration_seconds": 2.0
+    }
+  ]
+}

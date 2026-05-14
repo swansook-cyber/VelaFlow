@@ -1,0 +1,28 @@
+{
+  "version": "V6.1",
+  "created_at": "2026-05-08T20:05:39",
+  "title": "Test Song",
+  "artist": "Vela Moon",
+  "song": {
+    "complete_lyrics": "hello"
+  },
+  "mv": {
+    "storyboard": [
+      {
+        "scene": 1,
+        "image_prompt": "x",
+        "video_prompt": "y",
+        "negative_prompt": "z"
+      }
+    ]
+  },
+  "scene_edits": [],
+  "character": {},
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "videos": {}
+  },
+  "exports": []
+}

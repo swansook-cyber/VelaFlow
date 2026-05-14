@@ -1,0 +1,158 @@
+{
+  "project": "Smoke Test V65",
+  "created_at": "2026-05-11T14:14:17",
+  "status": {
+    "ok": true,
+    "message": "Project status complete",
+    "data": {
+      "title": "Smoke Test V65",
+      "scene_count": 1,
+      "approved_images": 1,
+      "generated_image_versions": 0,
+      "stages": [
+        {
+          "name": "Song",
+          "ok": true,
+          "detail": "lyrics/style ready"
+        },
+        {
+          "name": "Storyboard",
+          "ok": true,
+          "detail": "1 scenes"
+        },
+        {
+          "name": "Images",
+          "ok": true,
+          "detail": "1/1 approved"
+        },
+        {
+          "name": "Review",
+          "ok": true,
+          "detail": "approved visuals ready"
+        },
+        {
+          "name": "Render",
+          "ok": true,
+          "detail": "render exists"
+        }
+      ],
+      "missing": []
+    },
+    "next_step": {
+      "stage": "Export",
+      "page": "📦 Export Center",
+      "label": "Export package/report"
+    },
+    "error": ""
+  },
+  "quality": {
+    "ok": true,
+    "message": "Quality checklist complete",
+    "data": {
+      "checks": [
+        {
+          "name": "Storyboard scenes",
+          "ok": true,
+          "message": "1 scenes",
+          "level": "INFO"
+        },
+        {
+          "name": "Approved visuals",
+          "ok": true,
+          "message": "1/1 scenes approved",
+          "level": "INFO"
+        },
+        {
+          "name": "Weak scenes",
+          "ok": true,
+          "message": "0 weak scenes",
+          "level": "INFO"
+        },
+        {
+          "name": "Review scenes",
+          "ok": true,
+          "message": "1 scenes need review",
+          "level": "INFO"
+        },
+        {
+          "name": "Image prompts",
+          "ok": true,
+          "message": "0 missing prompts",
+          "level": "INFO"
+        },
+        {
+          "name": "Subtitle length",
+          "ok": true,
+          "message": "0 long subtitle lines",
+          "level": "INFO"
+        }
+      ],
+      "scenes": [
+        {
+          "scene_id": "1",
+          "scene_index": 0,
+          "status": "Needs Review",
+          "status_color": "#a86600",
+          "quality_score": 72,
+          "emotional_impact": 87,
+          "hook_potential": 85,
+          "teaser_score": 82,
+          "duration_seconds": 2.0,
+          "recommended_motion": "hook_energy_zoom",
+          "recommended_subtitle": "tiktok_bold",
+          "recommended_actions": [
+            "preview_tiktok_hook"
+          ],
+          "notes": "hook/chorus candidate, strong emotion, fast social pacing, approved image",
+          "has_approved_visual": true,
+          "has_prompt": true,
+          "subtitle_too_long": false,
+          "lyric_length": 18
+        }
+      ],
+      "regenerate_images": [],
+      "tiktok_recommendations": [
+        {
+          "scene_id": "1",
+          "teaser_score": 82,
+          "hook_potential": 85,
+          "emotional_impact": 87,
+          "motion": "hook_energy_zoom",
+          "subtitle": "tiktok_bold",
+          "aspect_ratio": "9:16",
+          "render_profile": "TikTok Fast",
+          "notes": "hook/chorus candidate, strong emotion, fast social pacing, approved image"
+        }
+      ]
+    },
+    "error": ""
+  },
+  "regenerate_images": {
+    "ok": true,
+    "message": "Image regeneration recommendations created",
+    "data": {
+      "scenes": []
+    },
+    "error": ""
+  },
+  "tiktok_recommendations": {
+    "ok": true,
+    "message": "Smart TikTok recommendations created without external API",
+    "data": {
+      "recommended_scenes": [
+        {
+          "scene_id": "1",
+          "teaser_score": 82,
+          "hook_potential": 85,
+          "emotional_impact": 87,
+          "motion": "hook_energy_zoom",
+          "subtitle": "tiktok_bold",
+          "aspect_ratio": "9:16",
+          "render_profile": "TikTok Fast",
+          "notes": "hook/chorus candidate, strong emotion, fast social pacing, approved image"
+        }
+      ]
+    },
+    "error": ""
+  }
+}

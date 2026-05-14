@@ -1,0 +1,52 @@
+{
+  "version": "V6.3",
+  "created_at": "2026-05-08T20:52:16",
+  "title": "V63 Test",
+  "artist": "Vela Moon",
+  "song": {},
+  "mv": {
+    "storyboard": [
+      {
+        "scene": 1,
+        "expanded_prompt": "cinematic rain scene",
+        "image_prompt": "cinematic rain scene",
+        "negative_prompt": "bad anatomy",
+        "character_prompt": "Keep one consistent character across every scene; name: Niran; role: lead singer; gender: unspecified; ethnicity: Thai; hair: short black hair; outfit: dark hoodie; core mood: lonely; continuity guardrails: do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity",
+        "image_prompt_with_character": "cinematic rain scene\n\nCharacter lock: Keep one consistent character across every scene; name: Niran; role: lead singer; gender: unspecified; ethnicity: Thai; hair: short black hair; outfit: dark hoodie; core mood: lonely; continuity guardrails: do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity",
+        "character_consistency_score": 100,
+        "character_consistency_missing": []
+      }
+    ]
+  },
+  "scene_edits": [],
+  "character": {
+    "name": "Niran",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "short black hair",
+    "face": "",
+    "body": "",
+    "outfit": "dark hoodie",
+    "color_palette": "",
+    "mood": "lonely",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {}
+  },
+  "exports": []
+}

@@ -1,0 +1,51 @@
+{
+  "generated_by": "VelaFlow",
+  "brand": "VelaLab",
+  "app_version": "7.8.6a",
+  "build_version": "2026.05.10",
+  "build_date": "2026-05-10",
+  "project_name": "Smoke Test V65",
+  "render_id": "20260513_111134_a0d5e6a0",
+  "created_at": "2026-05-13T11:11:34",
+  "selected_aspect_ratios": [
+    "16:9"
+  ],
+  "audio_source_path": "",
+  "storyboard_version": "VelaFlow V7.8.6a",
+  "approved_image_versions": {
+    "1": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png",
+    "2": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png"
+  },
+  "video_slots_used": {},
+  "subtitle_mode": "simple",
+  "transition_mode": "fade",
+  "motion_style": "auto",
+  "render_status": "FAILED",
+  "ffmpeg_command_history": [],
+  "outputs": {},
+  "errors": [
+    "ffmpeg is not available; manifest, timeline, subtitles, and assets log were created."
+  ],
+  "export_policy": {
+    "watermark_enabled": false,
+    "watermark_text": "VelaFlow",
+    "export_without_watermark": true
+  },
+  "render_profile": {
+    "description": "Balanced YouTube render",
+    "fps": 30,
+    "crf": 23,
+    "preset": "medium",
+    "motion_style": "auto",
+    "subtitle_mode": "simple",
+    "transition_mode": "fade",
+    "color_grade": "film_look",
+    "beat_sync": true,
+    "audio_reactive": true,
+    "audio_fade_seconds": 1.2,
+    "scale_factor": 1.0,
+    "name": "Standard"
+  },
+  "color_grade": "film_look",
+  "beat_sync": true
+}

@@ -1,0 +1,197 @@
+{
+  "title": "ทำไมต้องเธอ",
+  "target_analysis": "เพลงนี้มุ่งเป้าไปที่ผู้ฟังที่เคยมีประสบการณ์ของการคิดถึงใครบางคนอย่างลึกซึ้งและไม่สามารถหาคำตอบได้ว่าทำไมต้องเป็นคนๆ นั้น โดยเฉพาะในช่วงเวลาที่เงียบเหงาหรือกำลังอยู่คนเดียว เหมาะสำหรับกลุ่มคนรุ่นใหม่ที่ชอบเพลง Pop Rock ฟังสบาย แต่มีเนื้อหาเข้าถึงอารมณ์และเมโลดี้ติดหู สามารถสร้าง Viral ได้จากการที่ Hook ของเพลงเป็นประโยคคำถามที่ทุกคนสามารถรู้สึกร่วมและใช้เป็นแคปชั่นได้ง่าย",
+  "hook_type": "Questioning and Relatable Phrase",
+  "candidate_hooks": [
+    {
+      "name": "Hook A",
+      "text": "ทำไมต้องเป็นเธอคนเดียวที่ฉันคิดถึง"
+    },
+    {
+      "name": "Hook B",
+      "text": "ไม่รู้ทำไม ต้องเป็นเธอทุกที"
+    },
+    {
+      "name": "Hook C",
+      "text": "ใจมันเผลอไปคิดถึงแต่เธอ"
+    }
+  ],
+  "selected_hook": "ไม่รู้ทำไม ต้องเป็นเธอทุกที",
+  "selected_hook_reason": "Hook นี้สั้น กระชับ มีความเป็นธรรมชาติและบทสนทนาสูง เข้าถึงใจคนฟังได้ง่าย เพราะเป็นความรู้สึกที่หลายคนเคยเจอคือ 'ไม่รู้ว่าทำไม แต่ก็ยังเป็นคนนี้เสมอที่คิดถึง' ทำให้เกิดการจดจำและร้องตามได้ง่าย เหมาะกับการเป็นแคปชั่นหรือข้อความสั้นๆ บนโซเชียลมีเดียเพื่อสร้าง Viral Effect",
+  "instrument_selection": {
+    "main_instruments": [
+      "clean electric guitar",
+      "acoustic guitar strumming",
+      "warm bass",
+      "soft drum kit"
+    ],
+    "supporting_instruments": [
+      "light rhodes piano",
+      "soft synth pad",
+      "tambourine",
+      "melodic electric guitar solo"
+    ],
+    "atmosphere_texture_elements": [
+      "relaxed emotional atmosphere",
+      "catchy melody",
+      "full band arrangement",
+      "complete song structure"
+    ],
+    "reason": "การเลือกเครื่องดนตรีนี้สอดคล้องกับแนวเพลง Pop Rock ฟังสบายของ Vela Moon โดยใช้ Clean Electric Guitar และ Acoustic Strumming สร้างมิติให้กับดนตรี ไม่หนักจนเกินไป Warm Bass และ Soft Drum Kit ให้จังหวะที่มั่นคงแต่ไม่ดุดัน Light Rhodes Piano และ Soft Synth Pad เพิ่มความนุ่มนวลและบรรยากาศแห่งความคิดถึงได้อย่างลงตัว ขณะที่ Tambourine และ Melodic Electric Guitar Solo ช่วยเพิ่มสีสันและความติดหูให้กับเพลง ทำให้เพลงมีอารมณ์ที่ผ่อนคลายแต่ก็เปี่ยมไปด้วยความรู้สึก"
+  },
+  "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth emotional male vocal with warm tone, relaxed but heartfelt delivery, nostalgic and yearning mood, reflective lyrics, catchy melody, full band arrangement, complete song structure, driving rhythm in chorus",
+  "advanced_settings": {
+    "weirdness": 10,
+    "style_influence": 65,
+    "reason": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock เพื่อให้ได้สไตล์ Vela Moon อย่างชัดเจน"
+  },
+  "complete_lyrics": "[Intro]\n(acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\nอืม...\n\n[Verse 1]\n(clean electric guitar picking, warm bass, smooth male vocal)\nอยู่คนเดียว มองฟ้าตอนกลางคืน\nกี่เรื่องราว ผ่านเข้ามา แล้วก็ผ่านไป\nแต่เรื่องเธอ ไม่เคยเลือนหายไปไหน\nยังคงวน เวียนในหัวใจ ไม่ว่านานแค่ไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Post-Chorus]\n(melodic electric guitar solo, easy listening vibe)\nโอ้... เป็นเธอคนเดียว...\n\n[Verse 2]\n(bass and drum focus, rhythmic acoustic strumming)\nบางทีก็เหนื่อย ที่ต้องคิดถึงเธอแบบนี้\nรู้ว่ามันไม่มีทาง ที่เราจะกลับมา\nแต่ความทรงจำ มันยังชัดเจนเสมอ\nภาพรอยยิ้ม คำพูดของเธอ ยังวนเวียนไม่ไปไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Bridge]\n(music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะรู้ เธอคิดเหมือนกันบ้างไหม\nว่ามีใครที่ยังเฝ้ารอ ตรงนี้\nแม้รู้ว่ามันไม่มีหวัง\nแต่ใจก็ยัง ไม่ยอมปล่อยเธอไป\n\n[Guitar Solo]\n(melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus]\n(maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง!\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ!\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ!\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ!\nเธอคนเดียว... ในใจฉัน...\n\n[Outro]\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\nทำไมต้องเป็นเธอ... อืม...\nเธอ...\n(music fades out)",
+  "tiktok_clip_cut_recommendation": [
+    {
+      "rank": 1,
+      "section": "Chorus",
+      "lyric_excerpt": "ไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง",
+      "reason": "ท่อนฮุกหลักของเพลงที่มีความติดหูสูง เข้าถึงอารมณ์ความคิดถึงได้อย่างชัดเจน และเป็นประโยคที่คนส่วนใหญ่รู้สึกร่วมได้ง่าย เหมาะสำหรับการทำ Lip-sync หรือสร้าง Mood Content",
+      "clip_type": "Emotional Lip-sync / POV"
+    },
+    {
+      "rank": 2,
+      "section": "Pre-Chorus",
+      "lyric_excerpt": "แต่พอหลับตา ก็เห็นแต่เธอ",
+      "reason": "ประโยคสั้นๆ ที่สื่อถึงการคิดถึงคนรักจนเห็นภาพติดตา แม้พยายามจะลืม เหมาะสำหรับคอนเทนต์ที่เน้นความรู้สึกภายใน ความฝัน หรือภาพตัดสลับ",
+      "clip_type": "Relatable Storytelling / Aesthetic Mood"
+    },
+    {
+      "rank": 3,
+      "section": "Bridge",
+      "lyric_excerpt": "แม้รู้ว่ามันไม่มีหวัง แต่ใจก็ยัง ไม่ยอมปล่อยเธอไป",
+      "reason": "ท่อนนี้แสดงถึงความเจ็บปวดจากการที่รู้ว่าไม่มีทางเป็นไปได้ แต่ก็ยังตัดใจไม่ได้ เป็นส่วนที่ดึงอารมณ์ความเศร้าและความผูกพันได้ลึกซึ้ง เหมาะสำหรับคอนเทนต์ที่ต้องการความจริงใจและน้ำเสียงที่เปราะบาง",
+      "clip_type": "Heartfelt Confession / Vulnerable Expression"
+    }
+  ],
+  "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว",
+  "instrument_tags": {
+    "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+    "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+    "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+    "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+    "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+    "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+    "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+    "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+    "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+    "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+  },
+  "energy_curve": {
+    "Intro": 25,
+    "Verse 1": 35,
+    "Pre-Chorus": 60,
+    "Chorus": 88,
+    "Post-Chorus": 78,
+    "Verse 2": 42,
+    "Bridge": 50,
+    "Final Chorus": 98,
+    "Outro": 20
+  },
+  "arrangement_preset": "",
+  "artist_preset": "vela_moon",
+  "artist_preset_name": "Vela Moon",
+  "instrument_tags_language": "English only",
+  "original_song_output": "[Intro]\n(acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\nอืม...\n\n[Verse 1]\n(clean electric guitar picking, warm bass, smooth male vocal)\nอยู่คนเดียว มองฟ้าตอนกลางคืน\nกี่เรื่องราว ผ่านเข้ามา แล้วก็ผ่านไป\nแต่เรื่องเธอ ไม่เคยเลือนหายไปไหน\nยังคงวน เวียนในหัวใจ ไม่ว่านานแค่ไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Post-Chorus]\n(melodic electric guitar solo, easy listening vibe)\nโอ้... เป็นเธอคนเดียว...\n\n[Verse 2]\n(bass and drum focus, rhythmic acoustic strumming)\nบางทีก็เหนื่อย ที่ต้องคิดถึงเธอแบบนี้\nรู้ว่ามันไม่มีทาง ที่เราจะกลับมา\nแต่ความทรงจำ มันยังชัดเจนเสมอ\nภาพรอยยิ้ม คำพูดของเธอ ยังวนเวียนไม่ไปไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Bridge]\n(music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะรู้ เธอคิดเหมือนกันบ้างไหม\nว่ามีใครที่ยังเฝ้ารอ ตรงนี้\nแม้รู้ว่ามันไม่มีหวัง\nแต่ใจก็ยัง ไม่ยอมปล่อยเธอไป\n\n[Guitar Solo]\n(melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus]\n(maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง!\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ!\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ!\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ!\nเธอคนเดียว... ในใจฉัน...\n\n[Outro]\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\nทำไมต้องเป็นเธอ... อืม...\nเธอ...\n(music fades out)",
+  "normalized_song_output": "[Intro]\n(acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\nอืม...\n\n[Verse 1]\n(clean electric guitar picking, warm bass, smooth male vocal)\nอยู่คนเดียว มองฟ้าตอนกลางคืน\nกี่เรื่องราว ผ่านเข้ามา แล้วก็ผ่านไป\nแต่เรื่องเธอ ไม่เคยเลือนหายไปไหน\nยังคงวน เวียนในหัวใจ ไม่ว่านานแค่ไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Post-Chorus]\n(melodic electric guitar solo, easy listening vibe)\nโอ้... เป็นเธอคนเดียว...\n\n[Verse 2]\n(bass and drum focus, rhythmic acoustic strumming)\nบางทีก็เหนื่อย ที่ต้องคิดถึงเธอแบบนี้\nรู้ว่ามันไม่มีทาง ที่เราจะกลับมา\nแต่ความทรงจำ มันยังชัดเจนเสมอ\nภาพรอยยิ้ม คำพูดของเธอ ยังวนเวียนไม่ไปไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Bridge]\n(music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะรู้ เธอคิดเหมือนกันบ้างไหม\nว่ามีใครที่ยังเฝ้ารอ ตรงนี้\nแม้รู้ว่ามันไม่มีหวัง\nแต่ใจก็ยัง ไม่ยอมปล่อยเธอไป\n\n[Guitar Solo]\n(melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus]\n(maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง!\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ!\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ!\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ!\nเธอคนเดียว... ในใจฉัน...\n\n[Outro]\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\nทำไมต้องเป็นเธอ... อืม...\nเธอ...\n(music fades out)",
+  "instrument_tag_validation": {
+    "ok": true,
+    "thai_tags_found": [],
+    "fixed_lyrics": "[Intro]\n(acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat)\nอืม...\n\n[Verse 1]\n(clean electric guitar picking, warm bass, smooth male vocal)\nอยู่คนเดียว มองฟ้าตอนกลางคืน\nกี่เรื่องราว ผ่านเข้ามา แล้วก็ผ่านไป\nแต่เรื่องเธอ ไม่เคยเลือนหายไปไหน\nยังคงวน เวียนในหัวใจ ไม่ว่านานแค่ไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Post-Chorus]\n(melodic electric guitar solo, easy listening vibe)\nโอ้... เป็นเธอคนเดียว...\n\n[Verse 2]\n(bass and drum focus, rhythmic acoustic strumming)\nบางทีก็เหนื่อย ที่ต้องคิดถึงเธอแบบนี้\nรู้ว่ามันไม่มีทาง ที่เราจะกลับมา\nแต่ความทรงจำ มันยังชัดเจนเสมอ\nภาพรอยยิ้ม คำพูดของเธอ ยังวนเวียนไม่ไปไหน\n\n[Pre-Chorus]\n(drum pattern builds up slightly, light synth pad)\nก็พยายามจะลืม ให้มันจบไป\nให้เรื่องของเรา มันเป็นแค่ฝัน\nแต่พอหลับตา ก็เห็นแต่เธอ\n\n[Chorus]\n(full band drops in, catchy pop rock groove, tambourine added)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ\n\n[Bridge]\n(music strips down, rhodes piano and vocal focus, emotional build up)\nอยากจะรู้ เธอคิดเหมือนกันบ้างไหม\nว่ามีใครที่ยังเฝ้ารอ ตรงนี้\nแม้รู้ว่ามันไม่มีหวัง\nแต่ใจก็ยัง ไม่ยอมปล่อยเธอไป\n\n[Guitar Solo]\n(melodic and expressive pop-rock guitar solo, driving rhythm)\n\n[Final Chorus]\n(maximum energy, full band, brighter vocal delivery, expanded emotion)\nไม่รู้ทำไม ต้องเป็นเธอทุกที ที่ฉันต้องคิดถึง!\nไม่ว่าจะทำอะไร ก็เผลอใจไปหาเธอ!\nต่อให้พยายามเท่าไร ก็ยังคงเป็นเธอ!\nที่อยู่ในใจของฉันเสมอ ทำไมต้องเป็นเธอ!\nเธอคนเดียว... ในใจฉัน...\n\n[Outro]\n(fading out with acoustic guitar and soft piano, lingering clean guitar note)\nทำไมต้องเป็นเธอ... อืม...\nเธอ...\n(music fades out)"
+  },
+  "artist_preset_data": {
+    "artist_id": "vela_moon",
+    "artist_name": "Vela Moon",
+    "brand_style": "emotional easy-listening Thai pop rock",
+    "default_language": "Thai lyrics",
+    "music_prompt_language": "English only",
+    "instrument_tags_language": "English only",
+    "genre": "mid-tempo pop rock, easy listening",
+    "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+    "main_instruments": [
+      "clean electric guitar",
+      "acoustic guitar strumming",
+      "warm bass",
+      "soft drum kit"
+    ],
+    "supporting_instruments": [
+      "light rhodes piano",
+      "soft synth pad",
+      "tambourine",
+      "melodic electric guitar solo"
+    ],
+    "atmosphere_elements": [
+      "relaxed emotional atmosphere",
+      "catchy melody",
+      "full band arrangement",
+      "complete song structure"
+    ],
+    "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+    "suno_advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "song_structure": [
+      "Intro",
+      "Verse 1",
+      "Pre-Chorus",
+      "Chorus",
+      "Post-Chorus",
+      "Verse 2",
+      "Pre-Chorus",
+      "Chorus",
+      "Bridge",
+      "Guitar Solo",
+      "Final Chorus",
+      "Outro"
+    ],
+    "writing_rules": [
+      "Thai lyrics must sound natural and conversational",
+      "Hook must be short, emotional, catchy, and caption-friendly",
+      "Avoid overly poetic or unnatural Thai words",
+      "Chorus should be easy to sing after 1-2 listens",
+      "Final Chorus must feel bigger than previous chorus",
+      "Do not make the song feel like a short demo"
+    ],
+    "section_instrument_tags": {
+      "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+      "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+      "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+      "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+      "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+      "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+      "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+      "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+      "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+      "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+    },
+    "mv_identity": {
+      "render_profile": "Cinematic",
+      "subtitle_style": "cinematic",
+      "color_profile": "warm / lonely night / film look",
+      "camera_language": [
+        "slow push in",
+        "emotional drift",
+        "soft handheld",
+        "cinematic close-up"
+      ],
+      "visual_mood": "emotional, relatable, cinematic but accessible"
+    },
+    "marketing_identity": {
+      "tone": "emotional, relatable, caption-friendly",
+      "target_platforms": [
+        "YouTube",
+        "TikTok",
+        "Facebook",
+        "Shorts"
+      ],
+      "hook_style": "short Thai phrase that feels like real life"
+    }
+  }
+}

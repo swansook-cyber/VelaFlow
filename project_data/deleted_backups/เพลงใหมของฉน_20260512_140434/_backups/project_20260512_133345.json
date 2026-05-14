@@ -1,0 +1,261 @@
+{
+  "version": "VelaFlow V7.8.6a",
+  "created_at": "2026-05-12T12:28:56",
+  "title": "เพลงใหม่ของฉัน",
+  "artist": "Vela Moon",
+  "song": {
+    "artist_preset": "vela_moon",
+    "artist_preset_data": {
+      "artist_id": "vela_moon",
+      "artist_name": "Vela Moon",
+      "brand_style": "emotional easy-listening Thai pop rock",
+      "default_language": "Thai lyrics",
+      "music_prompt_language": "English only",
+      "instrument_tags_language": "English only",
+      "genre": "mid-tempo pop rock, easy listening",
+      "vocal_style": "smooth emotional male vocal, warm tone, relaxed but heartfelt delivery",
+      "main_instruments": [
+        "clean electric guitar",
+        "acoustic guitar strumming",
+        "warm bass",
+        "soft drum kit"
+      ],
+      "supporting_instruments": [
+        "light rhodes piano",
+        "soft synth pad",
+        "tambourine",
+        "melodic electric guitar solo"
+      ],
+      "atmosphere_elements": [
+        "relaxed emotional atmosphere",
+        "catchy melody",
+        "full band arrangement",
+        "complete song structure"
+      ],
+      "default_music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure",
+      "suno_advanced_settings": {
+        "weirdness": 10,
+        "style_influence": 65,
+        "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+      },
+      "song_structure": [
+        "Intro",
+        "Verse 1",
+        "Pre-Chorus",
+        "Chorus",
+        "Post-Chorus",
+        "Verse 2",
+        "Pre-Chorus",
+        "Chorus",
+        "Bridge",
+        "Guitar Solo",
+        "Final Chorus",
+        "Outro"
+      ],
+      "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Hook must be short, emotional, catchy, and caption-friendly",
+        "Avoid overly poetic or unnatural Thai words",
+        "Chorus should be easy to sing after 1-2 listens",
+        "Final Chorus must feel bigger than previous chorus",
+        "Do not make the song feel like a short demo"
+      ],
+      "section_instrument_tags": {
+        "Intro": "acoustic guitar strumming, soft rhodes piano, relaxed mid-tempo beat",
+        "Verse 1": "clean electric guitar picking, warm bass, smooth male vocal",
+        "Pre-Chorus": "drum pattern builds up slightly, light synth pad",
+        "Chorus": "full band drops in, catchy pop rock groove, tambourine added",
+        "Post-Chorus": "melodic electric guitar solo, easy listening vibe",
+        "Verse 2": "bass and drum focus, rhythmic acoustic strumming",
+        "Bridge": "music strips down, rhodes piano and vocal focus, emotional build up",
+        "Guitar Solo": "melodic and expressive pop-rock guitar solo, driving rhythm",
+        "Final Chorus": "maximum energy, full band, brighter vocal delivery, expanded emotion",
+        "Outro": "fading out with acoustic guitar and soft piano, lingering clean guitar note"
+      },
+      "mv_identity": {
+        "render_profile": "Cinematic",
+        "subtitle_style": "cinematic",
+        "color_profile": "warm / lonely night / film look",
+        "camera_language": [
+          "slow push in",
+          "emotional drift",
+          "soft handheld",
+          "cinematic close-up"
+        ],
+        "visual_mood": "emotional, relatable, cinematic but accessible"
+      },
+      "marketing_identity": {
+        "tone": "emotional, relatable, caption-friendly",
+        "target_platforms": [
+          "YouTube",
+          "TikTok",
+          "Facebook",
+          "Shorts"
+        ],
+        "hook_style": "short Thai phrase that feels like real life"
+      },
+      "locked": true,
+      "is_default": true,
+      "preset_type": "system"
+    },
+    "music_style_prompt": "mid-tempo pop rock, easy listening, clean electric guitar, acoustic strumming, warm bass, soft drum kit, light rhodes piano, smooth male vocal, relaxed but emotional, catchy melody, full band arrangement, complete song structure\nMusic preset direction: Modern Pop / Pop Rock; balanced, emotional, clean, radio-friendly; clear natural vocal, expressive but not overdramatic; warm piano, acoustic/electric guitar, bass, drums, light pad. Make the song polished, easy to listen to, emotionally clear, and suitable for general release.",
+    "advanced_settings": {
+      "weirdness": 10,
+      "style_influence": 65,
+      "reason_th": "เพลงแนว Pop Rock ฟังสบาย ต้องการโครงสร้างที่คุ้นหูและเมโลดี้ที่ตลาดเข้าถึงง่าย การตั้ง Weirdness ต่ำจะทำให้เพลงไม่หลุดกรอบ และ Style Influence ระดับกลางค่อนสูงจะช่วยคุมดนตรีให้เป็น Pop Rock ที่ไม่หนักจนกลายเป็น Hard Rock"
+    },
+    "weirdness": 10,
+    "style_influence": 65,
+    "instrument_tags_language": "English only",
+    "normalized_song_output": "",
+    "complete_lyrics": "",
+    "instrument_tag_validation": {
+      "ok": true,
+      "thai_tags_found": [],
+      "fixed_lyrics": ""
+    },
+    "hook_candidates": [
+      {
+        "name": "ยิ้มไร้จุดหมาย",
+        "hook_text": "ยิ้มทั้งที่ข้างในมันไร้จุดหมาย",
+        "emotional_score": 85,
+        "catchy_score": 75,
+        "tiktok_potential": 70,
+        "reason_th": "สื่อถึงความขัดแย้งภายในได้อย่างชัดเจนว่าภายนอกยิ้มได้แต่ภายในกลับรู้สึกว่างเปล่าและไม่มีทิศทาง เป็นประโยคที่กระชับและโดนใจ เหมาะกับท่อนฮุกที่ต้องการสะท้อนความรู้สึกสวนทางกัน",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ชีวิตยังเดินต่อ",
+        "hook_text": "ชีวิตยังเดินต่อ แต่ใจไม่เคยเต็ม",
+        "emotional_score": 90,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "แสดงถึงการดำเนินชีวิตไปตามปกติแต่ความรู้สึกข้างในกลับขาดหายและไม่เติมเต็ม เป็นประโยคที่สื่อความหมายได้ลึกซึ้งและมีความเป็นสากล ทำให้คนฟังเข้าถึงความรู้สึกของการขาดอะไรบางอย่างไปได้ง่าย",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "ว่างเปล่าที่ไม่มีใครเห็น",
+        "hook_text": "ความว่างเปล่าที่ไม่มีใครเห็น",
+        "emotional_score": 88,
+        "catchy_score": 78,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำถึงความรู้สึกว่างเปล่าที่ต้องเก็บซ่อนไว้และไม่มีใครเข้าใจ ซึ่งตรงกับธีมที่ว่ายิ้มได้หัวเราะได้แต่ลึกๆ กลับรู้สึกว่างเปล่า ประโยคนี้สร้างความรู้สึกเข้าถึงและดึงดูดใจได้ดี เหมาะกับการเป็นชื่อเพลงที่ชวนให้ติดตาม",
+        "suggested_usage": "title line"
+      },
+      {
+        "name": "ทำไมข้างในยังหายไป",
+        "hook_text": "ทำไมข้างในมันยังหายไป?",
+        "emotional_score": 92,
+        "catchy_score": 82,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นคำถามที่สะท้อนความรู้สึกภายในที่ยังคงขาดหายไปอย่างไม่รู้สาเหตุ ตรงกับความรู้สึกว่างเปล่าที่บอกไม่ถูก เป็นประโยคที่เชื้อเชิญให้คนฟังร่วมคิดตามและรู้สึกร่วมไปกับความสับสนภายในจิตใจได้ดี",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รอยยิ้มบังความรู้สึก",
+        "hook_text": "รอยยิ้มบังความรู้สึกข้างใน",
+        "emotional_score": 87,
+        "catchy_score": 85,
+        "tiktok_potential": 92,
+        "reason_th": "เป็นประโยคที่ตรงไปตรงมาและเข้าใจง่ายที่สุดในการสื่อถึงการแกล้งทำเป็นมีความสุขในขณะที่ภายในรู้สึกว่างเปล่า เหมาะกับการเป็นแคปชั่นหรือประโยคเด็ดที่โดนใจคนฟังอย่างรวดเร็ว โดยเฉพาะในแพลตฟอร์มที่เน้นภาพและข้อความสั้นๆ",
+        "suggested_usage": "TikTok clip"
+      }
+    ],
+    "candidate_hooks": [
+      {
+        "name": "ยิ้มไร้จุดหมาย",
+        "hook_text": "ยิ้มทั้งที่ข้างในมันไร้จุดหมาย",
+        "emotional_score": 85,
+        "catchy_score": 75,
+        "tiktok_potential": 70,
+        "reason_th": "สื่อถึงความขัดแย้งภายในได้อย่างชัดเจนว่าภายนอกยิ้มได้แต่ภายในกลับรู้สึกว่างเปล่าและไม่มีทิศทาง เป็นประโยคที่กระชับและโดนใจ เหมาะกับท่อนฮุกที่ต้องการสะท้อนความรู้สึกสวนทางกัน",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "ชีวิตยังเดินต่อ",
+        "hook_text": "ชีวิตยังเดินต่อ แต่ใจไม่เคยเต็ม",
+        "emotional_score": 90,
+        "catchy_score": 80,
+        "tiktok_potential": 85,
+        "reason_th": "แสดงถึงการดำเนินชีวิตไปตามปกติแต่ความรู้สึกข้างในกลับขาดหายและไม่เติมเต็ม เป็นประโยคที่สื่อความหมายได้ลึกซึ้งและมีความเป็นสากล ทำให้คนฟังเข้าถึงความรู้สึกของการขาดอะไรบางอย่างไปได้ง่าย",
+        "suggested_usage": "post-chorus"
+      },
+      {
+        "name": "ว่างเปล่าที่ไม่มีใครเห็น",
+        "hook_text": "ความว่างเปล่าที่ไม่มีใครเห็น",
+        "emotional_score": 88,
+        "catchy_score": 78,
+        "tiktok_potential": 80,
+        "reason_th": "เน้นย้ำถึงความรู้สึกว่างเปล่าที่ต้องเก็บซ่อนไว้และไม่มีใครเข้าใจ ซึ่งตรงกับธีมที่ว่ายิ้มได้หัวเราะได้แต่ลึกๆ กลับรู้สึกว่างเปล่า ประโยคนี้สร้างความรู้สึกเข้าถึงและดึงดูดใจได้ดี เหมาะกับการเป็นชื่อเพลงที่ชวนให้ติดตาม",
+        "suggested_usage": "title line"
+      },
+      {
+        "name": "ทำไมข้างในยังหายไป",
+        "hook_text": "ทำไมข้างในมันยังหายไป?",
+        "emotional_score": 92,
+        "catchy_score": 82,
+        "tiktok_potential": 90,
+        "reason_th": "เป็นคำถามที่สะท้อนความรู้สึกภายในที่ยังคงขาดหายไปอย่างไม่รู้สาเหตุ ตรงกับความรู้สึกว่างเปล่าที่บอกไม่ถูก เป็นประโยคที่เชื้อเชิญให้คนฟังร่วมคิดตามและรู้สึกร่วมไปกับความสับสนภายในจิตใจได้ดี",
+        "suggested_usage": "chorus"
+      },
+      {
+        "name": "รอยยิ้มบังความรู้สึก",
+        "hook_text": "รอยยิ้มบังความรู้สึกข้างใน",
+        "emotional_score": 87,
+        "catchy_score": 85,
+        "tiktok_potential": 92,
+        "reason_th": "เป็นประโยคที่ตรงไปตรงมาและเข้าใจง่ายที่สุดในการสื่อถึงการแกล้งทำเป็นมีความสุขในขณะที่ภายในรู้สึกว่างเปล่า เหมาะกับการเป็นแคปชั่นหรือประโยคเด็ดที่โดนใจคนฟังอย่างรวดเร็ว โดยเฉพาะในแพลตฟอร์มที่เน้นภาพและข้อความสั้นๆ",
+        "suggested_usage": "TikTok clip"
+      }
+    ],
+    "music_preset": "VelaFlow Default",
+    "music_preset_data": {
+      "name": "VelaFlow Default",
+      "description": "A safe general-purpose preset for polished emotional pop and pop rock releases.",
+      "genre": "Modern Pop / Pop Rock",
+      "mood": "balanced, emotional, clean, radio-friendly",
+      "vocal_style": "clear natural vocal, expressive but not overdramatic",
+      "arrangement": "warm piano, acoustic/electric guitar, bass, drums, light pad",
+      "structure_guide": "Intro, Verse, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, Outro",
+      "prompt_suffix": "Make the song polished, easy to listen to, emotionally clear, and suitable for general release."
+    },
+    "hook_generation_seed": "2026-05-12T12:32:16.938310-110137",
+    "hook_generation_offline": false,
+    "song_structure_plan": {}
+  },
+  "mv": {},
+  "scene_edits": [],
+  "character": {
+    "name": "",
+    "role": "lead singer",
+    "gender": "unspecified",
+    "age_range": "",
+    "ethnicity": "Thai",
+    "hair": "",
+    "face": "",
+    "body": "",
+    "outfit": "",
+    "color_palette": "",
+    "mood": "",
+    "style_notes": "",
+    "reference_image_path": "",
+    "reference_notes": "",
+    "negative_notes": "do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity"
+  },
+  "settings": {},
+  "assets": {
+    "audio_path": "",
+    "images": {},
+    "image_versions": {},
+    "approved_images": {},
+    "rejected_images": {},
+    "locked_images": {},
+    "hero_shot": "",
+    "character_references": {},
+    "videos": {},
+    "video_versions": {},
+    "video_metadata": {},
+    "locked_videos": {}
+  },
+  "exports": []
+}

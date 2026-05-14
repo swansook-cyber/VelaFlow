@@ -1,0 +1,9 @@
+{
+  "approved_images": {
+    "1": "outputs/test_images/openai_missing_key.png"
+  },
+  "rejected_images": {},
+  "locked_images": {},
+  "hero_shot": "1",
+  "image_versions": {}
+}

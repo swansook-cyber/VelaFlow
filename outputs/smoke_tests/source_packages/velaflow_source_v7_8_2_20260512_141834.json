@@ -1,0 +1,39 @@
+{
+  "package": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\source_packages\\velaflow_source_v7_8_2_20260512_141834.zip",
+  "file_count": 202,
+  "included_roots": [
+    "app",
+    "core",
+    "providers",
+    "config",
+    "docs",
+    "tests",
+    "README.md",
+    "MASTER_CONTEXT.md",
+    "CHANGELOG.md",
+    "TODO_NEXT.md",
+    "requirements.txt",
+    ".env.example",
+    "run_velaflow.bat"
+  ],
+  "forbidden_patterns": [
+    ".env",
+    ".env.*",
+    ".venv/*",
+    "venv/*",
+    "*/__pycache__/*",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    "outputs/cache/*",
+    "outputs/renders/_scene_cache/*",
+    "outputs/renders/*/_scene_cache/*",
+    "outputs/renders/*/temp/*",
+    "outputs/renders/*.mp4",
+    "outputs/renders/*.mov",
+    "outputs/renders/*.mkv",
+    "outputs/renders/*.avi",
+    "outputs/renders/*.wav",
+    "outputs/renders/*.mp3"
+  ]
+}

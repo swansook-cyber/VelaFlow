@@ -1,0 +1,89 @@
+{
+  "artist_id": "emotional_pop",
+  "artist_name": "Emotional Pop",
+  "category": "General Creator Presets",
+  "description": "Balanced public preset for emotional Thai pop songs.",
+  "mood": "warm, emotional, clean",
+  "vocal_feeling": "clear natural vocal, expressive but controlled",
+  "pacing": "mid-tempo, radio-friendly, smooth emotional rise",
+  "instrumentation_style": "warm piano, clean electric guitar, acoustic guitar, bass, soft drums, light pad",
+  "brand_style": "warm, emotional, clean, modern Thai pop, pop rock",
+  "default_language": "Thai lyrics",
+  "music_prompt_language": "English only",
+  "instrument_tags_language": "English only",
+  "genre": "modern Thai pop, pop rock",
+  "vocal_style": "clear natural vocal, expressive but controlled",
+  "main_instruments": [
+    "warm piano",
+    "clean electric guitar",
+    "acoustic guitar",
+    "bass"
+  ],
+  "supporting_instruments": [
+    "soft drums",
+    "light pad"
+  ],
+  "atmosphere_elements": [
+    "warm, emotional, clean",
+    "mid-tempo, radio-friendly, smooth emotional rise",
+    "complete song structure"
+  ],
+  "default_music_style_prompt": "modern Thai emotional pop, warm piano, clean electric guitar, acoustic strumming, smooth vocal, catchy chorus, polished radio-friendly arrangement",
+  "lyric_style": "natural conversational Thai lyrics, clear emotional story, not overly poetic",
+  "hook_style": "short, catchy, caption-friendly Thai hook",
+  "suno_advanced_settings": {
+    "weirdness": 12,
+    "style_influence": 62,
+    "reason_th": "Public beta preset values are controlled and safe for consistent creator output."
+  },
+  "song_structure": [
+    "Intro",
+    "Verse 1",
+    "Pre-Chorus",
+    "Chorus",
+    "Verse 2",
+    "Bridge",
+    "Final Chorus",
+    "Outro"
+  ],
+  "writing_rules": [
+    "Thai lyrics must sound natural and conversational",
+    "Hook must be short, emotional, catchy, and caption-friendly",
+    "Do not reference real artists or copyrighted artist styles",
+    "Instrument and production tags inside parentheses must be English only",
+    "Final Chorus should feel stronger than previous chorus"
+  ],
+  "section_instrument_tags": {
+    "Intro": "soft piano and ambient pad, emotional opening",
+    "Verse 1": "gentle guitar, warm bass, intimate vocal",
+    "Pre-Chorus": "drums build softly, rising emotional tension",
+    "Chorus": "full pop arrangement, catchy drums, wide guitars",
+    "Verse 2": "rhythmic guitar and bass, steady groove",
+    "Bridge": "stripped-down piano, emotional pause",
+    "Final Chorus": "bigger drums, layered backing vocals, expanded emotion",
+    "Outro": "soft fade out, lingering piano and guitar"
+  },
+  "mv_identity": {
+    "render_profile": "Cinematic",
+    "subtitle_style": "cinematic",
+    "color_profile": "cinematic, emotional, accessible",
+    "camera_language": [
+      "slow push in",
+      "emotional close-up",
+      "soft handheld",
+      "cinematic drift"
+    ],
+    "visual_mood": "cinematic, emotional, accessible"
+  },
+  "marketing_identity": {
+    "tone": "relatable, creator-friendly, emotional",
+    "target_platforms": [
+      "YouTube",
+      "TikTok",
+      "Facebook",
+      "Shorts"
+    ],
+    "hook_style": "short, catchy, caption-friendly Thai hook"
+  },
+  "locked": true
+}

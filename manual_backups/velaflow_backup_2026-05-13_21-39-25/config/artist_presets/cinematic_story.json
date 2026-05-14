@@ -1,0 +1,88 @@
+{
+  "artist_id": "cinematic_story",
+  "artist_name": "Cinematic Story",
+  "category": "General Creator Presets",
+  "description": "Story-driven preset for emotional narrative songs.",
+  "mood": "deep, reflective, cinematic",
+  "vocal_feeling": "intimate storytelling vocal, emotional but controlled",
+  "pacing": "slow build, strong bridge, big final chorus",
+  "instrumentation_style": "piano, cinematic strings, soft drums, ambient pads, warm bass",
+  "brand_style": "deep, reflective, cinematic, cinematic pop, emotional storytelling",
+  "default_language": "Thai lyrics",
+  "music_prompt_language": "English only",
+  "instrument_tags_language": "English only",
+  "genre": "cinematic pop, emotional storytelling",
+  "vocal_style": "intimate storytelling vocal, emotional but controlled",
+  "main_instruments": [
+    "piano",
+    "cinematic strings",
+    "soft drums",
+    "ambient pads"
+  ],
+  "supporting_instruments": [
+    "warm bass"
+  ],
+  "atmosphere_elements": [
+    "deep, reflective, cinematic",
+    "slow build, strong bridge, big final chorus",
+    "complete song structure"
+  ],
+  "default_music_style_prompt": "cinematic emotional pop, intimate vocal, piano, soft strings, ambient pads, gradual build, strong narrative flow",
+  "lyric_style": "natural conversational Thai lyrics, clear emotional story, not overly poetic",
+  "hook_style": "short, catchy, caption-friendly Thai hook",
+  "suno_advanced_settings": {
+    "weirdness": 18,
+    "style_influence": 55,
+    "reason_th": "Public beta preset values are controlled and safe for consistent creator output."
+  },
+  "song_structure": [
+    "Intro",
+    "Verse 1",
+    "Pre-Chorus",
+    "Chorus",
+    "Verse 2",
+    "Bridge",
+    "Final Chorus",
+    "Outro"
+  ],
+  "writing_rules": [
+    "Thai lyrics must sound natural and conversational",
+    "Hook must be short, emotional, catchy, and caption-friendly",
+    "Do not reference real artists or copyrighted artist styles",
+    "Instrument and production tags inside parentheses must be English only",
+    "Final Chorus should feel stronger than previous chorus"
+  ],
+  "section_instrument_tags": {
+    "Intro": "soft piano and ambient pad, emotional opening",
+    "Verse 1": "gentle guitar, warm bass, intimate vocal",
+    "Pre-Chorus": "drums build softly, rising emotional tension",
+    "Chorus": "full pop arrangement, catchy drums, wide guitars",
+    "Verse 2": "rhythmic guitar and bass, steady groove",
+    "Bridge": "minimal piano and strings, dramatic emotional reflection",
+    "Final Chorus": "bigger drums, layered backing vocals, expanded emotion",
+    "Outro": "soft fade out, lingering piano and guitar"
+  },
+  "mv_identity": {
+    "render_profile": "Cinematic",
+    "subtitle_style": "cinematic",
+    "color_profile": "cinematic, reflective, story-focused",
+    "camera_language": [
+      "slow push in",
+      "emotional close-up",
+      "soft handheld",
+      "cinematic drift"
+    ],
+    "visual_mood": "cinematic, reflective, story-focused"
+  },
+  "marketing_identity": {
+    "tone": "relatable, creator-friendly, emotional",
+    "target_platforms": [
+      "YouTube",
+      "TikTok",
+      "Facebook",
+      "Shorts"
+    ],
+    "hook_style": "short, catchy, caption-friendly Thai hook"
+  },
+  "locked": true
+}

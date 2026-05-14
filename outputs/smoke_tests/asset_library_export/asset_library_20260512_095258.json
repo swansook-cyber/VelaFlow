@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "id": "Smoke_Test_V65:approved_image:1:offline_image.png",
+      "kind": "approved_image",
+      "project": "Smoke Test V65",
+      "scene_id": "1",
+      "path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png",
+      "exists": true,
+      "mood": "lonely emotional hook",
+      "color": "",
+      "genre": "",
+      "emotion": "lonely emotional hook",
+      "camera": "slow dolly in",
+      "prompt": "cinematic Thai singer in rain",
+      "favorite": false,
+      "created_at": "2026-05-12T09:52:58"
+    },
+    {
+      "id": "Smoke_Test_V65:character:",
+      "kind": "favorite_character",
+      "project": "Smoke Test V65",
+      "scene_id": "",
+      "path": "",
+      "exists": false,
+      "mood": "",
+      "color": "",
+      "genre": "",
+      "emotion": "",
+      "camera": "",
+      "prompt": "",
+      "favorite": true,
+      "created_at": "2026-05-12T09:52:58"
+    },
+    {
+      "id": "Smoke_Test_V65:hook",
+      "kind": "reusable_hook",
+      "project": "Smoke Test V65",
+      "scene_id": "",
+      "path": "",
+      "exists": false,
+      "mood": "",
+      "color": "",
+      "genre": "",
+      "emotion": "hook",
+      "camera": "",
+      "prompt": "{\"name\": \"Hook A\", \"hook_text\": \"พอได้แล้วใจ\", \"emotional_score\": 98, \"catchy_score\": 100, \"tiktok_potential\": 100, \"reason_th\": \"สั้น จำง่าย และเหมาะกับท่อนฮุก\", \"suggested_usage\": \"chorus\"}",
+      "favorite": true,
+      "created_at": "2026-05-12T09:52:58"
+    }
+  ]
+}
