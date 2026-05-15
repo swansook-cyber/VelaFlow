@@ -760,6 +760,33 @@ def _safe_provider_error_text(detail: Any) -> str:
     return str(detail or "").strip()
 
 
+def _render_veo_diagnostics_card(title: str, data: dict[str, Any] | None) -> None:
+    if not data:
+        return
+    detail = data.get("provider_error_detail", "")
+    if isinstance(detail, dict):
+        provider_error_detail = _safe_provider_error_text(detail)
+        sdk_exception_type = str(detail.get("sdk_exception_type") or data.get("sdk_exception_type") or "")
+        request_model = str(detail.get("request_model") or data.get("request_model") or "")
+        provider_method = str(detail.get("provider_method") or data.get("provider_method") or "")
+    else:
+        provider_error_detail = _safe_provider_error_text(detail or data.get("error") or data.get("message") or "")
+        sdk_exception_type = str(data.get("sdk_exception_type") or "")
+        request_model = str(data.get("request_model") or "")
+        provider_method = str(data.get("provider_method") or "")
+    if not any([provider_error_detail, sdk_exception_type, request_model, provider_method]):
+        return
+    with st.container(border=True):
+        st.markdown(f"**{title}**")
+        st.caption("Safe diagnostics only. API keys are never displayed.")
+        c1, c2 = st.columns(2)
+        c1.text_input("request_model", value=request_model or "-", disabled=True, key=f"{safe_name(title)}_request_model")
+        c2.text_input("provider_method", value=provider_method or "-", disabled=True, key=f"{safe_name(title)}_provider_method")
+        c1.text_input("sdk_exception_type", value=sdk_exception_type or "-", disabled=True, key=f"{safe_name(title)}_sdk_exception_type")
+        c2.text_input("status/error", value=str(data.get("status") or data.get("error") or "-"), disabled=True, key=f"{safe_name(title)}_status")
+        st.text_area("provider_error_detail", value=provider_error_detail or "-", height=90, disabled=True, key=f"{safe_name(title)}_provider_error_detail")
+
+
 def _mv_storyboard_to_hook_package(project_name: str, storyboard: list[dict[str, Any]], render_settings: dict[str, Any], visual_settings: dict[str, Any]) -> dict[str, Any]:
     scenes: list[dict[str, Any]] = []
     for index, item in enumerate(storyboard or [], start=1):
@@ -915,14 +942,15 @@ def _render_real_clip_controls(
         c_test, c_models = st.columns(2)
         if c_test.button("Test Veo Connection", use_container_width=True, key=f"{section_key}_veo_test_connection"):
             result = test_veo_connection(_user_api_key("gemini"))
+            st.session_state[f"{section_key}_veo_connection_diagnostics"] = result.get("data", {})
             if result.get("ok"):
                 st.success(result.get("message", "Veo connection ready"))
             else:
                 detail = result.get("data", {}).get("provider_error_detail") or result.get("message")
                 st.warning(_safe_provider_error_text(detail) or result.get("error") or "Veo connection failed")
-                st.json(result.get("data", {}), expanded=False)
         if c_models.button("Available Veo Models", use_container_width=True, key=f"{section_key}_veo_available_models"):
             result = list_available_veo_models(_user_api_key("gemini"))
+            st.session_state[f"{section_key}_veo_models_diagnostics"] = result.get("data", {})
             if result.get("ok"):
                 models = result.get("data", {}).get("models", [])
                 if models:
@@ -932,7 +960,8 @@ def _render_real_clip_controls(
             else:
                 detail = result.get("data", {}).get("provider_error_detail") or result.get("message")
                 st.warning(_safe_provider_error_text(detail) or result.get("error") or "Model diagnostics failed")
-                st.json(result.get("data", {}), expanded=False)
+        _render_veo_diagnostics_card("Veo Connection Diagnostics", st.session_state.get(f"{section_key}_veo_connection_diagnostics", {}))
+        _render_veo_diagnostics_card("Available Veo Models Diagnostics", st.session_state.get(f"{section_key}_veo_models_diagnostics", {}))
         c_submit, c_poll, c_download = st.columns(3)
         if c_submit.button("Submit Scene 1 to Veo", use_container_width=True, key=f"{section_key}_veo_submit_scene_01"):
             gemini_key = _user_api_key("gemini")
@@ -966,6 +995,7 @@ def _render_real_clip_controls(
             detail = scene_job.get("provider_error_detail")
             if detail:
                 st.warning(_safe_provider_error_text(detail))
+            _render_veo_diagnostics_card("Scene 1 Provider Diagnostics", scene_job)
             st.json({key: value for key, value in scene_job.items() if key != "payload"}, expanded=False)
 
     if st.button("Combine Final Clip", use_container_width=True, disabled=not ffmpeg_ready, key=f"{section_key}_combine_final_clip"):
