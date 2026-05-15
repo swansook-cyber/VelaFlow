@@ -1,56 +1,58 @@
-# Secrets
-.env
-.env.*
-!.env.example
-
-# Python / virtualenv
-.venv/
-venv/
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
+.venv/
+venv/
 
-# VelaFlow generated outputs
+# Environment
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Generated media
+*.mp4
+*.mp3
+*.wav
+*.srt
+*.mov
+*.mkv
+*.avi
+
+# Outputs / runtime project data
+outputs/
+project_data/
 exports/
-temp/
-runtime/
-outputs/cache/
-outputs/renders/_scene_cache/
-outputs/renders/**/_scene_cache/
-outputs/renders/**/temp/
-outputs/renders/**/*.mp4
-outputs/renders/**/*.mov
-outputs/renders/**/*.mkv
-outputs/renders/**/*.avi
-outputs/renders/**/*.wav
-outputs/renders/**/*.mp3
-outputs/generated_images/
-outputs/generated_videos/
-outputs/source_packages/
-analytics/analytics.json
+analytics/
 analytics.json
-*.log
 
-# Local project/runtime state
-project_data/locks/
-project_data/last_session.json
+# Runtime/temp
+temp/
+tmp/
+cache/
+runtime/
+logs/
+*.log
+*.tmp
+
+# Smoke tests / generated artifacts
+outputs/smoke_tests/
+outputs/preset_bundles/presets_backup_*/
+project_data/archive/
+project_data/deleted_backups/
+backups/
+config/artist_presets/_deleted_backups/
+
+# Local binaries / packages
+ffmpeg-*/
+*.exe
+*.zip
 
 # OS/editor
 .DS_Store
 Thumbs.db
-
-ffmpeg-*/
-
-*.exe
-
-ffmpeg-*/
-
-*.exe
-
-ffmpeg-*/
-
-*.exe
-
-*.zip
+.vscode/
+.idea/

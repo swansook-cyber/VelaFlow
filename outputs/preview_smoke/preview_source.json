@@ -1,9 +1,0 @@
-{
-  "prompt": "cinematic Thai singer in rain",
-  "negative_prompt": "bad anatomy, extra fingers, deformed hands, deformed face, low quality, blurry, duplicate character, inconsistent character, watermark, text artifacts",
-  "metadata": {
-    "provider": "offline",
-    "size": "512x512"
-  },
-  "created_at": 1778282906.97676
-}

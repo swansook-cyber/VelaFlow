@@ -1,6 +1,0 @@
-Scene 01 |  | 
-cinematic rain scene
-
-Character lock: Keep one consistent character across every scene; name: Niran; role: lead singer; gender: unspecified; ethnicity: Thai; hair: short black hair; outfit: dark hoodie; core mood: lonely; continuity guardrails: do not change face, hairstyle, outfit, age, ethnicity, or main wardrobe identity
-Negative: bad anatomy
---------------------------------------------------------------------------------
