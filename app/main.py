@@ -150,13 +150,14 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import render_real_hook_clip
+from core.real_clip_pipeline import render_placeholder_scene, render_real_hook_clip
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
 from core.scene_scoring import score_project_scenes, smart_tiktok_recommendations
+from core.scene_story_engine import build_subtitle_timing
 from core.seller_content import HOOK_STYLES, TONE_GUIDES, build_seller_dashboard_status, export_seller_content, generate_seller_content, seller_content_to_text
 from core.voiceover_engine import VOICEOVER_STYLES, build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
 from core.settings import get_settings
@@ -185,7 +186,7 @@ from core.song_structure_intelligence import (
 from core.suno_export import export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
-from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
+from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, save_scene_job, scene_output_path, submit_veo_scene_job
 from core.version import APP_VERSION, BUILD_VERSION, RELEASE_CHANNEL, build_label
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
@@ -441,7 +442,7 @@ def _render_settings_controls(prefix: str, defaults: dict[str, Any] | None = Non
         duration = c1.selectbox("Duration", RENDER_DURATIONS, index=RENDER_DURATIONS.index(current.get("duration", "5s")) if current.get("duration") in RENDER_DURATIONS else 0, key=f"{prefix}_render_duration")
         quality = c2.selectbox("Quality", RENDER_QUALITIES, index=RENDER_QUALITIES.index(current.get("quality", "Standard")) if current.get("quality") in RENDER_QUALITIES else 1, key=f"{prefix}_render_quality")
         motion_intensity = c1.selectbox("Motion Intensity", MOTION_INTENSITIES, index=MOTION_INTENSITIES.index(current.get("motion_intensity", "Medium")) if current.get("motion_intensity") in MOTION_INTENSITIES else 1, key=f"{prefix}_render_motion")
-        st.caption("Connector metadata only. VelaFlow will not render video or call external rendering APIs yet.")
+        st.caption("Default is vertical 9:16. Start Render can create a local MP4; external provider jobs remain BYO-key/mock until configured.")
     return {"provider": provider, "aspect_ratio": aspect_ratio, "duration": duration, "quality": quality, "motion_intensity": motion_intensity, "bundle_name": current.get("bundle_name", "")}
 
 
@@ -640,6 +641,132 @@ def _render_hook_clip_preview(hook_package: dict[str, Any]) -> None:
     st.dataframe(pd.DataFrame(hook_package.get("scene_sequence", []) or []), use_container_width=True, height=220)
 
 
+def _scene_status_badge(status: str) -> str:
+    normalized = str(status or "queued").lower()
+    if normalized in {"completed", "completed_existing", "ready"}:
+        return "completed"
+    if normalized in {"rendering", "processing"}:
+        return "rendering"
+    if normalized in {"failed", "error"}:
+        return "failed"
+    return "queued"
+
+
+def _hook_package_project_dir(project_name: str) -> Path:
+    return workflow_project_root("clips") / safe_name(project_name or "hook_clip")
+
+
+def _render_scene_preview_cards(project_name: str, hook_package: dict[str, Any], section_key: str, scene_jobs: dict[str, Any] | None = None) -> None:
+    scenes = hook_package.get("scene_sequence") or (hook_package.get("scene_package") or {}).get("scenes") or []
+    if not scenes:
+        st.info("No scenes available yet.")
+        return
+    jobs = scene_jobs or {}
+    st.write("Scene Preview")
+    for index, scene in enumerate(scenes, start=1):
+        scene_id = str(scene.get("scene_id") or f"scene_{index:02d}")
+        scene_file = scene_output_path(project_name, scene_id)
+        job = jobs.get(scene_id, {}) or {}
+        status = _scene_status_badge(job.get("status") or ("completed" if scene_file.is_file() else "queued"))
+        with st.container(border=True):
+            c1, c2 = st.columns([2, 1])
+            c1.markdown(f"**Scene {index}: {scene.get('beat') or scene.get('scene_title') or scene_id}**")
+            c1.caption(f"Status: {status}")
+            c2.caption(f"Duration: {scene.get('duration', '-')}s")
+            st.caption(str(scene.get("subtitle") or scene.get("visual_prompt") or "")[:180])
+            if scene_file.is_file():
+                st.video(str(scene_file))
+                st.download_button(
+                    "Download Scene MP4",
+                    data=scene_file.read_bytes(),
+                    file_name=scene_file.name,
+                    mime="video/mp4",
+                    key=f"{section_key}_download_{scene_id}",
+                    use_container_width=True,
+                )
+            elif status == "failed":
+                st.warning(job.get("error") or "Scene render failed.")
+
+
+def _render_first_scene_locally(project_name: str, hook_package: dict[str, Any], section_key: str) -> dict[str, Any]:
+    scenes = hook_package.get("scene_sequence") or (hook_package.get("scene_package") or {}).get("scenes") or []
+    if not scenes:
+        return {"ok": False, "message": "No scene available", "data": {}, "error": "missing_scene"}
+    scene = dict(scenes[0])
+    scene_id = str(scene.get("scene_id") or "scene_01")
+    project_dir = _hook_package_project_dir(project_name)
+    scene_path = project_dir / "scenes" / f"{scene_id}.mp4"
+    log_path = project_dir / "exports" / "real_clip_render_log.txt"
+    aspect_ratio = ((hook_package.get("render_settings") or {}).get("aspect_ratio") or "9:16")
+    job = {"scene_id": scene_id, "status": "rendering", "path": str(scene_path), "error": "", "updated_at": datetime.now().isoformat(timespec="seconds")}
+    save_scene_job(project_name, scene_id, job)
+    result = render_placeholder_scene(scene, scene_path, aspect_ratio=aspect_ratio, log_path=log_path)
+    job["status"] = "completed" if result.get("ok") else "failed"
+    job["error"] = result.get("error", "")
+    job["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    save_scene_job(project_name, scene_id, job)
+    return result
+
+
+def _render_final_downloads(section_key: str, real_output: dict[str, Any]) -> None:
+    if not real_output:
+        return
+    status = real_output.get("manifest", {}).get("status") or real_output.get("status") or "-"
+    st.caption(f"Render Status: {status}")
+    if real_output.get("final_mp4") and Path(real_output["final_mp4"]).is_file():
+        final_path = Path(real_output["final_mp4"])
+        st.video(str(final_path))
+        st.download_button("Download Final Clip MP4", data=final_path.read_bytes(), file_name=final_path.name, mime="video/mp4", use_container_width=True, key=f"{section_key}_download_final_mp4")
+    if real_output.get("subtitles") and Path(real_output["subtitles"]).is_file():
+        subtitle_path = Path(real_output["subtitles"])
+        st.download_button("Download subtitles.srt", data=subtitle_path.read_bytes(), file_name="subtitles.srt", mime="text/plain", use_container_width=True, key=f"{section_key}_download_srt")
+
+
+def _mv_storyboard_to_hook_package(project_name: str, storyboard: list[dict[str, Any]], render_settings: dict[str, Any], visual_settings: dict[str, Any]) -> dict[str, Any]:
+    scenes: list[dict[str, Any]] = []
+    for index, item in enumerate(storyboard or [], start=1):
+        scene_id = str(item.get("scene_id") or item.get("id") or f"scene_{index:02d}")
+        if not scene_id.startswith("scene_"):
+            scene_id = f"scene_{index:02d}"
+        subtitle = str(item.get("subtitle") or item.get("lyric_part") or item.get("scene_title") or item.get("title") or "")[:90]
+        visual_prompt = str(item.get("visual_prompt") or item.get("prompt") or item.get("image_prompt") or item.get("expanded_prompt") or subtitle or "cinematic vertical music video scene")
+        scenes.append(
+            {
+                "scene_id": scene_id,
+                "beat": item.get("scene_title") or item.get("title") or f"MV Scene {index}",
+                "subtitle": subtitle,
+                "visual_prompt": visual_prompt,
+                "camera_direction": item.get("camera_direction") or item.get("camera") or "slow cinematic push-in",
+                "lighting": item.get("lighting") or "cinematic emotional lighting",
+                "motion": item.get("motion") or item.get("motion_effect") or "slow cinematic motion",
+                "pacing": item.get("pacing") or item.get("pacing_note") or "music-video pacing",
+                "transition": item.get("transition") or "soft cut",
+                "duration": float(item.get("duration") or item.get("duration_seconds") or 2.5),
+            }
+        )
+    if not scenes:
+        return {}
+    hook_text = scenes[0].get("subtitle") or project_name
+    package = {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "source_workflow": "music_mv",
+        "hook_text": hook_text,
+        "subtitle_line": hook_text,
+        "scene_package": {"duration_seconds": sum(float(scene.get("duration", 0) or 0) for scene in scenes), "scenes": scenes},
+        "scene_sequence": scenes,
+        "subtitle_timing": build_subtitle_timing(scenes),
+        "thumbnail_prompt": f"Vertical music video thumbnail for {project_name}, cinematic emotional style, no random text",
+        "caption": "",
+        "hashtags": ["#VelaFlow", "#MusicVideo", "#Shorts"],
+        "render_prompt": "\n".join(str(scene.get("visual_prompt") or "") for scene in scenes),
+        "render_settings": {"aspect_ratio": "9:16", **(render_settings or {})},
+    }
+    content = {"ai_video_prompt": package["render_prompt"], "thumbnail_prompt": package["thumbnail_prompt"], "visual_engine": {"scene_flow": scenes}}
+    package["render_connector_package"] = build_render_package(project_name, "music_mv", content, package["render_settings"], visual_settings)
+    return package
+
+
 def _user_api_key(provider: str) -> str:
     return str((st.session_state.get("user_api_keys", {}) or {}).get(normalize_provider(provider), "") or "")
 
@@ -657,51 +784,53 @@ def _render_real_clip_controls(
         return
     project_name = project.get("title") or _workflow_default_name(st.session_state.get("workflow_mode"))
     existing = ((project.get(section_key, {}) or {}).get("real_output") or {})
-    st.write("Real Output Mode")
-    st.caption("Creates a real vertical MP4 locally with FFmpeg. External render APIs are optional and BYO-key only.")
-    with st.expander("Google Veo Scene 1", expanded=False):
-        st.caption("BYO Gemini/Veo key only. The key is read from session/localStorage and is never saved to project files.")
-        scene_jobs = (load_scene_jobs(project_name).get("data", {}).get("jobs", {}) or {})
-        scene_job = scene_jobs.get("scene_01", {})
-        scene_file = scene_output_path(project_name, "scene_01")
-        c_submit, c_poll, c_download = st.columns(3)
-        if c_submit.button("Render Scene 1 with Veo", use_container_width=True, key=f"{section_key}_veo_submit_scene_01"):
-            gemini_key = _user_api_key("gemini")
-            if not gemini_key:
-                st.warning("Please add your own Gemini/Veo API key in AI Settings first.")
-            else:
-                result = submit_veo_scene_job(project_name, hook_package, gemini_key, scene_index=0)
-                if result.get("ok"):
-                    st.success(f"Veo job submitted: {result['data']['job'].get('job_id')}")
-                else:
-                    st.error(result.get("error") or result.get("message"))
-                st.rerun()
-        if c_poll.button("Poll Status", use_container_width=True, key=f"{section_key}_veo_poll_scene_01"):
-            result = poll_veo_scene_job(project_name, _user_api_key("gemini"), "scene_01")
-            if result.get("ok"):
-                st.success(f"Scene 1 status: {result['data']['job'].get('status')}")
-            else:
-                st.warning(result.get("error") or result.get("message"))
-            st.rerun()
-        if c_download.button("Download Scene 1", use_container_width=True, key=f"{section_key}_veo_download_scene_01"):
-            result = download_veo_scene_result(project_name, _user_api_key("gemini"), "scene_01")
-            if result.get("ok"):
-                st.success("scene_01.mp4 downloaded")
-            else:
-                st.warning(result.get("error") or result.get("message"))
-            st.rerun()
-        if scene_job:
-            st.json({key: value for key, value in scene_job.items() if key != "payload"}, expanded=False)
-        if scene_file.is_file():
-            st.success(f"scene_01.mp4 ready: {scene_file}")
-            st.video(str(scene_file))
-        else:
-            st.info("scene_01.mp4 not available yet. Placeholder rendering remains available below.")
+    scene_jobs = (load_scene_jobs(project_name).get("data", {}).get("jobs", {}) or {})
+    scenes = hook_package.get("scene_sequence") or (hook_package.get("scene_package") or {}).get("scenes") or []
+    completed_scenes = sum(
+        1
+        for index, scene in enumerate(scenes, start=1)
+        if scene_output_path(project_name, str(scene.get("scene_id") or f"scene_{index:02d}")).is_file()
+    )
+    creator_status = str((project.get(section_key, {}) or {}).get("creator_render_status") or existing.get("manifest", {}).get("status") or "queued")
+    st.write("Creator Render")
+    st.caption("Simple vertical clip rendering for creators. Default output is 9:16. If rendering is unavailable, VelaFlow shows a warning and keeps the scene package ready.")
+    p1, p2, p3, p4 = st.columns(4)
+    p1.metric("Queued", "Yes" if creator_status in {"queued", "rendering", "completed"} else "No")
+    p2.metric("Rendering", "Yes" if creator_status == "rendering" else "No")
+    p3.metric("Completed", "Yes" if existing.get("final_mp4") and Path(existing.get("final_mp4", "")).is_file() else "No")
+    p4.metric("Scenes", f"{completed_scenes}/{len(scenes)}")
+
     use_voiceover = st.checkbox("Generate voiceover MP3", value=workflow_type in {"podcast", "viral_clips"}, key=f"{section_key}_real_voiceover")
     voice_style = st.selectbox("Voiceover Style", VOICEOVER_STYLES, index=VOICEOVER_STYLES.index(default_voice_style) if default_voice_style in VOICEOVER_STYLES else 0, key=f"{section_key}_real_voice_style")
-    col_a, col_b = st.columns(2)
-    if col_a.button("Render Real Clip", type="primary", use_container_width=True, key=f"{section_key}_render_real_clip"):
+    col_start, col_scene, col_all = st.columns(3)
+    if col_start.button("🎬 Start Render", type="primary", use_container_width=True, key=f"{section_key}_start_render"):
+        render_package = hook_package.get("render_connector_package") or {}
+        project.setdefault(section_key, {})["creator_render_status"] = "queued"
+        if render_package:
+            job_result = send_render_job(project_name, render_package, "Manual / Mock")
+            if job_result.get("ok"):
+                project[section_key]["creator_render_job"] = job_result.get("data", {}).get("job", {})
+                st.success("Render queued. You can render Scene 1 or Render All Scenes now.")
+            else:
+                st.warning(job_result.get("error") or job_result.get("message"))
+        else:
+            st.warning("Render package is missing. Generate the hook/storyboard package first.")
+        _save_project()
+        st.rerun()
+    if col_scene.button("🎬 Render Scene 1", use_container_width=True, key=f"{section_key}_render_scene_1"):
+        project.setdefault(section_key, {})["creator_render_status"] = "rendering"
+        _save_project()
+        result = _render_first_scene_locally(project_name, hook_package, section_key)
+        project.setdefault(section_key, {})["creator_render_status"] = "completed" if result.get("ok") else "failed"
+        _save_project()
+        if result.get("ok"):
+            st.success("Scene 1 rendered as MP4.")
+        else:
+            st.warning(result.get("error") or result.get("message") or "Render unavailable.")
+        st.rerun()
+    if col_all.button("🎬 Render All Scenes", use_container_width=True, key=f"{section_key}_render_all_scenes"):
         voiceover_path = ""
+        project.setdefault(section_key, {})["creator_render_status"] = "rendering"
         if use_voiceover:
             voice_script = hook_package.get("subtitle_line") or hook_package.get("hook_text") or ""
             voice_result = generate_voiceover_audio(project_name, voice_script, style=voice_style, api_key=_user_api_key("openai"), provider="openai", output_name="hook_voiceover.mp3")
@@ -714,44 +843,68 @@ def _render_real_clip_controls(
                 st.warning("Voiceover MP3 was not created. Rendering clip without audio.")
         result = render_real_hook_clip(project_name, hook_package, workflow_type=workflow_type, voiceover_path=voiceover_path)
         project.setdefault(section_key, {})["real_output"] = result.get("data", {})
+        project[section_key]["creator_render_status"] = "completed" if result.get("ok") else "failed"
         project[section_key]["real_output_status"] = "completed" if result.get("ok") else "failed"
         project[section_key]["real_output_error"] = result.get("error", "")
         _save_project()
         if result.get("ok"):
-            _log_beta_event("export", workflow=workflow_type, preset_bundle="real_mp4", metadata={"page": "Real Output"})
-            st.success("Real MP4 exported")
+            _log_beta_event("export", workflow=workflow_type, preset_bundle="real_mp4", metadata={"page": "Creator Render"})
+            st.success("Final clip exported.")
         else:
-            st.error(result.get("error") or result.get("message"))
-    if col_b.button("Test Veo Payload", use_container_width=True, key=f"{section_key}_test_veo_payload"):
-        scene = (hook_package.get("scene_sequence") or [{}])[0]
-        payload = build_veo_payload(
-            prompt=scene.get("visual_prompt") or hook_package.get("render_prompt") or hook_package.get("hook_text") or "",
-            aspect_ratio="9:16",
-            duration_seconds=int(float(scene.get("duration", 5) or 5)),
-            scene_id=scene.get("scene_id", "scene_01"),
-            subtitle_timing=hook_package.get("subtitle_timing") or [],
-        )
-        project.setdefault(section_key, {})["veo_payload_preview"] = payload
+            st.warning(result.get("error") or result.get("message") or "Render unavailable.")
+        st.rerun()
+
+    _render_scene_preview_cards(project_name, hook_package, section_key, scene_jobs)
+
+    with st.container(border=True):
+        st.markdown("**Provider render: Google Veo Scene 1**")
+        st.caption("Optional BYO Gemini/Veo render. If unavailable, use Render Scene 1 / Render All Scenes for local placeholder MP4 output.")
+        scene_job = scene_jobs.get("scene_01", {})
+        c_submit, c_poll, c_download = st.columns(3)
+        if c_submit.button("Submit Scene 1 to Veo", use_container_width=True, key=f"{section_key}_veo_submit_scene_01"):
+            gemini_key = _user_api_key("gemini")
+            if not gemini_key:
+                st.warning("Please add your own Gemini/Veo API key in AI Settings first.")
+            else:
+                result = submit_veo_scene_job(project_name, hook_package, gemini_key, scene_index=0)
+                if result.get("ok"):
+                    st.success(f"Veo job submitted: {result['data']['job'].get('job_id')}")
+                else:
+                    st.warning(result.get("error") or result.get("message"))
+                st.rerun()
+        if c_poll.button("Check Veo Status", use_container_width=True, key=f"{section_key}_veo_poll_scene_01"):
+            result = poll_veo_scene_job(project_name, _user_api_key("gemini"), "scene_01")
+            if result.get("ok"):
+                st.success(f"Scene 1 status: {result['data']['job'].get('status')}")
+            else:
+                st.warning(result.get("error") or result.get("message"))
+            st.rerun()
+        if c_download.button("Download Veo Scene 1", use_container_width=True, key=f"{section_key}_veo_download_scene_01"):
+            result = download_veo_scene_result(project_name, _user_api_key("gemini"), "scene_01")
+            if result.get("ok"):
+                st.success("scene_01.mp4 downloaded")
+            else:
+                st.warning(result.get("error") or result.get("message"))
+            st.rerun()
+        if scene_job:
+            st.json({key: value for key, value in scene_job.items() if key != "payload"}, expanded=False)
+
+    if st.button("Combine Final Clip", use_container_width=True, key=f"{section_key}_combine_final_clip"):
+        result = render_real_hook_clip(project_name, hook_package, workflow_type=workflow_type)
+        project.setdefault(section_key, {})["real_output"] = result.get("data", {})
+        project[section_key]["creator_render_status"] = "completed" if result.get("ok") else "failed"
         _save_project()
-        st.json({key: value for key, value in payload.items() if key != "prompt"} | {"prompt_preview": payload.get("prompt", "")[:200]})
-        st.warning("Real Veo submission is BYO-key only. Add your Gemini/Veo key in AI Settings before external rendering.")
-    if existing:
-        status = existing.get("manifest", {}).get("status") or "-"
-        st.caption(f"Render Status: {status}")
-        if existing.get("final_mp4") and Path(existing["final_mp4"]).is_file():
-            final_path = Path(existing["final_mp4"])
-            st.video(str(final_path))
-            st.download_button("Download MP4", data=final_path.read_bytes(), file_name=final_path.name, mime="video/mp4", use_container_width=True, key=f"{section_key}_download_mp4")
-        if existing.get("subtitles") and Path(existing["subtitles"]).is_file():
-            subtitle_path = Path(existing["subtitles"])
-            st.download_button("Download subtitles.srt", data=subtitle_path.read_bytes(), file_name="subtitles.srt", mime="text/plain", use_container_width=True, key=f"{section_key}_download_srt")
-        voice = ((project.get(section_key, {}) or {}).get("voiceover_audio") or {}).get("audio_path", "")
-        if voice and Path(voice).is_file():
-            voice_path = Path(voice)
-            st.audio(str(voice_path))
-            st.download_button("Download Voiceover MP3", data=voice_path.read_bytes(), file_name=voice_path.name, mime="audio/mpeg", use_container_width=True, key=f"{section_key}_download_voiceover")
-        if existing.get("scene_jobs"):
-            st.dataframe(pd.DataFrame(existing.get("scene_jobs", [])), use_container_width=True, hide_index=True)
+        st.success("Final clip combined.") if result.get("ok") else st.warning(result.get("error") or result.get("message"))
+        st.rerun()
+
+    existing = ((project.get(section_key, {}) or {}).get("real_output") or {})
+    _render_final_downloads(section_key, existing)
+
+    voice = ((project.get(section_key, {}) or {}).get("voiceover_audio") or {}).get("audio_path", "")
+    if voice and Path(voice).is_file():
+        voice_path = Path(voice)
+        st.audio(str(voice_path))
+        st.download_button("Download Voiceover MP3", data=voice_path.read_bytes(), file_name=voice_path.name, mime="audio/mpeg", use_container_width=True, key=f"{section_key}_download_voiceover")
 
 
 def _seller_campaign_name(project_context: dict[str, Any]) -> str:
@@ -2810,8 +2963,10 @@ elif page == "MV Director":
     _page_header("MV Director", "Turn lyrics into a storyboard and scene plan.", project)
     mv_existing = project.get("mv", {}) or {}
     _, mv_bundle_visual, mv_bundle_render = _bundle_controls("mv_director", mv_existing.get("render_settings") or {"bundle_name": "Cinematic Sad"})
+    if mv_bundle_render and not mv_existing.get("render_settings"):
+        mv_bundle_render["aspect_ratio"] = "9:16"
     mv_visual_defaults = mv_bundle_visual or mv_existing.get("visual_settings") or {"camera_preset": "Cinematic", "lighting_preset": "Neon Night", "motion_preset": "Slow Cinematic", "visual_mood": "Emotional"}
-    mv_render_defaults = mv_bundle_render or mv_existing.get("render_settings") or {"provider": "Runway", "aspect_ratio": "16:9", "duration": "10s", "quality": "Cinematic", "motion_intensity": "Medium"}
+    mv_render_defaults = mv_bundle_render or mv_existing.get("render_settings") or {"provider": "Runway", "aspect_ratio": "9:16", "duration": "10s", "quality": "Cinematic", "motion_intensity": "Medium"}
     mv_visual_settings = _visual_controls("mv_director", mv_visual_defaults)
     mv_render_settings = _render_settings_controls("mv_director", mv_render_defaults)
     title = st.text_input("Song Title", value=project.get("title", "เพลงใหม่ของฉัน"))
@@ -2869,6 +3024,15 @@ elif page == "MV Director":
         else:
             st.error(storyboard_result.get("error") or storyboard_result.get("message", "Storyboard generation failed"))
     _render_package_preview(((project.get("mv", {}) or {}).get("render_connector") or {}))
+    mv_storyboard = ((project.get("mv", {}) or {}).get("storyboard", []) or [])
+    if mv_storyboard:
+        st.divider()
+        mv_hook_package = _mv_storyboard_to_hook_package(title or project.get("title") or "mv_project", mv_storyboard, mv_render_settings, mv_visual_settings)
+        if mv_hook_package:
+            project.setdefault("mv", {})["mv_render_clip_package"] = mv_hook_package
+            _render_real_clip_controls(project, "mv", mv_hook_package, "music_mv", default_voice_style="calm narrator")
+    else:
+        st.info("Generate an MV storyboard first, then Start Render will appear here.")
     with st.expander("Render Queue", expanded=False):
         _render_queue_ui(title or project.get("title") or "mv_project")
     storyboard_export = ((project.get("mv", {}) or {}).get("mv_storyboard_export") or {}).get("txt_path")
