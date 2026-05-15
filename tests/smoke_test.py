@@ -193,7 +193,7 @@ from core.style_consistency import build_style_consistency_report
 from core.subtitle_engine import generate_subtitles
 from core.timeline_builder import build_timeline
 from core.voiceover_engine import build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
-from providers.veo_provider import build_veo_payload, submit_render_job as submit_veo_render_job
+from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from providers.image_ai import generate_image
 from providers.video_ai import generate_video
 from scripts.create_source_package import create_source_package
@@ -982,12 +982,16 @@ def main():
     veo_payload = build_veo_payload(prompt=hook_clip_package["render_prompt"], aspect_ratio="9:16", duration_seconds=8, scene_id="scene_01", subtitle_timing=hook_subtitles)
     missing_veo = submit_veo_render_job(veo_payload, api_key="")
     assert_true(veo_payload["aspect_ratio"] == "9:16" and not missing_veo["ok"] and missing_veo["error"] == "missing_api_key", "Veo connector missing-key safety failed")
+    assert_true(isinstance(missing_veo["data"].get("provider_error_detail"), dict), "Veo missing-key safe detail failed")
+    assert_true(not test_veo_connection(api_key="")["ok"] and not list_available_veo_models(api_key="")["ok"], "Veo diagnostics missing-key safety failed")
     missing_scene_submit = submit_veo_scene_job("Smoke Hook Clip Project", hook_clip_package, api_key="", scene_index=0)
     missing_scene_poll = poll_veo_scene_job("Smoke Hook Clip Project", api_key="", scene_id="scene_01")
     missing_scene_download = download_veo_scene_result("Smoke Hook Clip Project", api_key="", scene_id="scene_01")
     scene_jobs = load_scene_jobs("Smoke Hook Clip Project")
     assert_true(not missing_scene_submit["ok"] and missing_scene_submit["error"] == "missing_api_key", "Veo scene submit missing-key safety failed")
     assert_true(scene_jobs["ok"] and "scene_01" in scene_jobs["data"]["jobs"], "Veo scene job metadata failed")
+    scene_01_job = scene_jobs["data"]["jobs"]["scene_01"]
+    assert_true(scene_01_job.get("request_model") and scene_01_job.get("provider_method") and scene_01_job.get("provider_error_detail"), "Veo scene safe diagnostic metadata failed")
     assert_true(not missing_scene_poll["ok"] and not missing_scene_download["ok"], "Veo scene poll/download missing-key safety failed")
     assert_true(str(scene_output_path("Smoke Hook Clip Project", "scene_01")).endswith("scene_01.mp4"), "Veo scene output path failed")
     assert_true(active_theme_name() in {"Dark", "Cinematic Dark", "Light"}, "theme config failed")

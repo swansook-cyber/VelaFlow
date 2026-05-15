@@ -194,7 +194,7 @@ from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
 from providers.video_ai import generate_video
-from providers.veo_provider import build_veo_payload, submit_render_job as submit_veo_render_job
+from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from app.presets import (
     DEFAULT_MUSIC_PRESET,
     DEFAULT_VOCAL_DIRECTION,
@@ -754,6 +754,12 @@ def _render_final_downloads(section_key: str, real_output: dict[str, Any]) -> No
         st.download_button("Download subtitles.srt", data=subtitle_path.read_bytes(), file_name="subtitles.srt", mime="text/plain", use_container_width=True, key=f"{section_key}_download_srt")
 
 
+def _safe_provider_error_text(detail: Any) -> str:
+    if isinstance(detail, dict):
+        return str(detail.get("provider_error_detail") or detail.get("safe_message") or detail.get("category") or "").strip()
+    return str(detail or "").strip()
+
+
 def _mv_storyboard_to_hook_package(project_name: str, storyboard: list[dict[str, Any]], render_settings: dict[str, Any], visual_settings: dict[str, Any]) -> dict[str, Any]:
     scenes: list[dict[str, Any]] = []
     for index, item in enumerate(storyboard or [], start=1):
@@ -906,6 +912,27 @@ def _render_real_clip_controls(
             f"Veo: {'capable' if veo_runtime.get('veo_render_capable') else 'unavailable'}"
         )
         scene_job = scene_jobs.get("scene_01", {})
+        c_test, c_models = st.columns(2)
+        if c_test.button("Test Veo Connection", use_container_width=True, key=f"{section_key}_veo_test_connection"):
+            result = test_veo_connection(_user_api_key("gemini"))
+            if result.get("ok"):
+                st.success(result.get("message", "Veo connection ready"))
+            else:
+                detail = result.get("data", {}).get("provider_error_detail") or result.get("message")
+                st.warning(_safe_provider_error_text(detail) or result.get("error") or "Veo connection failed")
+                st.json(result.get("data", {}), expanded=False)
+        if c_models.button("Available Veo Models", use_container_width=True, key=f"{section_key}_veo_available_models"):
+            result = list_available_veo_models(_user_api_key("gemini"))
+            if result.get("ok"):
+                models = result.get("data", {}).get("models", [])
+                if models:
+                    st.dataframe(pd.DataFrame(models), use_container_width=True, hide_index=True)
+                else:
+                    st.info(result.get("data", {}).get("provider_error_detail") or result.get("message"))
+            else:
+                detail = result.get("data", {}).get("provider_error_detail") or result.get("message")
+                st.warning(_safe_provider_error_text(detail) or result.get("error") or "Model diagnostics failed")
+                st.json(result.get("data", {}), expanded=False)
         c_submit, c_poll, c_download = st.columns(3)
         if c_submit.button("Submit Scene 1 to Veo", use_container_width=True, key=f"{section_key}_veo_submit_scene_01"):
             gemini_key = _user_api_key("gemini")
@@ -916,23 +943,29 @@ def _render_real_clip_controls(
                 if result.get("ok"):
                     st.success(f"Veo job submitted: {result['data']['job'].get('job_id')}")
                 else:
-                    st.warning(result.get("error") or result.get("message"))
+                    detail = result.get("data", {}).get("job", {}).get("provider_error_detail") or result.get("message")
+                    st.warning(_safe_provider_error_text(detail) or result.get("error") or "Veo submit failed")
                 st.rerun()
         if c_poll.button("Check Veo Status", use_container_width=True, key=f"{section_key}_veo_poll_scene_01"):
             result = poll_veo_scene_job(project_name, _user_api_key("gemini"), "scene_01")
             if result.get("ok"):
                 st.success(f"Scene 1 status: {result['data']['job'].get('status')}")
             else:
-                st.warning(result.get("error") or result.get("message"))
+                detail = result.get("data", {}).get("job", {}).get("provider_error_detail") or result.get("message")
+                st.warning(_safe_provider_error_text(detail) or result.get("error") or "Veo status check failed")
             st.rerun()
         if c_download.button("Download Veo Scene 1", use_container_width=True, key=f"{section_key}_veo_download_scene_01"):
             result = download_veo_scene_result(project_name, _user_api_key("gemini"), "scene_01")
             if result.get("ok"):
                 st.success("scene_01.mp4 downloaded")
             else:
-                st.warning(result.get("error") or result.get("message"))
+                detail = result.get("data", {}).get("job", {}).get("provider_error_detail") or result.get("message")
+                st.warning(_safe_provider_error_text(detail) or result.get("error") or "Veo download failed")
             st.rerun()
         if scene_job:
+            detail = scene_job.get("provider_error_detail")
+            if detail:
+                st.warning(_safe_provider_error_text(detail))
             st.json({key: value for key, value in scene_job.items() if key != "payload"}, expanded=False)
 
     if st.button("Combine Final Clip", use_container_width=True, disabled=not ffmpeg_ready, key=f"{section_key}_combine_final_clip"):

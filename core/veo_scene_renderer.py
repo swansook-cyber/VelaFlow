@@ -67,6 +67,7 @@ def submit_veo_scene_job(project_name: str, hook_package: dict[str, Any], api_ke
         subtitle_timing=hook_package.get("subtitle_timing") or [],
     )
     result = submit_render_job(payload, api_key=api_key)
+    detail = result.get("data", {}).get("provider_error_detail", "") or ""
     job = {
         "scene_id": scene_id,
         "provider": "Google Veo",
@@ -76,6 +77,10 @@ def submit_veo_scene_job(project_name: str, hook_package: dict[str, Any], api_ke
         "updated_at": _now(),
         "output_path": str(scene_output_path(project_name, scene_id)),
         "payload": payload,
+        "request_model": result.get("data", {}).get("request_model") or payload.get("model", ""),
+        "provider_method": result.get("data", {}).get("provider_method") or "client.models.generate_videos",
+        "sdk_exception_type": (detail or {}).get("sdk_exception_type", "") if isinstance(detail, dict) else "",
+        "provider_error_detail": detail,
         "error": "" if result.get("ok") else (result.get("error") or result.get("message")),
     }
     save_scene_job(project_name, scene_id, job)
@@ -92,9 +97,15 @@ def poll_veo_scene_job(project_name: str, api_key: str, scene_id: str = "scene_0
         job["status"] = result.get("data", {}).get("status", "Rendering")
         job["updated_at"] = _now()
         job["error"] = ""
+        job["provider_method"] = result.get("data", {}).get("provider_method") or job.get("provider_method", "client.operations.get")
+        job["provider_error_detail"] = ""
     else:
         job["status"] = "failed"
         job["error"] = result.get("error") or result.get("message")
+        detail = result.get("data", {}).get("provider_error_detail", "") or ""
+        job["provider_error_detail"] = detail
+        job["provider_method"] = (detail or {}).get("provider_method", "client.operations.get") if isinstance(detail, dict) else "client.operations.get"
+        job["sdk_exception_type"] = (detail or {}).get("sdk_exception_type", "") if isinstance(detail, dict) else ""
         job["updated_at"] = _now()
     save_scene_job(project_name, scene_id, job)
     return {"ok": bool(result.get("ok")), "message": result.get("message", ""), "data": {"job": job}, "error": job.get("error", "")}
@@ -112,8 +123,13 @@ def download_veo_scene_result(project_name: str, api_key: str, scene_id: str = "
         job["output_path"] = result.get("data", {}).get("path", str(output))
         job["updated_at"] = _now()
         job["error"] = ""
+        job["provider_error_detail"] = ""
     else:
         job["error"] = result.get("error") or result.get("message")
+        detail = result.get("data", {}).get("provider_error_detail", "") or ""
+        job["provider_error_detail"] = detail
+        job["provider_method"] = (detail or {}).get("provider_method", "client.operations.get/client.files.download") if isinstance(detail, dict) else "client.operations.get/client.files.download"
+        job["sdk_exception_type"] = (detail or {}).get("sdk_exception_type", "") if isinstance(detail, dict) else ""
         job["updated_at"] = _now()
     save_scene_job(project_name, scene_id, job)
     return {"ok": bool(result.get("ok")), "message": result.get("message", ""), "data": {"job": job, "path": str(output)}, "error": job.get("error", "")}

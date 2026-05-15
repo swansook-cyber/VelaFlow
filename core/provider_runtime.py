@@ -84,9 +84,17 @@ def build_provider_runtime_diagnostics(
 def classify_provider_error(error: Any) -> str:
     message = str(error or "").lower()
     if any(token in message for token in ["api key", "apikey", "unauthorized", "401", "permission", "forbidden", "invalid credential"]):
-        return "Gemini auth failed"
+        return "auth failed"
+    if any(token in message for token in ["quota", "resource exhausted", "429", "rate limit"]):
+        return "quota exceeded"
+    if any(token in message for token in ["invalid argument", "bad request", "400", "invalid request"]):
+        return "invalid request"
+    if any(token in message for token in ["region", "location", "country", "not available in your"]):
+        return "unsupported region"
     if any(token in message for token in ["quota", "billing", "account", "not enabled", "unsupported"]):
         return "unsupported account"
     if any(token in message for token in ["not found", "404", "model"]):
-        return "Veo unavailable"
+        return "model not found"
+    if any(token in message for token in ["generate_videos", "attributeerror", "unexpected keyword", "method", "not callable"]):
+        return "SDK method mismatch"
     return "provider error"
