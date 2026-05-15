@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Hook A",
+    "hook_text": "ลืมเธอไม่เก่งเลย",
+    "emotional_score": 93,
+    "catchy_score": 100,
+    "tiktok_potential": 100,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "chorus"
+  },
+  {
+    "name": "Hook B",
+    "hook_text": "ฝนตกในใจฉัน",
+    "emotional_score": 95,
+    "catchy_score": 100,
+    "tiktok_potential": 100,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "post-chorus"
+  },
+  {
+    "name": "Hook C",
+    "hook_text": "ยังคิดถึงเธออยู่ดี",
+    "emotional_score": 87,
+    "catchy_score": 97,
+    "tiktok_potential": 90,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "TikTok clip"
+  },
+  {
+    "name": "Hook D",
+    "hook_text": "กลับมาไม่ได้ ก็ไม่เป็นไร",
+    "emotional_score": 84,
+    "catchy_score": 94,
+    "tiktok_potential": 87,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "title line"
+  },
+  {
+    "name": "Hook E",
+    "hook_text": "ยิ้มได้ แต่ไม่ได้แปลว่าลืม",
+    "emotional_score": 81,
+    "catchy_score": 83,
+    "tiktok_potential": 76,
+    "reason_th": "สั้น จำง่าย และเหมาะกับท่อนฮุก",
+    "suggested_usage": "chorus"
+  }
+]

@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import time
 import zipfile
@@ -10,7 +11,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
 from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
@@ -20,6 +21,8 @@ from core.marketing_package import build_marketing_package, export_marketing_pac
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
 from core.navigation_config import (
     FULL_MENU_GROUPS,
+    HOOK_CLIP_ALLOWED_PAGES,
+    HOOK_CLIP_MENU_GROUPS,
     PAGE_LABELS,
     PODCAST_STUDIO_ALLOWED_PAGES,
     PODCAST_STUDIO_MENU_GROUPS,
@@ -46,6 +49,8 @@ from core.viral_clips_content import (
 )
 from core.visual_engine import build_camera_direction, build_scene_flow, build_shorts_structure, build_visual_prompt
 from core.visual_presets import list_camera_presets, list_lighting_presets, list_motion_presets, list_visual_mood_presets
+from core.clip_combine import combine_scene_clips
+from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -59,6 +64,7 @@ from core.recovery import recover_last_session, save_last_session
 from core.theme import active_theme_name
 from core.ui_styles import get_global_css
 from core.version import APP_VERSION, identity_payload
+from core.settings import get_settings
 from core.artist_presets import (
     GENERAL_CREATOR_CATEGORY,
     PUBLIC_DEFAULT_ARTIST_ID,
@@ -117,6 +123,8 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
+from core.real_clip_pipeline import find_ffmpeg, render_real_hook_clip, write_subtitles
+from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
 from core.rendering_presets import get_render_preset_bundle, get_rendering_provider_preset, list_render_preset_bundles, list_rendering_providers
 from core.preset_system import list_global_presets, list_preset_packs, list_project_templates, list_scene_presets
 from core.project_templates import create_project_from_template, suggested_scene_preset_details
@@ -177,9 +185,13 @@ from core.stable_build import STABLE_FREEZE_NAME, create_stable_candidate_snapsh
 from core.render_engine import run_render
 from core.scene_scoring import score_project_scenes, smart_tiktok_recommendations
 from core.seller_content import HOOK_STYLES, build_seller_dashboard_status, compress_selling_points, export_seller_content, generate_seller_content, seller_content_to_text
+from core.product_link_analyzer import analyze_product_link, detect_product_platform
+from core.scene_story_engine import build_scene_sequence, build_subtitle_timing
 from core.style_consistency import build_style_consistency_report
 from core.subtitle_engine import generate_subtitles
 from core.timeline_builder import build_timeline
+from core.voiceover_engine import build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
+from providers.veo_provider import build_veo_payload, submit_render_job as submit_veo_render_job
 from providers.image_ai import generate_image
 from providers.video_ai import generate_video
 from scripts.create_source_package import create_source_package
@@ -247,15 +259,29 @@ def main():
     assert_true(license_service.module_enabled("core"), "license core flag failed")
     assert_true("Project Dashboard" in license_service.visible_pages({"Project Dashboard": "core"}), "license visible pages failed")
     assert_true(APP_VERSION == "0.1.0" and identity_payload()["generated_by"] == "VelaFlow", "version identity failed")
+    procfile = (ROOT / "Procfile").read_text(encoding="utf-8")
+    railway = json.loads((ROOT / "railway.json").read_text(encoding="utf-8"))
+    assert_true("--server.port=$PORT" in procfile and "--server.address=0.0.0.0" in procfile, "Procfile Railway start command failed")
+    assert_true("--server.port=$PORT" in railway["deploy"]["startCommand"], "railway.json start command failed")
+    previous_mode = os.environ.get("VELAFLOW_MODE")
+    os.environ["VELAFLOW_MODE"] = "CLOUD"
+    cloud_settings = get_settings()
+    if previous_mode is None:
+        os.environ.pop("VELAFLOW_MODE", None)
+    else:
+        os.environ["VELAFLOW_MODE"] = previous_mode
+    assert_true(cloud_settings.velaflow_mode == "CLOUD", "VELAFLOW_MODE cloud setting failed")
     assert_true(normalize_provider("OpenAI GPT") == "openai" and provider_display_name("openai") == "OpenAI GPT", "OpenAI provider normalization failed")
     assert_true(normalize_provider("xAI Grok") == "xai" and provider_display_name("xai") == "xAI Grok", "xAI Grok provider normalization failed")
-    gemini_fallback_text = provider_generate_text(provider="gemini", api_key="", prompt="smoke", offline_factory=lambda: "gemini fallback")
-    openai_fallback_text = provider_generate_text(provider="openai", api_key="", prompt="smoke", offline_factory=lambda: "openai fallback")
-    xai_fallback_text = provider_generate_text(provider="xai", api_key="", prompt="smoke", offline_factory=lambda: "xai fallback")
-    assert_true(gemini_fallback_text == "gemini fallback" and openai_fallback_text == "openai fallback" and xai_fallback_text == "xai fallback", "provider offline fallback failed")
-    health = run_healthcheck(type("Settings", (), {"gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "xai", "ffmpeg_path": "ffmpeg"})())
+    fallback_prompt = f"smoke fallback {time.time_ns()}"
+    gemini_fallback_text = provider_generate_text(provider="gemini", api_key="", prompt=fallback_prompt, offline_factory=lambda: "gemini fallback")
+    openai_fallback_text = provider_generate_text(provider="openai", api_key="", prompt=fallback_prompt, offline_factory=lambda: "openai fallback")
+    xai_fallback_text = provider_generate_text(provider="xai", api_key="", prompt=fallback_prompt, offline_factory=lambda: "xai fallback")
+    assert_true(isinstance(gemini_fallback_text, str) and gemini_fallback_text.strip(), "Gemini provider response/fallback failed")
+    assert_true(openai_fallback_text == "openai fallback" and xai_fallback_text == "xai fallback", "provider offline fallback failed")
+    health = run_healthcheck(type("Settings", (), {"velaflow_mode": "CLOUD", "gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "xai", "ffmpeg_path": "ffmpeg"})())
     health_names = [item["name"] for item in health["data"]["checks"]]
-    assert_true("Gemini configured" in health_names and "OpenAI configured" in health_names and "xAI Grok configured" in health_names and "Active AI provider" in health_names, "provider healthcheck failed")
+    assert_true("VelaFlow mode" in health_names and "Gemini configured" in health_names and "OpenAI configured" in health_names and "xAI Grok configured" in health_names and "Active AI provider" in health_names, "provider healthcheck failed")
     fake_settings = type(
         "Settings",
         (),
@@ -274,6 +300,9 @@ def main():
     assert_true(own_resolved["api_key"] == "user-gemini" and own_resolved["source"] == "user", "BYO user key priority failed")
     assert_true(beta_resolved["api_key"] == "env-openai" and beta_resolved["source"] == "velaflow_beta", "VelaFlow beta key resolution failed")
     assert_true(missing_resolved["api_key"] == "" and missing_resolved["status"] == "Offline Fallback", "missing BYO key fallback failed")
+    assert_true(missing_resolved["warning"] == "Please add your own API key in AI Settings.", "missing own-key warning failed")
+    assert_true(LOCAL_STORAGE_KEYS["gemini"] == "velaflow_gemini_key" and LOCAL_STORAGE_KEYS["openai"] == "velaflow_openai_key" and LOCAL_STORAGE_KEYS["xai"] == "velaflow_xai_key", "localStorage key names failed")
+    assert_true(mask_api_key("abcd1234") == "Provided: ****1234" and mask_api_key("") == "Missing", "API key masking failed")
     analytics_root = out / "analytics_case"
     runtime_dirs = ensure_beta_runtime_dirs(analytics_root)
     assert_true(runtime_dirs["ok"] and (analytics_root / "analytics" / "analytics.json").exists(), "beta analytics runtime prep failed")
@@ -290,7 +319,6 @@ def main():
     old_temp.write_text("old", encoding="utf-8")
     old_time = time.time() - 72 * 3600
     old_temp.touch()
-    import os
     os.utime(old_temp, (old_time, old_time))
     cleanup = cleanup_old_temp_exports(ttl_hours=24, base_dir=analytics_root)
     assert_true(cleanup["ok"] and not old_temp.exists(), "old temp cleanup failed")
@@ -338,7 +366,7 @@ def main():
     assert_true({"Runway", "Kling", "Veo", "PixVerse", "Pika", "Luma"}.issubset(set(render_providers)), "rendering provider presets missing")
     assert_true("9:16" in get_rendering_provider_preset("Kling")["recommended_aspect_ratios"], "rendering preset content failed")
     bundle_names = list_render_preset_bundles()
-    assert_true({"TikTok Viral", "Cinematic Sad", "Luxury Product", "Podcast Dark Office", "Cozy Story"}.issubset(set(bundle_names)), "render preset bundles missing")
+    assert_true({"TikTok Viral", "Cinematic Sad", "Luxury Product", "Podcast Dark Office", "Cozy Story", "Fast Affiliate", "Meme Chaos"}.issubset(set(bundle_names)), "render preset bundles missing")
     tiktok_bundle = get_render_preset_bundle("TikTok Viral")
     cinematic_bundle = get_render_preset_bundle("Cinematic Sad")
     assert_true(tiktok_bundle["camera_preset"] == "TikTok Creator" and tiktok_bundle["aspect_ratio"] == "9:16", "TikTok bundle failed")
@@ -376,14 +404,14 @@ def main():
     song_only_pages = flatten_pages(SONG_ONLY_MENU_GROUPS)
     assert_true(FULL_MENU_GROUPS["SONG"] == ["Song Studio", "Song Library", "Artist Preset Manager"], "SONG navigation group failed")
     assert_true("Artist Preset Manager" in FULL_MENU_GROUPS["SONG"], "Artist Preset Manager missing from SONG group")
-    assert_true("Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
+    assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
     assert_true(set(song_only_pages) == SONG_ONLY_ALLOWED_PAGES, "Song Studio Only allowed page set mismatch")
     assert_true(len(full_pages) == len(set(full_pages)) and len(song_only_pages) == len(set(song_only_pages)), "duplicate navigation pages found")
     assert_true(PAGE_LABELS.get("Creator Wizard") == "Release Workflow Wizard" and PAGE_LABELS.get("Smart Clip Factory") == "Clip Factory" and PAGE_LABELS.get("Production Audit") == "Quality Audit", "menu label polish failed")
     assert_true(normalize_navigation_state(FULL_MENU_GROUPS, "SONG", "Dashboard") == ("SONG", "Song Studio"), "Full Pipeline cannot select SONG")
     assert_true(normalize_navigation_state(FULL_MENU_GROUPS, "VISUAL", "Dashboard") == ("VISUAL", "MV Director"), "Full Pipeline cannot select VISUAL")
-    assert_true(normalize_navigation_state(FULL_MENU_GROUPS, "PRODUCTION", "Dashboard") == ("PRODUCTION", "Render Lab"), "Full Pipeline cannot select PRODUCTION")
+    assert_true(normalize_navigation_state(FULL_MENU_GROUPS, "PRODUCTION", "Dashboard") == ("PRODUCTION", "Hook Clip Studio"), "Full Pipeline cannot select PRODUCTION")
     assert_true("VISUAL" not in SONG_ONLY_MENU_GROUPS and "PRODUCTION" not in SONG_ONLY_MENU_GROUPS, "Song Studio Only did not hide VISUAL/PRODUCTION groups")
     seller_pages = flatten_pages(SELLER_STUDIO_MENU_GROUPS)
     assert_true(menu_groups_for_mode("Seller Studio (Beta)") == SELLER_STUDIO_MENU_GROUPS, "Seller Studio workflow mode failed")
@@ -406,6 +434,13 @@ def main():
     assert_true(normalize_navigation_state(VIRAL_CLIPS_MENU_GROUPS, "CLIPS", "Dashboard") == ("CLIPS", "Viral Clips Studio"), "Viral Clips section selection failed")
     assert_true(workflow_type_for_mode("Viral Clips Studio (Beta)") == "clips", "Viral Clips workflow type mapping failed")
     assert_true(session_label_for_mode("Viral Clips Studio (Beta)") == "Current Clips Session", "Viral Clips session label failed")
+    hook_clip_pages = flatten_pages(HOOK_CLIP_MENU_GROUPS)
+    assert_true(menu_groups_for_mode("Hook Clip Studio (Beta)") == HOOK_CLIP_MENU_GROUPS, "Hook Clip Studio workflow mode failed")
+    assert_true(set(hook_clip_pages) == HOOK_CLIP_ALLOWED_PAGES, "Hook Clip Studio allowed page set mismatch")
+    assert_true("Hook Clip Studio" in hook_clip_pages and "Render Lab" not in hook_clip_pages and "Seller Studio" not in hook_clip_pages, "Hook Clip Studio navigation filtering failed")
+    assert_true(normalize_navigation_state(HOOK_CLIP_MENU_GROUPS, "CLIPS", "Dashboard") == ("CLIPS", "Hook Clip Studio"), "Hook Clip Studio section selection failed")
+    assert_true(workflow_type_for_mode("Hook Clip Studio (Beta)") == "hook_clip", "Hook Clip workflow type mapping failed")
+    assert_true(session_label_for_mode("Hook Clip Studio (Beta)") == "Current Hook Clip Session", "Hook Clip session label failed")
     dashboard_target = "Song Studio"
     assert_true(dashboard_target in full_pages and dashboard_target in song_only_pages, "Dashboard continue target invalid")
     direction = generate_creative_direction(
@@ -872,6 +907,69 @@ def main():
     assert_true(viral_dashboard["next_step"]["page"] == "Viral Clips Studio", "viral clips dashboard next step failed")
     assert_true(viral_stage_names == ["Hooks", "Script", "Subtitles", "Video Prompt", "Export Package"], "viral clips dashboard stages failed")
     assert_true("Song" not in viral_stage_names and "Seller" not in viral_stage_names and "Render" not in viral_stage_names, "viral clips dashboard leaked other workflow labels")
+    assert_true(detect_product_platform("https://shopee.co.th/sample-product-i.123.456") == "shopee", "product platform detection failed")
+    link_analysis = analyze_product_link("https://www.tiktok.com/shop/product/smoke-bottle", "price 199, creator-friendly bottle")
+    assert_true(link_analysis["ok"] and link_analysis["data"]["platform"] == "tiktok_shop" and link_analysis["data"]["keywords"], "product link analyzer failed")
+    best_music_hook = extract_best_hook("music", {"selected_hook": {"hook_text": "เดินต่อ ทั้งที่ใจยังเจ็บ"}})
+    best_seller_hook = extract_best_hook("seller", seller_package)
+    best_podcast_hook = extract_best_hook("podcast", podcast_package)
+    best_viral_hook = extract_best_hook("viral_clips", viral_package)
+    for hook_candidate in [best_music_hook, best_seller_hook, best_podcast_hook, best_viral_hook]:
+        assert_true(hook_candidate["hook_text"] and all(key in hook_candidate["scores"] for key in ["emotional", "catchy", "tiktok", "replay", "curiosity", "cta", "relatability"]), "hook intelligence score expansion failed")
+    hook_scenes = build_scene_sequence(
+        workflow_type="seller",
+        hook_text=best_seller_hook["hook_text"],
+        visual_settings={"camera_preset": "TikTok Creator", "lighting_preset": "Natural Daylight", "motion_preset": "Fast TikTok Cuts", "visual_mood": "Viral"},
+        clip_mode="Fast Hook",
+        duration_seconds=8,
+    )
+    hook_subtitles = build_subtitle_timing(hook_scenes)
+    assert_true(2 <= len(hook_scenes) <= 5 and hook_scenes[0]["render_provider_metadata"]["aspect_ratio"] == "9:16", "multi-scene hook timeline failed")
+    assert_true(hook_subtitles and hook_subtitles[0]["start"] == 0.0, "hook subtitle timing failed")
+    hook_clip_result = build_hook_render_package(
+        "Smoke Hook Clip Project",
+        "seller",
+        seller_package,
+        visual_settings={"camera_preset": "TikTok Creator", "lighting_preset": "Natural Daylight", "motion_preset": "Fast TikTok Cuts", "visual_mood": "Viral"},
+        render_settings={"provider": "Veo", "aspect_ratio": "9:16", "duration": "8s", "quality": "Draft", "motion_intensity": "High", "bundle_name": "TikTok Viral"},
+        clip_mode="Fast Hook",
+        duration_seconds=8,
+        export=False,
+    )
+    assert_true(hook_clip_result["ok"], "hook clip render package failed")
+    hook_clip_package = hook_clip_result["data"]["package"]
+    assert_true(hook_clip_package["render_connector_package"]["payload"]["workflow_type"] == "hook_clip", "hook clip render connector payload failed")
+    assert_true("HOOK AUTO CLIP PACKAGE" in hook_clip_package_to_text(hook_clip_package), "hook clip text export content failed")
+    hook_clip_export = export_hook_clip_package("Smoke Hook Clip Project", hook_clip_package, out / "hook_clip_projects")
+    assert_true(hook_clip_export["ok"] and Path(hook_clip_export["data"]["json_path"]).exists() and Path(hook_clip_export["data"]["txt_path"]).exists(), "hook clip package export failed")
+    combine_manifest = combine_scene_clips(["scene_1.mp4", "scene_2.mp4"], out / "hook_clip_projects" / "final_hook_clip.mp4", subtitle_timing=hook_subtitles)
+    assert_true(combine_manifest["ok"] and Path(combine_manifest["data"]["manifest_path"]).exists(), "combine fallback manifest failed")
+    voiceover_plan = build_voiceover_plan(podcast_package["main_script"], style="tired office worker")
+    voiceover_export = export_voiceover_plan("Smoke Podcast Project", voiceover_plan, out / "podcast_projects")
+    assert_true(voiceover_plan["style"] == "tired office worker" and voiceover_export["ok"], "voiceover fallback export failed")
+    voiceover_audio = generate_voiceover_audio("Smoke Hook Clip Project", "This is a smoke test hook.", style="calm narrator", api_key="", base_dir=out / "hook_clip_projects")
+    assert_true(voiceover_audio["ok"] and Path(voiceover_audio["data"]["audio_path"]).exists(), "voiceover MP3 fallback failed")
+    srt_result = write_subtitles(hook_subtitles, out / "hook_clip_projects" / "subtitles.srt")
+    assert_true(srt_result["ok"] and Path(srt_result["data"]["path"]).exists(), "subtitle SRT export failed")
+    if find_ffmpeg():
+        real_clip = render_real_hook_clip(
+            "Smoke Hook Clip Project",
+            hook_clip_package,
+            workflow_type="hook",
+            voiceover_path=voiceover_audio["data"]["audio_path"],
+        )
+        assert_true(real_clip["ok"] and Path(real_clip["data"]["final_mp4"]).exists() and Path(real_clip["data"]["subtitles"]).exists(), "real hook MP4 export failed")
+    veo_payload = build_veo_payload(prompt=hook_clip_package["render_prompt"], aspect_ratio="9:16", duration_seconds=8, scene_id="scene_01", subtitle_timing=hook_subtitles)
+    missing_veo = submit_veo_render_job(veo_payload, api_key="")
+    assert_true(veo_payload["aspect_ratio"] == "9:16" and not missing_veo["ok"] and missing_veo["error"] == "missing_api_key", "Veo connector missing-key safety failed")
+    missing_scene_submit = submit_veo_scene_job("Smoke Hook Clip Project", hook_clip_package, api_key="", scene_index=0)
+    missing_scene_poll = poll_veo_scene_job("Smoke Hook Clip Project", api_key="", scene_id="scene_01")
+    missing_scene_download = download_veo_scene_result("Smoke Hook Clip Project", api_key="", scene_id="scene_01")
+    scene_jobs = load_scene_jobs("Smoke Hook Clip Project")
+    assert_true(not missing_scene_submit["ok"] and missing_scene_submit["error"] == "missing_api_key", "Veo scene submit missing-key safety failed")
+    assert_true(scene_jobs["ok"] and "scene_01" in scene_jobs["data"]["jobs"], "Veo scene job metadata failed")
+    assert_true(not missing_scene_poll["ok"] and not missing_scene_download["ok"], "Veo scene poll/download missing-key safety failed")
+    assert_true(str(scene_output_path("Smoke Hook Clip Project", "scene_01")).endswith("scene_01.mp4"), "Veo scene output path failed")
     assert_true(active_theme_name() in {"Dark", "Cinematic Dark", "Light"}, "theme config failed")
     templates = list_project_templates()
     packs = list_preset_packs()

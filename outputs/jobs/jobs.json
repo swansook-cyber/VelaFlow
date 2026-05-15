@@ -4414,5 +4414,465 @@
     "updated_at": "2026-05-14T10:29:30",
     "started_at": "2026-05-14T10:29:30",
     "finished_at": "2026-05-14T10:29:30"
+  },
+  {
+    "id": "cc1bfa0b-e9b7-4471-a15e-13ed78a75390",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-14T13:44:21",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-14T13:44:21",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-14T13:44:21",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-14T13:44:21",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-14T13:44:21",
+    "updated_at": "2026-05-14T13:44:21",
+    "started_at": "2026-05-14T13:44:21",
+    "finished_at": "2026-05-14T13:44:21"
+  },
+  {
+    "id": "679d3ecd-360d-41d5-86f1-1ac67830c4e9",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-14T13:46:29",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-14T13:46:29",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-14T13:46:29",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-14T13:46:29",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-14T13:46:29",
+    "updated_at": "2026-05-14T13:46:29",
+    "started_at": "2026-05-14T13:46:29",
+    "finished_at": "2026-05-14T13:46:29"
+  },
+  {
+    "id": "a29284d3-0162-4578-8d60-bffdf9af91c3",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-14T13:48:01",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-14T13:48:01",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-14T13:48:01",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-14T13:48:01",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-14T13:48:01",
+    "updated_at": "2026-05-14T13:48:01",
+    "started_at": "2026-05-14T13:48:01",
+    "finished_at": "2026-05-14T13:48:01"
+  },
+  {
+    "id": "860d340f-4882-4db8-b658-ff160771fac9",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T09:46:09",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T09:46:09",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T09:46:09",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T09:46:09",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T09:46:09",
+    "updated_at": "2026-05-15T09:46:09",
+    "started_at": "2026-05-15T09:46:09",
+    "finished_at": "2026-05-15T09:46:09"
+  },
+  {
+    "id": "4c9d4792-50c1-48c2-b42d-6822db4a118c",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T09:46:22",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T09:46:22",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T09:46:22",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T09:46:22",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T09:46:22",
+    "updated_at": "2026-05-15T09:46:22",
+    "started_at": "2026-05-15T09:46:22",
+    "finished_at": "2026-05-15T09:46:22"
+  },
+  {
+    "id": "0ba587f6-5d9c-4eb7-961f-538040b2fde4",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T09:48:24",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T09:48:24",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T09:48:24",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T09:48:24",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T09:48:24",
+    "updated_at": "2026-05-15T09:48:24",
+    "started_at": "2026-05-15T09:48:24",
+    "finished_at": "2026-05-15T09:48:24"
+  },
+  {
+    "id": "3c8975f8-7d5e-4965-b7d6-58ee1ffe424e",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T13:27:26",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T13:27:26",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T13:27:26",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T13:27:26",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T13:27:26",
+    "updated_at": "2026-05-15T13:27:26",
+    "started_at": "2026-05-15T13:27:26",
+    "finished_at": "2026-05-15T13:27:26"
+  },
+  {
+    "id": "b68769a5-410b-46bc-8534-e91240001773",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T13:28:17",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T13:28:17",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T13:28:17",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T13:28:17",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T13:28:17",
+    "updated_at": "2026-05-15T13:28:17",
+    "started_at": "2026-05-15T13:28:17",
+    "finished_at": "2026-05-15T13:28:17"
+  },
+  {
+    "id": "90f7d2cb-2478-4a45-be79-e48c79664506",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T15:01:43",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T15:01:43",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T15:01:43",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T15:01:43",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T15:01:43",
+    "updated_at": "2026-05-15T15:01:43",
+    "started_at": "2026-05-15T15:01:43",
+    "finished_at": "2026-05-15T15:01:43"
+  },
+  {
+    "id": "3f923a6e-bf4a-40eb-9595-a883f8434714",
+    "type": "smoke_noop",
+    "name": "Smoke Noop",
+    "status": "DONE",
+    "progress": 100,
+    "payload": {
+      "hello": "world"
+    },
+    "result": {
+      "ok": true,
+      "message": "done",
+      "data": {
+        "hello": "world"
+      },
+      "error": ""
+    },
+    "error": "",
+    "logs": [
+      {
+        "ts": "2026-05-15T17:21:16",
+        "level": "INFO",
+        "message": "Job queued"
+      },
+      {
+        "ts": "2026-05-15T17:21:16",
+        "level": "INFO",
+        "message": "Job started"
+      },
+      {
+        "ts": "2026-05-15T17:21:16",
+        "level": "INFO",
+        "message": "smoke handler running"
+      },
+      {
+        "ts": "2026-05-15T17:21:16",
+        "level": "OK",
+        "message": "Job completed"
+      }
+    ],
+    "cancel_requested": false,
+    "created_at": "2026-05-15T17:21:16",
+    "updated_at": "2026-05-15T17:21:16",
+    "started_at": "2026-05-15T17:21:16",
+    "finished_at": "2026-05-15T17:21:16"
   }
 ]

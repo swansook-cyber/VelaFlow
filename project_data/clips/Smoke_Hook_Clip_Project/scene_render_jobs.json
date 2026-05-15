@@ -1,0 +1,40 @@
+{
+  "scene_01": {
+    "scene_id": "scene_01",
+    "provider": "Google Veo",
+    "status": "failed",
+    "job_id": "",
+    "created_at": "2026-05-15T17:21:15",
+    "updated_at": "2026-05-15T17:21:15",
+    "output_path": "D:\\Project AI\\vela_ai_studio_v5\\project_data\\clips\\Smoke_Hook_Clip_Project\\scenes\\scene_01.mp4",
+    "payload": {
+      "model": "veo-3.1-generate-preview",
+      "prompt": "Hook, รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle, vertical 9:16 short-form scene, viral, attention-grabbing, high-retention visual mood, vertical creator-style camera, close and direct to audience, natural daylight, clean realistic ambience, realistic creator-ready visual",
+      "aspect_ratio": "9:16",
+      "duration_seconds": 3,
+      "scene_id": "scene_01",
+      "subtitle_timing": [
+        {
+          "scene_id": "scene_01",
+          "start": 0.0,
+          "end": 2.67,
+          "subtitle": "รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle"
+        },
+        {
+          "scene_id": "scene_02",
+          "start": 2.67,
+          "end": 5.34,
+          "subtitle": "รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle"
+        },
+        {
+          "scene_id": "scene_03",
+          "start": 5.34,
+          "end": 8.0,
+          "subtitle": "รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle"
+        }
+      ],
+      "note": "Provider-ready Veo payload. API keys are supplied at runtime only."
+    },
+    "error": "missing_api_key"
+  }
+}

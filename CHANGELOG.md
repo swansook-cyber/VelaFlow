@@ -1,10 +1,43 @@
 # Changelog
 
+## VelaFlow Beta 0.1.0 - Railway Internal Cloud Prep
+
+- Updated Railway/Procfile Streamlit start command to use `--server.port=$PORT --server.address=0.0.0.0`.
+- Added `VELAFLOW_MODE` setting and Internal Cloud Mode label.
+- Added `docs/RAILWAY_DEPLOY.md` with deploy steps, required env vars, BYO API key flow, FFmpeg notes, and internal test checklist.
+- Kept Cloud Beta default API mode as Bring Your Own API Key with no owner/admin key requirement.
+
+## VelaFlow Beta 0.1.0 - Real Scene Rendering v1
+
+- Added `core/veo_scene_renderer.py` for scene-level Veo job metadata, submit, poll, and download flow.
+- Hook Clip Studio now exposes `Render Scene 1 with Veo`, `Poll Status`, and `Download Scene 1` controls.
+- Veo scene rendering uses only the user's BYO Gemini/Veo key from runtime session state; keys are never saved to project files or exports.
+- Existing local placeholder scene rendering remains available when Veo is missing, unsupported, or fails.
+- The final MP4 combine pipeline now preserves an existing `scene_01.mp4` instead of overwriting a real provider-rendered scene.
+
+## VelaFlow Beta 0.1.0 - First Real Output Pipeline
+
+- Added `providers/veo_provider.py` with BYO-key Veo payload, submit, poll, and download connector functions.
+- Added `core/real_clip_pipeline.py` for real local vertical MP4 output using FFmpeg scene clips, SRT subtitles, optional voiceover audio, and final clip combine.
+- Upgraded `core/voiceover_engine.py` with OpenAI TTS support and FFmpeg silent-MP3 fallback when TTS is unavailable.
+- Added Real Output Mode controls to Hook Clip Studio plus Seller, Podcast, and Viral hook clip previews.
+- Smoke tests now verify SRT export, MP3 fallback, scene MP4 rendering, final hook MP4 export, and Veo missing-key safety.
+
+## VelaFlow Beta 0.1.0 - Hook Clip Factory Foundation
+
+- Added Hook Clip Studio (Beta) as a focused 5-10 second vertical clip workflow.
+- Added `core/hook_clip_engine.py` and `core/scene_story_engine.py` for hook scoring, multi-scene clip planning, subtitle timing, thumbnail prompts, captions, hashtags, and render-ready payloads.
+- Added local-only product link analyzer foundation for Shopee/TikTok Shop links without scraping or automation.
+- Added lightweight voiceover timing plan export for podcast-style hook clips without calling real TTS providers.
+- Added combine-pipeline fallback manifests so scene packages can be prepared even when MoviePy/FFmpeg/video clips are unavailable.
+- Integrated hook clip generation into Seller Studio, Podcast Studio, Viral Clips Studio, and the new Hook Clip Studio page.
+
 ## VelaFlow Beta 0.1.0 - Online Beta Prep
 
 - Updated release identity and sidebar build label to `VelaFlow Beta 0.1.0`.
 - Kept Bring Your Own API Key as the default API mode for beta testers.
-- Confirmed user API keys are stored in Streamlit session state only and are not written to project data, analytics, logs, exports, or server JSON files.
+- Added browser localStorage persistence for user API keys while keeping runtime copies in Streamlit session state only.
+- Confirmed user API keys are not written to project data, analytics, logs, exports, packages, or server JSON files.
 - Added a clean `.env.example` with empty key placeholders only.
 - Kept Song Studio generation logic unchanged for this release prep pass.
 

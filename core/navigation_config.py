@@ -12,7 +12,7 @@ FULL_MENU_GROUPS = {
     "START": ["Dashboard", "Creator Wizard"],
     "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
     "VISUAL": ["MV Director", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
-    "PRODUCTION": ["Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
+    "PRODUCTION": ["Hook Clip Studio", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
     "INTELLIGENCE": ["Creative Intelligence", "Production Audit", "Beta Test Mode", "Asset Intelligence"],
     "SYSTEM": ["Queue Monitor", "System Health", "Release Hardening Tools", "AI Settings"],
 }
@@ -25,26 +25,33 @@ SONG_ONLY_MENU_GROUPS = {
 
 SELLER_STUDIO_MENU_GROUPS = {
     "START": ["Dashboard"],
-    "SELLER": ["Seller Studio"],
+    "SELLER": ["Seller Studio", "Hook Clip Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }
 
 PODCAST_STUDIO_MENU_GROUPS = {
     "START": ["Dashboard"],
-    "PODCAST": ["Podcast Studio"],
+    "PODCAST": ["Podcast Studio", "Hook Clip Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }
 
 VIRAL_CLIPS_MENU_GROUPS = {
     "START": ["Dashboard"],
-    "CLIPS": ["Viral Clips Studio"],
+    "CLIPS": ["Viral Clips Studio", "Hook Clip Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
+}
+
+HOOK_CLIP_MENU_GROUPS = {
+    "START": ["Dashboard"],
+    "CLIPS": ["Hook Clip Studio", "Viral Clips Studio"],
+    "SYSTEM": ["AI Settings", "System Health", "Queue Monitor"],
 }
 
 SONG_ONLY_ALLOWED_PAGES = {page for pages in SONG_ONLY_MENU_GROUPS.values() for page in pages}
 SELLER_STUDIO_ALLOWED_PAGES = {page for pages in SELLER_STUDIO_MENU_GROUPS.values() for page in pages}
 PODCAST_STUDIO_ALLOWED_PAGES = {page for pages in PODCAST_STUDIO_MENU_GROUPS.values() for page in pages}
 VIRAL_CLIPS_ALLOWED_PAGES = {page for pages in VIRAL_CLIPS_MENU_GROUPS.values() for page in pages}
+HOOK_CLIP_ALLOWED_PAGES = {page for pages in HOOK_CLIP_MENU_GROUPS.values() for page in pages}
 
 
 def page_label(page_name: str) -> str:
@@ -64,6 +71,8 @@ def menu_groups_for_mode(workflow_mode: str) -> dict[str, list[str]]:
         return PODCAST_STUDIO_MENU_GROUPS
     if workflow_mode == "Viral Clips Studio (Beta)":
         return VIRAL_CLIPS_MENU_GROUPS
+    if workflow_mode == "Hook Clip Studio (Beta)":
+        return HOOK_CLIP_MENU_GROUPS
     return FULL_MENU_GROUPS
 
 

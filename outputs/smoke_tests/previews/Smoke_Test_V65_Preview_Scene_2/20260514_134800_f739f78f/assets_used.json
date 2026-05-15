@@ -1,0 +1,18 @@
+{
+  "generated_by": "VelaFlow",
+  "brand": "VelaLab",
+  "app_version": "0.1.0",
+  "build_version": "2026.05.14",
+  "release_channel": "VelaFlow Beta",
+  "build_date": "2026-05-10",
+  "project": "Smoke Test V65 Preview Scene 2",
+  "audio_path": "",
+  "timeline_sources": [
+    {
+      "scene_id": "2",
+      "source_type": "approved_image",
+      "source_path": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\offline_image.png",
+      "duration_seconds": 3.0
+    }
+  ]
+}

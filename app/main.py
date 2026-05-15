@@ -9,6 +9,12 @@ from typing import Any, Callable
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
+
+try:
+    from streamlit_js_eval import streamlit_js_eval
+except Exception:
+    streamlit_js_eval = None
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +38,7 @@ from core.artist_presets import (
     set_default_artist_preset,
 )
 from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, api_mode_label, provider_key_env_name, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_provider_credentials
 from core.asset_manager import clear_image_cache, clear_rejected_images, clear_temp_renders, project_asset_summary
 from core.beta_testing import (
     BETA_RATING_AREAS,
@@ -66,6 +72,7 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
+from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.licensing import get_license_service
@@ -75,6 +82,7 @@ from core.navigation_config import (
     FULL_MENU_GROUPS,
     PAGE_LABELS,
     PODCAST_STUDIO_ALLOWED_PAGES,
+    HOOK_CLIP_ALLOWED_PAGES,
     SONG_ONLY_ALLOWED_PAGES,
     SONG_ONLY_MENU_GROUPS,
     SELLER_STUDIO_ALLOWED_PAGES,
@@ -113,6 +121,7 @@ from core.visual_presets import (
 )
 from core.preset_system import list_project_templates
 from core.project_io import load_project, new_project, safe_name, save_project, save_project_folder
+from core.product_link_analyzer import analyze_product_link
 from core.paths import project_folder, resolve_project_folder, workflow_project_root
 from core.project_lock import acquire_project_lock, project_lock_status, release_project_lock
 from core.project_manager import (
@@ -141,6 +150,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
+from core.real_clip_pipeline import render_real_hook_clip
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.render_profiles import RENDER_PROFILES
@@ -148,6 +158,7 @@ from core.render_recovery import export_diagnostic_bundle, latest_failed_render,
 from core.safe_mode import open_project_safe_mode
 from core.scene_scoring import score_project_scenes, smart_tiktok_recommendations
 from core.seller_content import HOOK_STYLES, TONE_GUIDES, build_seller_dashboard_status, export_seller_content, generate_seller_content, seller_content_to_text
+from core.voiceover_engine import VOICEOVER_STYLES, build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
 from core.settings import get_settings
 from core.stable_build import STABLE_FREEZE_NAME, create_stable_candidate_snapshot
 from core.song_workflow import (
@@ -174,11 +185,13 @@ from core.song_structure_intelligence import (
 from core.suno_export import export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
+from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
 from core.version import APP_VERSION, BUILD_VERSION, RELEASE_CHANNEL, build_label
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
 from providers.video_ai import generate_video
+from providers.veo_provider import build_veo_payload, submit_render_job as submit_veo_render_job
 from app.presets import (
     DEFAULT_MUSIC_PRESET,
     DEFAULT_VOCAL_DIRECTION,
@@ -210,6 +223,7 @@ WORKFLOW_DEFAULT_NAMES = {
     "Podcast Studio": "ตอนใหม่ของฉัน",
     "Podcast Studio (Beta)": "ตอนใหม่ของฉัน",
     "Viral Clips Studio (Beta)": "คลิปไวรัลใหม่",
+    "Hook Clip Studio (Beta)": "Hook Clip ใหม่",
     "MV Workflow": "MV Project ใหม่",
 }
 
@@ -222,7 +236,7 @@ def _workflow_default_name(workflow_mode: str | None = None) -> str:
 
 
 def _active_ai_provider() -> str:
-    return normalize_provider(st.session_state.get("default_ai_provider") or load_user_preferences().get("default_ai_provider") or settings.default_ai_provider)
+    return normalize_provider(st.session_state.get("default_ai_provider") or settings.default_ai_provider)
 
 
 def _active_text_credentials() -> tuple[str, str, str]:
@@ -251,7 +265,8 @@ def _warn_missing_provider_key(provider: str, api_key: str) -> None:
     label = provider_display_name(provider)
     resolved = _active_credential_status() if provider == _active_ai_provider() else {}
     key_name = resolved.get("missing_key") or {"openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY"}.get(provider, "GEMINI_API_KEY")
-    st.warning(f"{label} ยังไม่มี {key_name}. ระบบจะใช้ offline fallback แทนและไม่ crash.")
+    warning = resolved.get("warning") or f"{label} ยังไม่มี {key_name}. ระบบจะใช้ offline fallback แทนและไม่ crash."
+    st.warning(warning)
 
 
 def _provider_runtime_status(provider: str, api_key: str) -> dict[str, str]:
@@ -262,7 +277,8 @@ def _provider_runtime_status(provider: str, api_key: str) -> dict[str, str]:
         return {"status": "Ready", "message": f"{provider_display_name(provider)} configured via {source_label}"}
     label = provider_display_name(provider)
     key_name = (resolved or {}).get("missing_key") or provider_key_env_name(provider)
-    return {"status": "Offline Fallback", "message": f"Missing Key: {key_name}. {label} will fall back where available."}
+    warning = (resolved or {}).get("warning") or f"Missing Key: {key_name}. {label} will fall back where available."
+    return {"status": "Offline Fallback", "message": warning}
 
 
 def _workflow_analytics_key(workflow_mode: str | None = None) -> str:
@@ -273,12 +289,96 @@ def _workflow_analytics_key(workflow_mode: str | None = None) -> str:
         "Seller Studio (Beta)": "seller",
         "Podcast Studio (Beta)": "podcast",
         "Viral Clips Studio (Beta)": "viral_clips",
+        "Hook Clip Studio (Beta)": "viral_clips",
     }.get(mode, "music")
 
 
 def _log_beta_event(event_type: str, workflow: str | None = None, preset_bundle: str = "", metadata: dict[str, Any] | None = None) -> None:
     provider, _, _ = _active_text_credentials()
     log_beta_event(event_type, workflow=workflow or _workflow_analytics_key(), provider=provider, preset_bundle=preset_bundle, metadata=metadata)
+
+
+def _js_string(value: str) -> str:
+    return json.dumps(str(value or ""))
+
+
+def _local_storage_read() -> dict[str, Any] | None:
+    if streamlit_js_eval is None:
+        return {}
+    expression = """
+JSON.stringify({
+  api_mode: localStorage.getItem('velaflow_api_mode') || '',
+  provider: localStorage.getItem('velaflow_ai_provider') || '',
+  gemini: localStorage.getItem('velaflow_gemini_key') || '',
+  openai: localStorage.getItem('velaflow_openai_key') || '',
+  xai: localStorage.getItem('velaflow_xai_key') || ''
+})
+"""
+    try:
+        raw = streamlit_js_eval(js_expressions=expression, key="velaflow_local_api_read", want_output=True)
+        if raw is None:
+            return None
+        return json.loads(raw) if isinstance(raw, str) and raw.strip().startswith("{") else {}
+    except Exception:
+        return {}
+
+
+def _local_storage_script(script: str, key: str) -> None:
+    if streamlit_js_eval is not None:
+        try:
+            streamlit_js_eval(js_expressions=f"{script}\n'ok';", key=key, want_output=True)
+            return
+        except Exception:
+            pass
+    components.html(f"<script>{script}</script>", height=0)
+
+
+def _restore_local_api_state() -> None:
+    if st.session_state.get("local_api_state_restored"):
+        return
+    restored = _local_storage_read()
+    if restored is None:
+        return
+    if restored:
+        restored_mode = api_mode_label(restored.get("api_mode", API_MODE_OWN_KEY))
+        restored_provider = normalize_provider(restored.get("provider") or st.session_state.get("default_ai_provider") or "gemini")
+        keys = {
+            provider: str(restored.get(provider, "") or "").strip()
+            for provider in ("gemini", "openai", "xai")
+            if str(restored.get(provider, "") or "").strip()
+        }
+        st.session_state.api_mode = restored_mode
+        st.session_state.default_ai_provider = restored_provider
+        st.session_state.user_api_keys = keys
+        st.session_state.local_api_state_source = "localStorage"
+    elif streamlit_js_eval is None:
+        st.session_state.local_api_state_source = "session_state_only"
+    else:
+        st.session_state.local_api_state_source = "empty_localStorage"
+    st.session_state.local_api_state_restored = True
+
+
+def _save_api_state_to_local_storage(provider: str, api_mode: str, api_key: str = "") -> None:
+    provider = normalize_provider(provider)
+    storage_key = LOCAL_STORAGE_KEYS.get(provider, "velaflow_gemini_key")
+    statements = [
+        f"localStorage.setItem('velaflow_api_mode', {_js_string(api_mode_label(api_mode))});",
+        f"localStorage.setItem('velaflow_ai_provider', {_js_string(provider)});",
+    ]
+    if api_key.strip():
+        statements.append(f"localStorage.setItem({_js_string(storage_key)}, {_js_string(api_key.strip())});")
+    _local_storage_script("\n".join(statements), f"velaflow_save_api_state_{provider}_{st.session_state.get('api_storage_nonce', 0)}")
+
+
+def _forget_api_key_from_local_storage(provider: str) -> None:
+    provider = normalize_provider(provider)
+    storage_key = LOCAL_STORAGE_KEYS.get(provider, "velaflow_gemini_key")
+    script = f"""
+localStorage.removeItem({_js_string(storage_key)});
+localStorage.setItem('velaflow_ai_provider', {_js_string(provider)});
+localStorage.setItem('velaflow_api_mode', {_js_string(API_MODE_OWN_KEY)});
+"""
+    _local_storage_script(script, f"velaflow_forget_api_key_{provider}_{st.session_state.get('api_storage_nonce', 0)}")
 
 
 def _visual_controls(prefix: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -513,6 +613,147 @@ def _render_jobs_ui(project_name: str, base_dir: str | Path | None = None) -> No
         st.rerun()
 
 
+def _hook_source_options(project_context: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "Music": project_context.get("song", {}) or {},
+        "Seller": ((project_context.get("seller_studio", {}) or {}).get("content_package") or {}),
+        "Podcast": ((project_context.get("podcast_studio", {}) or {}).get("content_package") or {}),
+        "Viral Clips": ((project_context.get("viral_clips_studio", {}) or {}).get("content_package") or {}),
+    }
+
+
+def _hook_workflow_key(label: str) -> str:
+    return {"Music": "music", "Seller": "seller", "Podcast": "podcast", "Viral Clips": "viral_clips"}.get(label, "hook_clip")
+
+
+def _render_hook_clip_preview(hook_package: dict[str, Any]) -> None:
+    if not hook_package:
+        return
+    st.write("🎬 Hook Clip Preview")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Duration", f"{(hook_package.get('scene_package') or {}).get('duration_seconds', 8)}s")
+    c2.metric("Source", hook_package.get("source_workflow", "-"))
+    c3.metric("Provider", ((hook_package.get("render_connector_package") or {}).get("payload") or {}).get("provider", "-"))
+    st.markdown(f"**Hook:** {hook_package.get('hook_text', '')}")
+    st.caption(f"Subtitle: {hook_package.get('subtitle_line', '')}")
+    st.text_area("Thumbnail Prompt", value=hook_package.get("thumbnail_prompt", ""), height=90)
+    st.dataframe(pd.DataFrame(hook_package.get("scene_sequence", []) or []), use_container_width=True, height=220)
+
+
+def _user_api_key(provider: str) -> str:
+    return str((st.session_state.get("user_api_keys", {}) or {}).get(normalize_provider(provider), "") or "")
+
+
+def _render_real_clip_controls(
+    project: dict[str, Any],
+    section_key: str,
+    hook_package: dict[str, Any],
+    workflow_type: str,
+    *,
+    default_voice_style: str = "calm narrator",
+) -> None:
+    if not hook_package:
+        st.info("Generate a hook clip package first.")
+        return
+    project_name = project.get("title") or _workflow_default_name(st.session_state.get("workflow_mode"))
+    existing = ((project.get(section_key, {}) or {}).get("real_output") or {})
+    st.write("Real Output Mode")
+    st.caption("Creates a real vertical MP4 locally with FFmpeg. External render APIs are optional and BYO-key only.")
+    with st.expander("Google Veo Scene 1", expanded=False):
+        st.caption("BYO Gemini/Veo key only. The key is read from session/localStorage and is never saved to project files.")
+        scene_jobs = (load_scene_jobs(project_name).get("data", {}).get("jobs", {}) or {})
+        scene_job = scene_jobs.get("scene_01", {})
+        scene_file = scene_output_path(project_name, "scene_01")
+        c_submit, c_poll, c_download = st.columns(3)
+        if c_submit.button("Render Scene 1 with Veo", use_container_width=True, key=f"{section_key}_veo_submit_scene_01"):
+            gemini_key = _user_api_key("gemini")
+            if not gemini_key:
+                st.warning("Please add your own Gemini/Veo API key in AI Settings first.")
+            else:
+                result = submit_veo_scene_job(project_name, hook_package, gemini_key, scene_index=0)
+                if result.get("ok"):
+                    st.success(f"Veo job submitted: {result['data']['job'].get('job_id')}")
+                else:
+                    st.error(result.get("error") or result.get("message"))
+                st.rerun()
+        if c_poll.button("Poll Status", use_container_width=True, key=f"{section_key}_veo_poll_scene_01"):
+            result = poll_veo_scene_job(project_name, _user_api_key("gemini"), "scene_01")
+            if result.get("ok"):
+                st.success(f"Scene 1 status: {result['data']['job'].get('status')}")
+            else:
+                st.warning(result.get("error") or result.get("message"))
+            st.rerun()
+        if c_download.button("Download Scene 1", use_container_width=True, key=f"{section_key}_veo_download_scene_01"):
+            result = download_veo_scene_result(project_name, _user_api_key("gemini"), "scene_01")
+            if result.get("ok"):
+                st.success("scene_01.mp4 downloaded")
+            else:
+                st.warning(result.get("error") or result.get("message"))
+            st.rerun()
+        if scene_job:
+            st.json({key: value for key, value in scene_job.items() if key != "payload"}, expanded=False)
+        if scene_file.is_file():
+            st.success(f"scene_01.mp4 ready: {scene_file}")
+            st.video(str(scene_file))
+        else:
+            st.info("scene_01.mp4 not available yet. Placeholder rendering remains available below.")
+    use_voiceover = st.checkbox("Generate voiceover MP3", value=workflow_type in {"podcast", "viral_clips"}, key=f"{section_key}_real_voiceover")
+    voice_style = st.selectbox("Voiceover Style", VOICEOVER_STYLES, index=VOICEOVER_STYLES.index(default_voice_style) if default_voice_style in VOICEOVER_STYLES else 0, key=f"{section_key}_real_voice_style")
+    col_a, col_b = st.columns(2)
+    if col_a.button("Render Real Clip", type="primary", use_container_width=True, key=f"{section_key}_render_real_clip"):
+        voiceover_path = ""
+        if use_voiceover:
+            voice_script = hook_package.get("subtitle_line") or hook_package.get("hook_text") or ""
+            voice_result = generate_voiceover_audio(project_name, voice_script, style=voice_style, api_key=_user_api_key("openai"), provider="openai", output_name="hook_voiceover.mp3")
+            if voice_result.get("ok"):
+                voiceover_path = voice_result.get("data", {}).get("audio_path", "")
+                project.setdefault(section_key, {})["voiceover_audio"] = voice_result.get("data", {})
+                st.success(voice_result.get("message"))
+            else:
+                project.setdefault(section_key, {})["voiceover_error"] = voice_result.get("error") or voice_result.get("message")
+                st.warning("Voiceover MP3 was not created. Rendering clip without audio.")
+        result = render_real_hook_clip(project_name, hook_package, workflow_type=workflow_type, voiceover_path=voiceover_path)
+        project.setdefault(section_key, {})["real_output"] = result.get("data", {})
+        project[section_key]["real_output_status"] = "completed" if result.get("ok") else "failed"
+        project[section_key]["real_output_error"] = result.get("error", "")
+        _save_project()
+        if result.get("ok"):
+            _log_beta_event("export", workflow=workflow_type, preset_bundle="real_mp4", metadata={"page": "Real Output"})
+            st.success("Real MP4 exported")
+        else:
+            st.error(result.get("error") or result.get("message"))
+    if col_b.button("Test Veo Payload", use_container_width=True, key=f"{section_key}_test_veo_payload"):
+        scene = (hook_package.get("scene_sequence") or [{}])[0]
+        payload = build_veo_payload(
+            prompt=scene.get("visual_prompt") or hook_package.get("render_prompt") or hook_package.get("hook_text") or "",
+            aspect_ratio="9:16",
+            duration_seconds=int(float(scene.get("duration", 5) or 5)),
+            scene_id=scene.get("scene_id", "scene_01"),
+            subtitle_timing=hook_package.get("subtitle_timing") or [],
+        )
+        project.setdefault(section_key, {})["veo_payload_preview"] = payload
+        _save_project()
+        st.json({key: value for key, value in payload.items() if key != "prompt"} | {"prompt_preview": payload.get("prompt", "")[:200]})
+        st.warning("Real Veo submission is BYO-key only. Add your Gemini/Veo key in AI Settings before external rendering.")
+    if existing:
+        status = existing.get("manifest", {}).get("status") or "-"
+        st.caption(f"Render Status: {status}")
+        if existing.get("final_mp4") and Path(existing["final_mp4"]).is_file():
+            final_path = Path(existing["final_mp4"])
+            st.video(str(final_path))
+            st.download_button("Download MP4", data=final_path.read_bytes(), file_name=final_path.name, mime="video/mp4", use_container_width=True, key=f"{section_key}_download_mp4")
+        if existing.get("subtitles") and Path(existing["subtitles"]).is_file():
+            subtitle_path = Path(existing["subtitles"])
+            st.download_button("Download subtitles.srt", data=subtitle_path.read_bytes(), file_name="subtitles.srt", mime="text/plain", use_container_width=True, key=f"{section_key}_download_srt")
+        voice = ((project.get(section_key, {}) or {}).get("voiceover_audio") or {}).get("audio_path", "")
+        if voice and Path(voice).is_file():
+            voice_path = Path(voice)
+            st.audio(str(voice_path))
+            st.download_button("Download Voiceover MP3", data=voice_path.read_bytes(), file_name=voice_path.name, mime="audio/mpeg", use_container_width=True, key=f"{section_key}_download_voiceover")
+        if existing.get("scene_jobs"):
+            st.dataframe(pd.DataFrame(existing.get("scene_jobs", [])), use_container_width=True, hide_index=True)
+
+
 def _seller_campaign_name(project_context: dict[str, Any]) -> str:
     title = _fix_display_text(project_context.get("title", "")).strip()
     return "New Seller Campaign" if title in SONG_DEFAULT_TITLES else title
@@ -566,9 +807,11 @@ def _ensure_state() -> None:
         "normalized_song_output": "",
         "lyrics_saved": False,
         "workflow_mode": workflow_mode,
-        "default_ai_provider": normalize_provider(preferences.get("default_ai_provider") or settings.default_ai_provider),
-        "api_mode": api_mode_label(preferences.get("api_mode", API_MODE_OWN_KEY)),
+        "default_ai_provider": normalize_provider(settings.default_ai_provider),
+        "api_mode": API_MODE_OWN_KEY,
         "user_api_keys": {},
+        "api_storage_nonce": 0,
+        "local_api_state_restored": False,
         "queue_state": {},
         "job_state": {},
         "audit_state": {},
@@ -1484,6 +1727,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
 
 
 _ensure_state()
+_restore_local_api_state()
 if not st.session_state.get("beta_runtime_prepared"):
     cleanup_old_temp_exports(ttl_hours=48)
     st.session_state.beta_runtime_prepared = True
@@ -1491,6 +1735,8 @@ project = _project()
 
 st.title(f"🎬 {APP_TITLE}")
 st.caption(f"{PRODUCT_TAGLINE} by {BRAND_NAME} | {build_label()}")
+if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
+    st.caption("☁️ Internal Cloud Mode")
 
 PAGE_MODULES = {
     "Dashboard": "core",
@@ -1518,6 +1764,7 @@ PAGE_MODULES = {
     "Seller Studio": "marketing",
     "Podcast Studio": "marketing",
     "Viral Clips Studio": "clips",
+    "Hook Clip Studio": "clips",
 }
 MENU_GROUPS = menu_groups_for_mode(st.session_state.get("workflow_mode", "Full Pipeline"))
 PAGES = flatten_pages(MENU_GROUPS)
@@ -1561,7 +1808,7 @@ _sync_navigation_state()
 
 with st.sidebar:
     st.header("Navigation")
-    workflow_options = ["Full Pipeline", "Song Studio Only", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)"]
+    workflow_options = ["Full Pipeline", "Song Studio Only", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"]
     current_mode_for_select = st.session_state.get("workflow_mode", "Full Pipeline")
     if current_mode_for_select not in workflow_options:
         current_mode_for_select = "Full Pipeline"
@@ -1580,9 +1827,12 @@ with st.sidebar:
         st.caption("Podcast Studio creates Thai narration, story scripts, rant clips, and Shorts ideas.")
     elif selected_mode == "Viral Clips Studio (Beta)":
         st.caption("Viral Clips Studio turns any idea, song, product, or podcast topic into short-form content.")
+    elif selected_mode == "Hook Clip Studio (Beta)":
+        st.caption("Hook Clip Studio auto-builds 5-10 second vertical hook clips from any workflow.")
     else:
         st.caption("Full Pipeline enables Creator Wizard and full release workflow tools.")
-    st.caption("VelaFlow Beta 0.1.0 · Review AI outputs before publishing · Render jobs are mock/local")
+    cloud_label = " · Internal Cloud Mode" if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD" else ""
+    st.caption(f"VelaFlow Beta 0.1.0{cloud_label} · Review AI outputs before publishing · Render jobs are mock/local")
     st.caption("Workflow families ready: Music / Seller / Podcast / MV")
     if selected_mode != st.session_state.get("workflow_mode"):
         st.session_state.workflow_mode = selected_mode
@@ -1597,6 +1847,8 @@ with st.sidebar:
             st.session_state["pending_navigation"] = {"section": "PODCAST", "page": "Podcast Studio"}
         if selected_mode == "Viral Clips Studio (Beta)" and st.session_state.selected_page not in VIRAL_CLIPS_ALLOWED_PAGES:
             st.session_state["pending_navigation"] = {"section": "CLIPS", "page": "Viral Clips Studio"}
+        if selected_mode == "Hook Clip Studio (Beta)" and st.session_state.selected_page not in HOOK_CLIP_ALLOWED_PAGES:
+            st.session_state["pending_navigation"] = {"section": "CLIPS", "page": "Hook Clip Studio"}
         st.rerun()
     workflow_log_key = f"beta_workflow_seen_{selected_mode}"
     if not st.session_state.get(workflow_log_key):
@@ -1632,6 +1884,8 @@ with st.sidebar:
             st.info("No seller campaigns yet.")
         elif current_workflow_mode == "Podcast Studio (Beta)":
             st.info("No podcast episodes yet.")
+        elif current_workflow_mode == "Hook Clip Studio (Beta)":
+            st.info("No hook clip projects yet.")
         elif current_workflow_mode == "Viral Clips Studio (Beta)":
             st.info("No viral clips projects yet.")
         else:
@@ -1751,7 +2005,7 @@ if page == "Dashboard":
     st.info("VelaFlow Beta 0.1.0 · AI outputs should be reviewed before publishing · Rendering jobs are currently mock/local.", icon="ℹ️")
     is_seller_mode = workflow_mode == "Seller Studio (Beta)"
     is_podcast_mode = workflow_mode == "Podcast Studio (Beta)"
-    is_clips_mode = workflow_mode == "Viral Clips Studio (Beta)"
+    is_clips_mode = workflow_mode in {"Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"}
     if is_seller_mode:
         status = build_seller_dashboard_status(project)
     elif is_podcast_mode:
@@ -1874,6 +2128,16 @@ elif page == "Seller Studio":
     seller_render_settings = _render_settings_controls("seller", seller_render_defaults)
     c1, c2 = st.columns([1, 1])
     with c1:
+        product_link = st.text_input("Product Link (Shopee / TikTok Shop)", value=(seller_existing.get("product_link") or ""), help="วางลิงก์สินค้าเพื่อให้ระบบเดา metadata แบบ local-only ไม่ scrape เว็บ")
+        link_notes = st.text_area("Product Link Notes", value=(seller_existing.get("product_link_notes") or ""), height=70, help="ใส่ข้อมูลจากหน้าสินค้าที่อยากให้ระบบใช้ เช่น ราคา จุดเด่น หรือคำเคลม")
+        if st.button("Analyze Product Link", use_container_width=True):
+            link_result = analyze_product_link(product_link, link_notes)
+            project.setdefault("seller_studio", {})["product_link"] = product_link
+            project["seller_studio"]["product_link_notes"] = link_notes
+            project["seller_studio"]["product_link_metadata"] = link_result.get("data", {})
+            _save_project()
+            st.success("Product link analyzed locally")
+            st.json(link_result.get("data", {}), expanded=False)
         product_name = st.text_input("Product Name", value=st.session_state.get("seller_product_name", ""), help="ชื่อสินค้าหรือชื่อรุ่นที่ต้องการทำคอนเทนต์ขาย")
         product_category = st.text_input("Product Category", value=st.session_state.get("seller_product_category", ""), help="หมวดหมู่สินค้า เช่น skincare, gadget, home item")
         target_audience = st.text_input("Target Audience", value=st.session_state.get("seller_target_audience", ""), help="กลุ่มคนที่อยากขายให้ เช่น นักเรียน คนทำงาน หรือสายเดินทาง")
@@ -1995,6 +2259,16 @@ elif page == "Seller Studio":
                 use_container_width=True,
             )
             st.text_area("Copy-ready package", value=export_text, height=260)
+        with st.expander("🎬 Hook Clip Preview", expanded=False):
+            if st.button("Generate Hook Clip", key="seller_hook_clip_btn", use_container_width=True):
+                result = build_hook_render_package(project.get("title") or seller_package.get("product_name") or "seller_hook_clip", "seller", seller_package, visual_settings=seller_visual_settings, render_settings=seller_render_settings)
+                if result.get("ok"):
+                    project.setdefault("seller_studio", {})["hook_clip"] = result["data"]["package"]
+                    _save_project()
+                    _log_beta_event("generate", workflow="seller", preset_bundle="Hook Clip", metadata={"page": "Seller Studio"})
+                    st.success("Hook clip package generated")
+            _render_hook_clip_preview(((project.get("seller_studio", {}) or {}).get("hook_clip") or {}))
+            _render_real_clip_controls(project, "seller_studio", ((project.get("seller_studio", {}) or {}).get("hook_clip") or {}), "seller")
     with st.expander("Render Queue", expanded=False):
         _render_queue_ui(project.get("title") or (seller_package or {}).get("product_name") or "seller_project")
 
@@ -2129,6 +2403,25 @@ elif page == "Podcast Studio":
                 use_container_width=True,
             )
             st.text_area("Copy-ready package", value=export_text, height=280)
+        with st.expander("🎙️ Voiceover / Hook Clip", expanded=False):
+            voice_style = st.selectbox("Voiceover Style", VOICEOVER_STYLES, index=0, key="podcast_voiceover_style")
+            if st.button("Generate Voiceover Plan", key="podcast_voiceover_btn", use_container_width=True):
+                script_lines = podcast_package.get("main_script", []) or podcast_package.get("emotional_monologue", [])
+                plan = build_voiceover_plan(script_lines, voice_style)
+                export_result = export_voiceover_plan(project.get("title") or podcast_package.get("episode_title") or "podcast_voiceover", plan)
+                project.setdefault("podcast_studio", {})["voiceover_plan"] = plan
+                project["podcast_studio"]["voiceover_export"] = export_result.get("data", {})
+                _save_project()
+                st.success("Voiceover script/timing exported")
+            if st.button("Generate Hook Clip", key="podcast_hook_clip_btn", use_container_width=True):
+                result = build_hook_render_package(project.get("title") or podcast_package.get("episode_title") or "podcast_hook_clip", "podcast", podcast_package, visual_settings=podcast_visual_settings, render_settings=podcast_render_settings)
+                if result.get("ok"):
+                    project.setdefault("podcast_studio", {})["hook_clip"] = result["data"]["package"]
+                    _save_project()
+                    _log_beta_event("generate", workflow="podcast", preset_bundle="Hook Clip", metadata={"page": "Podcast Studio"})
+                    st.success("Hook clip package generated")
+            _render_hook_clip_preview(((project.get("podcast_studio", {}) or {}).get("hook_clip") or {}))
+            _render_real_clip_controls(project, "podcast_studio", ((project.get("podcast_studio", {}) or {}).get("hook_clip") or {}), "podcast", default_voice_style="tired office worker")
     with st.expander("Render Queue", expanded=False):
         _render_queue_ui(project.get("title") or (podcast_package or {}).get("episode_title") or "podcast_project")
 
@@ -2153,6 +2446,12 @@ elif page == "Viral Clips Studio":
             SOURCE_TYPES,
             index=SOURCE_TYPES.index(existing_package.get("source_type")) if existing_package.get("source_type") in SOURCE_TYPES else 0,
             help="เลือกต้นทางไอเดีย เช่น เพลง สินค้า พอดแคสต์ หรือไอเดียทั่วไป",
+        )
+        character_style = st.selectbox(
+            "Viral Character Style",
+            ["none", "cute", "sarcastic", "emotional", "chaotic", "sleepy", "dramatic", "overconfident"],
+            index=0,
+            help="เลือกบุคลิกตัวละครไวรัล เช่น ของกินพูดได้ วัตถุพูดได้ หรือคาแรกเตอร์มีม",
         )
         main_idea = st.text_area(
             "Main Idea",
@@ -2188,9 +2487,12 @@ elif page == "Viral Clips Studio":
         st.info("เหมาะสำหรับ TikTok / Reels / Shorts และใช้ได้กับเพลง สินค้า พอดแคสต์ หรือไอเดียทั่วไป", icon="ℹ️")
 
     if st.button("Generate Viral Clips Package", type="primary", use_container_width=True):
+        viral_idea = main_idea
+        if character_style != "none":
+            viral_idea = f"{main_idea}\n\nViral character style: {character_style}. Automatically create character personality, dialogue, subtitle pacing, hook moments, and short vertical scene story."
         result = generate_viral_clips_content(
             source_type,
-            main_idea,
+            viral_idea,
             target_platform,
             tone_style,
             clip_length,
@@ -2267,8 +2569,72 @@ elif page == "Viral Clips Studio":
                 use_container_width=True,
             )
             st.text_area("Copy-ready package", value=export_text, height=280)
+        with st.expander("🎬 Hook Clip Preview", expanded=False):
+            if st.button("Generate Hook Clip", key="viral_hook_clip_btn", use_container_width=True):
+                result = build_hook_render_package(project.get("title") or clips_package.get("main_idea") or "viral_hook_clip", "viral_clips", clips_package, visual_settings=clips_visual_settings, render_settings=clips_render_settings)
+                if result.get("ok"):
+                    project.setdefault("viral_clips_studio", {})["hook_clip"] = result["data"]["package"]
+                    _save_project()
+                    _log_beta_event("generate", workflow="viral_clips", preset_bundle="Hook Clip", metadata={"page": "Viral Clips Studio"})
+                    st.success("Hook clip package generated")
+            _render_hook_clip_preview(((project.get("viral_clips_studio", {}) or {}).get("hook_clip") or {}))
+            _render_real_clip_controls(project, "viral_clips_studio", ((project.get("viral_clips_studio", {}) or {}).get("hook_clip") or {}), "viral_clips", default_voice_style="meme voice")
     with st.expander("Render Queue", expanded=False):
         _render_queue_ui(project.get("title") or (clips_package or {}).get("main_idea") or "viral_clips_project")
+
+elif page == "Hook Clip Studio":
+    _page_header("Hook Clip Studio", "Automatically build 5-10 second vertical hook clips from any workflow.", project)
+    st.caption("Cloud Beta: create hook scenes, render packages, optional BYO-provider payloads, and a real local MP4 output with FFmpeg.")
+    sources = _hook_source_options(project)
+    default_source = "Seller" if project.get("seller_studio") else "Podcast" if project.get("podcast_studio") else "Viral Clips" if project.get("viral_clips_studio") else "Music"
+    source_label = st.selectbox("Hook Source", list(sources), index=list(sources).index(default_source) if default_source in sources else 0)
+    source_workflow = _hook_workflow_key(source_label)
+    source_content = sources.get(source_label) or {}
+    manual_hook = st.text_area("Optional Hook / Quote Override", value="", height=90, help="ถ้ามีประโยคเด็ด ให้ใส่ตรงนี้ ระบบจะใช้แทนการ detect อัตโนมัติ")
+    clip_mode = st.selectbox("Clip Mode", ["Fast Hook", "Viral Clip", "Story Clip"], index=0)
+    duration = st.slider("Duration", 5, 10, 8)
+    _, hook_bundle_visual, hook_bundle_render = _bundle_controls("hook_clip", {"bundle_name": "TikTok Viral"})
+    visual_defaults = hook_bundle_visual or {"camera_preset": "TikTok Creator", "lighting_preset": "Natural Daylight", "motion_preset": "Fast TikTok Cuts", "visual_mood": "Viral"}
+    render_defaults = hook_bundle_render or {"provider": "PixVerse", "aspect_ratio": "9:16", "duration": f"{duration}s", "quality": "Draft", "motion_intensity": "High"}
+    hook_visual_settings = _visual_controls("hook_clip", visual_defaults)
+    hook_render_settings = _render_settings_controls("hook_clip", {**render_defaults, "duration": f"{duration}s"})
+    if st.button("🎬 Generate Hook Clip", type="primary", use_container_width=True):
+        content = {"selected_hook_text": manual_hook} if manual_hook.strip() else source_content
+        result = build_hook_render_package(
+            project.get("title") or _workflow_default_name("Hook Clip Studio (Beta)"),
+            source_workflow,
+            content,
+            visual_settings=hook_visual_settings,
+            render_settings=hook_render_settings,
+            clip_mode=clip_mode,
+            duration_seconds=duration,
+        )
+        if result.get("ok"):
+            package = result["data"]["package"]
+            project.setdefault("hook_clip_studio", {})["hook_clip"] = package
+            project["hook_clip_studio"]["source"] = source_label
+            project["hook_clip_studio"]["export"] = result["data"].get("export", {})
+            _save_project()
+            _log_beta_event("generate", workflow="hook_clip", preset_bundle=str(hook_render_settings.get("bundle_name") or ""), metadata={"page": "Hook Clip Studio"})
+            st.success("Hook clip package generated")
+        else:
+            st.error(result.get("error") or result.get("message"))
+    hook_package = ((project.get("hook_clip_studio", {}) or {}).get("hook_clip") or {})
+    _render_hook_clip_preview(hook_package)
+    if hook_package:
+        t1, t2 = st.tabs(["Export", "Render"])
+        with t1:
+            text = hook_clip_package_to_text(hook_package)
+            export_data = ((project.get("hook_clip_studio", {}) or {}).get("export") or {})
+            if export_data.get("txt_path"):
+                st.caption(f"Hook package: {export_data.get('txt_path')}")
+            st.download_button("Download hook_clip_package.txt", data=text.encode("utf-8"), file_name="hook_clip_package.txt", mime="text/plain", use_container_width=True)
+            st.text_area("Copy-ready hook package", value=text, height=260)
+        with t2:
+            _render_package_preview({"package": hook_package.get("render_connector_package", {}), "export": hook_package.get("render_connector_export", {})})
+            _render_real_clip_controls(project, "hook_clip_studio", hook_package, source_workflow, default_voice_style="meme voice" if source_workflow == "viral_clips" else "calm narrator")
+            with st.expander("Render Queue", expanded=True):
+                _render_queue_ui(project.get("title") or "hook_clip_project")
 
 elif page == "Creator Wizard":
     _page_header("Creator Wizard", "Guided creative setup for starting a song idea before Song Studio.", project)
@@ -2800,9 +3166,8 @@ elif page == "AI Settings":
     )
     if api_mode != st.session_state.get("api_mode"):
         st.session_state.api_mode = api_mode
-        save_user_preferences({"api_mode": api_mode})
+        _save_api_state_to_local_storage(st.session_state.get("default_ai_provider", "gemini"), api_mode)
         st.success(f"API Mode set to {api_mode}")
-        st.rerun()
     provider_label = st.selectbox(
         "AI Provider",
         list(provider_options),
@@ -2812,10 +3177,12 @@ elif page == "AI Settings":
     selected_provider = provider_options[provider_label]
     if selected_provider != st.session_state.get("default_ai_provider"):
         st.session_state.default_ai_provider = selected_provider
-        save_user_preferences({"default_ai_provider": selected_provider})
+        _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY))
         st.success(f"Active AI provider set to {provider_label}")
-        st.rerun()
     st.warning("Your API key is used only to call the selected AI provider. Do not share it with others.")
+    st.caption("Your API key is stored only in this browser/device. Do not use shared devices.")
+    if st.session_state.get("local_api_state_source") == "session_state_only":
+        st.caption("localStorage helper is unavailable in this environment, so keys persist only for this Streamlit session.")
     user_keys = st.session_state.setdefault("user_api_keys", {})
     existing_user_key = str(user_keys.get(selected_provider, "") or "")
     input_nonce_key = f"user_api_key_nonce_{selected_provider}"
@@ -2831,15 +3198,20 @@ elif page == "AI Settings":
     if k1.button("Save on this device", use_container_width=True):
         if entered_key.strip():
             st.session_state.user_api_keys[selected_provider] = entered_key.strip()
-            st.success("API key saved for this session/device")
-            st.caption("หมายเหตุ: เวอร์ชัน Streamlit นี้ยังไม่อ่าน localStorage กลับเข้า Python โดยตรง จึงเก็บใน session_state เป็นหลักและไม่เขียนลงไฟล์")
+            st.session_state.api_mode = API_MODE_OWN_KEY
+            st.session_state.default_ai_provider = selected_provider
+            st.session_state.api_storage_nonce += 1
+            _save_api_state_to_local_storage(selected_provider, API_MODE_OWN_KEY, entered_key.strip())
+            st.success("API key saved on this device")
         else:
             st.warning("Paste an API key before saving.")
     if k2.button("Forget API Key", use_container_width=True):
         st.session_state.user_api_keys.pop(selected_provider, None)
         st.session_state[input_nonce_key] += 1
-        st.success("API key forgotten from this session")
-        st.rerun()
+        st.session_state.api_mode = API_MODE_OWN_KEY
+        st.session_state.api_storage_nonce += 1
+        _forget_api_key_from_local_storage(selected_provider)
+        st.success("API key forgotten from this browser/device")
     resolved = resolve_provider_credentials(
         settings=settings,
         provider=selected_provider,
@@ -2850,7 +3222,7 @@ elif page == "AI Settings":
     st.write(f"Active provider: {provider_label}")
     st.write(f"API Mode: {resolved.get('api_mode')}")
     st.info(f"Runtime status: {runtime['status']} · {runtime['message']}", icon="ℹ️")
-    st.write("User Key:", "Provided" if resolved.get("user_key_present") else "Missing")
+    st.write("User Key:", mask_api_key(user_keys.get(selected_provider, "")))
     st.write("VelaFlow Key:", "Configured" if resolved.get("velaflow_key_present") else "Not configured")
     st.write(f"Gemini model: {settings.gemini_model}")
     st.write("Gemini configured:", bool(settings.gemini_api_key))

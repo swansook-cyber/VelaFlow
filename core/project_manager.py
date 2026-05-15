@@ -28,7 +28,7 @@ PROJECTS_ROOT = LEGACY_PROJECTS_ROOT
 ARCHIVE_ROOT = PROJECT_DATA_ROOT / "archive"
 DELETED_BACKUPS_ROOT = PROJECT_DATA_ROOT / "deleted_backups"
 PREFERENCES_PATH = ROOT / "config" / "user_preferences.json"
-WORKFLOW_MODES = ["Full Pipeline", "Song Studio Only", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)"]
+WORKFLOW_MODES = ["Full Pipeline", "Song Studio Only", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"]
 WORKFLOW_MODE_PROJECT_TYPES = {
     "Full Pipeline": {"song", "music_pipeline", "mv", "legacy"},
     "Song Studio Only": {"song", "music_pipeline", "legacy"},
@@ -36,6 +36,7 @@ WORKFLOW_MODE_PROJECT_TYPES = {
     "Podcast Studio": {"podcast"},
     "Podcast Studio (Beta)": {"podcast"},
     "Viral Clips Studio (Beta)": {"clips"},
+    "Hook Clip Studio (Beta)": {"clips", "seller", "podcast", "song", "music_pipeline", "hook_clip"},
     "MV Workflow": {"mv", "music_pipeline"},
 }
 WORKFLOW_MODE_NEW_PROJECT_TYPE = {
@@ -45,6 +46,7 @@ WORKFLOW_MODE_NEW_PROJECT_TYPE = {
     "Podcast Studio": "podcast",
     "Podcast Studio (Beta)": "podcast",
     "Viral Clips Studio (Beta)": "clips",
+    "Hook Clip Studio (Beta)": "hook_clip",
     "MV Workflow": "mv",
 }
 WORKFLOW_MODE_SESSION_LABEL = {
@@ -54,6 +56,7 @@ WORKFLOW_MODE_SESSION_LABEL = {
     "Podcast Studio": "Current Podcast Session",
     "Podcast Studio (Beta)": "Current Podcast Session",
     "Viral Clips Studio (Beta)": "Current Clips Session",
+    "Hook Clip Studio (Beta)": "Current Hook Clip Session",
     "MV Workflow": "Current MV Session",
 }
 
@@ -152,6 +155,7 @@ def project_visible_in_workflow(project_type: str, workflow_mode: str | None) ->
 
 
 def _project_summary_from_folder(folder: Path) -> Dict[str, Any]:
+    project_name = folder.name
     project = _read_json(folder / "project.json", {})
     song = _read_json(folder / "song.json", project.get("song", {}) if isinstance(project, dict) else {})
     storyboard = _read_json(folder / "storyboard.json", ((project.get("mv", {}) or {}).get("storyboard", []) if isinstance(project, dict) else []))

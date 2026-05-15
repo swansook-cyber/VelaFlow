@@ -1,0 +1,33 @@
+{
+  "generated_by": "VelaFlow",
+  "created_at": "2026-05-15T17:21:14",
+  "requested_output": "D:\\Project AI\\vela_ai_studio_v5\\outputs\\smoke_tests\\hook_clip_projects\\final_hook_clip.mp4",
+  "scene_clips": [
+    "scene_1.mp4",
+    "scene_2.mp4"
+  ],
+  "existing_scene_clips": [],
+  "subtitle_timing": [
+    {
+      "scene_id": "scene_01",
+      "start": 0.0,
+      "end": 2.67,
+      "subtitle": "รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle"
+    },
+    {
+      "scene_id": "scene_02",
+      "start": 2.67,
+      "end": 5.34,
+      "subtitle": "รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle"
+    },
+    {
+      "scene_id": "scene_03",
+      "start": 5.34,
+      "end": 8.0,
+      "subtitle": "รีวิวสั้น ๆ หลังลองใช้ Smoke Bottle"
+    }
+  ],
+  "voiceover_path": "",
+  "status": "scene_package_only",
+  "message": "Scene clips are not available yet. Exported combine manifest only."
+}

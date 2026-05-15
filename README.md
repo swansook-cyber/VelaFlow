@@ -4,10 +4,42 @@
 
 Current beta release: **VelaFlow Beta 0.1.0**.
 
-It helps produce music content workflows from song planning through storyboard,
-image/motion review, render, short clips, marketing copy, and final release
-packages. It is still one local Streamlit application, with a modular
-architecture prepared for future feature-based licensing.
+It is evolving into an **AI Automatic Creator Workflow** for short-form content:
+hooks, seller clips, podcast clips, viral character ideas, render-ready scene
+packages, and export bundles. It is still one local Streamlit application, with
+a modular architecture prepared for future feature-based licensing.
+
+## Cloud Beta Focus
+
+VelaFlow Beta 0.1.0 focuses on hook-first vertical workflows instead of full MV
+production:
+
+- Hook Clip Studio (Beta): turn a music, seller, podcast, or viral idea hook
+  into a 5-10 second multi-scene vertical clip package.
+- Real Scene Rendering v1: Hook Clip Studio can submit Scene 1 to Google Veo
+  with the user's own Gemini/Veo key, poll status, download `scene_01.mp4`,
+  then combine it into the final hook clip.
+- Seller Studio: product/campaign inputs, optional product image, product-link
+  analyzer foundation, creator scripts, and hook clip preview.
+- Podcast Studio: emotional storytelling scripts, quote hooks, voiceover timing
+  plan export, and hook clip preview.
+- Viral Clips Studio: short-form scripts and viral character/meme-style clip
+  direction.
+- Rendering Connector: provider-ready packages and mock job flow. VelaFlow can
+  render local placeholder scene clips, but does not call external video
+  rendering APIs unless a BYO provider connector is explicitly used.
+- First Real Output Pipeline: Hook Clip Studio can now generate scene MP4s,
+  combine them into a vertical `final_hook_clip.mp4`, export `subtitles.srt`,
+  and create a voiceover MP3 fallback when OpenAI TTS is unavailable.
+
+Deployment foundation files are included for closed beta hosting:
+
+- `Procfile` starts Streamlit with the platform-provided `$PORT`.
+- `railway.json` uses a Nixpacks build and the same Streamlit start command.
+- `runtime.txt` pins the intended cloud Python runtime.
+
+For internal Railway testing, set `VELAFLOW_MODE=CLOUD`. See
+`docs/RAILWAY_DEPLOY.md`.
 
 ## Modules
 
@@ -41,12 +73,15 @@ Cloud Beta supports **Bring Your Own API Key** from AI Settings:
   the tester's selected provider account.
 - `Use VelaFlow Beta Key` uses environment keys such as `GEMINI_API_KEY`,
   `OPENAI_API_KEY`, or `XAI_API_KEY` when configured.
-- User-entered API keys are held in Streamlit `session_state` only. They are
-  never written to `project_data`, analytics, logs, exports, package files, or
-  server JSON files.
-- Browser `localStorage` persistence is not enabled yet because the current
-  local Streamlit app does not read localStorage back into Python without an
-  extra component. Use **Forget API Key** to clear the session copy.
+- User-entered API keys are stored in browser `localStorage` for this
+  device/browser and mirrored into Streamlit `session_state` at runtime. They
+  are never written to `project_data`, analytics, logs, exports, package files,
+  or server JSON files.
+- Local storage keys are `velaflow_api_mode`, `velaflow_ai_provider`,
+  `velaflow_gemini_key`, `velaflow_openai_key`, and `velaflow_xai_key`.
+- Use **Forget API Key** to remove the selected provider key from both
+  `localStorage` and the current Streamlit session. Do not use shared devices
+  for personal API keys.
 
 xAI Grok uses the OpenAI-compatible endpoint `https://api.x.ai/v1` with the
 default text model `grok-4.3`.
@@ -371,8 +406,9 @@ pip install -r requirements.txt
 
 3. Optional: copy `.env.example` to `.env` for local environment keys. For
 beta testing, users can also paste their own Gemini/OpenAI/xAI key in
-**AI Settings**. User-entered keys stay in Streamlit `session_state` and are
-not written to project files, analytics, logs, exports, or package files.
+**AI Settings**. User-entered keys are stored only in that browser/device via
+`localStorage` and are not written to project files, analytics, logs, exports,
+or package files.
 
 4. Run the app.
 

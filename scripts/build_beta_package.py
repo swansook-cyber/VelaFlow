@@ -22,6 +22,9 @@ INCLUDE_PATHS = [
     "README.md",
     "requirements.txt",
     ".env.example",
+    "Procfile",
+    "railway.json",
+    "runtime.txt",
     "run_velaflow.bat",
 ]
 EXCLUDE_PATTERNS = [

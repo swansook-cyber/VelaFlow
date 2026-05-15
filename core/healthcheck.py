@@ -31,6 +31,8 @@ def run_healthcheck(settings: Any | None = None) -> Dict[str, Any]:
 
     add("Python", sys.version_info >= (3, 10), sys.version.split()[0])
     add("Streamlit", True, getattr(streamlit, "__version__", "installed"))
+    velaflow_mode = getattr(settings, "velaflow_mode", "LOCAL") if settings else "LOCAL"
+    add("VelaFlow mode", True, str(velaflow_mode or "LOCAL"))
     ffmpeg_path = getattr(settings, "ffmpeg_path", "ffmpeg") if settings else "ffmpeg"
     add("FFmpeg", ffmpeg_available(ffmpeg_path), f"path={ffmpeg_path}", "WARN")
     gemini_key = getattr(settings, "gemini_api_key", "") if settings else ""

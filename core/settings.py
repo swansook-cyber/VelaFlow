@@ -26,6 +26,7 @@ def _detect_ffmpeg_path() -> str:
 
 @dataclass
 class AppSettings:
+    velaflow_mode: str = os.getenv("VELAFLOW_MODE", "LOCAL")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     gemini_fallback_model: str = os.getenv("GEMINI_FALLBACK_MODEL", "gemini-flash-latest")
@@ -68,4 +69,4 @@ class AppSettings:
     ffmpeg_path: str = _detect_ffmpeg_path()
 
 def get_settings() -> AppSettings:
-    return AppSettings()
+    return AppSettings(velaflow_mode=os.getenv("VELAFLOW_MODE", "LOCAL"))

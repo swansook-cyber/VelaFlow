@@ -29,6 +29,8 @@ MOTION_PRESETS = {
     "Emotional Shaky Cam": "soft emotional shaky cam, intimate and human",
     "Documentary Realism": "realistic documentary motion with natural imperfections",
     "Smooth Product Showcase": "smooth product showcase motion with clean detail shots",
+    "Meme Chaos": "fast chaotic meme motion, exaggerated reactions, jump cuts",
+    "Realistic Cinematic": "realistic cinematic motion with grounded camera movement",
 }
 
 VISUAL_MOOD_PRESETS = {
@@ -40,6 +42,9 @@ VISUAL_MOOD_PRESETS = {
     "Dark Office": "dark office mood, tired corporate realism",
     "Cozy": "cozy, warm, friendly atmosphere",
     "Luxury": "luxury, elegant, refined visual mood",
+    "Meme": "funny meme-like mood, expressive and shareable",
+    "Anime Energy": "anime-inspired energetic mood, stylized but clean",
+    "Affiliate Fast": "fast affiliate product mood, direct and conversion-focused",
 }
 
 

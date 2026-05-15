@@ -8,6 +8,13 @@ from providers.ai_provider import normalize_provider
 API_MODE_OWN_KEY = "Use My Own API Key"
 API_MODE_BETA_KEY = "Use VelaFlow Beta Key"
 API_MODES = [API_MODE_OWN_KEY, API_MODE_BETA_KEY]
+LOCAL_STORAGE_KEYS = {
+    "api_mode": "velaflow_api_mode",
+    "provider": "velaflow_ai_provider",
+    "gemini": "velaflow_gemini_key",
+    "openai": "velaflow_openai_key",
+    "xai": "velaflow_xai_key",
+}
 
 
 def api_mode_label(value: str | None) -> str:
@@ -35,6 +42,14 @@ def provider_model_name(settings: Any, provider: str) -> str:
     if normalized == "xai":
         return str(getattr(settings, "xai_text_model", "") or "grok-4.3")
     return str(getattr(settings, "gemini_model", "") or "gemini-2.5-flash")
+
+
+def mask_api_key(api_key: str | None) -> str:
+    value = str(api_key or "").strip()
+    if not value:
+        return "Missing"
+    suffix = value[-4:] if len(value) >= 4 else value
+    return f"Provided: ****{suffix}"
 
 
 def resolve_provider_credentials(
@@ -81,4 +96,5 @@ def resolve_provider_credentials(
         "user_key_present": bool(user_key),
         "velaflow_key_present": bool(env_key),
         "missing_key": provider_key_env_name(normalized) if mode == API_MODE_BETA_KEY else "User API Key",
+        "warning": "Please add your own API key in AI Settings." if mode == API_MODE_OWN_KEY else f"{provider_key_env_name(normalized)} is not configured.",
     }
