@@ -114,6 +114,10 @@ def generate_text(
     offline_factory: Callable[[], str] | None = None,
 ) -> str:
     provider = normalize_provider(provider)
+    if not str(api_key or "").strip():
+        if offline_factory:
+            return offline_factory()
+        raise ProviderError("Missing runtime API key")
 
     retries = max(1, int(retries or os.getenv("AI_RETRY_COUNT", "3")))
     timeout = max(10, int(timeout or os.getenv("AI_REQUEST_TIMEOUT", "60")))

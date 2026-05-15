@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 from core.asset_manager import clear_rejected_images
 from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
+from core.provider_runtime import build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
@@ -282,6 +283,16 @@ def main():
     health = run_healthcheck(type("Settings", (), {"velaflow_mode": "CLOUD", "gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "xai", "ffmpeg_path": "ffmpeg"})())
     health_names = [item["name"] for item in health["data"]["checks"]]
     assert_true("VelaFlow mode" in health_names and "Gemini configured" in health_names and "OpenAI configured" in health_names and "xAI Grok configured" in health_names and "Active AI provider" in health_names, "provider healthcheck failed")
+    byo_health = run_healthcheck(
+        type("Settings", (), {"velaflow_mode": "CLOUD", "gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "gemini", "ffmpeg_path": "ffmpeg"})(),
+        runtime_api_keys={"gemini": "user-gemini"},
+        active_provider="gemini",
+        api_mode=API_MODE_OWN_KEY,
+    )
+    gemini_health = next(item for item in byo_health["data"]["checks"] if item["name"] == "Gemini configured")
+    assert_true(gemini_health["ok"] and "runtime/user key" in gemini_health["message"], "BYO Gemini health runtime sync failed")
+    gemini_runtime = build_provider_runtime_diagnostics("gemini", "user-gemini", api_mode=API_MODE_OWN_KEY, source="user")
+    assert_true(gemini_runtime["key_present"] and "Gemini runtime ready" in gemini_runtime["checks"], "BYO Gemini runtime diagnostics failed")
     fake_settings = type(
         "Settings",
         (),

@@ -4,6 +4,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from core.provider_runtime import classify_provider_error
+
 
 DEFAULT_VEO_MODEL = "veo-3.1-generate-preview"
 
@@ -71,7 +73,8 @@ def submit_render_job(payload: dict[str, Any], api_key: str = "", timeout_second
             "error": "",
         }
     except Exception as exc:
-        return {"ok": False, "message": "Veo render job submit failed", "data": {"payload": payload}, "error": str(exc)}
+        reason = classify_provider_error(exc)
+        return {"ok": False, "message": f"Veo render job submit failed: {reason}", "data": {"payload": payload, "diagnostic": reason}, "error": reason}
 
 
 def _get_operation(client: Any, job: Any) -> Any:
@@ -102,7 +105,8 @@ def poll_render_status(job: Any, api_key: str = "", timeout_seconds: int = 10) -
             return {"ok": True, "message": "Veo render completed", "data": {"status": "Completed", "job_id": job_id}, "error": ""}
         return {"ok": True, "message": "Veo render still processing", "data": {"status": "Rendering", "job_id": job_id}, "error": ""}
     except Exception as exc:
-        return {"ok": False, "message": "Veo status polling failed", "data": {}, "error": str(exc)}
+        reason = classify_provider_error(exc)
+        return {"ok": False, "message": f"Veo status polling failed: {reason}", "data": {"diagnostic": reason}, "error": reason}
 
 
 def download_render_result(job: Any, output_path: str | Path, api_key: str = "") -> dict[str, Any]:
@@ -132,4 +136,5 @@ def download_render_result(job: Any, output_path: str | Path, api_key: str = "")
             output.write_bytes(data)
         return {"ok": True, "message": "Veo render result downloaded", "data": {"path": str(output), "status": "Completed"}, "error": ""}
     except Exception as exc:
-        return {"ok": False, "message": "Veo result download failed", "data": {}, "error": str(exc)}
+        reason = classify_provider_error(exc)
+        return {"ok": False, "message": f"Veo result download failed: {reason}", "data": {"diagnostic": reason}, "error": reason}

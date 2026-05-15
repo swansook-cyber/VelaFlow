@@ -137,6 +137,7 @@ from core.project_manager import (
     session_label_for_mode,
     workflow_type_for_mode,
 )
+from core.provider_runtime import build_provider_runtime_diagnostics
 from core.project_templates import apply_template_to_project, create_project_from_template
 from core.project_workflow import backup_project, build_project_status, clean_safe_temp_files, duplicate_project, export_project_report, list_recent_projects
 from core.production_audit import export_project_audit, run_full_project_audit
@@ -260,6 +261,34 @@ def _active_credential_status() -> dict[str, Any]:
     )
 
 
+def _sync_provider_runtime_state() -> dict[str, Any]:
+    resolved = _active_credential_status()
+    diagnostics = build_provider_runtime_diagnostics(
+        resolved.get("provider", _active_ai_provider()),
+        resolved.get("api_key", ""),
+        api_mode=str(resolved.get("api_mode") or ""),
+        source=str(resolved.get("source") or ""),
+    )
+    st.session_state.provider_runtime = {
+        **diagnostics,
+        "user_key_present": bool(resolved.get("user_key_present")),
+        "velaflow_key_present": bool(resolved.get("velaflow_key_present")),
+        "missing_key": resolved.get("missing_key", ""),
+        "warning": resolved.get("warning", ""),
+    }
+    return st.session_state.provider_runtime
+
+
+def _runtime_api_keys_for_health() -> dict[str, str]:
+    if st.session_state.get("api_mode", API_MODE_OWN_KEY) != API_MODE_OWN_KEY:
+        return {}
+    return {
+        provider: str(key or "")
+        for provider, key in (st.session_state.get("user_api_keys", {}) or {}).items()
+        if str(key or "").strip()
+    }
+
+
 def _warn_missing_provider_key(provider: str, api_key: str) -> None:
     if api_key:
         return
@@ -273,9 +302,10 @@ def _warn_missing_provider_key(provider: str, api_key: str) -> None:
 def _provider_runtime_status(provider: str, api_key: str) -> dict[str, str]:
     resolved = _active_credential_status() if provider == _active_ai_provider() else None
     if api_key:
+        diagnostics = build_provider_runtime_diagnostics(provider, api_key, api_mode=str((resolved or {}).get("api_mode") or ""), source=str((resolved or {}).get("source") or ""))
         source = (resolved or {}).get("source", "")
         source_label = "user key" if source == "user" else "VelaFlow beta key" if source == "velaflow_beta" else "configured key"
-        return {"status": "Ready", "message": f"{provider_display_name(provider)} configured via {source_label}"}
+        return {"status": str(diagnostics.get("status") or "Ready"), "message": f"{diagnostics.get('message')} · configured via {source_label}"}
     label = provider_display_name(provider)
     key_name = (resolved or {}).get("missing_key") or provider_key_env_name(provider)
     warning = (resolved or {}).get("warning") or f"Missing Key: {key_name}. {label} will fall back where available."
@@ -357,6 +387,7 @@ def _restore_local_api_state() -> None:
     else:
         st.session_state.local_api_state_source = "empty_localStorage"
     st.session_state.local_api_state_restored = True
+    _sync_provider_runtime_state()
 
 
 def _save_api_state_to_local_storage(provider: str, api_mode: str, api_key: str = "") -> None:
@@ -859,6 +890,12 @@ def _render_real_clip_controls(
     with st.container(border=True):
         st.markdown("**Provider render: Google Veo Scene 1**")
         st.caption("Optional BYO Gemini/Veo render. If unavailable, use Render Scene 1 / Render All Scenes for local placeholder MP4 output.")
+        veo_runtime = build_provider_runtime_diagnostics("gemini", _user_api_key("gemini"), api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY), source="user")
+        st.caption(
+            f"Gemini runtime: {veo_runtime.get('status')} · "
+            f"Gemini client: {'ready' if veo_runtime.get('gemini_client_initialized') else 'not ready'} · "
+            f"Veo: {'capable' if veo_runtime.get('veo_render_capable') else 'unavailable'}"
+        )
         scene_job = scene_jobs.get("scene_01", {})
         c_submit, c_poll, c_download = st.columns(3)
         if c_submit.button("Submit Scene 1 to Veo", use_container_width=True, key=f"{section_key}_veo_submit_scene_01"):
@@ -963,6 +1000,7 @@ def _ensure_state() -> None:
         "default_ai_provider": normalize_provider(settings.default_ai_provider),
         "api_mode": API_MODE_OWN_KEY,
         "user_api_keys": {},
+        "provider_runtime": {},
         "api_storage_nonce": 0,
         "local_api_state_restored": False,
         "queue_state": {},
@@ -1881,6 +1919,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
 
 _ensure_state()
 _restore_local_api_state()
+_sync_provider_runtime_state()
 if not st.session_state.get("beta_runtime_prepared"):
     cleanup_old_temp_exports(ttl_hours=48)
     st.session_state.beta_runtime_prepared = True
@@ -2141,9 +2180,10 @@ with st.sidebar:
         st.caption(f"Gemini model: {settings.gemini_model}")
         st.caption(f"OpenAI model: {settings.openai_text_model}")
         st.caption(f"xAI Grok model: {settings.xai_text_model}")
-        st.success("Gemini configured") if settings.gemini_api_key else st.warning("Gemini not configured")
-        st.success("OpenAI configured") if settings.openai_api_key else st.warning("OpenAI not configured")
-        st.success("xAI Grok configured") if settings.xai_api_key else st.warning("xAI Grok not configured")
+        runtime_keys = st.session_state.get("user_api_keys", {}) or {}
+        st.success("Gemini configured") if runtime_keys.get("gemini") or settings.gemini_api_key else st.warning("Gemini not configured")
+        st.success("OpenAI configured") if runtime_keys.get("openai") or settings.openai_api_key else st.warning("OpenAI not configured")
+        st.success("xAI Grok configured") if runtime_keys.get("xai") or settings.xai_api_key else st.warning("xAI Grok not configured")
         resolved = _active_credential_status()
         st.caption(f"User Key: {'Provided' if resolved.get('user_key_present') else 'Missing'}")
         st.caption(f"VelaFlow Key: {'Configured' if resolved.get('velaflow_key_present') else 'Not configured'}")
@@ -3263,17 +3303,30 @@ elif page == "Queue Monitor":
 elif page == "System Health":
     _page_header("System Health", "Check local environment, folders, providers, and safe mode.", project)
     settings.default_ai_provider = _active_ai_provider()
-    st.json(run_healthcheck(settings), expanded=False)
     active_provider, active_api_key, _ = _active_text_credentials()
+    st.json(
+        run_healthcheck(
+            settings,
+            runtime_api_keys=_runtime_api_keys_for_health(),
+            active_provider=active_provider,
+            api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY),
+        ),
+        expanded=False,
+    )
+    _sync_provider_runtime_state()
     runtime = _provider_runtime_status(active_provider, active_api_key)
     st.info(f"Provider Runtime: {runtime['status']} · {runtime['message']}", icon="ℹ️")
     resolved = _active_credential_status()
+    runtime_details = st.session_state.get("provider_runtime", {}) or {}
     st.json(
         {
             "Active Provider": provider_display_name(active_provider),
             "API Mode": resolved.get("api_mode"),
             "User Key": "Provided" if resolved.get("user_key_present") else "Missing",
             "VelaFlow Key": "Configured" if resolved.get("velaflow_key_present") else "Not configured",
+            "Gemini runtime ready": runtime_details.get("gemini_runtime_ready", False),
+            "Gemini client initialized": runtime_details.get("gemini_client_initialized", False),
+            "Veo render capable": runtime_details.get("veo_render_capable", False),
         },
         expanded=False,
     )
@@ -3331,6 +3384,7 @@ elif page == "AI Settings":
     if api_mode != st.session_state.get("api_mode"):
         st.session_state.api_mode = api_mode
         _save_api_state_to_local_storage(st.session_state.get("default_ai_provider", "gemini"), api_mode)
+        _sync_provider_runtime_state()
         st.success(f"API Mode set to {api_mode}")
     provider_label = st.selectbox(
         "AI Provider",
@@ -3342,6 +3396,7 @@ elif page == "AI Settings":
     if selected_provider != st.session_state.get("default_ai_provider"):
         st.session_state.default_ai_provider = selected_provider
         _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY))
+        _sync_provider_runtime_state()
         st.success(f"Active AI provider set to {provider_label}")
     st.warning("Your API key is used only to call the selected AI provider. Do not share it with others.")
     st.caption("Your API key is stored only in this browser/device. Do not use shared devices.")
@@ -3366,6 +3421,7 @@ elif page == "AI Settings":
             st.session_state.default_ai_provider = selected_provider
             st.session_state.api_storage_nonce += 1
             _save_api_state_to_local_storage(selected_provider, API_MODE_OWN_KEY, entered_key.strip())
+            _sync_provider_runtime_state()
             st.success("API key saved on this device")
         else:
             st.warning("Paste an API key before saving.")
@@ -3375,6 +3431,7 @@ elif page == "AI Settings":
         st.session_state.api_mode = API_MODE_OWN_KEY
         st.session_state.api_storage_nonce += 1
         _forget_api_key_from_local_storage(selected_provider)
+        _sync_provider_runtime_state()
         st.success("API key forgotten from this browser/device")
     resolved = resolve_provider_credentials(
         settings=settings,
@@ -3382,18 +3439,24 @@ elif page == "AI Settings":
         api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY),
         user_api_keys=st.session_state.get("user_api_keys", {}),
     )
+    _sync_provider_runtime_state()
     runtime = _provider_runtime_status(selected_provider, resolved.get("api_key", ""))
+    runtime_details = st.session_state.get("provider_runtime", {}) or {}
     st.write(f"Active provider: {provider_label}")
     st.write(f"API Mode: {resolved.get('api_mode')}")
     st.info(f"Runtime status: {runtime['status']} · {runtime['message']}", icon="ℹ️")
     st.write("User Key:", mask_api_key(user_keys.get(selected_provider, "")))
     st.write("VelaFlow Key:", "Configured" if resolved.get("velaflow_key_present") else "Not configured")
+    if selected_provider == "gemini":
+        st.write("Gemini runtime ready:", bool(runtime_details.get("gemini_runtime_ready")))
+        st.write("Gemini client initialized:", bool(runtime_details.get("gemini_client_initialized")))
+        st.write("Veo render capable:", bool(runtime_details.get("veo_render_capable")))
     st.write(f"Gemini model: {settings.gemini_model}")
-    st.write("Gemini configured:", bool(settings.gemini_api_key))
+    st.write("Gemini configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("gemini") or settings.gemini_api_key))
     st.write(f"OpenAI GPT model: {settings.openai_text_model}")
-    st.write("OpenAI configured:", bool(settings.openai_api_key))
+    st.write("OpenAI configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("openai") or settings.openai_api_key))
     st.write(f"xAI Grok model: {settings.xai_text_model}")
-    st.write("xAI Grok configured:", bool(settings.xai_api_key))
+    st.write("xAI Grok configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("xai") or settings.xai_api_key))
     st.caption("Environment variables: GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, DEFAULT_AI_PROVIDER")
     st.caption("No payment, cloud sync, online license, full video AI, packaging, or watermark enforcement was added.")
 

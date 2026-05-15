@@ -1,5 +1,5 @@
 {
-  "workflow_mode": "Song Studio Only",
+  "workflow_mode": "Full Pipeline",
   "default_ai_provider": "gemini",
   "api_mode": "Use My Own API Key"
 }

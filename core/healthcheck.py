@@ -23,7 +23,7 @@ def _writable(path: Path) -> bool:
         return False
 
 
-def run_healthcheck(settings: Any | None = None) -> Dict[str, Any]:
+def run_healthcheck(settings: Any | None = None, runtime_api_keys: Dict[str, str] | None = None, active_provider: str | None = None, api_mode: str | None = None) -> Dict[str, Any]:
     checks: List[Dict[str, Any]] = []
 
     def add(name: str, ok: bool, message: str, level: str = "INFO") -> None:
@@ -35,14 +35,17 @@ def run_healthcheck(settings: Any | None = None) -> Dict[str, Any]:
     add("VelaFlow mode", True, str(velaflow_mode or "LOCAL"))
     ffmpeg_path = getattr(settings, "ffmpeg_path", "ffmpeg") if settings else "ffmpeg"
     add("FFmpeg", ffmpeg_available(ffmpeg_path), f"path={ffmpeg_path}", "WARN")
-    gemini_key = getattr(settings, "gemini_api_key", "") if settings else ""
-    openai_key = getattr(settings, "openai_api_key", "") if settings else ""
-    xai_key = getattr(settings, "xai_api_key", "") if settings else ""
-    active_provider = getattr(settings, "default_ai_provider", "gemini") if settings else "gemini"
-    add("Active AI provider", True, str(active_provider or "gemini"))
-    add("Gemini configured", bool(gemini_key), "present" if gemini_key else "not configured", "WARN")
-    add("OpenAI configured", bool(openai_key), "present" if openai_key else "not configured", "WARN")
-    add("xAI Grok configured", bool(xai_key), "present" if xai_key else "not configured", "WARN")
+    runtime_keys = runtime_api_keys or {}
+    gemini_key = str(runtime_keys.get("gemini", "") or (getattr(settings, "gemini_api_key", "") if settings else ""))
+    openai_key = str(runtime_keys.get("openai", "") or (getattr(settings, "openai_api_key", "") if settings else ""))
+    xai_key = str(runtime_keys.get("xai", "") or (getattr(settings, "xai_api_key", "") if settings else ""))
+    selected_provider = active_provider or (getattr(settings, "default_ai_provider", "gemini") if settings else "gemini")
+    add("Active AI provider", True, str(selected_provider or "gemini"))
+    if api_mode:
+        add("API mode", True, str(api_mode))
+    add("Gemini configured", bool(gemini_key), "runtime/user key present" if runtime_keys.get("gemini") else ("env key present" if gemini_key else "not configured"), "WARN")
+    add("OpenAI configured", bool(openai_key), "runtime/user key present" if runtime_keys.get("openai") else ("env key present" if openai_key else "not configured"), "WARN")
+    add("xAI Grok configured", bool(xai_key), "runtime/user key present" if runtime_keys.get("xai") else ("env key present" if xai_key else "not configured"), "WARN")
     for label, path in [
         ("outputs", ROOT / "outputs"),
         ("project_data", ROOT / "project_data"),
