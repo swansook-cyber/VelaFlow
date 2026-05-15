@@ -52,6 +52,7 @@ from core.visual_engine import build_camera_direction, build_scene_flow, build_s
 from core.visual_presets import list_camera_presets, list_lighting_presets, list_motion_presets, list_visual_mood_presets
 from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
+from core.automatic_hook_clip import quick_generate_hook_clip
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -979,6 +980,17 @@ def main():
             voiceover_path=voiceover_audio["data"]["audio_path"],
         )
         assert_true(real_clip["ok"] and Path(real_clip["data"]["final_mp4"]).exists() and Path(real_clip["data"]["subtitles"]).exists(), "real hook MP4 export failed")
+        quick_clip = quick_generate_hook_clip(
+            "Smoke Quick Hook Clip",
+            "ทดสอบคลิปสั้นแนวตั้งสำหรับ VelaFlow",
+            image_provider="offline",
+            duration_seconds=5,
+            voiceover_style="calm narrator",
+        )
+        quick_data = quick_clip.get("data", {})
+        assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
+        assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
+        assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
     veo_payload = build_veo_payload(prompt=hook_clip_package["render_prompt"], aspect_ratio="9:16", duration_seconds=8, scene_id="scene_01", subtitle_timing=hook_subtitles)
     missing_veo = submit_veo_render_job(veo_payload, api_key="")
     assert_true(veo_payload["aspect_ratio"] == "9:16" and not missing_veo["ok"] and missing_veo["error"] == "missing_api_key", "Veo connector missing-key safety failed")

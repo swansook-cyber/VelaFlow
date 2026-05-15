@@ -87,6 +87,84 @@ def render_placeholder_scene(
     return {"ok": result["ok"] and output.exists(), "message": "Scene clip rendered" if result["ok"] else "Scene clip render failed", "data": {"path": str(output), "log_path": str(log)}, "error": "" if result["ok"] else result["output"][-1000:]}
 
 
+def _image_motion_filter(effect: str, width: int, height: int, duration: float) -> str:
+    frames = max(15, int(duration * 30))
+    out_fade_start = max(0.1, duration - 0.35)
+    effect = (effect or "slow_zoom").lower().strip()
+    fade = f"fade=t=in:st=0:d=0.2,fade=t=out:st={out_fade_start:.2f}:d=0.3"
+    if effect in {"slow_zoom", "slow_zoom_in", "emotional_push_in", "hook_energy_zoom"}:
+        return (
+            f"scale={width * 2}:{height * 2}:force_original_aspect_ratio=increase,"
+            f"zoompan=z='min(zoom+0.0018,1.10)':d={frames}:"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps=30,"
+            f"trim=duration={duration:.2f},setpts=PTS-STARTPTS,{fade},format=yuv420p"
+        )
+    if effect in {"pan", "pan_left", "pan_right"}:
+        direction = "-1" if effect == "pan_right" else "1"
+        return (
+            f"scale={int(width * 1.16)}:{int(height * 1.16)}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}:x='(in_w-out_w)/2+{direction}*min(28,t*9)':y='(in_h-out_h)/2',"
+            f"{fade},format=yuv420p"
+        )
+    if effect in {"shake", "emotional_shaky_cam"}:
+        return (
+            f"scale={int(width * 1.10)}:{int(height * 1.10)}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}:x='(in_w-out_w)/2+sin(t*18)*7':y='(in_h-out_h)/2+cos(t*20)*7',"
+            f"{fade},format=yuv420p"
+        )
+    return f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},{fade},format=yuv420p"
+
+
+def render_image_motion_scene(
+    scene: dict[str, Any],
+    output_path: str | Path,
+    *,
+    ffmpeg_path: str = "",
+    aspect_ratio: str = "9:16",
+    log_path: str | Path | None = None,
+) -> dict[str, Any]:
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    output = Path(output_path)
+    log = Path(log_path) if log_path else output.with_suffix(".log")
+    image_path = Path(str(scene.get("source_image_path") or scene.get("image_path") or ""))
+    if not image_path.is_file():
+        return render_placeholder_scene(scene, output, ffmpeg_path=ffmpeg, aspect_ratio=aspect_ratio, log_path=log)
+    if not ffmpeg:
+        return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
+    width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
+    duration = max(0.5, float(scene.get("duration", 2.5) or 2.5))
+    motion = str(scene.get("motion_effect") or scene.get("motion") or "slow_zoom")
+    vf = _image_motion_filter(motion, width, height, duration)
+    args = [
+        ffmpeg,
+        "-y",
+        "-loop",
+        "1",
+        "-i",
+        str(image_path),
+        "-t",
+        str(duration),
+        "-vf",
+        vf,
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        str(output),
+    ]
+    result = _run_ffmpeg(args, log)
+    if result["ok"] and output.exists():
+        return {"ok": True, "message": "Image motion scene rendered", "data": {"path": str(output), "log_path": str(log), "source_image_path": str(image_path), "motion_effect": motion}, "error": ""}
+    fallback = render_placeholder_scene(scene, output, ffmpeg_path=ffmpeg, aspect_ratio=aspect_ratio, log_path=log)
+    if fallback.get("ok"):
+        fallback["message"] = "Image motion failed; placeholder scene rendered"
+        fallback.setdefault("data", {})["image_motion_error"] = result["output"][-1000:]
+    return fallback
+
+
 def combine_scene_clips_to_mp4(
     scene_clips: list[str | Path],
     output_path: str | Path,
@@ -138,6 +216,7 @@ def render_real_hook_clip(
     workflow_type: str = "hook",
     voiceover_path: str | Path | None = None,
     ffmpeg_path: str = "",
+    force: bool = False,
 ) -> dict[str, Any]:
     try:
         project_dir = workflow_project_root("clips") / safe_name(project_name or "hook_clip")
@@ -149,6 +228,7 @@ def render_real_hook_clip(
         scenes = hook_package.get("scene_sequence") or (hook_package.get("scene_package") or {}).get("scenes") or []
         if not scenes:
             return {"ok": False, "message": "No hook scenes available", "data": {}, "error": "missing_scenes"}
+        aspect_ratio = str((hook_package.get("render_settings") or {}).get("aspect_ratio") or "9:16")
         subtitle_timing = hook_package.get("subtitle_timing") or build_subtitle_timing(scenes)
         srt_path = exports_dir / "subtitles.srt"
         write_subtitles(subtitle_timing, srt_path)
@@ -158,14 +238,16 @@ def render_real_hook_clip(
             scene_id = str(scene.get("scene_id") or f"scene_{len(scene_paths) + 1:02d}")
             clip_path = scenes_dir / f"{scene_id}.mp4"
             job = {"scene_id": scene_id, "status": "pending", "path": str(clip_path), "error": ""}
-            if clip_path.is_file():
+            if clip_path.is_file() and not force:
                 job["status"] = "completed_existing"
                 scene_jobs.append(job)
                 scene_paths.append(clip_path)
                 continue
-            result = render_placeholder_scene(scene, clip_path, ffmpeg_path=ffmpeg_path, aspect_ratio="9:16", log_path=log_path)
+            result = render_image_motion_scene(scene, clip_path, ffmpeg_path=ffmpeg_path, aspect_ratio=aspect_ratio, log_path=log_path)
             job["status"] = "completed" if result.get("ok") else "failed"
             job["error"] = result.get("error", "")
+            job["motion_effect"] = scene.get("motion_effect") or scene.get("motion", "")
+            job["source_image_path"] = scene.get("source_image_path", "")
             scene_jobs.append(job)
             if result.get("ok"):
                 scene_paths.append(clip_path)

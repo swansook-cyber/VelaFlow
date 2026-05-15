@@ -38,6 +38,7 @@ from core.artist_presets import (
     set_default_artist_preset,
 )
 from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
+from core.automatic_hook_clip import quick_generate_hook_clip
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_provider_credentials
 from core.asset_manager import clear_image_cache, clear_rejected_images, clear_temp_renders, project_asset_summary
 from core.beta_testing import (
@@ -152,7 +153,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import render_placeholder_scene, render_real_hook_clip
+from core.real_clip_pipeline import render_image_motion_scene, render_real_hook_clip
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.render_profiles import RENDER_PROFILES
@@ -474,7 +475,7 @@ def _render_settings_controls(prefix: str, defaults: dict[str, Any] | None = Non
         duration = c1.selectbox("Duration", RENDER_DURATIONS, index=RENDER_DURATIONS.index(current.get("duration", "5s")) if current.get("duration") in RENDER_DURATIONS else 0, key=f"{prefix}_render_duration")
         quality = c2.selectbox("Quality", RENDER_QUALITIES, index=RENDER_QUALITIES.index(current.get("quality", "Standard")) if current.get("quality") in RENDER_QUALITIES else 1, key=f"{prefix}_render_quality")
         motion_intensity = c1.selectbox("Motion Intensity", MOTION_INTENSITIES, index=MOTION_INTENSITIES.index(current.get("motion_intensity", "Medium")) if current.get("motion_intensity") in MOTION_INTENSITIES else 1, key=f"{prefix}_render_motion")
-        st.caption("Default is vertical 9:16. Start Render can create a local MP4; external provider jobs remain BYO-key/mock until configured.")
+        st.caption("Default is vertical 9:16. Creator render uses local MP4 export or real BYO provider rendering when available.")
     return {"provider": provider, "aspect_ratio": aspect_ratio, "duration": duration, "quality": quality, "motion_intensity": motion_intensity, "bundle_name": current.get("bundle_name", "")}
 
 
@@ -516,30 +517,39 @@ def _render_package_preview(render_connector: dict[str, Any] | None) -> None:
         st.write(payload.get("scene_structure", []) or [])
         if export_data.get("txt_path"):
             st.caption(f"Render TXT: {export_data.get('txt_path')}")
+        developer_mode = st.toggle(
+            "Advanced / Developer: show mock render sandbox",
+            value=False,
+            key=f"developer_mock_render_toggle_{safe_project}_{payload.get('provider','')}_{payload.get('duration','')}",
+            help="Shows mock job IDs for testing only. Real creator rendering is handled in the Creator Render / REAL PROVIDER MODE panel.",
+        )
+        if not developer_mode:
+            st.caption("REAL PROVIDER MODE: use Creator Render, Veo provider render, image-to-video render, and Final MP4 export outside this preview.")
+            return
         st.divider()
-        st.write("Google Flow-style Render Job")
-        st.caption("Mock/job metadata only. No Google Veo, Kling, Runway, or external render API is called yet.")
+        st.warning("MOCK MODE - Developer Only. These mock job IDs are not real provider render jobs.")
+        st.write("Mock Render Sandbox (Developer Only)")
         provider_mode = st.selectbox(
-            "Provider Mode",
+            "Mock Provider Mode",
             RENDER_JOB_PROVIDER_MODES,
             index=0,
             key=f"render_job_provider_mode_{safe_project}_{payload.get('provider','')}_{payload.get('duration','')}",
-            help="Manual / Mock creates a fake job id. Ready modes prepare metadata for future provider integrations.",
+            help="Developer-only sandbox. Manual / Mock creates a fake job id.",
         )
-        if st.button("Send Render Job", key=f"send_render_job_{safe_project}_{payload.get('provider','')}_{payload.get('duration','')}"):
+        if st.button("Send Mock Render Job", key=f"send_render_job_{safe_project}_{payload.get('provider','')}_{payload.get('duration','')}"):
             result = send_render_job(project_name, package, provider_mode)
             if result.get("ok"):
-                _log_beta_event("render_job", workflow=str(payload.get("workflow_type") or ""), preset_bundle=str(payload.get("bundle_name") or ""), metadata={"provider_mode": provider_mode})
-                st.success(f"Render Job ID: {result['data']['job'].get('job_id')}")
+                _log_beta_event("render_job", workflow=str(payload.get("workflow_type") or ""), preset_bundle=str(payload.get("bundle_name") or ""), metadata={"provider_mode": provider_mode, "mock": True})
+                st.success(f"Mock Render Job ID: {result['data']['job'].get('job_id')}")
             else:
                 st.error(result.get("error") or result.get("message"))
             st.rerun()
         jobs_result = load_render_jobs(project_name)
-        jobs = jobs_result.get("data", {}).get("items", [])
+        jobs = [job for job in jobs_result.get("data", {}).get("items", []) if str(job.get("job_id", "")).startswith("mock_")]
         if jobs:
             job_rows = [
                 {
-                    "Job ID": job.get("job_id", ""),
+                    "Mock Job ID": job.get("job_id", ""),
                     "Status": job.get("status", ""),
                     "Provider mode": job.get("provider_mode", ""),
                     "Provider": job.get("render_provider", ""),
@@ -550,30 +560,30 @@ def _render_package_preview(render_connector: dict[str, Any] | None) -> None:
                 for job in jobs
             ]
             st.dataframe(pd.DataFrame(job_rows), use_container_width=True, height=180)
-            selected_job = st.selectbox("Render Job ID", [job.get("job_id", "") for job in jobs], key=f"render_job_select_{safe_project}")
+            selected_job = st.selectbox("Mock Render Job ID", [job.get("job_id", "") for job in jobs], key=f"render_job_select_{safe_project}")
             selected_data = next((job for job in jobs if job.get("job_id") == selected_job), {})
             jc1, jc2 = st.columns(2)
-            if jc1.button("Check Status", key=f"check_render_job_{safe_project}"):
+            if jc1.button("Check Mock Status", key=f"check_render_job_{safe_project}"):
                 status_result = check_render_job_status(project_name, selected_job)
                 if status_result.get("ok"):
-                    st.success(f"Status: {status_result['data']['job'].get('status')}")
+                    st.success(f"Mock status: {status_result['data']['job'].get('status')}")
                 else:
                     st.error(status_result.get("error") or status_result.get("message"))
                 st.rerun()
             result_path = Path(str(selected_data.get("result_path") or ""))
             if selected_data.get("status") == "Completed" and result_path.is_file():
                 jc2.download_button(
-                    "Download Result placeholder",
+                    "Download Mock Result",
                     data=result_path.read_bytes(),
                     file_name=result_path.name,
                     mime="text/plain",
                     key=f"download_render_job_result_{safe_project}_{selected_job}",
                 )
-                st.caption(f"Placeholder result path: {result_path}")
+                st.caption(f"Mock result path: {result_path}")
             else:
-                jc2.button("Download Result placeholder", disabled=True, key=f"download_render_job_disabled_{safe_project}_{selected_job}")
+                jc2.button("Download Mock Result", disabled=True, key=f"download_render_job_disabled_{safe_project}_{selected_job}")
         else:
-            st.info("No render jobs yet. Send a mock render job to start.")
+            st.info("No mock render jobs yet.")
 
 
 def _render_queue_ui(project_name: str, base_dir: str | Path | None = None) -> None:
@@ -616,12 +626,13 @@ def _render_queue_ui(project_name: str, base_dir: str | Path | None = None) -> N
 
 
 def _render_jobs_ui(project_name: str, base_dir: str | Path | None = None) -> None:
-    st.write("Render Jobs")
+    st.write("Mock Render Sandbox (Developer Only)")
+    st.warning("MOCK MODE - this view is for testing metadata only. Real provider render jobs do not use mock_xxx IDs.")
     loaded = load_render_jobs(project_name, base_dir)
-    items = loaded.get("data", {}).get("items", [])
+    items = [item for item in loaded.get("data", {}).get("items", []) if str(item.get("job_id", "")).startswith("mock_")]
     st.caption(f"render_jobs.json: {loaded.get('data', {}).get('path', '')}")
     if not items:
-        st.info("No render jobs yet. Generate a render package, then use Send Render Job.")
+        st.info("No mock render jobs yet.")
         return
     rows = [
         {
@@ -634,15 +645,15 @@ def _render_jobs_ui(project_name: str, base_dir: str | Path | None = None) -> No
             "Quality": item.get("quality", ""),
             "Motion intensity": item.get("motion_intensity", ""),
             "Created time": item.get("created_at", ""),
-            "Render Job ID": item.get("job_id", ""),
+            "Mock Render Job ID": item.get("job_id", ""),
         }
         for item in items
     ]
     st.dataframe(pd.DataFrame(rows), use_container_width=True, height=220)
-    selected = st.selectbox("Render Job ID", [item.get("job_id", "") for item in items], key=f"monitor_render_job_select_{safe_name(project_name)}")
-    if st.button("Check Status", key=f"monitor_check_render_job_{safe_name(project_name)}"):
+    selected = st.selectbox("Mock Render Job ID", [item.get("job_id", "") for item in items], key=f"monitor_render_job_select_{safe_name(project_name)}")
+    if st.button("Check Mock Status", key=f"monitor_check_render_job_{safe_name(project_name)}"):
         result = check_render_job_status(project_name, selected, base_dir)
-        st.success(f"Status: {result.get('data', {}).get('job', {}).get('status')}") if result.get("ok") else st.error(result.get("error") or result.get("message"))
+        st.success(f"Mock status: {result.get('data', {}).get('job', {}).get('status')}") if result.get("ok") else st.error(result.get("error") or result.get("message"))
         st.rerun()
 
 
@@ -732,7 +743,7 @@ def _render_first_scene_locally(project_name: str, hook_package: dict[str, Any],
     aspect_ratio = ((hook_package.get("render_settings") or {}).get("aspect_ratio") or "9:16")
     job = {"scene_id": scene_id, "status": "rendering", "path": str(scene_path), "error": "", "updated_at": datetime.now().isoformat(timespec="seconds")}
     save_scene_job(project_name, scene_id, job)
-    result = render_placeholder_scene(scene, scene_path, aspect_ratio=aspect_ratio, log_path=log_path)
+    result = render_image_motion_scene(scene, scene_path, aspect_ratio=aspect_ratio, log_path=log_path)
     job["status"] = "completed" if result.get("ok") else "failed"
     job["error"] = result.get("error", "")
     job["updated_at"] = datetime.now().isoformat(timespec="seconds")
@@ -877,17 +888,11 @@ def _render_real_clip_controls(
     voice_style = st.selectbox("Voiceover Style", VOICEOVER_STYLES, index=VOICEOVER_STYLES.index(default_voice_style) if default_voice_style in VOICEOVER_STYLES else 0, key=f"{section_key}_real_voice_style")
     col_start, col_scene, col_all = st.columns(3)
     if col_start.button("🎬 Start Render", type="primary", use_container_width=True, key=f"{section_key}_start_render"):
-        render_package = hook_package.get("render_connector_package") or {}
         project.setdefault(section_key, {})["creator_render_status"] = "queued"
-        if render_package:
-            job_result = send_render_job(project_name, render_package, "Manual / Mock")
-            if job_result.get("ok"):
-                project[section_key]["creator_render_job"] = job_result.get("data", {}).get("job", {})
-                st.success("Render queued. You can render Scene 1 or Render All Scenes now.")
-            else:
-                st.warning(job_result.get("error") or job_result.get("message"))
+        if scenes:
+            st.success("REAL PROVIDER MODE ready. Render Scene 1, Render All Scenes, or submit Scene 1 to Veo.")
         else:
-            st.warning("Render package is missing. Generate the hook/storyboard package first.")
+            st.warning("Scene package is missing. Generate the hook/storyboard package first.")
         _save_project()
         st.rerun()
     if col_scene.button("🎬 Render Scene 1", use_container_width=True, disabled=not ffmpeg_ready, key=f"{section_key}_render_scene_1"):
@@ -930,8 +935,8 @@ def _render_real_clip_controls(
     _render_scene_preview_cards(project_name, hook_package, section_key, scene_jobs)
 
     with st.container(border=True):
-        st.markdown("**Provider render: Google Veo Scene 1**")
-        st.caption("Optional BYO Gemini/Veo render. If unavailable, use Render Scene 1 / Render All Scenes for local placeholder MP4 output.")
+        st.markdown("**REAL PROVIDER MODE - Google Veo Scene 1 / Image-to-video render**")
+        st.caption("Use BYO Gemini/Veo key. No mock_xxx job IDs are shown here. If Veo is unavailable, local MP4 scene rendering remains available above.")
         veo_runtime = build_provider_runtime_diagnostics("gemini", _user_api_key("gemini"), api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY), source="user")
         st.caption(
             f"Gemini runtime: {veo_runtime.get('status')} · "
@@ -2849,45 +2854,106 @@ elif page == "Viral Clips Studio":
 
 elif page == "Hook Clip Studio":
     _page_header("Hook Clip Studio", "Automatically build 5-10 second vertical hook clips from any workflow.", project)
-    st.caption("Cloud Beta: create hook scenes, render packages, optional BYO-provider payloads, and a real local MP4 output with FFmpeg.")
+    st.caption("Cloud Beta: one-click vertical hook clips for TikTok / Reels / Shorts. Default flow uses images + motion + subtitles + voiceover fallback, not Veo.")
+    creator_mode = st.radio(
+        "Creator Mode",
+        ["Basic Mode", "Advanced Mode"],
+        horizontal=True,
+        index=0,
+        key="hook_clip_creator_mode",
+        help="Basic Mode สำหรับสร้างคลิปเร็วที่สุด ส่วน Advanced Mode สำหรับปรับ scene/provider/debug",
+    )
     sources = _hook_source_options(project)
     default_source = "Seller" if project.get("seller_studio") else "Podcast" if project.get("podcast_studio") else "Viral Clips" if project.get("viral_clips_studio") else "Music"
-    source_label = st.selectbox("Hook Source", list(sources), index=list(sources).index(default_source) if default_source in sources else 0)
+    source_label = st.selectbox("Hook Source", list(sources), index=list(sources).index(default_source) if default_source in sources else 0, help="เลือกแหล่งไอเดีย ถ้าใส่ idea เอง ระบบจะใช้ idea นั้นก่อน")
     source_workflow = _hook_workflow_key(source_label)
     source_content = sources.get(source_label) or {}
-    manual_hook = st.text_area("Optional Hook / Quote Override", value="", height=90, help="ถ้ามีประโยคเด็ด ให้ใส่ตรงนี้ ระบบจะใช้แทนการ detect อัตโนมัติ")
-    clip_mode = st.selectbox("Clip Mode", ["Fast Hook", "Viral Clip", "Story Clip"], index=0)
-    duration = st.slider("Duration", 5, 10, 8)
-    _, hook_bundle_visual, hook_bundle_render = _bundle_controls("hook_clip", {"bundle_name": "TikTok Viral"})
-    visual_defaults = hook_bundle_visual or {"camera_preset": "TikTok Creator", "lighting_preset": "Natural Daylight", "motion_preset": "Fast TikTok Cuts", "visual_mood": "Viral"}
-    render_defaults = hook_bundle_render or {"provider": "PixVerse", "aspect_ratio": "9:16", "duration": f"{duration}s", "quality": "Draft", "motion_intensity": "High"}
-    hook_visual_settings = _visual_controls("hook_clip", visual_defaults)
-    hook_render_settings = _render_settings_controls("hook_clip", {**render_defaults, "duration": f"{duration}s"})
-    if st.button("🎬 Generate Hook Clip", type="primary", use_container_width=True):
-        content = {"selected_hook_text": manual_hook} if manual_hook.strip() else source_content
-        result = build_hook_render_package(
-            project.get("title") or _workflow_default_name("Hook Clip Studio (Beta)"),
-            source_workflow,
-            content,
-            visual_settings=hook_visual_settings,
-            render_settings=hook_render_settings,
-            clip_mode=clip_mode,
-            duration_seconds=duration,
-        )
-        if result.get("ok"):
-            package = result["data"]["package"]
-            project.setdefault("hook_clip_studio", {})["hook_clip"] = package
-            project["hook_clip_studio"]["source"] = source_label
-            project["hook_clip_studio"]["export"] = result["data"].get("export", {})
-            _save_project()
-            _log_beta_event("generate", workflow="hook_clip", preset_bundle=str(hook_render_settings.get("bundle_name") or ""), metadata={"page": "Hook Clip Studio"})
-            st.success("Hook clip package generated")
-        else:
-            st.error(result.get("error") or result.get("message"))
+    if creator_mode == "Basic Mode":
+        with st.container(border=True):
+            st.markdown("**Quick Hook Clip**")
+            st.caption("ใส่ไอเดียสั้น ๆ แล้วกดปุ่มเดียว ระบบจะสร้าง hook, scenes, images, motion, voiceover/subtitles และ final_hook_clip.mp4")
+            quick_idea = st.text_area(
+                "Idea / Hook / Product / Quote",
+                value=st.session_state.get("quick_hook_clip_idea", ""),
+                height=110,
+                key="quick_hook_clip_idea",
+                help="ใส่ไอเดียสั้น ๆ เช่น เรื่องเศร้า สินค้า ประโยคเด็ด หรือมุกไวรัล",
+            )
+            c1, c2 = st.columns(2)
+            quick_clip_mode = c1.selectbox("Clip Style", ["Fast Hook", "Viral Clip", "Story Clip"], index=0, key="quick_hook_clip_mode", help="เลือกจังหวะคลิปแบบเร็ว ไวรัล หรือเล่าเรื่อง")
+            quick_duration = c2.slider("Length", 5, 10, 8, key="quick_hook_clip_duration", help="ความยาวคลิปแนวตั้ง 5-10 วินาที")
+            with st.expander("Advanced image/voice options", expanded=False):
+                image_provider = st.selectbox("Image Provider", ["offline", "openai_images", "flux", "sdxl"], index=0, key="quick_hook_image_provider", help="ค่าเริ่มต้น offline ประหยัดและไม่ใช้ API")
+                voice_style = st.selectbox("Voiceover Style", VOICEOVER_STYLES, index=0, key="quick_hook_voice_style", help="เลือกโทนเสียงบรรยาย ถ้าไม่มี OpenAI key จะสร้าง silent MP3 fallback")
+            ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
+            if not ffmpeg_info.get("ok"):
+                st.warning("FFmpeg is not available. VelaFlow can still generate the clip package, but MP4 export needs FFmpeg.")
+            if st.button("⚡ Quick Generate Hook Clip", type="primary", use_container_width=True, disabled=not bool((quick_idea or source_content))):
+                project_name = project.get("title") or _workflow_default_name("Hook Clip Studio (Beta)")
+                idea_payload = quick_idea.strip() or json.dumps(source_content, ensure_ascii=False)[:400]
+                with st.spinner("Generating hook script, scenes, images, motion render, voiceover, subtitles, and MP4..."):
+                    result = quick_generate_hook_clip(
+                        project_name,
+                        idea_payload,
+                        source_workflow=source_workflow,
+                        clip_mode=quick_clip_mode,
+                        duration_seconds=quick_duration,
+                        image_provider=image_provider,
+                        voiceover_style=voice_style,
+                        voiceover_api_key=_user_api_key("openai"),
+                    )
+                if result.get("data", {}).get("package"):
+                    project.setdefault("hook_clip_studio", {})["hook_clip"] = result["data"]["package"]
+                    project["hook_clip_studio"]["source"] = source_label
+                    project["hook_clip_studio"]["quick_generate"] = result["data"]
+                    project["hook_clip_studio"]["real_output"] = result["data"].get("render", {})
+                    project["hook_clip_studio"]["creator_render_status"] = "completed" if result.get("ok") else "failed"
+                    _save_project()
+                    _log_beta_event("generate", workflow="hook_clip", preset_bundle="Quick Generate", metadata={"page": "Hook Clip Studio", "image_provider": image_provider})
+                if result.get("ok"):
+                    st.success("final_hook_clip.mp4 generated.")
+                else:
+                    st.warning(result.get("error") or result.get("message") or "Quick generation finished with warnings.")
+    else:
+        manual_hook = st.text_area("Optional Hook / Quote Override", value="", height=90, help="ถ้ามีประโยคเด็ด ให้ใส่ตรงนี้ ระบบจะใช้แทนการ detect อัตโนมัติ")
+        clip_mode = st.selectbox("Clip Mode", ["Fast Hook", "Viral Clip", "Story Clip"], index=0)
+        duration = st.slider("Duration", 5, 10, 8)
+        _, hook_bundle_visual, hook_bundle_render = _bundle_controls("hook_clip", {"bundle_name": "TikTok Viral"})
+        visual_defaults = hook_bundle_visual or {"camera_preset": "TikTok Creator", "lighting_preset": "Natural Daylight", "motion_preset": "Fast TikTok Cuts", "visual_mood": "Viral"}
+        render_defaults = hook_bundle_render or {"provider": "PixVerse", "aspect_ratio": "9:16", "duration": f"{duration}s", "quality": "Draft", "motion_intensity": "High"}
+        hook_visual_settings = _visual_controls("hook_clip", visual_defaults)
+        hook_render_settings = _render_settings_controls("hook_clip", {**render_defaults, "duration": f"{duration}s"})
+        if st.button("🎬 Generate Hook Clip", type="primary", use_container_width=True):
+            content = {"selected_hook_text": manual_hook} if manual_hook.strip() else source_content
+            result = build_hook_render_package(
+                project.get("title") or _workflow_default_name("Hook Clip Studio (Beta)"),
+                source_workflow,
+                content,
+                visual_settings=hook_visual_settings,
+                render_settings=hook_render_settings,
+                clip_mode=clip_mode,
+                duration_seconds=duration,
+            )
+            if result.get("ok"):
+                package = result["data"]["package"]
+                project.setdefault("hook_clip_studio", {})["hook_clip"] = package
+                project["hook_clip_studio"]["source"] = source_label
+                project["hook_clip_studio"]["export"] = result["data"].get("export", {})
+                _save_project()
+                _log_beta_event("generate", workflow="hook_clip", preset_bundle=str(hook_render_settings.get("bundle_name") or ""), metadata={"page": "Hook Clip Studio"})
+                st.success("Hook clip package generated")
+            else:
+                st.error(result.get("error") or result.get("message"))
     hook_package = ((project.get("hook_clip_studio", {}) or {}).get("hook_clip") or {})
     _render_hook_clip_preview(hook_package)
     if hook_package:
-        t1, t2 = st.tabs(["Export", "Render"])
+        if creator_mode == "Basic Mode":
+            _render_scene_preview_cards(project.get("title") or "hook_clip_project", hook_package, "hook_clip_studio")
+            _render_final_downloads("hook_clip_studio", ((project.get("hook_clip_studio", {}) or {}).get("real_output") or {}))
+            quick_data = ((project.get("hook_clip_studio", {}) or {}).get("quick_generate") or {})
+            if quick_data.get("manifest_path"):
+                st.caption(f"Quick manifest: {quick_data.get('manifest_path')}")
+        t1, t2 = st.tabs(["Export", "Render" if creator_mode == "Advanced Mode" else "Advanced Render"])
         with t1:
             text = hook_clip_package_to_text(hook_package)
             export_data = ((project.get("hook_clip_studio", {}) or {}).get("export") or {})
@@ -2896,10 +2962,13 @@ elif page == "Hook Clip Studio":
             st.download_button("Download hook_clip_package.txt", data=text.encode("utf-8"), file_name="hook_clip_package.txt", mime="text/plain", use_container_width=True)
             st.text_area("Copy-ready hook package", value=text, height=260)
         with t2:
-            _render_package_preview({"package": hook_package.get("render_connector_package", {}), "export": hook_package.get("render_connector_export", {})})
-            _render_real_clip_controls(project, "hook_clip_studio", hook_package, source_workflow, default_voice_style="meme voice" if source_workflow == "viral_clips" else "calm narrator")
-            with st.expander("Render Queue", expanded=True):
-                _render_queue_ui(project.get("title") or "hook_clip_project")
+            if creator_mode == "Advanced Mode":
+                _render_package_preview({"package": hook_package.get("render_connector_package", {}), "export": hook_package.get("render_connector_export", {})})
+                _render_real_clip_controls(project, "hook_clip_studio", hook_package, source_workflow, default_voice_style="meme voice" if source_workflow == "viral_clips" else "calm narrator")
+                with st.expander("Advanced / Developer: Render Queue Metadata", expanded=False):
+                    _render_queue_ui(project.get("title") or "hook_clip_project")
+            else:
+                st.info("Switch to Advanced Mode for provider payloads, scene-level controls, and developer queue metadata.")
 
 elif page == "Creator Wizard":
     _page_header("Creator Wizard", "Guided creative setup for starting a song idea before Song Studio.", project)
@@ -3145,7 +3214,7 @@ elif page == "MV Director":
             _render_real_clip_controls(project, "mv", mv_hook_package, "music_mv", default_voice_style="calm narrator")
     else:
         st.info("Generate an MV storyboard first, then Start Render will appear here.")
-    with st.expander("Render Queue", expanded=False):
+    with st.expander("Advanced / Developer: Render Queue Metadata", expanded=False):
         _render_queue_ui(title or project.get("title") or "mv_project")
     storyboard_export = ((project.get("mv", {}) or {}).get("mv_storyboard_export") or {}).get("txt_path")
     if storyboard_export:
