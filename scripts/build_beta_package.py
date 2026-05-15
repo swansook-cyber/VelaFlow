@@ -24,6 +24,7 @@ INCLUDE_PATHS = [
     ".env.example",
     "Procfile",
     "railway.json",
+    "nixpacks.toml",
     "runtime.txt",
     "run_velaflow.bat",
 ]

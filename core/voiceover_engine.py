@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -11,6 +10,7 @@ import requests
 
 from core.paths import resolve_project_folder
 from core.project_io import safe_name
+from core.ffmpeg_utils import resolve_ffmpeg_path
 
 
 VOICEOVER_STYLES = [
@@ -76,11 +76,7 @@ def export_voiceover_plan(project_name: str, plan: dict[str, Any], base_dir: str
 
 
 def _find_ffmpeg() -> str:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    bundled = Path(__file__).resolve().parents[1] / "ffmpeg-2026-05-06-git-f2e5eff3ff-full_build" / "bin" / "ffmpeg.exe"
-    return str(bundled) if bundled.exists() else ""
+    return resolve_ffmpeg_path("ffmpeg")
 
 
 def _write_silent_mp3(path: Path, duration_seconds: float = 8.0) -> bool:

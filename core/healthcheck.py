@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 import streamlit
 
-from core.ffmpeg_utils import ffmpeg_available
+from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
 from core.project_io import safe_name
 
 
@@ -34,7 +34,12 @@ def run_healthcheck(settings: Any | None = None, runtime_api_keys: Dict[str, str
     velaflow_mode = getattr(settings, "velaflow_mode", "LOCAL") if settings else "LOCAL"
     add("VelaFlow mode", True, str(velaflow_mode or "LOCAL"))
     ffmpeg_path = getattr(settings, "ffmpeg_path", "ffmpeg") if settings else "ffmpeg"
-    add("FFmpeg", ffmpeg_available(ffmpeg_path), f"path={ffmpeg_path}", "WARN")
+    ffmpeg_info = ffmpeg_version(ffmpeg_path)
+    moviepy_info = configure_moviepy_ffmpeg(ffmpeg_path)
+    add("FFmpeg installed", bool(ffmpeg_info.get("ok")), ffmpeg_info.get("version") or ffmpeg_info.get("error", "not found"), "WARN")
+    add("FFmpeg executable path", bool(ffmpeg_info.get("path")), str(ffmpeg_info.get("path") or "not found"), "WARN")
+    add("FFmpeg version", bool(ffmpeg_info.get("version")), str(ffmpeg_info.get("version") or "not available"), "WARN")
+    add("MoviePy FFmpeg access", bool(moviepy_info.get("ok")), str(moviepy_info.get("path") or moviepy_info.get("error") or "not configured"), "WARN")
     runtime_keys = runtime_api_keys or {}
     gemini_key = str(runtime_keys.get("gemini", "") or (getattr(settings, "gemini_api_key", "") if settings else ""))
     openai_key = str(runtime_keys.get("openai", "") or (getattr(settings, "openai_api_key", "") if settings else ""))

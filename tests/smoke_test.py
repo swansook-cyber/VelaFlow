@@ -167,6 +167,7 @@ from core.creator_wizard import (
 )
 from core.healthcheck import run_pre_render_healthcheck
 from core.healthcheck import run_healthcheck
+from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version, resolve_ffmpeg_path
 from core.project_lock import acquire_project_lock, project_lock_status, release_project_lock
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -262,8 +263,10 @@ def main():
     assert_true(APP_VERSION == "0.1.0" and identity_payload()["generated_by"] == "VelaFlow", "version identity failed")
     procfile = (ROOT / "Procfile").read_text(encoding="utf-8")
     railway = json.loads((ROOT / "railway.json").read_text(encoding="utf-8"))
+    nixpacks = (ROOT / "nixpacks.toml").read_text(encoding="utf-8")
     assert_true("--server.port=$PORT" in procfile and "--server.address=0.0.0.0" in procfile, "Procfile Railway start command failed")
     assert_true("--server.port=$PORT" in railway["deploy"]["startCommand"], "railway.json start command failed")
+    assert_true('nixPkgs = ["ffmpeg"]' in nixpacks, "nixpacks FFmpeg install config failed")
     previous_mode = os.environ.get("VELAFLOW_MODE")
     os.environ["VELAFLOW_MODE"] = "CLOUD"
     cloud_settings = get_settings()
@@ -283,6 +286,11 @@ def main():
     health = run_healthcheck(type("Settings", (), {"velaflow_mode": "CLOUD", "gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "xai", "ffmpeg_path": "ffmpeg"})())
     health_names = [item["name"] for item in health["data"]["checks"]]
     assert_true("VelaFlow mode" in health_names and "Gemini configured" in health_names and "OpenAI configured" in health_names and "xAI Grok configured" in health_names and "Active AI provider" in health_names, "provider healthcheck failed")
+    assert_true("FFmpeg installed" in health_names and "FFmpeg executable path" in health_names and "FFmpeg version" in health_names and "MoviePy FFmpeg access" in health_names, "FFmpeg healthcheck detail failed")
+    ffmpeg_path = resolve_ffmpeg_path("ffmpeg")
+    ffmpeg_info = ffmpeg_version("ffmpeg")
+    moviepy_info = configure_moviepy_ffmpeg("ffmpeg")
+    assert_true((not ffmpeg_path and not ffmpeg_info["ok"]) or (ffmpeg_info["ok"] and moviepy_info["ok"]), "FFmpeg runtime detection failed")
     byo_health = run_healthcheck(
         type("Settings", (), {"velaflow_mode": "CLOUD", "gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "gemini", "ffmpeg_path": "ffmpeg"})(),
         runtime_api_keys={"gemini": "user-gemini"},

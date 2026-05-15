@@ -1,27 +1,14 @@
 import os
 from dataclasses import dataclass
-from pathlib import Path
 from dotenv import load_dotenv
+from core.ffmpeg_utils import resolve_ffmpeg_path
 
 load_dotenv()
 
 
-ROOT = Path(__file__).resolve().parents[1]
-
-
 def _detect_ffmpeg_path() -> str:
     configured = os.getenv("FFMPEG_PATH", "ffmpeg")
-    if configured and configured != "ffmpeg":
-        return configured
-    candidates = [
-        ROOT / "ffmpeg-2026-05-06-git-f2e5eff3ff-full_build" / "bin" / "ffmpeg.exe",
-        ROOT / "ffmpeg" / "bin" / "ffmpeg.exe",
-        ROOT / "bin" / "ffmpeg.exe",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate)
-    return configured
+    return resolve_ffmpeg_path(configured) or configured
 
 
 @dataclass

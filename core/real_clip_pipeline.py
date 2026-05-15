@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -10,17 +9,14 @@ from typing import Any
 from core.project_io import safe_name
 from core.paths import workflow_project_root
 from core.scene_story_engine import build_subtitle_timing
+from core.ffmpeg_utils import resolve_ffmpeg_path
 
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
 
 
 def find_ffmpeg() -> str:
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    bundled = Path(__file__).resolve().parents[1] / "ffmpeg-2026-05-06-git-f2e5eff3ff-full_build" / "bin" / "ffmpeg.exe"
-    return str(bundled) if bundled.exists() else ""
+    return resolve_ffmpeg_path("ffmpeg")
 
 
 def _run_ffmpeg(args: list[str], log_path: Path) -> dict[str, Any]:

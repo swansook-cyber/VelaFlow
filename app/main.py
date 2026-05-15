@@ -70,6 +70,7 @@ from core.creative_suggestions import build_creative_suggestions
 from core.emotional_arc import analyze_emotional_arc
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
+from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
 from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
@@ -823,8 +824,16 @@ def _render_real_clip_controls(
         if scene_output_path(project_name, str(scene.get("scene_id") or f"scene_{index:02d}")).is_file()
     )
     creator_status = str((project.get(section_key, {}) or {}).get("creator_render_status") or existing.get("manifest", {}).get("status") or "queued")
+    ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
+    ffmpeg_ready = bool(ffmpeg_info.get("ok"))
+    if ffmpeg_ready:
+        configure_moviepy_ffmpeg(settings.ffmpeg_path)
     st.write("Creator Render")
     st.caption("Simple vertical clip rendering for creators. Default output is 9:16. If rendering is unavailable, VelaFlow shows a warning and keeps the scene package ready.")
+    if ffmpeg_ready:
+        st.caption(f"FFmpeg ready: {ffmpeg_info.get('path')}")
+    else:
+        st.warning("FFmpeg is not available in this runtime. Local MP4 render buttons are disabled, but provider packages and Veo scene jobs still work.")
     p1, p2, p3, p4 = st.columns(4)
     p1.metric("Queued", "Yes" if creator_status in {"queued", "rendering", "completed"} else "No")
     p2.metric("Rendering", "Yes" if creator_status == "rendering" else "No")
@@ -848,7 +857,7 @@ def _render_real_clip_controls(
             st.warning("Render package is missing. Generate the hook/storyboard package first.")
         _save_project()
         st.rerun()
-    if col_scene.button("🎬 Render Scene 1", use_container_width=True, key=f"{section_key}_render_scene_1"):
+    if col_scene.button("🎬 Render Scene 1", use_container_width=True, disabled=not ffmpeg_ready, key=f"{section_key}_render_scene_1"):
         project.setdefault(section_key, {})["creator_render_status"] = "rendering"
         _save_project()
         result = _render_first_scene_locally(project_name, hook_package, section_key)
@@ -859,7 +868,7 @@ def _render_real_clip_controls(
         else:
             st.warning(result.get("error") or result.get("message") or "Render unavailable.")
         st.rerun()
-    if col_all.button("🎬 Render All Scenes", use_container_width=True, key=f"{section_key}_render_all_scenes"):
+    if col_all.button("🎬 Render All Scenes", use_container_width=True, disabled=not ffmpeg_ready, key=f"{section_key}_render_all_scenes"):
         voiceover_path = ""
         project.setdefault(section_key, {})["creator_render_status"] = "rendering"
         if use_voiceover:
@@ -926,7 +935,7 @@ def _render_real_clip_controls(
         if scene_job:
             st.json({key: value for key, value in scene_job.items() if key != "payload"}, expanded=False)
 
-    if st.button("Combine Final Clip", use_container_width=True, key=f"{section_key}_combine_final_clip"):
+    if st.button("Combine Final Clip", use_container_width=True, disabled=not ffmpeg_ready, key=f"{section_key}_combine_final_clip"):
         result = render_real_hook_clip(project_name, hook_package, workflow_type=workflow_type)
         project.setdefault(section_key, {})["real_output"] = result.get("data", {})
         project[section_key]["creator_render_status"] = "completed" if result.get("ok") else "failed"

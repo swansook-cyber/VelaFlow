@@ -9,6 +9,8 @@ keys and defaults to Bring Your Own API Key inside the browser.
   - `web: streamlit run app/main.py --server.port=$PORT --server.address=0.0.0.0`
 - `railway.json`
   - Uses Nixpacks and the same Streamlit start command.
+- `nixpacks.toml`
+  - Installs the Railway runtime FFmpeg package with `nixPkgs = ["ffmpeg"]`.
 - `runtime.txt`
   - Pins Python runtime.
 - `requirements.txt`
@@ -60,10 +62,29 @@ they should be treated as ephemeral unless a persistent volume is configured.
 
 ## FFmpeg
 
-Real local MP4 output requires FFmpeg. If Railway/Nixpacks does not provide
-FFmpeg, VelaFlow shows a warning in System Health and keeps provider/render
-package exports available. Configure `FFMPEG_PATH` if a custom binary path is
-available.
+Real local MP4 output requires FFmpeg. Railway/Nixpacks should install it from
+`nixpacks.toml`:
+
+```toml
+[phases.setup]
+nixPkgs = ["ffmpeg"]
+```
+
+At runtime VelaFlow detects FFmpeg from `FFMPEG_PATH`, the system `PATH`, and
+legacy local Windows folders. On Railway, the expected path is usually the
+Nix-provided `ffmpeg` executable on `PATH`.
+
+System Health reports:
+
+- FFmpeg installed
+- FFmpeg executable path
+- FFmpeg version
+- MoviePy FFmpeg access
+
+If FFmpeg is missing, VelaFlow shows a clear warning and disables local MP4
+buttons such as Render Scene 1, Render All Scenes, and Combine Final Clip.
+Provider packages, render queue metadata, and BYO Veo scene job submission
+remain available. Configure `FFMPEG_PATH` only if a custom binary path is needed.
 
 ## Internal Test Checklist
 
@@ -74,6 +95,10 @@ available.
 - Missing API key shows a warning and does not crash.
 - Hook Clip Studio can generate a hook clip package.
 - Placeholder/FFmpeg real output works if FFmpeg is available.
+- Render Scene 1, Render All Scenes, and Combine Final Clip are enabled when
+  FFmpeg is detected.
+- If FFmpeg is missing, local render buttons are disabled and the warning is
+  visible in Hook Clip Studio / MV Director.
 - Google Veo Scene 1 flow shows missing-key errors safely without exposing keys.
 - Exports download correctly on desktop and mobile.
 - System Health shows FFmpeg status and provider configuration status.

@@ -24,6 +24,10 @@ INCLUDE_PATHS = [
     "TODO_NEXT.md",
     "requirements.txt",
     ".env.example",
+    "Procfile",
+    "railway.json",
+    "nixpacks.toml",
+    "runtime.txt",
     "run_velaflow.bat",
 ]
 FORBIDDEN_PATTERNS = [
