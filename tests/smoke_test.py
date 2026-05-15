@@ -266,7 +266,8 @@ def main():
     nixpacks = (ROOT / "nixpacks.toml").read_text(encoding="utf-8")
     assert_true("--server.port=$PORT" in procfile and "--server.address=0.0.0.0" in procfile, "Procfile Railway start command failed")
     assert_true("--server.port=$PORT" in railway["deploy"]["startCommand"], "railway.json start command failed")
-    assert_true('nixPkgs = ["ffmpeg"]' in nixpacks, "nixpacks FFmpeg install config failed")
+    assert_true('providers = ["python"]' in nixpacks and 'nixPkgs = ["ffmpeg"]' in nixpacks, "nixpacks Python/FFmpeg install config failed")
+    assert_true("[start]" in nixpacks and "streamlit run app/main.py --server.port=$PORT --server.address=0.0.0.0" in nixpacks, "nixpacks start command failed")
     previous_mode = os.environ.get("VELAFLOW_MODE")
     os.environ["VELAFLOW_MODE"] = "CLOUD"
     cloud_settings = get_settings()

@@ -36,7 +36,7 @@ Deployment foundation files are included for closed beta hosting:
 
 - `Procfile` starts Streamlit with the platform-provided `$PORT`.
 - `railway.json` uses a Nixpacks build and the same Streamlit start command.
-- `nixpacks.toml` installs FFmpeg for Railway local MP4 render support.
+- `nixpacks.toml` keeps the Python provider enabled and installs FFmpeg for Railway local MP4 render support.
 - `runtime.txt` pins the intended cloud Python runtime.
 
 For internal Railway testing, set `VELAFLOW_MODE=CLOUD`. See

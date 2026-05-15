@@ -10,7 +10,7 @@ keys and defaults to Bring Your Own API Key inside the browser.
 - `railway.json`
   - Uses Nixpacks and the same Streamlit start command.
 - `nixpacks.toml`
-  - Installs the Railway runtime FFmpeg package with `nixPkgs = ["ffmpeg"]`.
+  - Keeps the Python provider enabled, installs FFmpeg, and mirrors the Streamlit start command.
 - `runtime.txt`
   - Pins Python runtime.
 - `requirements.txt`
@@ -66,8 +66,13 @@ Real local MP4 output requires FFmpeg. Railway/Nixpacks should install it from
 `nixpacks.toml`:
 
 ```toml
+providers = ["python"]
+
 [phases.setup]
 nixPkgs = ["ffmpeg"]
+
+[start]
+cmd = "streamlit run app/main.py --server.port=$PORT --server.address=0.0.0.0"
 ```
 
 At runtime VelaFlow detects FFmpeg from `FFMPEG_PATH`, the system `PATH`, and
