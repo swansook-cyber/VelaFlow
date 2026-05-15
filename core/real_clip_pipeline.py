@@ -91,25 +91,40 @@ def _image_motion_filter(effect: str, width: int, height: int, duration: float) 
     frames = max(15, int(duration * 30))
     out_fade_start = max(0.1, duration - 0.35)
     effect = (effect or "slow_zoom").lower().strip()
-    fade = f"fade=t=in:st=0:d=0.2,fade=t=out:st={out_fade_start:.2f}:d=0.3"
-    if effect in {"slow_zoom", "slow_zoom_in", "emotional_push_in", "hook_energy_zoom"}:
+    fade_in = 0.18
+    fade_out = 0.25
+    if effect in {"slow_cinematic", "cinematic_mv", "cinematic_fade", "film_fade", "dark_fade"}:
+        fade_in = 0.55
+        fade_out = 0.55
+    fade = f"fade=t=in:st=0:d={fade_in},fade=t=out:st={max(0.1, duration - fade_out):.2f}:d={fade_out}"
+    if effect in {"slow_zoom", "slow_zoom_in", "emotional_push_in", "hook_energy_zoom", "slow_cinematic", "cinematic_mv"}:
+        speed = "0.0008" if effect in {"slow_cinematic", "cinematic_mv"} else "0.0018"
+        max_zoom = "1.06" if effect in {"slow_cinematic", "cinematic_mv"} else "1.10"
         return (
             f"scale={width * 2}:{height * 2}:force_original_aspect_ratio=increase,"
-            f"zoompan=z='min(zoom+0.0018,1.10)':d={frames}:"
+            f"zoompan=z='min(zoom+{speed},{max_zoom})':d={frames}:"
             f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps=30,"
             f"trim=duration={duration:.2f},setpts=PTS-STARTPTS,{fade},format=yuv420p"
         )
-    if effect in {"pan", "pan_left", "pan_right"}:
+    if effect in {"pan", "pan_left", "pan_right", "minimal_pan", "product_focus"}:
         direction = "-1" if effect == "pan_right" else "1"
+        travel = 12 if effect == "minimal_pan" else 24 if effect == "product_focus" else 28
         return (
             f"scale={int(width * 1.16)}:{int(height * 1.16)}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}:x='(in_w-out_w)/2+{direction}*min(28,t*9)':y='(in_h-out_h)/2',"
+            f"crop={width}:{height}:x='(in_w-out_w)/2+{direction}*min({travel},t*7)':y='(in_h-out_h)/2',"
             f"{fade},format=yuv420p"
         )
-    if effect in {"shake", "emotional_shaky_cam"}:
+    if effect in {"shake", "emotional_shaky_cam", "shake_zoom"}:
+        intensity = 13 if effect == "shake_zoom" else 7
         return (
             f"scale={int(width * 1.10)}:{int(height * 1.10)}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}:x='(in_w-out_w)/2+sin(t*18)*7':y='(in_h-out_h)/2+cos(t*20)*7',"
+            f"crop={width}:{height}:x='(in_w-out_w)/2+sin(t*22)*{intensity}':y='(in_h-out_h)/2+cos(t*24)*{intensity}',"
+            f"{fade},format=yuv420p"
+        )
+    if effect in {"bounce", "cartoon_pop"}:
+        return (
+            f"scale={int(width * 1.18)}:{int(height * 1.18)}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}:x='(in_w-out_w)/2':y='(in_h-out_h)/2+sin(t*10)*18',"
             f"{fade},format=yuv420p"
         )
     return f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},{fade},format=yuv420p"

@@ -42,7 +42,7 @@ def build_scene_sequence(
         beats = beats[:3]
     elif clip_mode == "Story Clip" and len(beats) < 4:
         beats = beats + ["Closing Feeling"]
-    durations = _duration_for_count(max(5, min(10, int(duration_seconds or 8))), len(beats))
+    durations = _duration_for_count(max(5, min(60, int(duration_seconds or 8))), len(beats))
     context = source_context or {}
     scenes: list[dict[str, Any]] = []
     for index, beat in enumerate(beats, start=1):

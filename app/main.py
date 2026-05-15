@@ -103,6 +103,7 @@ from core.podcast_content import (
     generate_podcast_content,
     podcast_content_to_text,
 )
+from core.preset_engine import apply_preset_to_project, get_preset, list_presets
 from core.viral_clips_content import (
     CLIP_LENGTHS,
     GOALS,
@@ -2865,13 +2866,22 @@ elif page == "Hook Clip Studio":
     )
     sources = _hook_source_options(project)
     default_source = "Seller" if project.get("seller_studio") else "Podcast" if project.get("podcast_studio") else "Viral Clips" if project.get("viral_clips_studio") else "Music"
-    source_label = st.selectbox("Hook Source", list(sources), index=list(sources).index(default_source) if default_source in sources else 0, help="เลือกแหล่งไอเดีย ถ้าใส่ idea เอง ระบบจะใช้ idea นั้นก่อน")
+    source_label = default_source
+    if creator_mode == "Advanced Mode":
+        source_label = st.selectbox("Hook Source", list(sources), index=list(sources).index(default_source) if default_source in sources else 0, help="เลือกแหล่งไอเดีย ถ้าใส่ idea เอง ระบบจะใช้ idea นั้นก่อน")
     source_workflow = _hook_workflow_key(source_label)
     source_content = sources.get(source_label) or {}
     if creator_mode == "Basic Mode":
         with st.container(border=True):
             st.markdown("**Quick Hook Clip**")
             st.caption("ใส่ไอเดียสั้น ๆ แล้วกดปุ่มเดียว ระบบจะสร้าง hook, scenes, images, motion, voiceover/subtitles และ final_hook_clip.mp4")
+            preset_items = list_presets()
+            preset_labels = [item["label"] for item in preset_items]
+            selected_preset_label = st.selectbox("🎨 Content Preset", preset_labels, index=0, key="quick_hook_content_preset", help="เลือกผลลัพธ์ที่อยากได้ ไม่ต้องตั้งค่ากล้อง/เสียง/จังหวะเอง")
+            selected_preset = preset_items[preset_labels.index(selected_preset_label)] if preset_items else get_preset("viral_meme")
+            st.info(selected_preset.get("description", "Creator outcome preset"))
+            if selected_preset.get("preset_id") == "cute_character":
+                st.caption("Cute Character examples: " + " · ".join(selected_preset.get("examples", [])[:6]))
             quick_idea = st.text_area(
                 "Idea / Hook / Product / Quote",
                 value=st.session_state.get("quick_hook_clip_idea", ""),
@@ -2879,27 +2889,21 @@ elif page == "Hook Clip Studio":
                 key="quick_hook_clip_idea",
                 help="ใส่ไอเดียสั้น ๆ เช่น เรื่องเศร้า สินค้า ประโยคเด็ด หรือมุกไวรัล",
             )
-            c1, c2 = st.columns(2)
-            quick_clip_mode = c1.selectbox("Clip Style", ["Fast Hook", "Viral Clip", "Story Clip"], index=0, key="quick_hook_clip_mode", help="เลือกจังหวะคลิปแบบเร็ว ไวรัล หรือเล่าเรื่อง")
-            quick_duration = c2.slider("Length", 5, 10, 8, key="quick_hook_clip_duration", help="ความยาวคลิปแนวตั้ง 5-10 วินาที")
-            with st.expander("Advanced image/voice options", expanded=False):
-                image_provider = st.selectbox("Image Provider", ["offline", "openai_images", "flux", "sdxl"], index=0, key="quick_hook_image_provider", help="ค่าเริ่มต้น offline ประหยัดและไม่ใช้ API")
-                voice_style = st.selectbox("Voiceover Style", VOICEOVER_STYLES, index=0, key="quick_hook_voice_style", help="เลือกโทนเสียงบรรยาย ถ้าไม่มี OpenAI key จะสร้าง silent MP3 fallback")
             ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
             if not ffmpeg_info.get("ok"):
                 st.warning("FFmpeg is not available. VelaFlow can still generate the clip package, but MP4 export needs FFmpeg.")
             if st.button("⚡ Quick Generate Hook Clip", type="primary", use_container_width=True, disabled=not bool((quick_idea or source_content))):
                 project_name = project.get("title") or _workflow_default_name("Hook Clip Studio (Beta)")
                 idea_payload = quick_idea.strip() or json.dumps(source_content, ensure_ascii=False)[:400]
+                apply_preset_to_project(project, selected_preset.get("preset_id", "viral_meme"))
                 with st.spinner("Generating hook script, scenes, images, motion render, voiceover, subtitles, and MP4..."):
                     result = quick_generate_hook_clip(
                         project_name,
                         idea_payload,
                         source_workflow=source_workflow,
-                        clip_mode=quick_clip_mode,
-                        duration_seconds=quick_duration,
-                        image_provider=image_provider,
-                        voiceover_style=voice_style,
+                        clip_mode="Fast Hook" if selected_preset.get("pace") in {"fast", "fun"} else "Story Clip",
+                        image_provider="offline",
+                        preset_id=selected_preset.get("preset_id", "viral_meme"),
                         voiceover_api_key=_user_api_key("openai"),
                     )
                 if result.get("data", {}).get("package"):
@@ -2907,9 +2911,10 @@ elif page == "Hook Clip Studio":
                     project["hook_clip_studio"]["source"] = source_label
                     project["hook_clip_studio"]["quick_generate"] = result["data"]
                     project["hook_clip_studio"]["real_output"] = result["data"].get("render", {})
+                    project["hook_clip_studio"]["voiceover_audio"] = result["data"].get("voiceover", {})
                     project["hook_clip_studio"]["creator_render_status"] = "completed" if result.get("ok") else "failed"
                     _save_project()
-                    _log_beta_event("generate", workflow="hook_clip", preset_bundle="Quick Generate", metadata={"page": "Hook Clip Studio", "image_provider": image_provider})
+                    _log_beta_event("generate", workflow="hook_clip", preset_bundle=str(selected_preset.get("label", "Quick Generate")), metadata={"page": "Hook Clip Studio", "preset_id": selected_preset.get("preset_id")})
                 if result.get("ok"):
                     st.success("final_hook_clip.mp4 generated.")
                 else:
@@ -2953,6 +2958,16 @@ elif page == "Hook Clip Studio":
             quick_data = ((project.get("hook_clip_studio", {}) or {}).get("quick_generate") or {})
             if quick_data.get("manifest_path"):
                 st.caption(f"Quick manifest: {quick_data.get('manifest_path')}")
+            for label, key_name, filename, mime in [
+                ("Download render_manifest.json", "render_manifest_path", "render_manifest.json", "application/json"),
+                ("Download scene_manifest.json", "scene_manifest_path", "scene_manifest.json", "application/json"),
+            ]:
+                manifest_path = Path(str(quick_data.get(key_name) or ""))
+                if manifest_path.is_file():
+                    st.download_button(label, data=manifest_path.read_bytes(), file_name=filename, mime=mime, use_container_width=True, key=f"hook_clip_{key_name}_download")
+            voice_path = Path(str((quick_data.get("voiceover") or {}).get("audio_path") or ""))
+            if voice_path.is_file():
+                st.download_button("Download voiceover.mp3", data=voice_path.read_bytes(), file_name="voiceover.mp3", mime="audio/mpeg", use_container_width=True, key="hook_clip_quick_voiceover_download")
         t1, t2 = st.tabs(["Export", "Render" if creator_mode == "Advanced Mode" else "Advanced Render"])
         with t1:
             text = hook_clip_package_to_text(hook_package)

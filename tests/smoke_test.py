@@ -53,6 +53,7 @@ from core.visual_presets import list_camera_presets, list_lighting_presets, list
 from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.automatic_hook_clip import quick_generate_hook_clip
+from core.preset_engine import get_preset, list_presets, preset_to_render_settings
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -963,6 +964,9 @@ def main():
     assert_true("HOOK AUTO CLIP PACKAGE" in hook_clip_package_to_text(hook_clip_package), "hook clip text export content failed")
     hook_clip_export = export_hook_clip_package("Smoke Hook Clip Project", hook_clip_package, out / "hook_clip_projects")
     assert_true(hook_clip_export["ok"] and Path(hook_clip_export["data"]["json_path"]).exists() and Path(hook_clip_export["data"]["txt_path"]).exists(), "hook clip package export failed")
+    outcome_presets = list_presets()
+    assert_true(len(outcome_presets) >= 6 and get_preset("cute_character")["motion_style"] == "bounce", "creator outcome presets failed")
+    assert_true(preset_to_render_settings(get_preset("emotional_story"))["duration"] == "30s", "preset render defaults failed")
     combine_manifest = combine_scene_clips(["scene_1.mp4", "scene_2.mp4"], out / "hook_clip_projects" / "final_hook_clip.mp4", subtitle_timing=hook_subtitles)
     assert_true(combine_manifest["ok"] and Path(combine_manifest["data"]["manifest_path"]).exists(), "combine fallback manifest failed")
     voiceover_plan = build_voiceover_plan(podcast_package["main_script"], style="tired office worker")
@@ -984,13 +988,19 @@ def main():
             "Smoke Quick Hook Clip",
             "ทดสอบคลิปสั้นแนวตั้งสำหรับ VelaFlow",
             image_provider="offline",
-            duration_seconds=5,
             voiceover_style="calm narrator",
+            preset_id="viral_meme",
         )
         quick_data = quick_clip.get("data", {})
         assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
+        assert_true(Path(quick_data["render_manifest_path"]).exists() and Path(quick_data["scene_manifest_path"]).exists(), "quick hook clip manifests failed")
+        assert_true(Path(quick_data["voiceover"]["audio_path"]).name == "voiceover.mp3", "quick hook clip voiceover filename failed")
+        cute_clip = quick_generate_hook_clip("Smoke Cute Character Clip", "กล้วยพูดได้บ่นเรื่องชีวิต", image_provider="offline", preset_id="cute_character")
+        cute_package = cute_clip.get("data", {}).get("package", {})
+        assert_true(cute_clip["ok"] and cute_package.get("creator_outcome_preset", {}).get("preset_id") == "cute_character", "cute character quick pipeline failed")
+        assert_true(any(scene.get("motion_effect") == "bounce" for scene in cute_package.get("scene_sequence", [])), "cute character motion behavior failed")
     veo_payload = build_veo_payload(prompt=hook_clip_package["render_prompt"], aspect_ratio="9:16", duration_seconds=8, scene_id="scene_01", subtitle_timing=hook_subtitles)
     missing_veo = submit_veo_render_job(veo_payload, api_key="")
     assert_true(veo_payload["aspect_ratio"] == "9:16" and not missing_veo["ok"] and missing_veo["error"] == "missing_api_key", "Veo connector missing-key safety failed")
