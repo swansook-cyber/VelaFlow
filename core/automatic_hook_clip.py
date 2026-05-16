@@ -128,7 +128,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         for filename, content in files.items():
             path = final_dir / filename
             ensure_parent_dir(path)
-            path.write_text(str(content).strip() + "\n", encoding="utf-8")
+            path.write_text(str(content).strip() + "\n", encoding="utf-8-sig")
             written[filename] = str(path)
         manifest = {
             "generated_by": "VelaFlow",

@@ -271,7 +271,7 @@ def write_srt(timeline: List[Dict[str, Any]], output_path: str | Path, mode: str
                 "",
             ]
         )
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text("\n".join(lines), encoding="utf-8-sig")
     return path
 
 
@@ -297,7 +297,7 @@ def write_ass(timeline: List[Dict[str, Any]], output_path: str | Path, mode: str
     for event in subtitle_events(timeline, mode):
         text = _ass_animated_text(event["text"], mode, max(0.1, float(event["end"]) - float(event["start"])))
         events.append(f"Dialogue: 0,{_format_ass_time(event['start'])},{_format_ass_time(event['end'])},Default,,0,0,0,,{text}")
-    path.write_text("\n".join(header + events), encoding="utf-8")
+    path.write_text("\n".join(header + events), encoding="utf-8-sig")
     return path
 
 

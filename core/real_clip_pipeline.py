@@ -119,7 +119,7 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
                 pass
         return {"ok": media.stat().st_size > 0, "path": str(media), "duration": 0.0, "file_size": media.stat().st_size, "playable": media.stat().st_size > 0, "error": "missing_ffprobe"}
     try:
-        proc = subprocess.run(
+        duration_proc = subprocess.run(
             [
                 ffprobe,
                 "-v",
@@ -137,25 +137,60 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
             errors="replace",
             timeout=20,
         )
-        duration = float((proc.stdout or "0").strip() or 0)
+        duration = float((duration_proc.stdout or "0").strip() or 0)
+        stream_proc = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "json",
+                str(media),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+        )
+        stream_types: list[str] = []
+        if stream_proc.returncode == 0:
+            try:
+                stream_payload = json.loads(stream_proc.stdout or "{}")
+                stream_types = [str(item.get("codec_type", "")) for item in stream_payload.get("streams", []) if item.get("codec_type")]
+            except Exception:
+                stream_types = []
         return {
-            "ok": proc.returncode == 0 and media.stat().st_size > 0 and duration > 0,
+            "ok": duration_proc.returncode == 0 and media.stat().st_size > 0 and duration > 0,
             "path": str(media),
             "duration": duration,
             "file_size": media.stat().st_size,
-            "playable": proc.returncode == 0 and duration > 0,
-            "error": "" if proc.returncode == 0 else (proc.stderr or "ffprobe_failed"),
+            "playable": duration_proc.returncode == 0 and duration > 0,
+            "stream_types": stream_types,
+            "has_video": "video" in stream_types,
+            "has_audio": "audio" in stream_types,
+            "error": "" if duration_proc.returncode == 0 else (duration_proc.stderr or "ffprobe_failed"),
         }
     except Exception as exc:
         return {"ok": False, "path": str(media), "duration": 0.0, "file_size": media.stat().st_size, "playable": False, "error": str(exc)}
 
 
-def validate_mp4(path: str | Path, *, min_duration: float = 1.0, min_file_size: int = 1, ffmpeg_path: str = "") -> dict[str, Any]:
+def validate_mp4(path: str | Path, *, min_duration: float = 1.0, min_file_size: int = 1, require_audio: bool = False, ffmpeg_path: str = "") -> dict[str, Any]:
     probe = probe_media(path, ffmpeg_path=ffmpeg_path)
     probe["min_file_size"] = min_file_size
-    probe["valid_mp4"] = bool(probe.get("ok") and float(probe.get("duration") or 0) > min_duration and int(probe.get("file_size") or 0) >= min_file_size)
+    probe["require_audio"] = require_audio
+    probe["valid_mp4"] = bool(
+        probe.get("ok")
+        and float(probe.get("duration") or 0) > min_duration
+        and int(probe.get("file_size") or 0) >= min_file_size
+        and probe.get("has_video", True)
+        and (not require_audio or probe.get("has_audio", False))
+    )
     if not probe["valid_mp4"] and not probe.get("error"):
-        probe["error"] = "mp4_too_small_or_duration_too_short"
+        probe["error"] = "mp4_missing_required_stream_or_too_short"
     return probe
 
 
@@ -180,7 +215,7 @@ def write_subtitles(subtitle_timing: list[dict[str, Any]], path: str | Path) -> 
     for idx, item in enumerate(subtitle_timing, start=1):
         text = str(item.get("subtitle") or "").strip() or " "
         blocks.append(f"{idx}\n{_srt_time(float(item.get('start', 0) or 0))} --> {_srt_time(float(item.get('end', 1) or 1))}\n{text}\n")
-    output.write_text("\n".join(blocks), encoding="utf-8")
+    output.write_text("\n".join(blocks), encoding="utf-8-sig")
     return {"ok": True, "message": "Subtitles exported", "data": {"path": str(output)}, "error": ""}
 
 
@@ -259,6 +294,10 @@ def render_placeholder_scene(
         "libx264",
         "-preset",
         "veryfast",
+        "-r",
+        "30",
+        "-b:v",
+        "2500k",
         "-movflags",
         "+faststart",
         "-t",
@@ -317,12 +356,16 @@ def _safe_static_image_scene(
         "-t",
         f"{duration:.3f}",
         "-vf",
-        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,format=yuv420p",
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps=30,setsar=1,format=yuv420p",
         "-an",
         "-c:v",
         "libx264",
         "-preset",
         "veryfast",
+        "-r",
+        "30",
+        "-b:v",
+        "2500k",
         "-pix_fmt",
         "yuv420p",
         "-movflags",
@@ -424,6 +467,8 @@ def render_image_motion_scene(
         "-y",
         "-loop",
         "1",
+        "-framerate",
+        "30",
         "-i",
         str(image_path),
         "-t",
@@ -435,6 +480,10 @@ def render_image_motion_scene(
         "libx264",
         "-preset",
         "veryfast",
+        "-r",
+        "30",
+        "-b:v",
+        "2500k",
         "-pix_fmt",
         "yuv420p",
         "-movflags",
@@ -540,7 +589,7 @@ def combine_scene_clips_to_mp4(
         final_result = _run_ffmpeg(fallback_args, log)
         subtitle_burned = False
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
-    validation = validate_mp4(output, min_duration=1.0, ffmpeg_path=ffmpeg)
+    validation = validate_mp4(output, min_duration=1.0, require_audio=bool(audio_inputs), ffmpeg_path=ffmpeg)
     return {
         "ok": final_result["ok"] and output.exists() and validation.get("valid_mp4", False),
         "message": "Final MP4 exported" if final_result["ok"] and validation.get("valid_mp4", False) else "Final MP4 export failed",

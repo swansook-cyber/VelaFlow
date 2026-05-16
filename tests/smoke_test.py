@@ -1044,7 +1044,8 @@ def main():
         quick_data = quick_clip.get("data", {})
         assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
         assert_true(validate_mp4(quick_data["final_mp4"])["valid_mp4"], "quick hook final_hook_clip.mp4 not playable")
-        assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4"), "quick hook render validation missing")
+        assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
+        assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
@@ -1064,6 +1065,8 @@ def main():
         for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
+        for utf8_bom_file in ["subtitles.srt", "styled_subtitles.ass", "captions.txt"]:
+            assert_true((tiktok_final_dir / utf8_bom_file).read_bytes().startswith(b"\xef\xbb\xbf"), f"{utf8_bom_file} is not UTF-8 BOM")
         assert_true("TikTok Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")
         assert_true(get_viral_subtitle_preset("TikTok Meme")["mode"] != get_viral_subtitle_preset("Karaoke Glow")["mode"], "subtitle presets do not differ")
         prompt_sample = build_scene_prompt("เดินต่อทั้งที่ยังเจ็บ", style="Anime Nostalgia")
