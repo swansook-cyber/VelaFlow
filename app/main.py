@@ -778,6 +778,9 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
     if not final_dir.exists():
         return
     st.caption(f"TikTok package: {final_dir}")
+    thumbnail_path = final_dir / "thumbnail.jpg"
+    if thumbnail_path.is_file():
+        st.image(str(thumbnail_path), caption="Thumbnail preview", use_container_width=True)
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in final_dir.iterdir():
@@ -2048,145 +2051,152 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     song = normalize_song_metadata(project.get("song", {}) or {}, get_artist_preset((project.get("song", {}) or {}).get("artist_preset") or load_default_artist_id()))
     if song.get("hook_candidates") or song.get("normalized_song_output") or song.get("complete_lyrics"):
         project["song"] = song
-        t1, t2, t3, t4, t5, t6 = st.tabs(["Hook", "Short Clip", "Suno Style", "Lyrics", "Save / Continue", "Draft History"])
+        st.divider()
+        best_hook = detect_best_song_hook(song)
+        st.markdown("## 🎯 Best Hook Detected")
+        with st.container(border=True):
+            st.markdown(f"### {best_hook.get('hook_text', '')}")
+            h1, h2, h3, h4 = st.columns(4)
+            h1.metric("Hook Score", best_hook.get("hook_score") or best_hook.get("tiktok_potential", 0))
+            h2.metric("Emotional", best_hook.get("emotional_score", 0))
+            h3.metric("TikTok", best_hook.get("tiktok_potential", 0))
+            h4.metric("Replay", best_hook.get("replay_value", 0))
+            st.caption(f"Estimated clip length: 15s | Section: {best_hook.get('section', '-')}")
+            if best_hook.get("reason"):
+                st.caption(best_hook.get("reason", ""))
+
+        st.markdown("## 🎵 Upload Song Audio")
+        short_clip = song.get("short_clip") or {}
+        real_output = short_clip.get("real_output") or {}
+        short_clip = song.setdefault("short_clip", short_clip)
+        with st.container(border=True):
+            st.caption("อัปโหลดเพลงเต็ม แล้วตัดเฉพาะช่วง hook ไปใช้เป็นเสียงคลิป ถ้ายังไม่มีไฟล์เสียง VelaFlow ยังสร้าง MP4 แบบ silent/fallback ได้")
+            song["short_clip"] = _render_hook_audio_controls(project.get("title") or song.get("title") or title, short_clip, "song_short_clip", "song")
+            project["song"] = song
+            _save_project()
+
+        st.markdown("## 🎬 Generate TikTok Hook Clip")
+        content_presets = list_presets()
+        preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
+        default_preset_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
+        selected_clip_preset_label = st.selectbox(
+            "Content Preset",
+            preset_labels,
+            index=default_preset_index,
+            key="song_short_content_preset",
+            help="เลือกโทนผลลัพธ์ของคลิป เช่น Emotional Story หรือ Viral Meme โดยไม่ต้องตั้งค่ากล้อง/จังหวะเอง",
+        )
+        selected_clip_preset = content_presets[preset_labels.index(selected_clip_preset_label)] if content_presets else get_preset("emotional_story")
+        st.caption(str(selected_clip_preset.get("description") or "VelaFlow จะใช้ preset นี้กับภาพ จังหวะ motion และ subtitle"))
+        if st.session_state.get("developer_mode"):
+            ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
+            st.caption(f"FFmpeg: {ffmpeg_info.get('path') if ffmpeg_info.get('ok') else 'unavailable'}")
+            image_provider, image_settings = _image_provider_controls("song_short_clip")
+        else:
+            image_settings = {
+                "size": "1024x1536",
+                "quality": "medium",
+                "cache_enabled": False,
+                "openai_api_key": _user_api_key("openai"),
+                "gemini_api_key": _user_api_key("gemini"),
+                "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+            }
+            if image_settings["gemini_api_key"]:
+                image_provider = "gemini_image"
+            elif image_settings["openai_api_key"]:
+                image_provider = "openai_images"
+            else:
+                image_provider = "offline"
+        hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
+        if st.button(
+            "Generate TikTok Hook Clip",
+            type="primary",
+            use_container_width=True,
+            disabled=not bool(best_hook.get("hook_text")),
+            key="song_generate_short_from_hook",
+            help="ปุ่มเดียวสร้าง scene prompts, images/fallback, motion, subtitles, thumbnail, final MP4 และ TikTok package",
+        ):
+            project_name = project.get("title") or song.get("title") or title
+            idea_payload = "\n".join(
+                [
+                    str(best_hook.get("clip_prompt", "")),
+                    "",
+                    f"Hook text: {best_hook.get('hook_text', '')}",
+                    f"Song mood: {mood}",
+                    f"Music preset: {song.get('music_preset', DEFAULT_MUSIC_PRESET)}",
+                    "Create exactly 3 concise scenes for a 9:16 short-form hook clip.",
+                ]
+            )
+            with st.spinner("Generating scene prompts, images/fallback, motion, subtitles, beat timing, thumbnail, MP4, and TikTok package..."):
+                result = quick_generate_hook_clip(
+                    project_name,
+                    idea_payload,
+                    source_workflow="music",
+                    clip_mode="Fast Hook",
+                    duration_seconds=15,
+                    image_provider=image_provider,
+                    image_settings=image_settings,
+                    preset_id=str(selected_clip_preset.get("preset_id") or "emotional_story"),
+                    voiceover_style="emotional storyteller",
+                    voiceover_api_key=_user_api_key("openai"),
+                    subtitle_preset="Thai Emotional MV" if str(selected_clip_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
+                    hook_audio_path=hook_audio_path,
+                )
+            song["short_clip"] = {
+                "selected_hook": best_hook,
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+                "quick_generate": result.get("data", {}),
+                "hook_clip_package": (result.get("data", {}) or {}).get("package", {}),
+                "real_output": (result.get("data", {}) or {}).get("render", {}),
+                "final_mp4": (result.get("data", {}) or {}).get("final_mp4", ""),
+                "subtitles": ((result.get("data", {}) or {}).get("render", {}) or {}).get("subtitles", ""),
+                "hook_audio": (song.get("short_clip") or {}).get("hook_audio", {}),
+                "ok": bool(result.get("ok")),
+                "error": result.get("error", ""),
+            }
+            project.setdefault("hook_clip_studio", {})["hook_clip"] = song["short_clip"].get("hook_clip_package", {})
+            project["hook_clip_studio"]["source"] = "Music"
+            project["hook_clip_studio"]["quick_generate"] = result.get("data", {})
+            project["hook_clip_studio"]["real_output"] = song["short_clip"].get("real_output", {})
+            project["hook_clip_studio"]["creator_render_status"] = "completed" if result.get("ok") else "failed"
+            project["song"] = song
+            _save_project()
+            _log_beta_event("generate", workflow="music", preset_bundle="Song-to-Short Hook Clip", metadata={"page": "Song Studio"})
+            if result.get("ok"):
+                st.success("Hook short clip generated. Download final_hook_clip.mp4 below.")
+            else:
+                st.warning(result.get("error") or result.get("message") or "Clip package generated, but MP4 render needs attention.")
+            st.rerun()
+
+        st.markdown("## ✅ Preview / Download")
+        if real_output:
+            _render_final_downloads("song_short_clip", real_output)
+            package_data = (short_clip.get("quick_generate") or {}).get("tiktok_package") or {}
+            _render_tiktok_package_downloads("song_short_clip", package_data)
+            if st.button("Refresh TikTok Package", key="song_short_export_tiktok", use_container_width=True):
+                package_result = export_tiktok_package(
+                    project.get("title") or song.get("title") or title,
+                    short_clip.get("hook_clip_package") or {},
+                    real_output,
+                )
+                song.setdefault("short_clip", {})["tiktok_package"] = package_result.get("data", {})
+                _save_project()
+                st.success("TikTok package exported") if package_result.get("ok") else st.error(package_result.get("error") or package_result.get("message"))
+                st.rerun()
+        elif short_clip.get("final_mp4") and Path(str(short_clip.get("final_mp4"))).is_file():
+            _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
+        else:
+            st.info("Generate TikTok Hook Clip แล้ว preview และ download จะขึ้นตรงนี้ทันที")
+        quick_data = short_clip.get("quick_generate") or {}
+        if st.session_state.get("developer_mode") and quick_data.get("manifest_path"):
+            st.caption(f"Clip manifest: {quick_data.get('manifest_path')}")
+
+        t1, t3, t4, t5, t6 = st.tabs(["Hook Details", "Suno Style", "Lyrics", "Save / Continue", "Draft History"])
         with t1:
             st.write("Title:", song.get("title", ""))
             st.write("Selected Hook:", song.get("selected_hook_text", ""))
             with st.expander("Hook candidates", expanded=False):
                 st.dataframe(pd.DataFrame(song.get("hook_candidates", [])), use_container_width=True)
-        with t2:
-            best_hook = detect_best_song_hook(song)
-            st.markdown("**Auto Selected Hook for Short Clip**")
-            with st.container(border=True):
-                st.markdown(f"### {best_hook.get('hook_text', '')}")
-                h1, h2, h3, h4, h5 = st.columns(5)
-                h1.metric("Emotional", best_hook.get("emotional_score", 0))
-                h2.metric("Catchy", best_hook.get("catchy_score", 0))
-                h3.metric("TikTok", best_hook.get("tiktok_potential", 0))
-                h4.metric("Replay", best_hook.get("replay_value", 0))
-                h5.metric("Section", best_hook.get("section", "-"))
-                st.caption(best_hook.get("reason", ""))
-            short_clip = song.get("short_clip") or {}
-            real_output = short_clip.get("real_output") or {}
-            ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
-            if not ffmpeg_info.get("ok"):
-                st.warning("⚠ FFmpeg runtime unavailable. VelaFlow can prepare the hook clip package, but local MP4 rendering needs FFmpeg.")
-            else:
-                st.caption(f"✅ FFmpeg runtime ready: {ffmpeg_info.get('path')}")
-            short_clip = song.setdefault("short_clip", short_clip)
-            with st.expander("Upload Song Audio / Hook Audio", expanded=True):
-                st.caption("Audio is optional. If missing, VelaFlow still creates a silent/fallback MP4.")
-                song["short_clip"] = _render_hook_audio_controls(project.get("title") or song.get("title") or title, short_clip, "song_short_clip", "song")
-                project["song"] = song
-                _save_project()
-            content_presets = list_presets()
-            preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
-            default_preset_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
-            selected_clip_preset_label = st.selectbox(
-                "Content Preset",
-                preset_labels,
-                index=default_preset_index,
-                key="song_short_content_preset",
-                help="เลือกโทนผลลัพธ์ของคลิป เช่น Emotional Story หรือ Viral Meme โดยไม่ต้องตั้งค่ากล้อง/จังหวะเอง",
-            )
-            selected_clip_preset = content_presets[preset_labels.index(selected_clip_preset_label)] if content_presets else get_preset("emotional_story")
-            st.caption(str(selected_clip_preset.get("description") or "VelaFlow จะใช้ preset นี้กับภาพ จังหวะ motion และ subtitle"))
-            if st.session_state.get("developer_mode"):
-                image_provider, image_settings = _image_provider_controls("song_short_clip")
-            else:
-                image_settings = {
-                    "size": "1024x1536",
-                    "quality": "medium",
-                    "cache_enabled": False,
-                    "openai_api_key": _user_api_key("openai"),
-                    "gemini_api_key": _user_api_key("gemini"),
-                    "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
-                }
-                if image_settings["gemini_api_key"]:
-                    image_provider = "gemini_image"
-                elif image_settings["openai_api_key"]:
-                    image_provider = "openai_images"
-                else:
-                    image_provider = "offline"
-            hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
-            if st.button(
-                "Generate Hook Short Clip",
-                type="primary",
-                use_container_width=True,
-                disabled=not bool(best_hook.get("hook_text")),
-                key="song_generate_short_from_hook",
-                help="ใช้ hook ที่เลือกจากเพลงเพื่อสร้างคลิปแนวตั้ง 3 scene พร้อม subtitle และ final_hook_clip.mp4",
-            ):
-                project_name = project.get("title") or song.get("title") or title
-                idea_payload = "\n".join(
-                    [
-                        str(best_hook.get("clip_prompt", "")),
-                        "",
-                        f"Hook text: {best_hook.get('hook_text', '')}",
-                        f"Song mood: {mood}",
-                        f"Music preset: {song.get('music_preset', DEFAULT_MUSIC_PRESET)}",
-                        "Create exactly 3 concise scenes for a 9:16 short-form hook clip.",
-                    ]
-                )
-                with st.spinner("Generating 3-scene hook clip, subtitles, image-motion scenes, and final MP4..."):
-                    result = quick_generate_hook_clip(
-                        project_name,
-                        idea_payload,
-                        source_workflow="music",
-                        clip_mode="Fast Hook",
-                        duration_seconds=15,
-                        image_provider=image_provider,
-                        image_settings=image_settings,
-                        preset_id=str(selected_clip_preset.get("preset_id") or "emotional_story"),
-                        voiceover_style="emotional storyteller",
-                        voiceover_api_key=_user_api_key("openai"),
-                        subtitle_preset="Thai Emotional MV" if str(selected_clip_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
-                        hook_audio_path=hook_audio_path,
-                    )
-                song["short_clip"] = {
-                    "selected_hook": best_hook,
-                    "generated_at": datetime.now().isoformat(timespec="seconds"),
-                    "quick_generate": result.get("data", {}),
-                    "hook_clip_package": (result.get("data", {}) or {}).get("package", {}),
-                    "real_output": (result.get("data", {}) or {}).get("render", {}),
-                    "final_mp4": (result.get("data", {}) or {}).get("final_mp4", ""),
-                    "subtitles": ((result.get("data", {}) or {}).get("render", {}) or {}).get("subtitles", ""),
-                    "hook_audio": (song.get("short_clip") or {}).get("hook_audio", {}),
-                    "ok": bool(result.get("ok")),
-                    "error": result.get("error", ""),
-                }
-                project.setdefault("hook_clip_studio", {})["hook_clip"] = song["short_clip"].get("hook_clip_package", {})
-                project["hook_clip_studio"]["source"] = "Music"
-                project["hook_clip_studio"]["quick_generate"] = result.get("data", {})
-                project["hook_clip_studio"]["real_output"] = song["short_clip"].get("real_output", {})
-                project["hook_clip_studio"]["creator_render_status"] = "completed" if result.get("ok") else "failed"
-                project["song"] = song
-                _save_project()
-                _log_beta_event("generate", workflow="music", preset_bundle="Song-to-Short Hook Clip", metadata={"page": "Song Studio"})
-                if result.get("ok"):
-                    st.success("Hook short clip generated. Download final_hook_clip.mp4 below.")
-                else:
-                    st.warning(result.get("error") or result.get("message") or "Clip package generated, but MP4 render needs attention.")
-                st.rerun()
-            if real_output:
-                _render_final_downloads("song_short_clip", real_output)
-                package_data = (short_clip.get("quick_generate") or {}).get("tiktok_package") or {}
-                _render_tiktok_package_downloads("song_short_clip", package_data)
-                if st.button("📦 Export TikTok Package", key="song_short_export_tiktok", use_container_width=True):
-                    package_result = export_tiktok_package(
-                        project.get("title") or song.get("title") or title,
-                        short_clip.get("hook_clip_package") or {},
-                        real_output,
-                    )
-                    song.setdefault("short_clip", {})["tiktok_package"] = package_result.get("data", {})
-                    _save_project()
-                    st.success("TikTok package exported") if package_result.get("ok") else st.error(package_result.get("error") or package_result.get("message"))
-                    st.rerun()
-            elif short_clip.get("final_mp4") and Path(str(short_clip.get("final_mp4"))).is_file():
-                _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
-            quick_data = short_clip.get("quick_generate") or {}
-            if st.session_state.get("developer_mode") and quick_data.get("manifest_path"):
-                st.caption(f"Clip manifest: {quick_data.get('manifest_path')}")
         with t3:
             st.write("Music Preset:", song.get("music_preset", DEFAULT_MUSIC_PRESET))
             st.write("Vocal Direction:", song.get("vocal_direction", DEFAULT_VOCAL_DIRECTION))
