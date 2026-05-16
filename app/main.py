@@ -761,9 +761,16 @@ def _render_final_downloads(section_key: str, real_output: dict[str, Any]) -> No
     if not real_output:
         return
     status = real_output.get("manifest", {}).get("status") or real_output.get("status") or "-"
-    st.caption(f"Render Status: {status}")
+    duration = real_output.get("duration") or (real_output.get("manifest", {}) or {}).get("duration") or (real_output.get("validation", {}) or {}).get("duration", 0)
+    if status == "completed":
+        st.success(f"Render completed · {float(duration or 0):.1f}s")
+    elif status == "failed":
+        st.warning("Render failed. Generated images/assets are preserved.")
+    else:
+        st.caption(f"Render Status: {status}")
     if real_output.get("final_mp4") and Path(real_output["final_mp4"]).is_file():
         final_path = Path(real_output["final_mp4"])
+        st.markdown("**Final Video Preview**")
         st.video(str(final_path))
         st.download_button("Download Final Clip MP4", data=final_path.read_bytes(), file_name=final_path.name, mime="video/mp4", use_container_width=True, key=f"{section_key}_download_final_mp4")
     if real_output.get("subtitles") and Path(real_output["subtitles"]).is_file():

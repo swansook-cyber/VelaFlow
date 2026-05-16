@@ -10,6 +10,7 @@ from core.project_io import safe_name
 from core.paths import workflow_project_root
 from core.scene_story_engine import build_subtitle_timing
 from core.ffmpeg_utils import configure_moviepy_ffmpeg, resolve_ffmpeg_path
+from core.motion_engine import image_motion_filter as build_motion_filter
 
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
@@ -51,6 +52,27 @@ def find_ffmpeg() -> str:
     return resolved
 
 
+def _resolve_ffprobe_path(ffmpeg_path: str = "ffmpeg") -> str:
+    ffmpeg = find_ffmpeg() if not ffmpeg_path else resolve_ffmpeg_path(ffmpeg_path)
+    candidates: list[str] = []
+    if ffmpeg:
+        ffmpeg_path_obj = Path(ffmpeg)
+        suffix = ".exe" if ffmpeg_path_obj.name.lower().endswith(".exe") else ""
+        candidates.append(str(ffmpeg_path_obj.with_name(f"ffprobe{suffix}")))
+    candidates.extend(["ffprobe", "/usr/bin/ffprobe", "/usr/local/bin/ffprobe", "/bin/ffprobe"])
+    for candidate in candidates:
+        resolved = resolve_ffmpeg_path(candidate)
+        if resolved and Path(resolved).name.lower().startswith("ffprobe"):
+            return resolved
+        try:
+            proc = subprocess.run([candidate, "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+            if proc.returncode == 0:
+                return candidate
+        except Exception:
+            continue
+    return ""
+
+
 def _run_ffmpeg(args: list[str], log_path: Path) -> dict[str, Any]:
     if args:
         resolved = resolve_ffmpeg_path(args[0])
@@ -71,6 +93,69 @@ def _run_ffmpeg(args: list[str], log_path: Path) -> dict[str, Any]:
             message = str(exc)
             log.write(message + "\n")
             return {"ok": False, "returncode": -1, "output": message}
+
+
+def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
+    media = Path(path)
+    if not media.is_file():
+        return {"ok": False, "path": str(media), "duration": 0.0, "file_size": 0, "playable": False, "error": "missing_media"}
+    ffprobe = _resolve_ffprobe_path(ffmpeg_path or "ffmpeg")
+    if not ffprobe:
+        ffmpeg = resolve_ffmpeg_path(ffmpeg_path or "ffmpeg")
+        if ffmpeg:
+            try:
+                proc = subprocess.run([ffmpeg, "-i", str(media)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=20)
+                output = proc.stdout or ""
+                duration = 0.0
+                for line in output.splitlines():
+                    if "Duration:" not in line:
+                        continue
+                    stamp = line.split("Duration:", 1)[1].split(",", 1)[0].strip()
+                    h, m, s = stamp.split(":")
+                    duration = int(h) * 3600 + int(m) * 60 + float(s)
+                    break
+                return {"ok": media.stat().st_size > 0 and duration > 0, "path": str(media), "duration": duration, "file_size": media.stat().st_size, "playable": duration > 0, "error": "" if duration > 0 else "missing_ffprobe"}
+            except Exception:
+                pass
+        return {"ok": media.stat().st_size > 0, "path": str(media), "duration": 0.0, "file_size": media.stat().st_size, "playable": media.stat().st_size > 0, "error": "missing_ffprobe"}
+    try:
+        proc = subprocess.run(
+            [
+                ffprobe,
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(media),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=20,
+        )
+        duration = float((proc.stdout or "0").strip() or 0)
+        return {
+            "ok": proc.returncode == 0 and media.stat().st_size > 0 and duration > 0,
+            "path": str(media),
+            "duration": duration,
+            "file_size": media.stat().st_size,
+            "playable": proc.returncode == 0 and duration > 0,
+            "error": "" if proc.returncode == 0 else (proc.stderr or "ffprobe_failed"),
+        }
+    except Exception as exc:
+        return {"ok": False, "path": str(media), "duration": 0.0, "file_size": media.stat().st_size, "playable": False, "error": str(exc)}
+
+
+def validate_mp4(path: str | Path, *, min_duration: float = 1.0, ffmpeg_path: str = "") -> dict[str, Any]:
+    probe = probe_media(path, ffmpeg_path=ffmpeg_path)
+    probe["valid_mp4"] = bool(probe.get("ok") and float(probe.get("duration") or 0) > min_duration and int(probe.get("file_size") or 0) > 0)
+    if not probe["valid_mp4"] and not probe.get("error"):
+        probe["error"] = "mp4_duration_too_short"
+    return probe
 
 
 def _srt_time(seconds: float) -> str:
@@ -179,6 +264,10 @@ def render_placeholder_scene(
 
 
 def _image_motion_filter(effect: str, width: int, height: int, duration: float) -> str:
+    try:
+        return build_motion_filter(effect or "cinematic_drift", width, height, duration, fps=30)
+    except Exception:
+        pass
     frames = max(15, int(duration * 30))
     out_fade_start = max(0.1, duration - 0.35)
     effect = (effect or "slow_zoom").lower().strip()
@@ -295,7 +384,7 @@ def combine_scene_clips_to_mp4(
     concat_file = output.parent / "scene_concat.txt"
     concat_file.write_text("\n".join(f"file '{path.as_posix()}'" for path in clips), encoding="utf-8")
     temp_concat = output.parent / f"{output.stem}_concat.mp4"
-    concat_args = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", str(temp_concat)]
+    concat_args = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-an", str(temp_concat)]
     concat_result = _run_ffmpeg(concat_args, log)
     if not concat_result["ok"]:
         return {"ok": False, "message": "Scene concat failed", "data": {"path": str(output), "log_path": str(log)}, "error": _clean_ffmpeg_error(concat_result.get("output", ""), "scene_concat_failed")}
@@ -335,21 +424,28 @@ def combine_scene_clips_to_mp4(
     complex_args = ["-filter_complex", ";".join(filter_complex)] if filter_complex else []
     final_args = input_args + complex_args + maps + ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
     final_result = _run_ffmpeg(final_args, log)
+    subtitle_burned = bool(final_result["ok"] and subtitle_path)
     if not final_result["ok"] and subtitle_path:
         fallback_args = input_args + complex_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
+        subtitle_burned = False
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
+    validation = validate_mp4(output, min_duration=1.0, ffmpeg_path=ffmpeg)
     return {
-        "ok": final_result["ok"] and output.exists(),
-        "message": "Final MP4 exported" if final_result["ok"] else "Final MP4 export failed",
+        "ok": final_result["ok"] and output.exists() and validation.get("valid_mp4", False),
+        "message": "Final MP4 exported" if final_result["ok"] and validation.get("valid_mp4", False) else "Final MP4 export failed",
         "data": {
             "path": str(output),
             "log_path": str(log),
             "ffmpeg_error_detail": clean_error,
             "background_audio_path": str(background_audio_path or ""),
             "voiceover_path": str(voiceover_path or ""),
+            "subtitle_burned": subtitle_burned,
+            "validation": validation,
+            "duration": validation.get("duration", 0),
+            "file_size": validation.get("file_size", 0),
         },
-        "error": "" if final_result["ok"] else clean_error,
+        "error": "" if final_result["ok"] and validation.get("valid_mp4", False) else (validation.get("error") or clean_error),
     }
 
 
@@ -390,12 +486,14 @@ def render_real_hook_clip(
                 scene_paths.append(clip_path)
                 continue
             result = render_image_motion_scene(scene, clip_path, ffmpeg_path=ffmpeg_path, aspect_ratio=aspect_ratio, log_path=log_path)
+            scene_validation = validate_mp4(clip_path, min_duration=0.3, ffmpeg_path=ffmpeg_path or "ffmpeg")
             job["status"] = "completed" if result.get("ok") else "failed"
             job["error"] = result.get("error", "")
             job["motion_effect"] = scene.get("motion_effect") or scene.get("motion", "")
             job["source_image_path"] = scene.get("source_image_path", "")
+            job["validation"] = scene_validation
             scene_jobs.append(job)
-            if result.get("ok"):
+            if result.get("ok") and scene_validation.get("valid_mp4", False):
                 scene_paths.append(clip_path)
         final_name = {
             "seller": "final_seller_clip.mp4",
@@ -424,9 +522,12 @@ def render_real_hook_clip(
             "final_mp4": str(final_path) if combine.get("ok") else "",
             "status": "completed" if combine.get("ok") else "failed",
             "error": combine.get("error", ""),
+            "duration": (combine.get("data") or {}).get("duration", 0),
+            "validation": (combine.get("data") or {}).get("validation", {}),
+            "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False),
         }
         manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or "")}, "error": combine.get("error", "")}
+        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False)}, "error": combine.get("error", "")}
     except Exception as exc:
         return {"ok": False, "message": "Real hook clip render failed", "data": {}, "error": str(exc)}

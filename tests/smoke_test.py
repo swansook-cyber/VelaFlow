@@ -132,7 +132,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, write_subtitles
+from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_image_motion_scene, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, validate_mp4, write_subtitles
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
 from core.rendering_presets import get_render_preset_bundle, get_rendering_provider_preset, list_render_preset_bundles, list_rendering_providers
 from core.preset_system import list_global_presets, list_preset_packs, list_project_templates, list_scene_presets
@@ -1010,6 +1010,10 @@ def main():
         assert_true(hook_audio_trim["ok"] and Path(hook_audio_trim["data"]["path"]).exists(), "hook audio trim failed")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
+        motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
+        motion_scene = render_image_motion_scene({"scene_id": "scene_01", "duration": 1.2, "source_image_path": quick_data["image_results"][0]["path"] if 'quick_data' in locals() and quick_data.get("image_results") else ""}, motion_scene_path, aspect_ratio="9:16")
+        if motion_scene.get("ok"):
+            assert_true(validate_mp4(motion_scene_path, min_duration=0.5)["valid_mp4"], "scene motion render not playable")
         real_clip = render_real_hook_clip(
             "Smoke Hook Clip Project",
             hook_clip_package,
@@ -1019,6 +1023,8 @@ def main():
         )
         assert_true(real_clip["ok"] and Path(real_clip["data"]["final_mp4"]).exists() and Path(real_clip["data"]["subtitles"]).exists(), "real hook MP4 export failed")
         assert_true(real_clip["data"].get("background_audio_path"), "real hook background audio metadata missing")
+        assert_true(real_clip["data"]["validation"]["valid_mp4"] and real_clip["data"]["duration"] > 1, "real hook MP4 playable validation failed")
+        assert_true(all((job.get("validation") or {}).get("valid_mp4") for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene MP4 validation failed")
         quick_clip = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
             "ทดสอบคลิปสั้นแนวตั้งสำหรับ VelaFlow",
@@ -1029,6 +1035,9 @@ def main():
         )
         quick_data = quick_clip.get("data", {})
         assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
+        assert_true(validate_mp4(quick_data["final_mp4"])["valid_mp4"], "quick hook final_hook_clip.mp4 not playable")
+        assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4"), "quick hook render validation missing")
+        assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
         assert_true(all({"provider_used", "fallback_used", "fallback_reason", "error_type", "safe_error_message"}.issubset(set(item.keys())) for item in quick_data["image_results"]), "image diagnostics missing")
@@ -1045,6 +1054,7 @@ def main():
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
         for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
+        assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
         assert_true("TikTok Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")
         assert_true(get_viral_subtitle_preset("TikTok Meme")["mode"] != get_viral_subtitle_preset("Karaoke Glow")["mode"], "subtitle presets do not differ")
         prompt_sample = build_scene_prompt("เดินต่อทั้งที่ยังเจ็บ", style="Anime Nostalgia")
@@ -1064,6 +1074,7 @@ def main():
         )
         song_short_data = song_short_clip.get("data", {})
         assert_true(song_short_clip["ok"] and Path(song_short_data["final_mp4"]).exists(), "song-to-short final_hook_clip.mp4 export failed")
+        assert_true(validate_mp4(song_short_data["final_mp4"])["valid_mp4"], "song-to-short final_hook_clip.mp4 not playable")
         assert_true(Path(song_short_data["render"]["subtitles"]).exists(), "song-to-short subtitles.srt export failed")
         assert_true(len((song_short_data.get("package") or {}).get("scene_sequence", [])) == 3, "song-to-short 3-scene structure failed")
         assert_true(all("project_data\\music" in item.get("path", "") or "project_data/music" in item.get("path", "") for item in song_short_data.get("image_results", [])), "music scene images were not saved under project_data/music")
