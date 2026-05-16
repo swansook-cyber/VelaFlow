@@ -130,7 +130,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import find_ffmpeg, render_real_hook_clip, write_subtitles
+from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_placeholder_scene, render_real_hook_clip, write_subtitles
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
 from core.rendering_presets import get_render_preset_bundle, get_rendering_provider_preset, list_render_preset_bundles, list_rendering_providers
 from core.preset_system import list_global_presets, list_preset_packs, list_project_templates, list_scene_presets
@@ -996,7 +996,11 @@ def main():
     assert_true(voiceover_audio["ok"] and Path(voiceover_audio["data"]["audio_path"]).exists(), "voiceover MP3 fallback failed")
     srt_result = write_subtitles(hook_subtitles, out / "hook_clip_projects" / "subtitles.srt")
     assert_true(srt_result["ok"] and Path(srt_result["data"]["path"]).exists(), "subtitle SRT export failed")
+    cloud_style_scene = out / "cloud_paths" / "project_data" / "clips" / "ทดสอบคลาวด์" / "scenes" / "scene_01.mp4"
+    assert_true(ensure_parent_dir(cloud_style_scene).parent.exists(), "ensure_parent_dir failed for cloud-style Thai path")
     if find_ffmpeg():
+        cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
+        assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         real_clip = render_real_hook_clip(
             "Smoke Hook Clip Project",
             hook_clip_package,

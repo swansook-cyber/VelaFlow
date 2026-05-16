@@ -15,6 +15,35 @@ from core.ffmpeg_utils import configure_moviepy_ffmpeg, resolve_ffmpeg_path
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
 
 
+def ensure_parent_dir(path: str | Path) -> Path:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    return output
+
+
+def _clean_ffmpeg_error(output: str, fallback: str = "ffmpeg_render_failed") -> str:
+    text = str(output or "").strip()
+    if not text:
+        return fallback
+    lowered = text.lower()
+    known = [
+        "no such file or directory",
+        "missing_ffmpeg",
+        "permission denied",
+        "invalid argument",
+        "error opening output",
+        "unable to find a suitable output format",
+        "conversion failed",
+    ]
+    for marker in known:
+        if marker in lowered:
+            return marker
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return fallback
+    return lines[-1][:280]
+
+
 def find_ffmpeg() -> str:
     resolved = resolve_ffmpeg_path("ffmpeg")
     if resolved:
@@ -54,8 +83,7 @@ def _srt_time(seconds: float) -> str:
 
 
 def write_subtitles(subtitle_timing: list[dict[str, Any]], path: str | Path) -> dict[str, Any]:
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output = ensure_parent_dir(path)
     blocks = []
     for idx, item in enumerate(subtitle_timing, start=1):
         text = str(item.get("subtitle") or "").strip() or " "
@@ -73,7 +101,7 @@ def render_placeholder_scene(
     log_path: str | Path | None = None,
 ) -> dict[str, Any]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
-    output = Path(output_path)
+    output = ensure_parent_dir(output_path)
     log = Path(log_path) if log_path else output.with_suffix(".log")
     if not ffmpeg:
         return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
@@ -100,7 +128,8 @@ def render_placeholder_scene(
         str(output),
     ]
     result = _run_ffmpeg(args, log)
-    return {"ok": result["ok"] and output.exists(), "message": "Scene clip rendered" if result["ok"] else "Scene clip render failed", "data": {"path": str(output), "log_path": str(log)}, "error": "" if result["ok"] else result["output"][-1000:]}
+    clean_error = _clean_ffmpeg_error(result.get("output", ""))
+    return {"ok": result["ok"] and output.exists(), "message": "Scene clip rendered" if result["ok"] else "Scene clip render failed", "data": {"path": str(output), "log_path": str(log), "ffmpeg_error_detail": clean_error}, "error": "" if result["ok"] else clean_error}
 
 
 def _image_motion_filter(effect: str, width: int, height: int, duration: float) -> str:
@@ -155,7 +184,7 @@ def render_image_motion_scene(
     log_path: str | Path | None = None,
 ) -> dict[str, Any]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
-    output = Path(output_path)
+    output = ensure_parent_dir(output_path)
     log = Path(log_path) if log_path else output.with_suffix(".log")
     image_path = Path(str(scene.get("source_image_path") or scene.get("image_path") or ""))
     if not image_path.is_file():
@@ -192,7 +221,7 @@ def render_image_motion_scene(
     fallback = render_placeholder_scene(scene, output, ffmpeg_path=ffmpeg, aspect_ratio=aspect_ratio, log_path=log)
     if fallback.get("ok"):
         fallback["message"] = "Image motion failed; placeholder scene rendered"
-        fallback.setdefault("data", {})["image_motion_error"] = result["output"][-1000:]
+        fallback.setdefault("data", {})["image_motion_error"] = _clean_ffmpeg_error(result.get("output", ""))
     return fallback
 
 
@@ -206,7 +235,7 @@ def combine_scene_clips_to_mp4(
     log_path: str | Path | None = None,
 ) -> dict[str, Any]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
-    output = Path(output_path)
+    output = ensure_parent_dir(output_path)
     log = Path(log_path) if log_path else output.with_suffix(".log")
     if not ffmpeg:
         return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
@@ -220,7 +249,7 @@ def combine_scene_clips_to_mp4(
     concat_args = [ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(concat_file), "-c", "copy", str(temp_concat)]
     concat_result = _run_ffmpeg(concat_args, log)
     if not concat_result["ok"]:
-        return {"ok": False, "message": "Scene concat failed", "data": {"path": str(output), "log_path": str(log)}, "error": concat_result["output"][-1000:]}
+        return {"ok": False, "message": "Scene concat failed", "data": {"path": str(output), "log_path": str(log)}, "error": _clean_ffmpeg_error(concat_result.get("output", ""), "scene_concat_failed")}
     input_args = [ffmpeg, "-y", "-i", str(temp_concat)]
     maps = ["-map", "0:v:0"]
     audio_args: list[str] = []
@@ -237,7 +266,8 @@ def combine_scene_clips_to_mp4(
     if not final_result["ok"] and subtitle_path:
         fallback_args = input_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
-    return {"ok": final_result["ok"] and output.exists(), "message": "Final MP4 exported" if final_result["ok"] else "Final MP4 export failed", "data": {"path": str(output), "log_path": str(log)}, "error": "" if final_result["ok"] else final_result["output"][-1000:]}
+    clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
+    return {"ok": final_result["ok"] and output.exists(), "message": "Final MP4 exported" if final_result["ok"] else "Final MP4 export failed", "data": {"path": str(output), "log_path": str(log), "ffmpeg_error_detail": clean_error}, "error": "" if final_result["ok"] else clean_error}
 
 
 def render_real_hook_clip(
@@ -267,7 +297,7 @@ def render_real_hook_clip(
         scene_paths = []
         for scene in scenes:
             scene_id = str(scene.get("scene_id") or f"scene_{len(scene_paths) + 1:02d}")
-            clip_path = scenes_dir / f"{scene_id}.mp4"
+            clip_path = ensure_parent_dir(scenes_dir / f"{scene_id}.mp4")
             job = {"scene_id": scene_id, "status": "pending", "path": str(clip_path), "error": ""}
             if clip_path.is_file() and not force:
                 job["status"] = "completed_existing"
@@ -287,7 +317,7 @@ def render_real_hook_clip(
             "podcast": "final_podcast_clip.mp4",
             "viral_clips": "final_viral_clip.mp4",
         }.get(workflow_type, "final_hook_clip.mp4")
-        final_path = exports_dir / final_name
+        final_path = ensure_parent_dir(exports_dir / final_name)
         combine = combine_scene_clips_to_mp4(scene_paths, final_path, subtitle_path=srt_path, voiceover_path=voiceover_path, ffmpeg_path=ffmpeg_path, log_path=log_path)
         manifest = {
             "generated_by": "VelaFlow",
@@ -301,7 +331,7 @@ def render_real_hook_clip(
             "status": "completed" if combine.get("ok") else "failed",
             "error": combine.get("error", ""),
         }
-        manifest_path = exports_dir / "real_clip_manifest.json"
+        manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path)}, "error": combine.get("error", "")}
     except Exception as exc:

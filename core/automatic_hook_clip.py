@@ -12,7 +12,7 @@ from core.hook_intelligence import analyze_opening_hook, save_hook_analysis
 from core.paths import resolve_project_folder
 from core.preset_engine import get_preset, preset_to_render_settings, preset_to_visual_settings
 from core.project_io import safe_name
-from core.real_clip_pipeline import render_real_hook_clip
+from core.real_clip_pipeline import ensure_parent_dir, render_real_hook_clip
 from core.subtitle_engine import generate_styled_subtitles
 from core.viral_timing_engine import create_viral_timing_plan, save_viral_timing_plan
 from core.voiceover_engine import generate_voiceover_audio
@@ -64,9 +64,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         final_mp4 = Path(str(render_data.get("final_mp4") or ""))
         subtitle_path = Path(str(render_data.get("subtitles") or exports_dir / "subtitles.srt"))
         if final_mp4.is_file():
-            shutil.copy2(final_mp4, final_dir / "final_hook_clip.mp4")
+            shutil.copy2(final_mp4, ensure_parent_dir(final_dir / "final_hook_clip.mp4"))
         if subtitle_path.is_file():
-            shutil.copy2(subtitle_path, final_dir / "subtitles.srt")
+            shutil.copy2(subtitle_path, ensure_parent_dir(final_dir / "subtitles.srt"))
         captions = str(package.get("caption") or package.get("subtitle_line") or package.get("hook_text") or "").strip()
         hashtags = package.get("hashtags") or ["#VelaFlow", "#TikTok", "#Reels", "#Shorts"]
         title = str(package.get("hook_text") or "VelaFlow Hook Clip").strip()
@@ -94,6 +94,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         written: dict[str, str] = {}
         for filename, content in files.items():
             path = final_dir / filename
+            ensure_parent_dir(path)
             path.write_text(str(content).strip() + "\n", encoding="utf-8")
             written[filename] = str(path)
         manifest = {
@@ -107,6 +108,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "files": written,
         }
         manifest_path = final_dir / "tiktok_package_manifest.json"
+        ensure_parent_dir(manifest_path)
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": True, "message": "TikTok package exported", "data": {**manifest, "manifest_path": str(manifest_path)}, "error": ""}
     except Exception as exc:
@@ -354,9 +356,9 @@ def quick_generate_hook_clip(
             "hook_package_export": export_result,
             "final_mp4": (render_result.get("data") or {}).get("final_mp4", ""),
         }
-        quick_manifest_path = exports_dir / "quick_hook_clip_manifest.json"
-        render_manifest_path = exports_dir / "render_manifest.json"
-        scene_manifest_path = exports_dir / "scene_manifest.json"
+        quick_manifest_path = ensure_parent_dir(exports_dir / "quick_hook_clip_manifest.json")
+        render_manifest_path = ensure_parent_dir(exports_dir / "render_manifest.json")
+        scene_manifest_path = ensure_parent_dir(exports_dir / "scene_manifest.json")
         quick_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         render_manifest_path.write_text(json.dumps((render_result.get("data") or {}).get("manifest", manifest), ensure_ascii=False, indent=2), encoding="utf-8")
         scene_manifest_path.write_text(
