@@ -54,6 +54,8 @@ from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_engine import apply_character_consistency, create_character_profile
+from core.beat_timing_engine import create_beat_timing_plan
+from core.scene_prompt_engine import build_scene_prompt
 from core.subtitle_engine import generate_styled_subtitles, get_viral_subtitle_preset, list_viral_subtitle_presets, mode_for_preset
 from core.viral_timing_engine import create_viral_timing_plan
 from core.hook_intelligence import analyze_opening_hook
@@ -130,7 +132,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_placeholder_scene, render_real_hook_clip, write_subtitles
+from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, write_subtitles
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
 from core.rendering_presets import get_render_preset_bundle, get_rendering_provider_preset, list_render_preset_bundles, list_rendering_providers
 from core.preset_system import list_global_presets, list_preset_packs, list_project_templates, list_scene_presets
@@ -199,7 +201,7 @@ from core.style_consistency import build_style_consistency_report
 from core.subtitle_engine import generate_subtitles
 from core.timeline_builder import build_timeline
 from core.voiceover_engine import build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
-from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
+from providers.veo_provider import build_veo_payload, get_operation_name, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from providers.image_ai import generate_image
 from providers.video_ai import generate_video
 from scripts.create_source_package import create_source_package
@@ -999,6 +1001,13 @@ def main():
     cloud_style_scene = out / "cloud_paths" / "project_data" / "clips" / "ทดสอบคลาวด์" / "scenes" / "scene_01.mp4"
     assert_true(ensure_parent_dir(cloud_style_scene).parent.exists(), "ensure_parent_dir failed for cloud-style Thai path")
     if find_ffmpeg():
+        hook_audio_trim = trim_audio_clip(
+            voiceover_audio["data"]["audio_path"],
+            out / "hook_clip_projects" / "exports" / "hook_audio.mp3",
+            start_time=0,
+            end_time=2,
+        )
+        assert_true(hook_audio_trim["ok"] and Path(hook_audio_trim["data"]["path"]).exists(), "hook audio trim failed")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         real_clip = render_real_hook_clip(
@@ -1006,14 +1015,17 @@ def main():
             hook_clip_package,
             workflow_type="hook",
             voiceover_path=voiceover_audio["data"]["audio_path"],
+            background_audio_path=hook_audio_trim["data"]["path"],
         )
         assert_true(real_clip["ok"] and Path(real_clip["data"]["final_mp4"]).exists() and Path(real_clip["data"]["subtitles"]).exists(), "real hook MP4 export failed")
+        assert_true(real_clip["data"].get("background_audio_path"), "real hook background audio metadata missing")
         quick_clip = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
             "ทดสอบคลิปสั้นแนวตั้งสำหรับ VelaFlow",
             image_provider="offline",
             voiceover_style="calm narrator",
             preset_id="viral_meme",
+            hook_audio_path=hook_audio_trim["data"]["path"],
         )
         quick_data = quick_clip.get("data", {})
         assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
@@ -1022,10 +1034,21 @@ def main():
         assert_true(Path(quick_data["render_manifest_path"]).exists() and Path(quick_data["scene_manifest_path"]).exists(), "quick hook clip manifests failed")
         assert_true(Path(quick_data["voiceover"]["audio_path"]).name == "voiceover.mp3", "quick hook clip voiceover filename failed")
         assert_true(Path(quick_data["viral_timing_plan_path"]).exists(), "quick hook viral timing plan missing")
+        assert_true(Path(quick_data["scene_prompts_path"]).exists(), "quick hook scene_prompts.json missing")
+        assert_true(Path(quick_data["beat_timing_path"]).exists(), "quick hook beat_timing.json missing")
+        assert_true(Path(quick_data["thumbnail_path"]).exists(), "quick hook thumbnail.jpg missing")
+        assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
+        scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
+        assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
-        for filename in ["final_hook_clip.mp4", "captions.txt", "hashtags.txt", "title.txt", "thumbnail_prompt.txt", "upload_checklist.txt", "viral_timing_plan.json"]:
+        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
-        assert_true("Thai Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")
+        assert_true("TikTok Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")
+        assert_true(get_viral_subtitle_preset("TikTok Meme")["mode"] != get_viral_subtitle_preset("Karaoke Glow")["mode"], "subtitle presets do not differ")
+        prompt_sample = build_scene_prompt("เดินต่อทั้งที่ยังเจ็บ", style="Anime Nostalgia")
+        assert_true("visual metaphor" in prompt_sample["cinematic_prompt"] and prompt_sample["prompt_style"] == "Anime Nostalgia", "scene prompt engine failed")
+        beat_sample = create_beat_timing_plan(total_duration=15, scene_count=3, pace="fast")
+        assert_true(beat_sample["scene_timing"][0]["motion_sync"] == "beat_zoom", "beat timing engine failed")
         timing_plan = create_viral_timing_plan(quick_data["package"], target_duration=15, preset_id="viral_meme")
         assert_true(timing_plan["first_3_seconds"]["opening_line"] and timing_plan["scene_count"] >= 1, "viral timing engine failed")
         song_short_clip = quick_generate_hook_clip(
@@ -1041,6 +1064,9 @@ def main():
         assert_true(song_short_clip["ok"] and Path(song_short_data["final_mp4"]).exists(), "song-to-short final_hook_clip.mp4 export failed")
         assert_true(Path(song_short_data["render"]["subtitles"]).exists(), "song-to-short subtitles.srt export failed")
         assert_true(len((song_short_data.get("package") or {}).get("scene_sequence", [])) == 3, "song-to-short 3-scene structure failed")
+        assert_true(all("project_data\\music" in item.get("path", "") or "project_data/music" in item.get("path", "") for item in song_short_data.get("image_results", [])), "music scene images were not saved under project_data/music")
+        gemini_fallback_image = generate_image("gemini_image", "vertical emotional music hook scene", str(out / "gemini_image_fallback.png"), {"gemini_api_key": "", "size": "512x768", "cache_enabled": False})
+        assert_true(Path(gemini_fallback_image).exists(), "Gemini image fallback failed")
         cute_clip = quick_generate_hook_clip("Smoke Cute Character Clip", "กล้วยพูดได้บ่นเรื่องชีวิต", image_provider="offline", preset_id="cute_character")
         cute_package = cute_clip.get("data", {}).get("package", {})
         assert_true(cute_clip["ok"] and cute_package.get("creator_outcome_preset", {}).get("preset_id") == "cute_character", "cute character quick pipeline failed")
@@ -1051,6 +1077,11 @@ def main():
         prompts = [scene.get("image_prompt", "") for scene in cute_package.get("scene_sequence", [])]
         assert_true(prompts and all("same character" in prompt and "character consistency" in prompt for prompt in prompts), "scene character consistency missing")
     veo_payload = build_veo_payload(prompt=hook_clip_package["render_prompt"], aspect_ratio="9:16", duration_seconds=8, scene_id="scene_01", subtitle_timing=hook_subtitles)
+    class SmokeOperation:
+        name = "models/veo-3.1-generate-preview/operations/smoke-op"
+
+    assert_true(get_operation_name("models/veo-3.1-generate-preview/operations/string-op").endswith("string-op"), "Veo string operation name failed")
+    assert_true(get_operation_name(SmokeOperation()).endswith("smoke-op"), "Veo object operation name failed")
     missing_veo = submit_veo_render_job(veo_payload, api_key="")
     assert_true(veo_payload["aspect_ratio"] == "9:16" and not missing_veo["ok"] and missing_veo["error"] == "missing_api_key", "Veo connector missing-key safety failed")
     assert_true(isinstance(missing_veo["data"].get("provider_error_detail"), dict), "Veo missing-key safe detail failed")

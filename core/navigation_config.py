@@ -19,7 +19,7 @@ FULL_MENU_GROUPS = {
 
 SONG_ONLY_MENU_GROUPS = {
     "START": ["Dashboard"],
-    "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
+    "MUSIC": ["Song Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }
 

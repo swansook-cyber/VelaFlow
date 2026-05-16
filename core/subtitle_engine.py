@@ -47,6 +47,54 @@ SUBTITLE_STYLE_CONFIG = {
 
 
 VIRAL_SUBTITLE_PRESETS = {
+    "TikTok Meme": {
+        "mode": "punch",
+        "font_size": 78,
+        "emphasis_words": ["เดี๋ยวก่อน", "จริง", "พอ", "หยุด", "ทำไม"],
+        "caption_position": "center",
+        "emoji_highlight": True,
+        "timing": "fast first line, punch zoom text, emoji highlights",
+    },
+    "Thai Emotional MV": {
+        "mode": "soft_fade",
+        "font_size": 56,
+        "emphasis_words": ["ใจ", "รัก", "เจ็บ", "คิดถึง", "ลืม"],
+        "caption_position": "bottom",
+        "emoji_highlight": False,
+        "timing": "soft emotional fade with readable lyric pacing",
+    },
+    "Podcast Drama": {
+        "mode": "caption_heavy",
+        "font_size": 54,
+        "emphasis_words": ["ฟังนะ", "เรื่องนี้", "ชีวิต", "จริง ๆ"],
+        "caption_position": "lower_center",
+        "emoji_highlight": False,
+        "timing": "caption-heavy spoken drama pacing",
+    },
+    "Karaoke Glow": {
+        "mode": "karaoke",
+        "font_size": 58,
+        "emphasis_words": ["ใจ", "รัก", "เจ็บ", "คิดถึง", "เดินต่อ"],
+        "caption_position": "bottom",
+        "emoji_highlight": False,
+        "timing": "karaoke glow follows the hook line",
+    },
+    "Fast Punch": {
+        "mode": "meme_caption",
+        "font_size": 74,
+        "emphasis_words": ["อย่าเพิ่ง", "ต้องดู", "พลาดไม่ได้", "โคตร"],
+        "caption_position": "upper_center",
+        "emoji_highlight": True,
+        "timing": "dense fast subtitle bursts",
+    },
+    "Cute Bounce": {
+        "mode": "bounce",
+        "font_size": 68,
+        "emphasis_words": ["น่ารัก", "งง", "แง", "เอ๊ะ"],
+        "caption_position": "lower_center",
+        "emoji_highlight": True,
+        "timing": "bouncy cute character beats",
+    },
     "Thai Meme": {
         "mode": "punch",
         "font_size": 78,
@@ -93,7 +141,7 @@ VIRAL_SUBTITLE_PRESETS = {
         "emphasis_words": ["ลด", "คุ้ม", "ต้องมี", "กด", "โปร"],
         "caption_position": "center",
         "emoji_highlight": True,
-        "timing": "benefit then CTA",
+        "timing": "benefit then CTA with bold call-to-action emphasis",
     },
 }
 
@@ -312,22 +360,26 @@ def generate_styled_subtitles(subtitle_timing: List[Dict[str, Any]], export_dir:
         srt = write_srt(timeline, export_dir / "subtitles.srt", mode)
         ass = write_ass(timeline, export_dir / "styled_subtitles.ass", mode)
         manifest_path = export_dir / "subtitle_manifest.json"
+        style_path = export_dir / "subtitle_style.json"
         config = SUBTITLE_STYLE_CONFIG.get(mode, SUBTITLE_STYLE_CONFIG["punch"])
-        manifest_path.write_text(
-            json.dumps(
-                {
-                    "mode": mode,
-                    "preset_name": subtitle_style if subtitle_style in VIRAL_SUBTITLE_PRESETS else "",
-                    "preset": VIRAL_SUBTITLE_PRESETS.get(subtitle_style, {}),
-                    "style": config,
-                    "srt": str(srt),
-                    "ass": str(ass),
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
-        return {"ok": True, "message": "Styled subtitles generated", "data": {"mode": mode, "style": config, "srt": str(srt), "ass": str(ass), "manifest_path": str(manifest_path)}, "error": ""}
+        payload = {
+            "mode": mode,
+            "preset_name": subtitle_style if subtitle_style in VIRAL_SUBTITLE_PRESETS else "",
+            "preset": VIRAL_SUBTITLE_PRESETS.get(subtitle_style, {}),
+            "style": config,
+            "effects": {
+                "word_emphasis": True,
+                "karaoke_glow": mode == "karaoke",
+                "bounce_animation": mode in {"bounce", "colorful"},
+                "punch_zoom_text": mode in {"punch", "meme_caption"},
+                "emoji_highlights": bool(VIRAL_SUBTITLE_PRESETS.get(subtitle_style, {}).get("emoji_highlight")),
+                "fade_timing": mode in {"soft_fade", "cinematic", "dramatic", "caption_heavy"},
+            },
+            "srt": str(srt),
+            "ass": str(ass),
+        }
+        manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        style_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "message": "Styled subtitles generated", "data": {"mode": mode, "style": config, "srt": str(srt), "ass": str(ass), "manifest_path": str(manifest_path), "subtitle_style_path": str(style_path)}, "error": ""}
     except Exception as exc:
         return {"ok": False, "message": "Styled subtitle generation failed", "data": {}, "error": str(exc)}

@@ -1,8 +1,10 @@
 ﻿from __future__ import annotations
 
+import io
 import json
 import shutil
 import sys
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -155,7 +157,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import render_image_motion_scene, render_real_hook_clip
+from core.real_clip_pipeline import ensure_parent_dir, render_image_motion_scene, render_real_hook_clip, trim_audio_clip
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.render_profiles import RENDER_PROFILES
@@ -776,13 +778,32 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
     if not final_dir.exists():
         return
     st.caption(f"TikTok package: {final_dir}")
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in final_dir.iterdir():
+            if path.is_file():
+                archive.write(path, path.name)
+    st.download_button(
+        "Download TikTok Package",
+        data=zip_buffer.getvalue(),
+        file_name="velaflow_tiktok_package.zip",
+        mime="application/zip",
+        use_container_width=True,
+        key=f"{section_key}_download_tiktok_package_zip",
+    )
     for filename, mime in [
         ("captions.txt", "text/plain"),
         ("hashtags.txt", "text/plain"),
         ("title.txt", "text/plain"),
+        ("thumbnail.jpg", "image/jpeg"),
         ("thumbnail_prompt.txt", "text/plain"),
+        ("styled_subtitles.ass", "text/plain"),
+        ("scene_prompts.json", "application/json"),
+        ("beat_timing.json", "application/json"),
+        ("render_manifest.json", "application/json"),
         ("upload_checklist.txt", "text/plain"),
         ("viral_timing_plan.json", "application/json"),
+        ("hook_audio.mp3", "audio/mpeg"),
     ]:
         path = final_dir / filename
         if path.is_file():
@@ -794,6 +815,86 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
                 use_container_width=True,
                 key=f"{section_key}_download_{filename}",
             )
+
+
+def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = "song") -> dict[str, Any]:
+    if not uploaded:
+        return {"ok": False, "message": "No audio uploaded", "data": {}, "error": "missing_upload"}
+    try:
+        folder = resolve_project_folder(project_name or "project", workflow_type) / "assets" / "audio"
+        folder.mkdir(parents=True, exist_ok=True)
+        suffix = Path(uploaded.name).suffix.lower() if getattr(uploaded, "name", "") else ".mp3"
+        if suffix not in {".mp3", ".wav", ".m4a"}:
+            suffix = ".mp3"
+        path = ensure_parent_dir(folder / f"song_audio{suffix}")
+        path.write_bytes(uploaded.getbuffer())
+        return {"ok": True, "message": "Song audio uploaded", "data": {"path": str(path), "filename": getattr(uploaded, "name", path.name)}, "error": ""}
+    except Exception as exc:
+        return {"ok": False, "message": "Audio upload failed", "data": {}, "error": str(exc)}
+
+
+def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_prefix: str, workflow_type: str = "song") -> dict[str, Any]:
+    st.markdown("**Hook Audio**")
+    uploaded = st.file_uploader("Upload Song Audio", type=["mp3", "wav", "m4a"], key=f"{key_prefix}_song_audio_upload", help="อัปโหลดเพลงเต็ม แล้วตัดเฉพาะช่วง hook ไปใช้เป็นเสียงคลิป")
+    if uploaded:
+        upload_result = _save_uploaded_audio(project_name, uploaded, workflow_type)
+        if upload_result.get("ok"):
+            state["song_audio"] = upload_result["data"]
+            st.success("Song audio uploaded")
+        else:
+            st.warning(upload_result.get("error") or upload_result.get("message"))
+    audio_path = str((state.get("song_audio") or {}).get("path") or "")
+    if audio_path:
+        st.caption(f"Audio: {audio_path}")
+    c1, c2 = st.columns(2)
+    start = c1.number_input("Hook Start Time", min_value=0.0, value=float(state.get("hook_start_time", 15.0)), step=0.5, key=f"{key_prefix}_hook_start")
+    end = c2.number_input("Hook End Time", min_value=1.0, value=float(state.get("hook_end_time", 30.0)), step=0.5, key=f"{key_prefix}_hook_end")
+    state["hook_start_time"] = start
+    state["hook_end_time"] = end
+    hook_audio = str((state.get("hook_audio") or {}).get("path") or "")
+    if st.button("Trim Hook Audio", key=f"{key_prefix}_trim_hook_audio", use_container_width=True, disabled=not bool(audio_path)):
+        project_folder_type = workflow_type if workflow_type in {"song", "clips"} else "song"
+        export_dir = resolve_project_folder(project_name or "project", project_folder_type) / "exports"
+        result = trim_audio_clip(audio_path, export_dir / "hook_audio.mp3", start_time=start, end_time=end, ffmpeg_path=settings.ffmpeg_path)
+        if result.get("ok"):
+            state["hook_audio"] = result["data"]
+            hook_audio = result["data"]["path"]
+            st.success("hook_audio.mp3 exported")
+        else:
+            st.warning(result.get("error") or result.get("message"))
+    if hook_audio and Path(hook_audio).is_file():
+        st.audio(hook_audio)
+        st.download_button("Download hook_audio.mp3", data=Path(hook_audio).read_bytes(), file_name="hook_audio.mp3", mime="audio/mpeg", key=f"{key_prefix}_download_hook_audio", use_container_width=True)
+    return state
+
+
+def _image_provider_controls(key_prefix: str) -> tuple[str, dict[str, Any]]:
+    labels = ["Offline Placeholder", "OpenAI Images", "Gemini Image"]
+    selected = st.selectbox(
+        "Image Provider",
+        labels,
+        index=0,
+        key=f"{key_prefix}_image_provider",
+        help="เลือกตัวสร้างภาพฉาก ถ้า provider ใช้ไม่ได้ VelaFlow จะ fallback เป็น placeholder อัตโนมัติ",
+    )
+    provider = {
+        "Offline Placeholder": "offline",
+        "OpenAI Images": "openai_images",
+        "Gemini Image": "gemini_image",
+    }[selected]
+    settings_payload = {
+        "size": "1024x1536",
+        "quality": "medium",
+        "cache_enabled": False,
+        "openai_api_key": _user_api_key("openai"),
+        "gemini_api_key": _user_api_key("gemini"),
+        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+    }
+    if provider == "openai_images" and not settings_payload["openai_api_key"]:
+        st.info("OpenAI key missing. Placeholder images will be used.")
+    if provider == "gemini_image" and not settings_payload["gemini_api_key"]:
+        st.info("Gemini key missing. Placeholder images will be used.")
+    return provider, settings_payload
 
 
 def _safe_provider_error_text(detail: Any) -> str:
@@ -1895,6 +1996,55 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         st.success("Full lyrics generated and instrument tags normalized")
         st.rerun()
 
+    st.divider()
+    with st.container(border=True):
+        st.markdown("**Or Paste Existing Lyrics**")
+        st.caption("มีเนื้อเพลงอยู่แล้ว วางตรงนี้เพื่อให้ VelaFlow เลือก hook และสร้าง short clip ได้ทันที")
+        pasted_lyrics = st.text_area(
+            "Paste lyrics",
+            value="",
+            height=180,
+            key="song_paste_existing_lyrics",
+            help="วางเนื้อเพลงไทย หรือเนื้อเพลงพร้อม section tags เช่น [Chorus]",
+        )
+        if st.button("Use Pasted Lyrics for Hook Clip", use_container_width=True, disabled=not bool(pasted_lyrics.strip()), key="song_use_pasted_lyrics"):
+            fixed = normalize_lyrics_tags(pasted_lyrics, preset)
+            pasted_song = normalize_song_metadata(
+                {
+                    "title": title,
+                    "artist": artist,
+                    "complete_lyrics": fixed,
+                    "normalized_song_output": fixed,
+                    "artist_preset": preset.get("artist_id", "vela_moon"),
+                    "artist_preset_data": preset,
+                    "music_preset": selected_music_preset_name,
+                    "music_preset_data": selected_music_preset,
+                    "vocal_direction": selected_vocal_direction_name,
+                    "vocal_direction_data": selected_vocal_direction,
+                    "music_style_prompt": _music_style_with_preset(style_override if use_preset else preset.get("default_music_style_prompt", ""), selected_music_preset, selected_vocal_direction),
+                    "instrument_tags_language": "English only",
+                },
+                preset,
+            )
+            best = detect_best_song_hook(pasted_song)
+            pasted_song["selected_hook"] = {
+                "hook_text": best.get("hook_text", ""),
+                "emotional_score": best.get("emotional_score", 0),
+                "catchy_score": best.get("catchy_score", 0),
+                "tiktok_potential": best.get("tiktok_potential", 0),
+                "suggested_usage": best.get("section", "chorus"),
+            }
+            pasted_song["selected_hook_text"] = best.get("hook_text", "")
+            project["title"] = title
+            project["artist"] = artist
+            project["song"] = normalize_song_metadata(pasted_song, preset)
+            st.session_state.generated_song = project["song"]
+            st.session_state.normalized_song_output = project["song"].get("normalized_song_output", "")
+            st.session_state.selected_hook = project["song"].get("selected_hook", {})
+            _save_project()
+            st.success("Lyrics loaded. Best hook selected for short clip.")
+            st.rerun()
+
     song = normalize_song_metadata(project.get("song", {}) or {}, get_artist_preset((project.get("song", {}) or {}).get("artist_preset") or load_default_artist_id()))
     if song.get("hook_candidates") or song.get("normalized_song_output") or song.get("complete_lyrics"):
         project["song"] = song
@@ -1902,7 +2052,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         with t1:
             st.write("Title:", song.get("title", ""))
             st.write("Selected Hook:", song.get("selected_hook_text", ""))
-            st.dataframe(pd.DataFrame(song.get("hook_candidates", [])), use_container_width=True)
+            with st.expander("Hook candidates", expanded=False):
+                st.dataframe(pd.DataFrame(song.get("hook_candidates", [])), use_container_width=True)
         with t2:
             best_hook = detect_best_song_hook(song)
             st.markdown("**Auto Selected Hook for Short Clip**")
@@ -1922,8 +2073,44 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 st.warning("⚠ FFmpeg runtime unavailable. VelaFlow can prepare the hook clip package, but local MP4 rendering needs FFmpeg.")
             else:
                 st.caption(f"✅ FFmpeg runtime ready: {ffmpeg_info.get('path')}")
+            short_clip = song.setdefault("short_clip", short_clip)
+            with st.expander("Upload Song Audio / Hook Audio", expanded=True):
+                st.caption("Audio is optional. If missing, VelaFlow still creates a silent/fallback MP4.")
+                song["short_clip"] = _render_hook_audio_controls(project.get("title") or song.get("title") or title, short_clip, "song_short_clip", "song")
+                project["song"] = song
+                _save_project()
+            content_presets = list_presets()
+            preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
+            default_preset_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
+            selected_clip_preset_label = st.selectbox(
+                "Content Preset",
+                preset_labels,
+                index=default_preset_index,
+                key="song_short_content_preset",
+                help="เลือกโทนผลลัพธ์ของคลิป เช่น Emotional Story หรือ Viral Meme โดยไม่ต้องตั้งค่ากล้อง/จังหวะเอง",
+            )
+            selected_clip_preset = content_presets[preset_labels.index(selected_clip_preset_label)] if content_presets else get_preset("emotional_story")
+            st.caption(str(selected_clip_preset.get("description") or "VelaFlow จะใช้ preset นี้กับภาพ จังหวะ motion และ subtitle"))
+            if st.session_state.get("developer_mode"):
+                image_provider, image_settings = _image_provider_controls("song_short_clip")
+            else:
+                image_settings = {
+                    "size": "1024x1536",
+                    "quality": "medium",
+                    "cache_enabled": False,
+                    "openai_api_key": _user_api_key("openai"),
+                    "gemini_api_key": _user_api_key("gemini"),
+                    "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+                }
+                if image_settings["gemini_api_key"]:
+                    image_provider = "gemini_image"
+                elif image_settings["openai_api_key"]:
+                    image_provider = "openai_images"
+                else:
+                    image_provider = "offline"
+            hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
             if st.button(
-                "🎬 Generate Short Clip from This Hook",
+                "Generate Hook Short Clip",
                 type="primary",
                 use_container_width=True,
                 disabled=not bool(best_hook.get("hook_text")),
@@ -1948,11 +2135,13 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                         source_workflow="music",
                         clip_mode="Fast Hook",
                         duration_seconds=15,
-                        image_provider="offline",
-                        preset_id="emotional_story" if "เศร้า" in str(mood) or "คิดถึง" in str(mood) else "viral_meme",
+                        image_provider=image_provider,
+                        image_settings=image_settings,
+                        preset_id=str(selected_clip_preset.get("preset_id") or "emotional_story"),
                         voiceover_style="emotional storyteller",
                         voiceover_api_key=_user_api_key("openai"),
-                        subtitle_preset="Emotional Karaoke",
+                        subtitle_preset="Thai Emotional MV" if str(selected_clip_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
+                        hook_audio_path=hook_audio_path,
                     )
                 song["short_clip"] = {
                     "selected_hook": best_hook,
@@ -1962,6 +2151,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     "real_output": (result.get("data", {}) or {}).get("render", {}),
                     "final_mp4": (result.get("data", {}) or {}).get("final_mp4", ""),
                     "subtitles": ((result.get("data", {}) or {}).get("render", {}) or {}).get("subtitles", ""),
+                    "hook_audio": (song.get("short_clip") or {}).get("hook_audio", {}),
                     "ok": bool(result.get("ok")),
                     "error": result.get("error", ""),
                 }
@@ -1974,9 +2164,9 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 _save_project()
                 _log_beta_event("generate", workflow="music", preset_bundle="Song-to-Short Hook Clip", metadata={"page": "Song Studio"})
                 if result.get("ok"):
-                    st.success("final_hook_clip.mp4 generated from song hook.")
+                    st.success("Hook short clip generated. Download final_hook_clip.mp4 below.")
                 else:
-                    st.warning(result.get("error") or result.get("message") or "Short clip package generated, but MP4 render needs attention.")
+                    st.warning(result.get("error") or result.get("message") or "Clip package generated, but MP4 render needs attention.")
                 st.rerun()
             if real_output:
                 _render_final_downloads("song_short_clip", real_output)
@@ -1995,7 +2185,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             elif short_clip.get("final_mp4") and Path(str(short_clip.get("final_mp4"))).is_file():
                 _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
             quick_data = short_clip.get("quick_generate") or {}
-            if quick_data.get("manifest_path"):
+            if st.session_state.get("developer_mode") and quick_data.get("manifest_path"):
                 st.caption(f"Clip manifest: {quick_data.get('manifest_path')}")
         with t3:
             st.write("Music Preset:", song.get("music_preset", DEFAULT_MUSIC_PRESET))
@@ -2082,13 +2272,14 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 else:
                     st.warning(result.get("message", "No saved song found"))
             saved_folder = resolve_project_folder(project.get("title", title), project.get("workflow_type") or project.get("project_type"))
-            st.json({
-                "song_json": str(saved_folder / "song.json"),
-                "lyrics_txt": str(saved_folder / "lyrics.txt"),
-                "suno_full_package": str(saved_folder / "exports"),
-                "lyrics_only": str(saved_folder / "exports" / "lyrics_only.txt"),
-                "ready_for_mv_director": bool((song.get("normalized_song_output") or song.get("complete_lyrics")) and song.get("instrument_tag_validation", {}).get("ok", False)),
-            }, expanded=False)
+            with st.expander("Advanced saved paths", expanded=False):
+                st.json({
+                    "song_json": str(saved_folder / "song.json"),
+                    "lyrics_txt": str(saved_folder / "lyrics.txt"),
+                    "suno_full_package": str(saved_folder / "exports"),
+                    "lyrics_only": str(saved_folder / "exports" / "lyrics_only.txt"),
+                    "ready_for_hook_short_clip": bool(song.get("normalized_song_output") or song.get("complete_lyrics")),
+                }, expanded=False)
             _render_suno_downloads(project.get("title", title), song)
         with t6:
             drafts = list_song_drafts(project.get("title", title))
@@ -2201,20 +2392,27 @@ def go_to_page(section_name: str, page_name: str) -> None:
 _sync_navigation_state()
 
 with st.sidebar:
-    st.header("Navigation")
-    workflow_options = ["Full Pipeline", "Song Studio Only", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"]
+    st.header("Music Flow")
+    developer_mode = st.checkbox(
+        "Advanced / Developer Mode",
+        value=bool(st.session_state.get("developer_mode", False)),
+        key="developer_mode",
+        help="เปิดเฉพาะเมื่อต้องการ Seller, Podcast, Viral, MV, Mock Queue หรือ Veo debug",
+    )
+    workflow_options = ["Song Studio Only"] if not developer_mode else ["Song Studio Only", "Full Pipeline", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"]
     current_mode_for_select = st.session_state.get("workflow_mode", "Full Pipeline")
     if current_mode_for_select not in workflow_options:
-        current_mode_for_select = "Full Pipeline"
+        current_mode_for_select = "Song Studio Only"
     selected_mode = st.selectbox(
         "Workflow Mode",
         workflow_options,
         index=workflow_options.index(current_mode_for_select),
         key="workflow_mode_selector",
-        help="Song Studio Only = fast songwriting. Full Pipeline = complete music release. Seller Studio = seller content. Podcast Studio = spoken story scripts. Viral Clips = short-form ideas.",
+        format_func=lambda value: "Music Flow MVP" if value == "Song Studio Only" else value,
+        help="Music Flow MVP = create/paste lyrics, select hook, upload audio, generate a vertical short clip. Advanced mode reveals other beta workflows.",
     )
     if selected_mode == "Song Studio Only":
-        st.caption("Song Studio Only hides Creator Wizard and advanced pipeline tools for a faster songwriting workflow.")
+        st.caption("Music Flow MVP: lyrics → best hook → hook audio → vertical short clip.")
     elif selected_mode == "Seller Studio (Beta)":
         st.caption("Seller Studio focuses on TikTok/Reels/Shorts product content and hides music pipeline tools.")
     elif selected_mode == "Podcast Studio (Beta)":
@@ -2226,8 +2424,9 @@ with st.sidebar:
     else:
         st.caption("Full Pipeline enables Creator Wizard and full release workflow tools.")
     cloud_label = " · Internal Cloud Mode" if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD" else ""
-    st.caption(f"VelaFlow Beta 0.1.0{cloud_label} · Review AI outputs before publishing · Render jobs are mock/local")
-    st.caption("Workflow families ready: Music / Seller / Podcast / MV")
+    st.caption(f"VelaFlow Beta 0.1.0{cloud_label} · Review AI outputs before publishing")
+    if developer_mode:
+        st.caption("Developer workflows visible: Seller / Podcast / Viral / MV / Mock / Veo")
     if selected_mode != st.session_state.get("workflow_mode"):
         st.session_state.workflow_mode = selected_mode
         save_user_preferences({"workflow_mode": selected_mode})
@@ -3031,6 +3230,13 @@ elif page == "Hook Clip Studio":
                 key="quick_hook_clip_idea",
                 help="ใส่ไอเดียสั้น ๆ เช่น เรื่องเศร้า สินค้า ประโยคเด็ด หรือมุกไวรัล",
             )
+            hook_clip_state = project.setdefault("hook_clip_studio", {})
+            with st.expander("Upload Song Audio / Hook Audio", expanded=False):
+                hook_clip_state = _render_hook_audio_controls(project.get("title") or _workflow_default_name("Hook Clip Studio (Beta)"), hook_clip_state, "hook_clip_basic", "clips")
+                project["hook_clip_studio"] = hook_clip_state
+                _save_project()
+            quick_hook_audio_path = str(((hook_clip_state.get("hook_audio") or {}).get("path") or ""))
+            quick_image_provider, quick_image_settings = _image_provider_controls("hook_clip_basic")
             ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
             if not ffmpeg_info.get("ok"):
                 st.warning("⚠ FFmpeg runtime unavailable. VelaFlow can still generate the clip package, but MP4 export needs FFmpeg.")
@@ -3046,7 +3252,8 @@ elif page == "Hook Clip Studio":
                         idea_payload,
                         source_workflow=source_workflow,
                         clip_mode="Fast Hook" if selected_preset.get("pace") in {"fast", "fun"} else "Story Clip",
-                        image_provider="offline",
+                        image_provider=quick_image_provider,
+                        image_settings=quick_image_settings,
                         preset_id=selected_preset.get("preset_id", "viral_meme"),
                         character_type=selected_character_type,
                         character_personality=personality,
@@ -3054,6 +3261,7 @@ elif page == "Hook Clip Studio":
                         character_voice_style=character_voice,
                         voiceover_api_key=_user_api_key("openai"),
                         subtitle_preset="Cute Character Pop" if selected_preset.get("preset_id") == "cute_character" else "Fast Viral Caption",
+                        hook_audio_path=quick_hook_audio_path,
                     )
                 if result.get("data", {}).get("package"):
                     project.setdefault("hook_clip_studio", {})["hook_clip"] = result["data"]["package"]

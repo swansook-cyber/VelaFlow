@@ -161,6 +161,37 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> s
     raise RuntimeError(f"OpenAI image generation failed: {last_error}")
 
 
+def _gemini_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
+    api_key = settings.get("gemini_api_key") or os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        return _placeholder_image(output_path, prompt, "gemini_image_missing_key", settings.get("size", "1024x1536"))
+    model_name = settings.get("gemini_image_model") or os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image-preview")
+    try:
+        from google import genai  # type: ignore
+        from google.genai import types  # type: ignore
+
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
+        )
+        candidates = getattr(response, "candidates", []) or []
+        for candidate in candidates:
+            content = getattr(candidate, "content", None)
+            parts = getattr(content, "parts", []) if content else []
+            for part in parts:
+                inline_data = getattr(part, "inline_data", None)
+                data = getattr(inline_data, "data", None) if inline_data else None
+                if data:
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    output_path.write_bytes(data)
+                    return str(output_path)
+        raise RuntimeError("Gemini image response did not contain image bytes")
+    except Exception:
+        return _placeholder_image(output_path, prompt, "gemini_image_fallback", settings.get("size", "1024x1536"))
+
+
 def _generic_http_image(provider: str, prompt: str, negative_prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
     env_prefix = provider.upper()
     endpoint = settings.get("endpoint") or os.getenv(f"{env_prefix}_API_URL", "")
@@ -209,6 +240,8 @@ def generate_image(provider: str, prompt: str, output_path: str, settings: Dict[
         result = _placeholder_image(output, prompt, provider, settings.get("size", "1024x1024"))
     elif provider == "openai_images":
         result = _openai_image(prompt, output, settings)
+    elif provider in {"gemini_image", "gemini_images"}:
+        result = _gemini_image(prompt, output, settings)
     elif provider in {"flux", "sdxl"}:
         result = _generic_http_image(provider, prompt, negative_prompt, output, settings)
     else:

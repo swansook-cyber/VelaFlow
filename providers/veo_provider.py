@@ -44,6 +44,22 @@ def _missing_key_detail() -> dict[str, Any]:
     }
 
 
+def get_operation_name(operation: Any) -> str:
+    if operation is None:
+        return ""
+    if isinstance(operation, str):
+        return operation
+    for attr in ("name", "operation", "id"):
+        value = getattr(operation, attr, "")
+        if value:
+            return str(value)
+    if isinstance(operation, dict):
+        for key in ("name", "operation", "id", "job_id"):
+            if operation.get(key):
+                return str(operation[key])
+    return str(operation)
+
+
 def build_veo_payload(
     *,
     prompt: str,
@@ -161,7 +177,7 @@ def submit_render_job(payload: dict[str, Any], api_key: str = "", timeout_second
                 "duration_seconds": payload.get("duration_seconds") or 8,
             },
         )
-        job_id = getattr(operation, "name", "") or getattr(operation, "operation", "") or str(operation)
+        job_id = get_operation_name(operation)
         return {
             "ok": True,
             "message": "Veo render job submitted",
@@ -183,16 +199,17 @@ def submit_render_job(payload: dict[str, Any], api_key: str = "", timeout_second
 def _get_operation(client: Any, job: Any) -> Any:
     if hasattr(job, "done") or hasattr(job, "response"):
         return client.operations.get(job)
+    operation_name = get_operation_name(job)
     for call in (
         lambda: client.operations.get(job),
-        lambda: client.operations.get(name=str(job)),
-        lambda: client.operations.get(operation=str(job)),
+        lambda: client.operations.get(name=operation_name),
+        lambda: client.operations.get(operation=operation_name),
     ):
         try:
             return call()
         except TypeError:
             continue
-    return client.operations.get(str(job))
+    return client.operations.get(operation_name)
 
 
 def poll_render_status(job: Any, api_key: str = "", timeout_seconds: int = 10) -> dict[str, Any]:
@@ -203,7 +220,7 @@ def poll_render_status(job: Any, api_key: str = "", timeout_seconds: int = 10) -
 
         client = genai.Client(api_key=api_key)
         operation = _get_operation(client, job)
-        job_id = getattr(operation, "name", "") or str(job)
+        job_id = get_operation_name(operation) or get_operation_name(job)
         if bool(getattr(operation, "done", False)):
             return {"ok": True, "message": "Veo render completed", "data": {"status": "Completed", "job_id": job_id, "provider_method": "client.operations.get"}, "error": ""}
         return {"ok": True, "message": "Veo render still processing", "data": {"status": "Rendering", "job_id": job_id, "provider_method": "client.operations.get"}, "error": ""}
@@ -220,12 +237,13 @@ def download_render_result(job: Any, output_path: str | Path, api_key: str = "")
 
         client = genai.Client(api_key=api_key)
         operation = _get_operation(client, job)
+        job_id = get_operation_name(operation) or get_operation_name(job)
         output = Path(output_path)
         output.parent.mkdir(parents=True, exist_ok=True)
         response = getattr(operation, "response", None)
         videos = getattr(response, "generated_videos", []) if response else []
         if not videos:
-            return {"ok": False, "message": "Veo result is not ready yet", "data": {"status": "Rendering", "provider_method": "client.operations.get", "provider_error_detail": "not_ready: Veo result is still rendering."}, "error": "not_ready"}
+            return {"ok": False, "message": "Veo result is not ready yet", "data": {"status": "Rendering", "job_id": job_id, "provider_method": "client.operations.get", "provider_error_detail": "not_ready: Veo result is still rendering."}, "error": "not_ready"}
         video = videos[0]
         video_file = getattr(video, "video", None)
         if hasattr(client.files, "download") and video_file is not None:
@@ -237,7 +255,7 @@ def download_render_result(job: Any, output_path: str | Path, api_key: str = "")
             if not data:
                 return {"ok": False, "message": "Veo result has no downloadable video bytes", "data": {}, "error": "missing_video_bytes"}
             output.write_bytes(data)
-        return {"ok": True, "message": "Veo render result downloaded", "data": {"path": str(output), "status": "Completed"}, "error": ""}
+        return {"ok": True, "message": "Veo render result downloaded", "data": {"path": str(output), "status": "Completed", "job_id": job_id}, "error": ""}
     except Exception as exc:
         detail = _safe_error_detail(exc, provider_method="client.operations.get/client.files.download", model="")
         return {"ok": False, "message": f"Veo result download failed: {detail['category']}", "data": {"diagnostic": detail["category"], "provider_error_detail": detail}, "error": detail["category"]}

@@ -92,6 +92,52 @@ def write_subtitles(subtitle_timing: list[dict[str, Any]], path: str | Path) -> 
     return {"ok": True, "message": "Subtitles exported", "data": {"path": str(output)}, "error": ""}
 
 
+def trim_audio_clip(
+    source_audio_path: str | Path,
+    output_path: str | Path,
+    *,
+    start_time: float = 0.0,
+    end_time: float = 15.0,
+    ffmpeg_path: str = "",
+    log_path: str | Path | None = None,
+) -> dict[str, Any]:
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    source = Path(source_audio_path)
+    output = ensure_parent_dir(output_path)
+    log = Path(log_path) if log_path else output.with_suffix(".log")
+    if not source.is_file():
+        return {"ok": False, "message": "Source audio missing", "data": {"path": str(output)}, "error": "missing_audio"}
+    if not ffmpeg:
+        return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
+    start = max(0.0, float(start_time or 0))
+    end = max(start + 1.0, float(end_time or start + 15.0))
+    duration = max(1.0, end - start)
+    args = [
+        ffmpeg,
+        "-y",
+        "-ss",
+        f"{start:.3f}",
+        "-i",
+        str(source),
+        "-t",
+        f"{duration:.3f}",
+        "-vn",
+        "-acodec",
+        "libmp3lame",
+        "-b:a",
+        "192k",
+        str(output),
+    ]
+    result = _run_ffmpeg(args, log)
+    clean_error = _clean_ffmpeg_error(result.get("output", ""), "audio_trim_failed")
+    return {
+        "ok": result["ok"] and output.exists(),
+        "message": "Hook audio exported" if result["ok"] else "Hook audio trim failed",
+        "data": {"path": str(output), "start_time": start, "end_time": end, "duration": duration, "log_path": str(log), "ffmpeg_error_detail": clean_error},
+        "error": "" if result["ok"] else clean_error,
+    }
+
+
 def render_placeholder_scene(
     scene: dict[str, Any],
     output_path: str | Path,
@@ -231,6 +277,9 @@ def combine_scene_clips_to_mp4(
     *,
     subtitle_path: str | Path | None = None,
     voiceover_path: str | Path | None = None,
+    background_audio_path: str | Path | None = None,
+    song_volume: float = 0.7,
+    voiceover_volume: float = 1.0,
     ffmpeg_path: str = "",
     log_path: str | Path | None = None,
 ) -> dict[str, Any]:
@@ -253,21 +302,55 @@ def combine_scene_clips_to_mp4(
     input_args = [ffmpeg, "-y", "-i", str(temp_concat)]
     maps = ["-map", "0:v:0"]
     audio_args: list[str] = []
+    filter_complex: list[str] = []
+    audio_inputs: list[tuple[int, float]] = []
+    if background_audio_path and Path(background_audio_path).is_file():
+        input_args += ["-i", str(background_audio_path)]
+        audio_inputs.append((len(audio_inputs) + 1, max(0.0, min(2.0, float(song_volume or 0.7)))))
     if voiceover_path and Path(voiceover_path).is_file():
         input_args += ["-i", str(voiceover_path)]
-        maps += ["-map", "1:a:0"]
+        audio_inputs.append((len(audio_inputs) + 1, max(0.0, min(2.0, float(voiceover_volume or 1.0)))))
+    if len(audio_inputs) == 1:
+        input_index, volume = audio_inputs[0]
+        if abs(volume - 1.0) > 0.01:
+            filter_complex.append(f"[{input_index}:a]volume={volume:.2f}[aout]")
+            maps += ["-map", "[aout]"]
+            audio_args = ["-shortest", "-c:a", "aac"]
+        else:
+            maps += ["-map", f"{input_index}:a:0"]
+            audio_args = ["-shortest", "-c:a", "aac"]
+    elif len(audio_inputs) >= 2:
+        labels = []
+        for idx, (input_index, volume) in enumerate(audio_inputs):
+            label = f"a{idx}"
+            filter_complex.append(f"[{input_index}:a]volume={volume:.2f}[{label}]")
+            labels.append(f"[{label}]")
+        filter_complex.append("".join(labels) + f"amix=inputs={len(labels)}:duration=shortest:dropout_transition=0[aout]")
+        maps += ["-map", "[aout]"]
         audio_args = ["-shortest", "-c:a", "aac"]
     vf = ["format=yuv420p"]
     if subtitle_path and Path(subtitle_path).is_file():
         safe_srt = str(Path(subtitle_path)).replace("\\", "/").replace(":", "\\:")
         vf.insert(0, f"subtitles='{safe_srt}'")
-    final_args = input_args + maps + ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
+    complex_args = ["-filter_complex", ";".join(filter_complex)] if filter_complex else []
+    final_args = input_args + complex_args + maps + ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
     final_result = _run_ffmpeg(final_args, log)
     if not final_result["ok"] and subtitle_path:
-        fallback_args = input_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
+        fallback_args = input_args + complex_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
-    return {"ok": final_result["ok"] and output.exists(), "message": "Final MP4 exported" if final_result["ok"] else "Final MP4 export failed", "data": {"path": str(output), "log_path": str(log), "ffmpeg_error_detail": clean_error}, "error": "" if final_result["ok"] else clean_error}
+    return {
+        "ok": final_result["ok"] and output.exists(),
+        "message": "Final MP4 exported" if final_result["ok"] else "Final MP4 export failed",
+        "data": {
+            "path": str(output),
+            "log_path": str(log),
+            "ffmpeg_error_detail": clean_error,
+            "background_audio_path": str(background_audio_path or ""),
+            "voiceover_path": str(voiceover_path or ""),
+        },
+        "error": "" if final_result["ok"] else clean_error,
+    }
 
 
 def render_real_hook_clip(
@@ -276,11 +359,13 @@ def render_real_hook_clip(
     *,
     workflow_type: str = "hook",
     voiceover_path: str | Path | None = None,
+    background_audio_path: str | Path | None = None,
+    storage_workflow_type: str = "clips",
     ffmpeg_path: str = "",
     force: bool = False,
 ) -> dict[str, Any]:
     try:
-        project_dir = workflow_project_root("clips") / safe_name(project_name or "hook_clip")
+        project_dir = workflow_project_root(storage_workflow_type or "clips") / safe_name(project_name or "hook_clip")
         scenes_dir = project_dir / "scenes"
         exports_dir = project_dir / "exports"
         scenes_dir.mkdir(parents=True, exist_ok=True)
@@ -318,7 +403,15 @@ def render_real_hook_clip(
             "viral_clips": "final_viral_clip.mp4",
         }.get(workflow_type, "final_hook_clip.mp4")
         final_path = ensure_parent_dir(exports_dir / final_name)
-        combine = combine_scene_clips_to_mp4(scene_paths, final_path, subtitle_path=srt_path, voiceover_path=voiceover_path, ffmpeg_path=ffmpeg_path, log_path=log_path)
+        combine = combine_scene_clips_to_mp4(
+            scene_paths,
+            final_path,
+            subtitle_path=srt_path,
+            voiceover_path=voiceover_path,
+            background_audio_path=background_audio_path,
+            ffmpeg_path=ffmpeg_path,
+            log_path=log_path,
+        )
         manifest = {
             "generated_by": "VelaFlow",
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -327,12 +420,13 @@ def render_real_hook_clip(
             "scene_jobs": scene_jobs,
             "subtitle_path": str(srt_path),
             "voiceover_path": str(voiceover_path or ""),
+            "background_audio_path": str(background_audio_path or ""),
             "final_mp4": str(final_path) if combine.get("ok") else "",
             "status": "completed" if combine.get("ok") else "failed",
             "error": combine.get("error", ""),
         }
         manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path)}, "error": combine.get("error", "")}
+        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or "")}, "error": combine.get("error", "")}
     except Exception as exc:
         return {"ok": False, "message": "Real hook clip render failed", "data": {}, "error": str(exc)}

@@ -7,7 +7,7 @@ from typing import Any
 
 from core.project_io import safe_name
 from core.paths import workflow_project_root
-from providers.veo_provider import build_veo_payload, download_render_result, poll_render_status, submit_render_job
+from providers.veo_provider import build_veo_payload, download_render_result, get_operation_name, poll_render_status, submit_render_job
 
 
 def _now() -> str:
@@ -72,7 +72,7 @@ def submit_veo_scene_job(project_name: str, hook_package: dict[str, Any], api_ke
         "scene_id": scene_id,
         "provider": "Google Veo",
         "status": result.get("data", {}).get("status", "failed") if result.get("ok") else "failed",
-        "job_id": result.get("data", {}).get("job_id", ""),
+        "job_id": get_operation_name(result.get("data", {}).get("job_id", "")),
         "created_at": _now(),
         "updated_at": _now(),
         "output_path": str(scene_output_path(project_name, scene_id)),
@@ -92,9 +92,11 @@ def poll_veo_scene_job(project_name: str, api_key: str, scene_id: str = "scene_0
     job = (loaded.get("data", {}).get("jobs", {}) or {}).get(scene_id)
     if not job:
         return {"ok": False, "message": "Scene job not found", "data": {}, "error": "missing_scene_job"}
-    result = poll_render_status(job.get("job_id"), api_key=api_key)
+    job_id = get_operation_name(job.get("job_id"))
+    result = poll_render_status(job_id, api_key=api_key)
     if result.get("ok"):
         job["status"] = result.get("data", {}).get("status", "Rendering")
+        job["job_id"] = get_operation_name(result.get("data", {}).get("job_id") or job_id)
         job["updated_at"] = _now()
         job["error"] = ""
         job["provider_method"] = result.get("data", {}).get("provider_method") or job.get("provider_method", "client.operations.get")
@@ -117,9 +119,11 @@ def download_veo_scene_result(project_name: str, api_key: str, scene_id: str = "
     if not job:
         return {"ok": False, "message": "Scene job not found", "data": {}, "error": "missing_scene_job"}
     output = scene_output_path(project_name, scene_id)
-    result = download_render_result(job.get("job_id"), output, api_key=api_key)
+    job_id = get_operation_name(job.get("job_id"))
+    result = download_render_result(job_id, output, api_key=api_key)
     if result.get("ok"):
         job["status"] = "completed"
+        job["job_id"] = get_operation_name(result.get("data", {}).get("job_id") or job_id)
         job["output_path"] = result.get("data", {}).get("path", str(output))
         job["updated_at"] = _now()
         job["error"] = ""
