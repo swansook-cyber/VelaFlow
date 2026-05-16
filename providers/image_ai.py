@@ -18,6 +18,30 @@ DEFAULT_NEGATIVE_PROMPT = (
 )
 
 
+class ImageProviderError(RuntimeError):
+    def __init__(self, error_type: str, safe_message: str, provider: str = "", exception_type: str = "") -> None:
+        super().__init__(safe_message)
+        self.error_type = error_type
+        self.safe_message = safe_message
+        self.provider = provider
+        self.exception_type = exception_type
+
+
+def _safe_error_message(error: Exception, provider: str) -> tuple[str, str]:
+    text = str(error or "").lower()
+    if isinstance(error, ImageProviderError):
+        return error.error_type, error.safe_message
+    if "quota" in text or "rate limit" in text or "429" in text:
+        return "quota_exceeded", f"{provider} quota or rate limit reached."
+    if "401" in text or "403" in text or "api key" in text or "auth" in text or "permission" in text:
+        return "auth_failed", f"{provider} API key was rejected or lacks image access."
+    if "404" in text or "model" in text:
+        return "model_unavailable", f"{provider} image model is unavailable for this account."
+    if "timeout" in text:
+        return "timeout", f"{provider} image request timed out."
+    return "provider_error", f"{provider} image generation failed."
+
+
 def _safe_name(value: str) -> str:
     cleaned = "".join(ch for ch in (value or "") if ch.isalnum() or ch in (" ", "-", "_")).strip()
     return cleaned.replace(" ", "_") or "image"
@@ -31,12 +55,13 @@ def _cache_key(provider: str, prompt: str, settings: Dict[str, Any]) -> str:
 def _write_prompt_sidecar(output_path: Path, prompt: str, negative_prompt: str, metadata: Dict[str, Any]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     sidecar = output_path.with_suffix(".json")
+    safe_metadata = {k: v for k, v in metadata.items() if "key" not in str(k).lower() and "token" not in str(k).lower() and "secret" not in str(k).lower()}
     sidecar.write_text(
         json.dumps(
             {
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
-                "metadata": metadata,
+                "metadata": safe_metadata,
                 "created_at": time.time(),
             },
             ensure_ascii=False,
@@ -71,6 +96,59 @@ def _placeholder_image(output_path: Path, prompt: str, provider: str, size: str 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(output_path)
     return str(output_path)
+
+
+def _normalize_to_jpg(input_path: Path, output_path: Path, target_ratio: str = "9:16") -> str:
+    width, height = (1080, 1920) if target_ratio == "9:16" else _parse_size("1024x1536")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with Image.open(input_path) as image:
+        image = image.convert("RGB")
+        ratio = max(width / image.width, height / image.height)
+        resized = image.resize((int(image.width * ratio), int(image.height * ratio)))
+        left = max(0, (resized.width - width) // 2)
+        top = max(0, (resized.height - height) // 2)
+        cropped = resized.crop((left, top, left + width, top + height))
+        cropped.save(output_path, "JPEG", quality=92)
+    return str(output_path)
+
+
+def validate_image_file(path: str | Path, *, expected_aspect_ratio: str = "9:16") -> Dict[str, Any]:
+    image_path = Path(path)
+    result: Dict[str, Any] = {
+        "ok": False,
+        "path": str(image_path),
+        "file_exists": image_path.is_file(),
+        "file_size": 0,
+        "width": 0,
+        "height": 0,
+        "aspect_ratio": 0.0,
+        "error": "",
+    }
+    if not image_path.is_file():
+        result["error"] = "missing_image_file"
+        return result
+    result["file_size"] = image_path.stat().st_size
+    if result["file_size"] <= 0:
+        result["error"] = "empty_image_file"
+        return result
+    try:
+        with Image.open(image_path) as image:
+            image.verify()
+        with Image.open(image_path) as image:
+            result["width"] = int(image.width)
+            result["height"] = int(image.height)
+            result["aspect_ratio"] = round(image.width / max(1, image.height), 4)
+    except Exception:
+        result["error"] = "image_not_readable"
+        return result
+    if result["width"] <= 0 or result["height"] <= 0:
+        result["error"] = "invalid_dimensions"
+        return result
+    target = 9 / 16 if expected_aspect_ratio == "9:16" else result["aspect_ratio"]
+    if abs(float(result["aspect_ratio"]) - target) > 0.09:
+        result["error"] = "aspect_ratio_needs_normalization"
+    result["ok"] = result["error"] in {"", "aspect_ratio_needs_normalization"}
+    return result
 
 
 def _wrap_text(text: str, max_chars: int) -> list[str]:
@@ -126,9 +204,9 @@ def _decode_image_payload(data: Dict[str, Any], output_path: Path) -> str | None
 
 
 def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
-    api_key = settings.get("openai_api_key") or os.getenv("OPENAI_API_KEY", "")
+    api_key = settings.get("openai_api_key") or (os.getenv("OPENAI_API_KEY", "") if settings.get("allow_env_key") else "")
     if not api_key:
-        return _placeholder_image(output_path, prompt, "openai_missing_key", settings.get("size", "1024x1024"))
+        raise ImageProviderError("missing_api_key", "OpenAI API key is missing.", "openai_images")
     requested_model = settings.get("openai_image_model") or os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1.5")
     models = list(dict.fromkeys([requested_model, "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"]))
     last_error: Exception | None = None
@@ -158,13 +236,14 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> s
             last_error = error
             if "404" not in str(error) and "model" not in str(error).lower():
                 raise
-    raise RuntimeError(f"OpenAI image generation failed: {last_error}")
+    error_type, safe_message = _safe_error_message(last_error or RuntimeError("unknown"), "OpenAI")
+    raise ImageProviderError(error_type, safe_message, "openai_images", type(last_error).__name__ if last_error else "RuntimeError")
 
 
 def _gemini_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
-    api_key = settings.get("gemini_api_key") or os.getenv("GEMINI_API_KEY", "")
+    api_key = settings.get("gemini_api_key") or (os.getenv("GEMINI_API_KEY", "") if settings.get("allow_env_key") else "")
     if not api_key:
-        return _placeholder_image(output_path, prompt, "gemini_image_missing_key", settings.get("size", "1024x1536"))
+        raise ImageProviderError("missing_api_key", "Gemini API key is missing.", "gemini_image")
     model_name = settings.get("gemini_image_model") or os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image-preview")
     try:
         from google import genai  # type: ignore
@@ -188,8 +267,9 @@ def _gemini_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> s
                     output_path.write_bytes(data)
                     return str(output_path)
         raise RuntimeError("Gemini image response did not contain image bytes")
-    except Exception:
-        return _placeholder_image(output_path, prompt, "gemini_image_fallback", settings.get("size", "1024x1536"))
+    except Exception as error:
+        error_type, safe_message = _safe_error_message(error, "Gemini")
+        raise ImageProviderError(error_type, safe_message, "gemini_image", type(error).__name__)
 
 
 def _generic_http_image(provider: str, prompt: str, negative_prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
@@ -236,18 +316,88 @@ def generate_image(provider: str, prompt: str, output_path: str, settings: Dict[
         output.write_bytes(cache_path.read_bytes())
         return str(output)
 
-    if provider in {"manual", "offline"}:
-        result = _placeholder_image(output, prompt, provider, settings.get("size", "1024x1024"))
-    elif provider == "openai_images":
-        result = _openai_image(prompt, output, settings)
-    elif provider in {"gemini_image", "gemini_images"}:
-        result = _gemini_image(prompt, output, settings)
-    elif provider in {"flux", "sdxl"}:
-        result = _generic_http_image(provider, prompt, negative_prompt, output, settings)
-    else:
-        result = _placeholder_image(output, prompt, f"{provider}_unsupported", settings.get("size", "1024x1024"))
+    diagnostic = generate_image_with_diagnostics(provider, prompt, str(output), settings)
+    result = str((diagnostic.get("data") or {}).get("path") or output)
 
     if use_cache and Path(result).exists():
         IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache_path.write_bytes(Path(result).read_bytes())
     return result
+
+
+def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str, settings: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    settings = settings or {}
+    provider = (provider or "offline").lower()
+    output = Path(output_path).with_suffix(".jpg")
+    raw_output = output.with_suffix(".raw")
+    negative_prompt = settings.get("negative_prompt") or DEFAULT_NEGATIVE_PROMPT
+    character_note = settings.get("character_note", "")
+    if character_note and character_note not in prompt:
+        prompt = f"{prompt}, character consistency: {character_note}"
+    _write_prompt_sidecar(output, prompt, negative_prompt, {"provider": provider, **{k: v for k, v in settings.items() if "key" not in k.lower()}})
+    provider_used = provider
+    fallback_used = False
+    fallback_reason = ""
+    error_type = ""
+    safe_error_message = ""
+    exception_type = ""
+    try:
+        if provider in {"manual", "offline"}:
+            fallback_used = True
+            fallback_reason = "offline_placeholder_selected"
+            provider_used = "offline"
+            generated = _placeholder_image(output, prompt, "offline_placeholder", settings.get("size", "1024x1536"))
+        elif provider == "openai_images":
+            generated = _openai_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+        elif provider in {"gemini_image", "gemini_images"}:
+            generated = _gemini_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+        elif provider in {"flux", "sdxl"}:
+            generated = _generic_http_image(provider, prompt, negative_prompt, raw_output, settings)
+        else:
+            raise ImageProviderError("unsupported_provider", f"{provider} is not supported for image generation.", provider)
+        generated_path = Path(generated)
+        if not fallback_used:
+            generated = _normalize_to_jpg(generated_path, output, "9:16")
+            if generated_path != output and generated_path.exists():
+                try:
+                    generated_path.unlink()
+                except Exception:
+                    pass
+    except Exception as error:
+        fallback_used = True
+        error_type, safe_error_message = _safe_error_message(error, provider)
+        exception_type = getattr(error, "exception_type", "") or type(error).__name__
+        fallback_reason = error_type
+        provider_used = "offline"
+        generated = _placeholder_image(output, prompt, f"{provider}_{error_type}", settings.get("size", "1024x1536"))
+    validation = validate_image_file(generated, expected_aspect_ratio="9:16")
+    if validation.get("error") == "aspect_ratio_needs_normalization":
+        generated = _normalize_to_jpg(Path(generated), output, "9:16")
+        validation = validate_image_file(generated, expected_aspect_ratio="9:16")
+    ok = bool(validation.get("ok"))
+    if not ok and not fallback_used:
+        fallback_used = True
+        fallback_reason = validation.get("error", "validation_failed")
+        error_type = fallback_reason
+        safe_error_message = "Generated image failed validation; placeholder was used for this scene."
+        provider_used = "offline"
+        generated = _placeholder_image(output, prompt, f"{provider}_{fallback_reason}", settings.get("size", "1024x1536"))
+        validation = validate_image_file(generated, expected_aspect_ratio="9:16")
+        ok = bool(validation.get("ok"))
+    return {
+        "ok": ok,
+        "message": "Image generated" if ok and not fallback_used else "Image placeholder fallback used",
+        "data": {
+            "path": str(generated),
+            "provider_requested": provider,
+            "provider_used": provider_used,
+            "fallback_used": fallback_used,
+            "fallback_reason": fallback_reason,
+            "error_type": error_type,
+            "safe_error_message": safe_error_message,
+            "sdk_exception_type": exception_type,
+            "validation": validation,
+            "prompt": prompt,
+        },
+        "error": "" if ok else validation.get("error", "image_generation_failed"),
+    }

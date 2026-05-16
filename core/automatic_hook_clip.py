@@ -19,7 +19,7 @@ from core.subtitle_engine import generate_styled_subtitles
 from core.thumbnail_selector import export_thumbnail
 from core.viral_timing_engine import create_viral_timing_plan, save_viral_timing_plan
 from core.voiceover_engine import generate_voiceover_audio
-from providers.image_ai import generate_image
+from providers.image_ai import generate_image, generate_image_with_diagnostics
 
 
 DEFAULT_VISUAL_SETTINGS = {
@@ -86,6 +86,14 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         render_manifest = Path(str(render_data.get("manifest_path") or package.get("render_manifest_path") or ""))
         if render_manifest.is_file():
             shutil.copy2(render_manifest, ensure_parent_dir(final_dir / "render_manifest.json"))
+        image_manifest = Path(str(render_data.get("image_generation_manifest") or package.get("image_generation_manifest_path") or ""))
+        if image_manifest.is_file():
+            shutil.copy2(image_manifest, ensure_parent_dir(final_dir / "image_generation_manifest.json"))
+        for item in package.get("image_results", []) or []:
+            image_path = Path(str(item.get("path") or ""))
+            scene_id = str(item.get("scene_id") or image_path.stem or "scene")
+            if image_path.is_file():
+                shutil.copy2(image_path, ensure_parent_dir(final_dir / f"{safe_name(scene_id)}.jpg"))
         hook_audio = Path(str(package.get("hook_audio_path") or render_data.get("background_audio_path") or ""))
         if hook_audio.is_file():
             shutil.copy2(hook_audio, ensure_parent_dir(final_dir / "hook_audio.mp3"))
@@ -132,6 +140,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "scene_prompts": str(final_dir / "scene_prompts.json") if (final_dir / "scene_prompts.json").is_file() else "",
             "beat_timing": str(final_dir / "beat_timing.json") if (final_dir / "beat_timing.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
+            "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
             "files": written,
         }
@@ -215,21 +224,34 @@ def _generate_scene_images(
     for index, scene in enumerate(package.get("scene_sequence", []) or [], start=1):
         scene_id = str(scene.get("scene_id") or f"scene_{index:02d}")
         prompt = _scene_image_prompt(scene, idea, preset, character_profile, consistency_strength)
-        output_path = images_dir / f"{safe_name(scene_id)}.png"
+        output_path = images_dir / f"{safe_name(scene_id)}.jpg"
         provider_used = image_provider or "offline"
-        try:
-            image_path = generate_image(provider_used, prompt, str(output_path), settings)
-            ok = Path(image_path).is_file()
-            error = ""
-        except Exception as exc:
-            provider_used = "offline"
-            image_path = generate_image("offline", prompt, str(output_path), settings)
-            ok = Path(image_path).is_file()
-            error = str(exc)
+        diagnostic = generate_image_with_diagnostics(provider_used, prompt, str(output_path), settings)
+        image_path = str((diagnostic.get("data") or {}).get("path") or output_path)
+        ok = bool(diagnostic.get("ok")) and Path(image_path).is_file()
+        error = diagnostic.get("error", "")
+        provider_used = str((diagnostic.get("data") or {}).get("provider_used") or provider_used)
         scene["image_prompt"] = prompt
         scene["source_image_path"] = str(image_path)
         scene["image_provider"] = provider_used
-        results.append({"scene_id": scene_id, "ok": ok, "provider": provider_used, "path": str(image_path), "prompt": prompt, "error": error})
+        scene["image_fallback_used"] = bool((diagnostic.get("data") or {}).get("fallback_used"))
+        results.append(
+            {
+                "scene_id": scene_id,
+                "ok": ok,
+                "provider": provider_used,
+                "provider_used": provider_used,
+                "provider_requested": (diagnostic.get("data") or {}).get("provider_requested", image_provider),
+                "fallback_used": bool((diagnostic.get("data") or {}).get("fallback_used")),
+                "fallback_reason": (diagnostic.get("data") or {}).get("fallback_reason", ""),
+                "error_type": (diagnostic.get("data") or {}).get("error_type", ""),
+                "safe_error_message": (diagnostic.get("data") or {}).get("safe_error_message", ""),
+                "validation": (diagnostic.get("data") or {}).get("validation", {}),
+                "path": str(image_path),
+                "prompt": prompt,
+                "error": error,
+            }
+        )
     return results
 
 
@@ -365,6 +387,19 @@ def quick_generate_hook_clip(
             storage_workflow_type=storage_workflow_type,
             image_settings=image_settings,
         )
+        package["image_results"] = image_results
+        image_manifest_path = ensure_parent_dir(exports_dir / "image_generation_manifest.json")
+        image_manifest = {
+            "generated_by": "VelaFlow",
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "project_name": project_name,
+            "provider_requested": image_provider or "offline",
+            "fallback_count": sum(1 for item in image_results if item.get("fallback_used")),
+            "images": image_results,
+            "api_keys_exported": False,
+        }
+        image_manifest_path.write_text(json.dumps(image_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        package["image_generation_manifest_path"] = str(image_manifest_path)
         voice_script = _voiceover_script(package)
         package["voiceover_script"] = voice_script
         voice_result = generate_voiceover_audio(
@@ -399,6 +434,7 @@ def quick_generate_hook_clip(
             "thumbnail": package.get("thumbnail_path", ""),
             "scene_prompts": package.get("scene_prompts_path", ""),
             "beat_timing": package.get("beat_timing_path", ""),
+            "image_generation_manifest": package.get("image_generation_manifest_path", ""),
         }
         tiktok_package = export_tiktok_package(project_name, package, render_data_for_export)
         manifest = {
@@ -411,6 +447,8 @@ def quick_generate_hook_clip(
             "preset": preset,
             "image_provider": image_provider or "offline",
             "image_results": image_results,
+            "image_generation_manifest": image_manifest,
+            "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
             "character_profile": character_profile or {},
             "character_profile_path": (character_save.get("data") or {}).get("path", ""),
             "hook_analysis": hook_analysis,
@@ -434,7 +472,10 @@ def quick_generate_hook_clip(
         render_manifest_path = ensure_parent_dir(exports_dir / "render_manifest.json")
         scene_manifest_path = ensure_parent_dir(exports_dir / "scene_manifest.json")
         quick_manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        render_manifest_path.write_text(json.dumps((render_result.get("data") or {}).get("manifest", manifest), ensure_ascii=False, indent=2), encoding="utf-8")
+        render_manifest_payload = dict((render_result.get("data") or {}).get("manifest", manifest))
+        render_manifest_payload["image_results"] = image_results
+        render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
+        render_manifest_path.write_text(json.dumps(render_manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
         scene_manifest_path.write_text(
             json.dumps(
                 {
@@ -446,6 +487,7 @@ def quick_generate_hook_clip(
                     "hook_analysis": hook_analysis,
                     "scenes": package.get("scene_sequence", []),
                     "image_results": image_results,
+                    "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -460,6 +502,7 @@ def quick_generate_hook_clip(
                 "package": package,
                 "package_export": export_result.get("data", {}),
                 "image_results": image_results,
+                "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                 "character_profile": character_profile or {},
                 "character_profile_path": (character_save.get("data") or {}).get("path", ""),
                 "hook_analysis": hook_analysis,

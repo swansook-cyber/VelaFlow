@@ -2169,6 +2169,24 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.rerun()
 
         st.markdown("## ✅ Preview / Download")
+        quick_data = short_clip.get("quick_generate") or {}
+        image_results = quick_data.get("image_results") or []
+        if image_results:
+            st.markdown("**Generated Scene Images**")
+            cols = st.columns(min(3, max(1, len(image_results))))
+            for index, item in enumerate(image_results):
+                path = Path(str(item.get("path") or ""))
+                with cols[index % len(cols)]:
+                    if path.is_file():
+                        st.image(str(path), caption=str(item.get("scene_id") or path.stem), use_container_width=True)
+                    provider_label = str(item.get("provider") or item.get("provider_used") or "-")
+                    fallback_used = bool(item.get("fallback_used"))
+                    if fallback_used:
+                        st.warning(f"Fallback image: {item.get('fallback_reason') or item.get('error_type') or 'provider unavailable'}")
+                    else:
+                        st.caption(f"Provider: {provider_label}")
+                    if st.session_state.get("developer_mode") and item.get("safe_error_message"):
+                        st.caption(str(item.get("safe_error_message")))
         if real_output:
             _render_final_downloads("song_short_clip", real_output)
             package_data = (short_clip.get("quick_generate") or {}).get("tiktok_package") or {}
@@ -2187,7 +2205,6 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
         else:
             st.info("Generate TikTok Hook Clip แล้ว preview และ download จะขึ้นตรงนี้ทันที")
-        quick_data = short_clip.get("quick_generate") or {}
         if st.session_state.get("developer_mode") and quick_data.get("manifest_path"):
             st.caption(f"Clip manifest: {quick_data.get('manifest_path')}")
 
