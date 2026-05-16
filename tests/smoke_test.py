@@ -1041,6 +1041,9 @@ def main():
         assert_true(real_clip["data"]["render_stage"].get("render_mode_used") == "static_safe", "render stage static_safe mode missing")
         assert_true(real_clip["data"]["render_stage"].get("completed_scene_count") == 3, "render stage completed scene count failed")
         assert_true(real_clip["data"]["render_stage"].get("ffmpeg_return_code") == 0, "render stage ffmpeg return code failed")
+        assert_true(real_clip["data"]["render_stage"].get("subtitle_burned") or real_clip["data"]["render_stage"].get("subtitle_status") == "exported_only", "subtitle burn/export status missing")
+        assert_true(real_clip["data"]["render_stage"].get("audio_sync_status") in {"matched_hook_audio", "matched_video", "silent_audio"}, "audio sync status missing")
+        assert_true(abs(float(real_clip["data"]["duration"] or 0) - float(real_clip["data"]["render_stage"].get("target_duration") or 0)) < 0.35, "final MP4 duration not synced to target")
         assert_true(real_clip["data"]["render_stage"]["scene_jobs"] and real_clip["data"]["render_stage"]["scene_jobs"][0].get("ffmpeg_return_code") == 0, "render stage ffmpeg scene diagnostics failed")
         assert_true(all(job.get("render_mode_used") == "static_safe" for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene jobs did not use static_safe")
         for scene_filename in ["scene_01.mp4", "scene_02.mp4", "scene_03.mp4"]:
@@ -1060,6 +1063,8 @@ def main():
         assert_true(validate_mp4(quick_data["final_mp4"])["valid_mp4"], "quick hook final_hook_clip.mp4 not playable")
         assert_true((quick_data["render"].get("render_stage") or {}).get("render_mode_used") == "static_safe", "quick hook static_safe render stage missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("completed_scene_count") == 3, "quick hook scene render count failed")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("subtitle_status") in {"burned", "exported_only"}, "quick hook subtitle status missing")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("audio_sync_status") in {"matched_hook_audio", "matched_video", "silent_audio"}, "quick hook audio sync status missing")
         assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
         assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")

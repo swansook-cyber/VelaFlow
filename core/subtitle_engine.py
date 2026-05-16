@@ -46,6 +46,70 @@ SUBTITLE_STYLE_CONFIG = {
 }
 
 
+def _looks_mojibake(text: str) -> bool:
+    return any(marker in str(text or "") for marker in ["เธ", "เน", "๐", "�"])
+
+
+def clean_subtitle_text(text: str) -> str:
+    cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+    return cleaned
+
+
+def split_readable_subtitle(text: str, *, max_chars: int = 26) -> List[str]:
+    cleaned = clean_subtitle_text(text)
+    if not cleaned:
+        return []
+    words = cleaned.split(" ")
+    if len(words) > 1:
+        lines: List[str] = []
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}".strip()
+            if current and len(candidate) > max_chars:
+                lines.append(current)
+                current = word
+            else:
+                current = candidate
+        if current:
+            lines.append(current)
+        return lines[:2] if lines else []
+    if len(cleaned) <= max_chars:
+        return [cleaned]
+    midpoint = len(cleaned) // 2
+    split_at = midpoint
+    punctuation = " ,.!?ๆฯ/|"
+    for radius in range(0, min(10, midpoint) + 1):
+        for candidate in (midpoint - radius, midpoint + radius):
+            if 0 < candidate < len(cleaned) and cleaned[candidate] in punctuation:
+                split_at = candidate + 1
+                break
+        if split_at != midpoint:
+            break
+    first = cleaned[:split_at].strip()
+    second = cleaned[split_at:].strip()
+    return [part for part in [first, second] if part][:2]
+
+
+def normalize_subtitle_timing(subtitle_timing: List[Dict[str, Any]], total_duration: float) -> List[Dict[str, Any]]:
+    duration = max(1.0, float(total_duration or 1.0))
+    raw_items = subtitle_timing or []
+    texts: List[str] = []
+    for item in raw_items:
+        text = clean_subtitle_text(item.get("subtitle") or item.get("text") or item.get("subtitle_text") or "")
+        if text:
+            texts.extend(split_readable_subtitle(text))
+    if not texts:
+        texts = ["VelaFlow Hook Clip"]
+    readable = texts[: max(1, min(8, len(texts)))]
+    slot = duration / len(readable)
+    events: List[Dict[str, Any]] = []
+    for index, text in enumerate(readable):
+        start = index * slot
+        end = duration if index == len(readable) - 1 else min(duration, (index + 1) * slot)
+        events.append({"start": start, "end": max(start + 0.5, end), "subtitle": text, "text": text, "index": index + 1})
+    return events
+
+
 VIRAL_SUBTITLE_PRESETS = {
     "TikTok Meme": {
         "mode": "punch",
@@ -211,9 +275,12 @@ def _ass_animated_text(text: str, mode: str, duration: float) -> str:
 
 
 def split_subtitle_text(text: str, max_chars: int = 42) -> List[str]:
-    cleaned = re.sub(r"\s+", " ", (text or "").strip())
+    cleaned = clean_subtitle_text(text)
     if not cleaned:
         return []
+    compact_lines = split_readable_subtitle(cleaned, max_chars=min(max_chars, 30))
+    if compact_lines:
+        return compact_lines
     chunks: List[str] = []
     current = ""
     for part in re.split(r"([,，ๆ.!?]|/)", cleaned):
@@ -364,6 +431,9 @@ def generate_styled_subtitles(subtitle_timing: List[Dict[str, Any]], export_dir:
         config = SUBTITLE_STYLE_CONFIG.get(mode, SUBTITLE_STYLE_CONFIG["punch"])
         payload = {
             "mode": mode,
+            "utf8_bom": True,
+            "thai_safe": True,
+            "mojibake_detected": any(_looks_mojibake(item.get("subtitle") or item.get("text") or "") for item in subtitle_timing or []),
             "preset_name": subtitle_style if subtitle_style in VIRAL_SUBTITLE_PRESETS else "",
             "preset": VIRAL_SUBTITLE_PRESETS.get(subtitle_style, {}),
             "style": config,

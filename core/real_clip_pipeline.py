@@ -11,6 +11,7 @@ from core.paths import workflow_project_root
 from core.scene_story_engine import build_subtitle_timing
 from core.ffmpeg_utils import configure_moviepy_ffmpeg, resolve_ffmpeg_path
 from core.motion_engine import image_motion_filter as build_motion_filter
+from core.subtitle_engine import generate_styled_subtitles, normalize_subtitle_timing
 
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
@@ -202,6 +203,19 @@ def _write_render_stage(exports_dir: Path, stage: dict[str, Any]) -> Path:
     return path
 
 
+def _media_duration(path: str | Path | None, *, ffmpeg_path: str = "") -> float:
+    if not path or not Path(path).is_file():
+        return 0.0
+    return max(0.0, float(probe_media(path, ffmpeg_path=ffmpeg_path).get("duration") or 0.0))
+
+
+def _ffmpeg_subtitle_path(path: str | Path) -> str:
+    value = str(Path(path).resolve()).replace("\\", "/")
+    if len(value) > 1 and value[1] == ":":
+        value = value[0] + r"\:" + value[2:]
+    return value.replace("'", r"\'")
+
+
 def _srt_time(seconds: float) -> str:
     ms = int(round((seconds - int(seconds)) * 1000))
     total = int(seconds)
@@ -211,11 +225,13 @@ def _srt_time(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 
-def write_subtitles(subtitle_timing: list[dict[str, Any]], path: str | Path) -> dict[str, Any]:
+def write_subtitles(subtitle_timing: list[dict[str, Any]], path: str | Path, *, total_duration: float = 0.0) -> dict[str, Any]:
     output = ensure_parent_dir(path)
+    if total_duration:
+        subtitle_timing = normalize_subtitle_timing(subtitle_timing, total_duration)
     blocks = []
     for idx, item in enumerate(subtitle_timing, start=1):
-        text = str(item.get("subtitle") or "").strip() or " "
+        text = str(item.get("subtitle") or item.get("text") or "").strip() or " "
         blocks.append(f"{idx}\n{_srt_time(float(item.get('start', 0) or 0))} --> {_srt_time(float(item.get('end', 1) or 1))}\n{text}\n")
     output.write_text("\n".join(blocks), encoding="utf-8-sig")
     return {"ok": True, "message": "Subtitles exported", "data": {"path": str(output)}, "error": ""}
@@ -574,7 +590,15 @@ def combine_scene_clips_to_mp4(
     concat_result = _run_ffmpeg(concat_args, log)
     if not concat_result["ok"]:
         return {"ok": False, "message": "Scene concat failed", "data": {"path": str(output), "log_path": str(log)}, "error": _clean_ffmpeg_error(concat_result.get("output", ""), "scene_concat_failed")}
-    input_args = [ffmpeg, "-y", "-i", str(temp_concat)]
+    concat_duration = _media_duration(temp_concat, ffmpeg_path=ffmpeg)
+    hook_audio_duration = _media_duration(background_audio_path, ffmpeg_path=ffmpeg)
+    voiceover_duration = _media_duration(voiceover_path, ffmpeg_path=ffmpeg)
+    target_duration = hook_audio_duration or min(concat_duration, voiceover_duration) if voiceover_duration else concat_duration
+    target_duration = max(1.0, float(target_duration or concat_duration or 1.0))
+    input_args = [ffmpeg, "-y"]
+    if target_duration > concat_duration + 0.1:
+        input_args += ["-stream_loop", "-1"]
+    input_args += ["-i", str(temp_concat)]
     maps = ["-map", "0:v:0"]
     audio_args: list[str] = []
     filter_complex: list[str] = []
@@ -587,9 +611,7 @@ def combine_scene_clips_to_mp4(
         audio_inputs.append((len(audio_inputs) + 1, max(0.0, min(2.0, float(voiceover_volume or 1.0)))))
     audio_source = "provided" if audio_inputs else "silent"
     if not audio_inputs:
-        concat_probe = probe_media(temp_concat, ffmpeg_path=ffmpeg)
-        silent_duration = max(1.0, float(concat_probe.get("duration") or 1.0))
-        input_args += ["-f", "lavfi", "-t", f"{silent_duration:.3f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+        input_args += ["-f", "lavfi", "-t", f"{target_duration:.3f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
         audio_inputs.append((1, 1.0))
     if len(audio_inputs) == 1:
         input_index, volume = audio_inputs[0]
@@ -611,14 +633,14 @@ def combine_scene_clips_to_mp4(
         audio_args = ["-shortest", "-c:a", "aac"]
     vf = ["format=yuv420p"]
     if subtitle_path and Path(subtitle_path).is_file():
-        safe_srt = str(Path(subtitle_path)).replace("\\", "/").replace(":", "\\:")
-        vf.insert(0, f"subtitles='{safe_srt}'")
+        safe_subtitle = _ffmpeg_subtitle_path(subtitle_path)
+        vf.insert(0, f"subtitles='{safe_subtitle}':charenc=UTF-8:force_style='Fontname=Arial,Fontsize=24,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H7F000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=105'")
     complex_args = ["-filter_complex", ";".join(filter_complex)] if filter_complex else []
-    final_args = input_args + complex_args + maps + ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
+    final_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
     final_result = _run_ffmpeg(final_args, log)
     subtitle_burned = bool(final_result["ok"] and subtitle_path)
     if not final_result["ok"] and subtitle_path:
-        fallback_args = input_args + complex_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
+        fallback_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
         subtitle_burned = False
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
@@ -633,8 +655,13 @@ def combine_scene_clips_to_mp4(
             "background_audio_path": str(background_audio_path or ""),
             "voiceover_path": str(voiceover_path or ""),
             "subtitle_burned": subtitle_burned,
+            "subtitle_status": "burned" if subtitle_burned else ("exported_only" if subtitle_path else "none"),
             "audio_attached": bool(audio_inputs),
             "audio_source": audio_source,
+            "audio_sync_status": "matched_hook_audio" if hook_audio_duration else ("silent_audio" if audio_source == "silent" else "matched_video"),
+            "target_duration": target_duration,
+            "hook_audio_duration": hook_audio_duration,
+            "source_video_duration": concat_duration,
             "validation": validation,
             "duration": validation.get("duration", 0),
             "file_size": validation.get("file_size", 0),
@@ -666,8 +693,17 @@ def render_real_hook_clip(
             return {"ok": False, "message": "No hook scenes available", "data": {}, "error": "missing_scenes"}
         aspect_ratio = str((hook_package.get("render_settings") or {}).get("aspect_ratio") or "9:16")
         subtitle_timing = hook_package.get("subtitle_timing") or build_subtitle_timing(scenes)
+        hook_audio_duration = _media_duration(background_audio_path, ffmpeg_path=ffmpeg_path or "ffmpeg")
+        scene_total_duration = sum(max(0.5, float(scene.get("duration", STATIC_SAFE_SCENE_DURATION) or STATIC_SAFE_SCENE_DURATION)) for scene in scenes)
+        final_target_duration = hook_audio_duration or scene_total_duration or STATIC_SAFE_SCENE_DURATION * len(scenes)
+        subtitle_timing = normalize_subtitle_timing(subtitle_timing, final_target_duration)
         srt_path = exports_dir / "subtitles.srt"
-        write_subtitles(subtitle_timing, srt_path)
+        write_subtitles(subtitle_timing, srt_path, total_duration=final_target_duration)
+        subtitle_style = str(hook_package.get("subtitle_animation") or hook_package.get("subtitle_style") or "")
+        preset_id = str((hook_package.get("creator_outcome_preset") or {}).get("preset_id") or "")
+        styled_subtitle = generate_styled_subtitles(subtitle_timing, exports_dir, preset_id=preset_id, subtitle_style=subtitle_style)
+        ass_path = Path(str((styled_subtitle.get("data") or {}).get("ass") or ""))
+        burn_subtitle_path = ass_path if ass_path.is_file() else srt_path
         render_stage = {
             "render_mode_used": "static_safe",
             "scene_render_ok": False,
@@ -677,6 +713,13 @@ def render_real_hook_clip(
             "final_mp4_ok": False,
             "final_mp4_path": "",
             "safe_error_message": "",
+            "subtitle_burned": False,
+            "subtitle_status": "exported",
+            "subtitle_path": str(srt_path),
+            "styled_subtitle_path": str(ass_path) if ass_path.is_file() else "",
+            "audio_sync_status": "",
+            "target_duration": final_target_duration,
+            "hook_audio_duration": hook_audio_duration,
             "scene_count": len(scenes),
             "completed_scene_count": 0,
             "ffmpeg_return_code": -1,
@@ -732,6 +775,7 @@ def render_real_hook_clip(
                     "combine_ok": False,
                     "audio_attach_ok": False,
                     "subtitle_ok": bool(srt_path.is_file()),
+                    "subtitle_status": "exported_only",
                     "final_mp4_ok": False,
                     "final_mp4_path": "",
                     "safe_error_message": "Render failed: scene video could not be created",
@@ -783,7 +827,7 @@ def render_real_hook_clip(
         combine = combine_scene_clips_to_mp4(
             scene_paths,
             final_path,
-            subtitle_path=srt_path,
+            subtitle_path=burn_subtitle_path,
             voiceover_path=voiceover_path,
             background_audio_path=background_audio_path,
             ffmpeg_path=ffmpeg_path,
@@ -796,6 +840,11 @@ def render_real_hook_clip(
                 "combine_ok": bool(combine.get("ok")),
                 "audio_attach_ok": bool(combine_data.get("audio_attached")) if (background_audio_path or voiceover_path) else True,
                 "subtitle_ok": bool(srt_path.is_file()),
+                "subtitle_burned": bool(combine_data.get("subtitle_burned")),
+                "subtitle_status": combine_data.get("subtitle_status", "exported_only"),
+                "audio_sync_status": combine_data.get("audio_sync_status", ""),
+                "target_duration": combine_data.get("target_duration", final_target_duration),
+                "hook_audio_duration": combine_data.get("hook_audio_duration", hook_audio_duration),
                 "final_mp4_ok": bool(final_validation.get("valid_mp4", False)),
                 "final_mp4_path": str(final_path) if final_path.is_file() else "",
                 "safe_error_message": "" if combine.get("ok") else (combine.get("error") or "Final MP4 render failed"),
@@ -811,6 +860,7 @@ def render_real_hook_clip(
             "workflow_type": workflow_type,
             "scene_jobs": scene_jobs,
             "subtitle_path": str(srt_path),
+            "styled_subtitle_path": str(ass_path) if ass_path.is_file() else "",
             "voiceover_path": str(voiceover_path or ""),
             "background_audio_path": str(background_audio_path or ""),
             "final_mp4": str(final_path) if combine.get("ok") else "",
@@ -819,11 +869,13 @@ def render_real_hook_clip(
             "duration": (combine.get("data") or {}).get("duration", 0),
             "validation": (combine.get("data") or {}).get("validation", {}),
             "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False),
+            "subtitle_status": (combine.get("data") or {}).get("subtitle_status", "exported_only"),
+            "audio_sync_status": (combine.get("data") or {}).get("audio_sync_status", ""),
             "render_stage_path": str(render_stage_path),
             "render_stage": render_stage,
         }
         manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "render_stage_path": str(render_stage_path), "render_stage": render_stage, "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False), "audio_attached": (combine.get("data") or {}).get("audio_attached", False)}, "error": combine.get("error", "")}
+        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "render_stage_path": str(render_stage_path), "render_stage": render_stage, "final_mp4": str(final_path), "subtitles": str(srt_path), "styled_subtitles": str(ass_path) if ass_path.is_file() else "", "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False), "subtitle_status": (combine.get("data") or {}).get("subtitle_status", "exported_only"), "audio_sync_status": (combine.get("data") or {}).get("audio_sync_status", ""), "audio_attached": (combine.get("data") or {}).get("audio_attached", False)}, "error": combine.get("error", "")}
     except Exception as exc:
         return {"ok": False, "message": "Real hook clip render failed", "data": {}, "error": str(exc)}

@@ -773,6 +773,12 @@ def _render_final_downloads(section_key: str, real_output: dict[str, Any]) -> No
     if real_output.get("final_mp4") and Path(real_output["final_mp4"]).is_file():
         final_path = Path(real_output["final_mp4"])
         st.markdown("**Final Video Preview**")
+        subtitle_status = real_output.get("subtitle_status") or (real_output.get("render_stage") or {}).get("subtitle_status", "")
+        audio_sync_status = real_output.get("audio_sync_status") or (real_output.get("render_stage") or {}).get("audio_sync_status", "")
+        if subtitle_status:
+            st.caption(f"Subtitle status: {subtitle_status}")
+        if audio_sync_status:
+            st.caption(f"Audio sync: {audio_sync_status}")
         st.video(str(final_path))
         st.download_button("Download Final Clip MP4", data=final_path.read_bytes(), file_name=final_path.name, mime="video/mp4", use_container_width=True, key=f"{section_key}_download_final_mp4")
     if real_output.get("subtitles") and Path(real_output["subtitles"]).is_file():
