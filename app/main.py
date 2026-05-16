@@ -766,7 +766,7 @@ def _render_final_downloads(section_key: str, real_output: dict[str, Any]) -> No
         st.success(f"Render completed · {float(duration or 0):.1f}s")
     elif status == "failed":
         stage = real_output.get("render_stage") or (real_output.get("manifest", {}) or {}).get("render_stage", {})
-        clean_error = stage.get("safe_error_message") or real_output.get("error") or "Render failed. Generated images/assets are preserved."
+        clean_error = stage.get("safe_error_message") or "Render failed: scene video could not be created"
         st.warning(clean_error)
     else:
         st.caption(f"Render Status: {status}")

@@ -197,6 +197,7 @@ def _apply_preset_to_scenes(package: dict[str, Any], preset: dict[str, Any]) -> 
     sequence = PRESET_MOTION_SEQUENCES.get(str(preset.get("motion_style") or ""), MOTION_EFFECTS)
     for index, scene in enumerate(package.get("scene_sequence", []) or [], start=1):
         scene["motion_effect"] = sequence[(index - 1) % len(sequence)]
+        scene["render_mode"] = "static_safe"
         scene["subtitle_style"] = preset.get("subtitle_style", "")
         scene["transition"] = preset.get("transition_style") or scene.get("transition", "")
         scene["pace"] = preset.get("pace", "")

@@ -1015,13 +1015,20 @@ def main():
         motion_scene = render_image_motion_scene({"scene_id": "scene_01", "duration": 1.2, "source_image_path": motion_source}, motion_scene_path, aspect_ratio="9:16")
         if motion_scene.get("ok"):
             motion_validation = validate_mp4(motion_scene_path, min_duration=1.0, min_file_size=100 * 1024)
-            assert_true(motion_validation["valid_mp4"] and motion_validation["file_size"] > 100 * 1024, "scene motion render not playable")
+            assert_true(motion_validation["valid_mp4"] and motion_validation["file_size"] > 100 * 1024, "static_safe scene render not playable")
+            assert_true((motion_scene.get("data") or {}).get("render_mode_used") == "static_safe", "static_safe render mode not used by default")
+        for scene_index, scene in enumerate(hook_clip_package.get("scene_sequence", []), start=1):
+            source_path = out / "hook_clip_projects" / "images" / f"scene_{scene_index:02d}.jpg"
+            generated_source = generate_image("offline", f"vertical smoke source scene {scene_index}", str(source_path), {"size": "1024x1536", "cache_enabled": False})
+            scene["source_image_path"] = generated_source
+            scene["render_mode"] = "static_safe"
         real_clip = render_real_hook_clip(
             "Smoke Hook Clip Project",
             hook_clip_package,
             workflow_type="hook",
             voiceover_path=voiceover_audio["data"]["audio_path"],
             background_audio_path=hook_audio_trim["data"]["path"],
+            force=True,
         )
         assert_true(real_clip["ok"] and Path(real_clip["data"]["final_mp4"]).exists() and Path(real_clip["data"]["subtitles"]).exists(), "real hook MP4 export failed")
         assert_true(real_clip["data"].get("background_audio_path"), "real hook background audio metadata missing")
@@ -1031,7 +1038,14 @@ def main():
         assert_true(all(job.get("scene_validation_ok") for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene_validation_ok missing")
         assert_true(Path(real_clip["data"]["render_stage_path"]).exists(), "render_stage.json missing")
         assert_true(real_clip["data"]["render_stage"]["scene_render_ok"] and real_clip["data"]["render_stage"]["combine_ok"] and real_clip["data"]["render_stage"]["final_mp4_ok"], "render stage flags failed")
+        assert_true(real_clip["data"]["render_stage"].get("render_mode_used") == "static_safe", "render stage static_safe mode missing")
+        assert_true(real_clip["data"]["render_stage"].get("completed_scene_count") == 3, "render stage completed scene count failed")
+        assert_true(real_clip["data"]["render_stage"].get("ffmpeg_return_code") == 0, "render stage ffmpeg return code failed")
         assert_true(real_clip["data"]["render_stage"]["scene_jobs"] and real_clip["data"]["render_stage"]["scene_jobs"][0].get("ffmpeg_return_code") == 0, "render stage ffmpeg scene diagnostics failed")
+        assert_true(all(job.get("render_mode_used") == "static_safe" for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene jobs did not use static_safe")
+        for scene_filename in ["scene_01.mp4", "scene_02.mp4", "scene_03.mp4"]:
+            scene_file = Path(real_clip["data"]["scene_jobs"][0]["path"]).parent / scene_filename
+            assert_true(scene_file.exists() and validate_mp4(scene_file, min_duration=1.0, min_file_size=100 * 1024)["valid_mp4"], f"{scene_filename} not playable")
         assert_true(real_clip["data"].get("audio_attached"), "audio attach status missing")
         quick_clip = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
@@ -1044,6 +1058,8 @@ def main():
         quick_data = quick_clip.get("data", {})
         assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
         assert_true(validate_mp4(quick_data["final_mp4"])["valid_mp4"], "quick hook final_hook_clip.mp4 not playable")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("render_mode_used") == "static_safe", "quick hook static_safe render stage missing")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("completed_scene_count") == 3, "quick hook scene render count failed")
         assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
         assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")

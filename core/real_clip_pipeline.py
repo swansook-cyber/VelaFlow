@@ -14,6 +14,8 @@ from core.motion_engine import image_motion_filter as build_motion_filter
 
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
+STATIC_SAFE_SIZES = {"9:16": (720, 1280), "16:9": (1280, 720), "1:1": (1080, 1080)}
+STATIC_SAFE_SCENE_DURATION = 5.0
 
 
 def ensure_parent_dir(path: str | Path) -> Path:
@@ -349,23 +351,35 @@ def _safe_static_image_scene(
         "-y",
         "-loop",
         "1",
-        "-framerate",
-        "30",
         "-i",
         str(image_path),
         "-t",
         f"{duration:.3f}",
+        "-r",
+        "30",
         "-vf",
-        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fps=30,setsar=1,format=yuv420p",
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}",
         "-an",
         "-c:v",
         "libx264",
         "-preset",
         "veryfast",
-        "-r",
-        "30",
+        "-g",
+        "15",
+        "-keyint_min",
+        "15",
+        "-sc_threshold",
+        "0",
         "-b:v",
-        "2500k",
+        "4000k",
+        "-minrate",
+        "4000k",
+        "-maxrate",
+        "4000k",
+        "-bufsize",
+        "8000k",
+        "-x264-params",
+        "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt",
         "yuv420p",
         "-movflags",
@@ -456,6 +470,18 @@ def render_image_motion_scene(
         return render_placeholder_scene(scene, output, ffmpeg_path=ffmpeg, aspect_ratio=aspect_ratio, log_path=log)
     if not ffmpeg:
         return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
+    requested_mode = str(scene.get("render_mode") or scene.get("render_mode_used") or "static_safe").strip().lower()
+    if requested_mode not in {"motion", "cinematic_motion"}:
+        width, height = STATIC_SAFE_SIZES.get(aspect_ratio, STATIC_SAFE_SIZES["9:16"])
+        return _safe_static_image_scene(
+            image_path,
+            output,
+            ffmpeg=ffmpeg,
+            width=width,
+            height=height,
+            duration=STATIC_SAFE_SCENE_DURATION,
+            log_path=log,
+        )
     width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
     duration = max(1.2, float(scene.get("duration", 2.5) or 2.5))
     motion = str(scene.get("motion_effect") or scene.get("motion") or "slow_zoom")
@@ -512,7 +538,8 @@ def render_image_motion_scene(
             "error": "",
         }
     temp_output.unlink(missing_ok=True)
-    fallback = _safe_static_image_scene(image_path, output, ffmpeg=ffmpeg, width=width, height=height, duration=duration, log_path=log)
+    fallback_width, fallback_height = STATIC_SAFE_SIZES.get(aspect_ratio, STATIC_SAFE_SIZES["9:16"])
+    fallback = _safe_static_image_scene(image_path, output, ffmpeg=ffmpeg, width=fallback_width, height=fallback_height, duration=STATIC_SAFE_SCENE_DURATION, log_path=log)
     fallback.setdefault("data", {})["image_motion_error"] = _clean_ffmpeg_error(result.get("output", ""))
     fallback.setdefault("data", {})["motion_ffmpeg_command"] = result.get("command", args)
     fallback.setdefault("data", {})["motion_ffmpeg_return_code"] = result.get("returncode", -1)
@@ -558,6 +585,12 @@ def combine_scene_clips_to_mp4(
     if voiceover_path and Path(voiceover_path).is_file():
         input_args += ["-i", str(voiceover_path)]
         audio_inputs.append((len(audio_inputs) + 1, max(0.0, min(2.0, float(voiceover_volume or 1.0)))))
+    audio_source = "provided" if audio_inputs else "silent"
+    if not audio_inputs:
+        concat_probe = probe_media(temp_concat, ffmpeg_path=ffmpeg)
+        silent_duration = max(1.0, float(concat_probe.get("duration") or 1.0))
+        input_args += ["-f", "lavfi", "-t", f"{silent_duration:.3f}", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
+        audio_inputs.append((1, 1.0))
     if len(audio_inputs) == 1:
         input_index, volume = audio_inputs[0]
         if abs(volume - 1.0) > 0.01:
@@ -589,7 +622,7 @@ def combine_scene_clips_to_mp4(
         final_result = _run_ffmpeg(fallback_args, log)
         subtitle_burned = False
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
-    validation = validate_mp4(output, min_duration=1.0, require_audio=bool(audio_inputs), ffmpeg_path=ffmpeg)
+    validation = validate_mp4(output, min_duration=1.0, require_audio=True, ffmpeg_path=ffmpeg)
     return {
         "ok": final_result["ok"] and output.exists() and validation.get("valid_mp4", False),
         "message": "Final MP4 exported" if final_result["ok"] and validation.get("valid_mp4", False) else "Final MP4 export failed",
@@ -601,6 +634,7 @@ def combine_scene_clips_to_mp4(
             "voiceover_path": str(voiceover_path or ""),
             "subtitle_burned": subtitle_burned,
             "audio_attached": bool(audio_inputs),
+            "audio_source": audio_source,
             "validation": validation,
             "duration": validation.get("duration", 0),
             "file_size": validation.get("file_size", 0),
@@ -635,6 +669,7 @@ def render_real_hook_clip(
         srt_path = exports_dir / "subtitles.srt"
         write_subtitles(subtitle_timing, srt_path)
         render_stage = {
+            "render_mode_used": "static_safe",
             "scene_render_ok": False,
             "combine_ok": False,
             "audio_attach_ok": False,
@@ -644,6 +679,7 @@ def render_real_hook_clip(
             "safe_error_message": "",
             "scene_count": len(scenes),
             "completed_scene_count": 0,
+            "ffmpeg_return_code": -1,
             "scene_jobs": [],
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
@@ -683,12 +719,67 @@ def render_real_hook_clip(
         render_stage["completed_scene_count"] = len(scene_paths)
         render_stage["scene_render_ok"] = bool(scene_paths) and len(scene_paths) == len(scenes)
         render_stage["scene_jobs"] = scene_jobs
+        render_stage["ffmpeg_return_code"] = next((int(job.get("ffmpeg_return_code", -1)) for job in reversed(scene_jobs) if "ffmpeg_return_code" in job), -1)
         final_name = {
             "seller": "final_seller_clip.mp4",
             "podcast": "final_podcast_clip.mp4",
             "viral_clips": "final_viral_clip.mp4",
         }.get(workflow_type, "final_hook_clip.mp4")
         final_path = ensure_parent_dir(exports_dir / final_name)
+        if not render_stage["scene_render_ok"]:
+            render_stage.update(
+                {
+                    "combine_ok": False,
+                    "audio_attach_ok": False,
+                    "subtitle_ok": bool(srt_path.is_file()),
+                    "final_mp4_ok": False,
+                    "final_mp4_path": "",
+                    "safe_error_message": "Render failed: scene video could not be created",
+                    "validation": {},
+                }
+            )
+            render_stage_path = _write_render_stage(exports_dir, render_stage)
+            manifest = {
+                "generated_by": "VelaFlow",
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "project_name": project_name,
+                "workflow_type": workflow_type,
+                "scene_jobs": scene_jobs,
+                "subtitle_path": str(srt_path),
+                "voiceover_path": str(voiceover_path or ""),
+                "background_audio_path": str(background_audio_path or ""),
+                "final_mp4": "",
+                "status": "failed",
+                "error": "scene_video_render_failed",
+                "duration": 0,
+                "validation": {},
+                "subtitle_burned": False,
+                "render_stage_path": str(render_stage_path),
+                "render_stage": render_stage,
+            }
+            manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
+            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            return {
+                "ok": False,
+                "message": "Scene video render failed",
+                "data": {
+                    "manifest": manifest,
+                    "manifest_path": str(manifest_path),
+                    "render_stage_path": str(render_stage_path),
+                    "render_stage": render_stage,
+                    "final_mp4": "",
+                    "subtitles": str(srt_path),
+                    "scene_jobs": scene_jobs,
+                    "log_path": str(log_path),
+                    "background_audio_path": str(background_audio_path or ""),
+                    "voiceover_path": str(voiceover_path or ""),
+                    "duration": 0,
+                    "validation": {},
+                    "subtitle_burned": False,
+                    "audio_attached": False,
+                },
+                "error": "scene_video_render_failed",
+            }
         combine = combine_scene_clips_to_mp4(
             scene_paths,
             final_path,
@@ -708,6 +799,7 @@ def render_real_hook_clip(
                 "final_mp4_ok": bool(final_validation.get("valid_mp4", False)),
                 "final_mp4_path": str(final_path) if final_path.is_file() else "",
                 "safe_error_message": "" if combine.get("ok") else (combine.get("error") or "Final MP4 render failed"),
+                "ffmpeg_return_code": 0 if combine.get("ok") else render_stage.get("ffmpeg_return_code", -1),
                 "validation": final_validation,
             }
         )
