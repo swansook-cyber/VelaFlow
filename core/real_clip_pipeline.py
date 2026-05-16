@@ -84,15 +84,15 @@ def _run_ffmpeg(args: list[str], log_path: Path) -> dict[str, Any]:
         try:
             proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
             log.write(proc.stdout or "")
-            return {"ok": proc.returncode == 0, "returncode": proc.returncode, "output": proc.stdout or ""}
+            return {"ok": proc.returncode == 0, "returncode": proc.returncode, "output": proc.stdout or "", "command": args}
         except FileNotFoundError as exc:
             message = f"missing_ffmpeg: {exc}"
             log.write(message + "\n")
-            return {"ok": False, "returncode": -1, "output": message}
+            return {"ok": False, "returncode": -1, "output": message, "command": args}
         except Exception as exc:
             message = str(exc)
             log.write(message + "\n")
-            return {"ok": False, "returncode": -1, "output": message}
+            return {"ok": False, "returncode": -1, "output": message, "command": args}
 
 
 def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
@@ -150,11 +150,12 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
         return {"ok": False, "path": str(media), "duration": 0.0, "file_size": media.stat().st_size, "playable": False, "error": str(exc)}
 
 
-def validate_mp4(path: str | Path, *, min_duration: float = 1.0, ffmpeg_path: str = "") -> dict[str, Any]:
+def validate_mp4(path: str | Path, *, min_duration: float = 1.0, min_file_size: int = 1, ffmpeg_path: str = "") -> dict[str, Any]:
     probe = probe_media(path, ffmpeg_path=ffmpeg_path)
-    probe["valid_mp4"] = bool(probe.get("ok") and float(probe.get("duration") or 0) > min_duration and int(probe.get("file_size") or 0) > 0)
+    probe["min_file_size"] = min_file_size
+    probe["valid_mp4"] = bool(probe.get("ok") and float(probe.get("duration") or 0) > min_duration and int(probe.get("file_size") or 0) >= min_file_size)
     if not probe["valid_mp4"] and not probe.get("error"):
-        probe["error"] = "mp4_duration_too_short"
+        probe["error"] = "mp4_too_small_or_duration_too_short"
     return probe
 
 
@@ -244,15 +245,13 @@ def render_placeholder_scene(
         return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
     width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
     duration = max(0.5, float(scene.get("duration", 2.5) or 2.5))
-    colors = ["#15151f", "#1c2230", "#211927", "#10211f", "#221b15"]
-    color = colors[(int(str(scene.get("scene_id", "1")).split("_")[-1] or 1) - 1) % len(colors)]
     args = [
         ffmpeg,
         "-y",
         "-f",
         "lavfi",
         "-i",
-        f"color=c={color}:s={width}x{height}:r=30:d={duration}",
+        f"testsrc2=size={width}x{height}:rate=30:duration={duration}",
         "-vf",
         "format=yuv420p",
         "-an",
@@ -260,13 +259,94 @@ def render_placeholder_scene(
         "libx264",
         "-preset",
         "veryfast",
+        "-movflags",
+        "+faststart",
         "-t",
         str(duration),
         str(output),
     ]
     result = _run_ffmpeg(args, log)
     clean_error = _clean_ffmpeg_error(result.get("output", ""))
-    return {"ok": result["ok"] and output.exists(), "message": "Scene clip rendered" if result["ok"] else "Scene clip render failed", "data": {"path": str(output), "log_path": str(log), "ffmpeg_error_detail": clean_error}, "error": "" if result["ok"] else clean_error}
+    validation = validate_mp4(output, min_duration=0.3, min_file_size=1, ffmpeg_path=ffmpeg)
+    return {
+        "ok": result["ok"] and output.exists() and validation.get("playable", False),
+        "message": "Scene clip rendered" if result["ok"] else "Scene clip render failed",
+        "data": {
+            "path": str(output),
+            "log_path": str(log),
+            "ffmpeg_error_detail": clean_error,
+            "render_mode_used": "placeholder_testsrc",
+            "ffmpeg_command": result.get("command", args),
+            "ffmpeg_return_code": result.get("returncode", -1),
+            "scene_validation_ok": bool(validation.get("playable")),
+            "validation": validation,
+        },
+        "error": "" if result["ok"] else clean_error,
+    }
+
+
+def _replace_if_valid(temp_path: Path, output_path: Path, validation: dict[str, Any]) -> None:
+    if validation.get("valid_mp4"):
+        output_path.unlink(missing_ok=True)
+        temp_path.replace(output_path)
+    else:
+        temp_path.unlink(missing_ok=True)
+
+
+def _safe_static_image_scene(
+    image_path: Path,
+    output_path: Path,
+    *,
+    ffmpeg: str,
+    width: int,
+    height: int,
+    duration: float,
+    log_path: Path,
+) -> dict[str, Any]:
+    temp_output = output_path.with_name(f"{output_path.stem}_static_tmp.mp4")
+    temp_output.unlink(missing_ok=True)
+    args = [
+        ffmpeg,
+        "-y",
+        "-loop",
+        "1",
+        "-framerate",
+        "30",
+        "-i",
+        str(image_path),
+        "-t",
+        f"{duration:.3f}",
+        "-vf",
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},setsar=1,format=yuv420p",
+        "-an",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart",
+        "-shortest",
+        str(temp_output),
+    ]
+    result = _run_ffmpeg(args, log_path)
+    validation = validate_mp4(temp_output, min_duration=1.0, min_file_size=100 * 1024, ffmpeg_path=ffmpeg)
+    _replace_if_valid(temp_output, output_path, validation)
+    return {
+        "ok": result.get("ok") and output_path.is_file() and validation.get("valid_mp4", False),
+        "message": "Static image scene rendered" if validation.get("valid_mp4") else "Static image scene render failed",
+        "data": {
+            "path": str(output_path),
+            "log_path": str(log_path),
+            "render_mode_used": "static_safe",
+            "ffmpeg_command": result.get("command", args),
+            "ffmpeg_return_code": result.get("returncode", -1),
+            "scene_validation_ok": bool(validation.get("valid_mp4")),
+            "validation": validation,
+        },
+        "error": "" if validation.get("valid_mp4") else (validation.get("error") or _clean_ffmpeg_error(result.get("output", ""), "static_scene_render_failed")),
+    }
 
 
 def _image_motion_filter(effect: str, width: int, height: int, duration: float) -> str:
@@ -326,6 +406,7 @@ def render_image_motion_scene(
 ) -> dict[str, Any]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
     output = ensure_parent_dir(output_path)
+    output.unlink(missing_ok=True)
     log = Path(log_path) if log_path else output.with_suffix(".log")
     image_path = Path(str(scene.get("source_image_path") or scene.get("image_path") or ""))
     if not image_path.is_file():
@@ -333,9 +414,11 @@ def render_image_motion_scene(
     if not ffmpeg:
         return {"ok": False, "message": "FFmpeg not found", "data": {"path": str(output)}, "error": "missing_ffmpeg"}
     width, height = ASPECT_SIZES.get(aspect_ratio, ASPECT_SIZES["9:16"])
-    duration = max(0.5, float(scene.get("duration", 2.5) or 2.5))
+    duration = max(1.2, float(scene.get("duration", 2.5) or 2.5))
     motion = str(scene.get("motion_effect") or scene.get("motion") or "slow_zoom")
     vf = _image_motion_filter(motion, width, height, duration)
+    temp_output = output.with_name(f"{output.stem}_motion_tmp.mp4")
+    temp_output.unlink(missing_ok=True)
     args = [
         ffmpeg,
         "-y",
@@ -354,15 +437,36 @@ def render_image_motion_scene(
         "veryfast",
         "-pix_fmt",
         "yuv420p",
-        str(output),
+        "-movflags",
+        "+faststart",
+        "-shortest",
+        str(temp_output),
     ]
     result = _run_ffmpeg(args, log)
-    if result["ok"] and output.exists():
-        return {"ok": True, "message": "Image motion scene rendered", "data": {"path": str(output), "log_path": str(log), "source_image_path": str(image_path), "motion_effect": motion}, "error": ""}
-    fallback = render_placeholder_scene(scene, output, ffmpeg_path=ffmpeg, aspect_ratio=aspect_ratio, log_path=log)
-    if fallback.get("ok"):
-        fallback["message"] = "Image motion failed; placeholder scene rendered"
-        fallback.setdefault("data", {})["image_motion_error"] = _clean_ffmpeg_error(result.get("output", ""))
+    validation = validate_mp4(temp_output, min_duration=1.0, min_file_size=100 * 1024, ffmpeg_path=ffmpeg)
+    if result["ok"] and validation.get("valid_mp4", False):
+        _replace_if_valid(temp_output, output, validation)
+        return {
+            "ok": True,
+            "message": "Image motion scene rendered",
+            "data": {
+                "path": str(output),
+                "log_path": str(log),
+                "source_image_path": str(image_path),
+                "motion_effect": motion,
+                "render_mode_used": "motion",
+                "ffmpeg_command": result.get("command", args),
+                "ffmpeg_return_code": result.get("returncode", -1),
+                "scene_validation_ok": True,
+                "validation": validation,
+            },
+            "error": "",
+        }
+    temp_output.unlink(missing_ok=True)
+    fallback = _safe_static_image_scene(image_path, output, ffmpeg=ffmpeg, width=width, height=height, duration=duration, log_path=log)
+    fallback.setdefault("data", {})["image_motion_error"] = _clean_ffmpeg_error(result.get("output", ""))
+    fallback.setdefault("data", {})["motion_ffmpeg_command"] = result.get("command", args)
+    fallback.setdefault("data", {})["motion_ffmpeg_return_code"] = result.get("returncode", -1)
     return fallback
 
 
@@ -428,11 +532,11 @@ def combine_scene_clips_to_mp4(
         safe_srt = str(Path(subtitle_path)).replace("\\", "/").replace(":", "\\:")
         vf.insert(0, f"subtitles='{safe_srt}'")
     complex_args = ["-filter_complex", ";".join(filter_complex)] if filter_complex else []
-    final_args = input_args + complex_args + maps + ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
+    final_args = input_args + complex_args + maps + ["-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
     final_result = _run_ffmpeg(final_args, log)
     subtitle_burned = bool(final_result["ok"] and subtitle_path)
     if not final_result["ok"] and subtitle_path:
-        fallback_args = input_args + complex_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast"] + audio_args + [str(output)]
+        fallback_args = input_args + complex_args + maps + ["-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
         subtitle_burned = False
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
@@ -491,6 +595,7 @@ def render_real_hook_clip(
             "safe_error_message": "",
             "scene_count": len(scenes),
             "completed_scene_count": 0,
+            "scene_jobs": [],
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
         scene_jobs = []
@@ -500,25 +605,35 @@ def render_real_hook_clip(
             clip_path = ensure_parent_dir(scenes_dir / f"{scene_id}.mp4")
             job = {"scene_id": scene_id, "status": "pending", "path": str(clip_path), "error": ""}
             if clip_path.is_file() and not force:
-                scene_validation = validate_mp4(clip_path, min_duration=0.3, ffmpeg_path=ffmpeg_path or "ffmpeg")
-                job["status"] = "completed_existing"
-                job["validation"] = scene_validation
-                scene_jobs.append(job)
+                scene_validation = validate_mp4(clip_path, min_duration=1.0, min_file_size=100 * 1024, ffmpeg_path=ffmpeg_path or "ffmpeg")
                 if scene_validation.get("valid_mp4", False):
+                    job["status"] = "completed_existing"
+                    job["validation"] = scene_validation
+                    job["scene_validation_ok"] = True
+                    job["render_mode_used"] = "existing_valid_scene"
+                    job["ffmpeg_command"] = ["existing_valid_scene", str(clip_path)]
+                    job["ffmpeg_return_code"] = 0
+                    scene_jobs.append(job)
                     scene_paths.append(clip_path)
-                continue
+                    continue
+                clip_path.unlink(missing_ok=True)
             result = render_image_motion_scene(scene, clip_path, ffmpeg_path=ffmpeg_path, aspect_ratio=aspect_ratio, log_path=log_path)
-            scene_validation = validate_mp4(clip_path, min_duration=0.3, ffmpeg_path=ffmpeg_path or "ffmpeg")
+            scene_validation = validate_mp4(clip_path, min_duration=1.0, min_file_size=100 * 1024, ffmpeg_path=ffmpeg_path or "ffmpeg")
             job["status"] = "completed" if result.get("ok") else "failed"
             job["error"] = result.get("error", "")
             job["motion_effect"] = scene.get("motion_effect") or scene.get("motion", "")
             job["source_image_path"] = scene.get("source_image_path", "")
+            job["render_mode_used"] = (result.get("data") or {}).get("render_mode_used", "")
+            job["ffmpeg_command"] = (result.get("data") or {}).get("ffmpeg_command", [])
+            job["ffmpeg_return_code"] = (result.get("data") or {}).get("ffmpeg_return_code", -1)
+            job["scene_validation_ok"] = bool(scene_validation.get("valid_mp4"))
             job["validation"] = scene_validation
             scene_jobs.append(job)
             if result.get("ok") and scene_validation.get("valid_mp4", False):
                 scene_paths.append(clip_path)
         render_stage["completed_scene_count"] = len(scene_paths)
         render_stage["scene_render_ok"] = bool(scene_paths) and len(scene_paths) == len(scenes)
+        render_stage["scene_jobs"] = scene_jobs
         final_name = {
             "seller": "final_seller_clip.mp4",
             "podcast": "final_podcast_clip.mp4",

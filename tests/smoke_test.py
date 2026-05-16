@@ -1011,9 +1011,11 @@ def main():
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
-        motion_scene = render_image_motion_scene({"scene_id": "scene_01", "duration": 1.2, "source_image_path": quick_data["image_results"][0]["path"] if 'quick_data' in locals() and quick_data.get("image_results") else ""}, motion_scene_path, aspect_ratio="9:16")
+        motion_source = generate_image("offline", "vertical cinematic motion smoke scene", str(out / "hook_clip_projects" / "images" / "motion_scene_01.jpg"), {"size": "1024x1536", "cache_enabled": False})
+        motion_scene = render_image_motion_scene({"scene_id": "scene_01", "duration": 1.2, "source_image_path": motion_source}, motion_scene_path, aspect_ratio="9:16")
         if motion_scene.get("ok"):
-            assert_true(validate_mp4(motion_scene_path, min_duration=0.5)["valid_mp4"], "scene motion render not playable")
+            motion_validation = validate_mp4(motion_scene_path, min_duration=1.0, min_file_size=100 * 1024)
+            assert_true(motion_validation["valid_mp4"] and motion_validation["file_size"] > 100 * 1024, "scene motion render not playable")
         real_clip = render_real_hook_clip(
             "Smoke Hook Clip Project",
             hook_clip_package,
@@ -1025,8 +1027,11 @@ def main():
         assert_true(real_clip["data"].get("background_audio_path"), "real hook background audio metadata missing")
         assert_true(real_clip["data"]["validation"]["valid_mp4"] and real_clip["data"]["duration"] > 1, "real hook MP4 playable validation failed")
         assert_true(all((job.get("validation") or {}).get("valid_mp4") for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene MP4 validation failed")
+        assert_true(all((job.get("validation") or {}).get("file_size", 0) > 100 * 1024 for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene MP4 too small/corrupted")
+        assert_true(all(job.get("scene_validation_ok") for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene_validation_ok missing")
         assert_true(Path(real_clip["data"]["render_stage_path"]).exists(), "render_stage.json missing")
         assert_true(real_clip["data"]["render_stage"]["scene_render_ok"] and real_clip["data"]["render_stage"]["combine_ok"] and real_clip["data"]["render_stage"]["final_mp4_ok"], "render stage flags failed")
+        assert_true(real_clip["data"]["render_stage"]["scene_jobs"] and real_clip["data"]["render_stage"]["scene_jobs"][0].get("ffmpeg_return_code") == 0, "render stage ffmpeg scene diagnostics failed")
         assert_true(real_clip["data"].get("audio_attached"), "audio attach status missing")
         quick_clip = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
