@@ -202,7 +202,7 @@ from core.subtitle_engine import generate_subtitles
 from core.timeline_builder import build_timeline
 from core.voiceover_engine import build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
 from providers.veo_provider import build_veo_payload, get_operation_name, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
-from providers.image_ai import generate_image, generate_image_with_diagnostics, validate_image_file
+from providers.image_ai import detect_image_provider_capability, generate_image, generate_image_with_diagnostics, validate_image_file
 from providers.video_ai import generate_video
 from scripts.create_source_package import create_source_package
 from scripts.build_beta_package import build_beta_package
@@ -1071,10 +1071,16 @@ def main():
         assert_true(Path(song_short_data["image_generation_manifest_path"]).exists(), "image_generation_manifest.json missing")
         gemini_fallback_image = generate_image("gemini_image", "vertical emotional music hook scene", str(out / "gemini_image_fallback.png"), {"gemini_api_key": "", "size": "512x768", "cache_enabled": False})
         assert_true(Path(gemini_fallback_image).exists(), "Gemini image fallback failed")
+        gemini_capability = detect_image_provider_capability("gemini_image", {"gemini_api_key": "", "cache_enabled": False})
+        assert_true(not gemini_capability["provider_available"] and gemini_capability["fallback_reason"] == "missing_api_key", "Gemini capability detection missing-key failed")
+        openai_capability = detect_image_provider_capability("openai_images", {"openai_api_key": "", "cache_enabled": False})
+        assert_true(not openai_capability["provider_available"] and openai_capability["fallback_reason"] == "missing_api_key", "OpenAI capability detection missing-key failed")
         gemini_diag = generate_image_with_diagnostics("gemini_image", "vertical emotional music hook scene", str(out / "gemini_image_diag.jpg"), {"gemini_api_key": "", "size": "1024x1536", "cache_enabled": False})
-        assert_true(gemini_diag["ok"] and gemini_diag["data"]["fallback_used"] and gemini_diag["data"]["error_type"] == "missing_api_key", "Gemini image diagnostic fallback failed")
+        assert_true(gemini_diag["ok"] and gemini_diag["data"]["fallback_used"] and gemini_diag["data"]["error_type"] == "missing_api_key" and gemini_diag["data"]["requested_model"] is not None, "Gemini image diagnostic fallback failed")
         openai_diag = generate_image_with_diagnostics("openai_images", "vertical cinematic scene", str(out / "openai_image_diag.jpg"), {"openai_api_key": "", "size": "1024x1536", "cache_enabled": False})
-        assert_true(openai_diag["ok"] and openai_diag["data"]["fallback_used"] and openai_diag["data"]["error_type"] == "missing_api_key", "OpenAI image diagnostic fallback failed")
+        assert_true(openai_diag["ok"] and openai_diag["data"]["fallback_used"] and openai_diag["data"]["error_type"] == "missing_api_key" and openai_diag["data"]["actual_model"] == "offline_placeholder", "OpenAI image diagnostic fallback failed")
+        unsupported_diag = generate_image_with_diagnostics("unsupported_test_provider", "vertical cinematic scene", str(out / "unsupported_image_diag.jpg"), {"size": "1024x1536", "cache_enabled": False})
+        assert_true(unsupported_diag["ok"] and unsupported_diag["data"]["fallback_used"] and unsupported_diag["data"]["fallback_reason"] == "unsupported_provider", "unsupported provider fallback failed")
         cute_clip = quick_generate_hook_clip("Smoke Cute Character Clip", "กล้วยพูดได้บ่นเรื่องชีวิต", image_provider="offline", preset_id="cute_character")
         cute_package = cute_clip.get("data", {}).get("package", {})
         assert_true(cute_clip["ok"] and cute_package.get("creator_outcome_preset", {}).get("preset_id") == "cute_character", "cute character quick pipeline failed")

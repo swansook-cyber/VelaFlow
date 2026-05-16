@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import importlib.metadata
 import json
 import os
 import time
@@ -40,6 +41,126 @@ def _safe_error_message(error: Exception, provider: str) -> tuple[str, str]:
     if "timeout" in text:
         return "timeout", f"{provider} image request timed out."
     return "provider_error", f"{provider} image generation failed."
+
+
+def _package_version(package_name: str) -> str:
+    try:
+        return importlib.metadata.version(package_name)
+    except Exception:
+        return "not_installed"
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    return [value for value in dict.fromkeys(str(item).strip() for item in values if str(item or "").strip())]
+
+
+def _gemini_image_model_candidates(settings: Dict[str, Any]) -> list[str]:
+    configured = [
+        settings.get("gemini_image_model", ""),
+        os.getenv("GEMINI_IMAGE_MODEL", ""),
+        *os.getenv("GEMINI_IMAGE_MODELS", "").split(","),
+    ]
+    known_public_candidates = [
+        "gemini-2.5-flash-image-preview",
+        "imagen-4.0-generate-001",
+        "imagen-4.0-fast-generate-001",
+        "imagen-3.0-generate-002",
+    ]
+    return _dedupe([*configured, *known_public_candidates])
+
+
+def _openai_image_model_candidates(settings: Dict[str, Any]) -> list[str]:
+    configured = [
+        settings.get("openai_image_model", ""),
+        os.getenv("OPENAI_IMAGE_MODEL", ""),
+        *os.getenv("OPENAI_IMAGE_MODELS", "").split(","),
+    ]
+    return _dedupe([*configured, "gpt-image-1", "gpt-image-1-mini", "gpt-image-1.5", "dall-e-3"])
+
+
+def _model_name(value: Any) -> str:
+    raw = str(getattr(value, "name", "") or value or "").strip()
+    return raw.replace("models/", "")
+
+
+def _gemini_list_available_models(client: Any) -> list[str]:
+    try:
+        models = client.models.list()
+        names = []
+        for model in models:
+            name = _model_name(model)
+            if name:
+                names.append(name)
+        return _dedupe(names)
+    except Exception:
+        return []
+
+
+def detect_image_provider_capability(provider: str, settings: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    settings = settings or {}
+    provider = (provider or "offline").lower()
+    if provider in {"gemini_image", "gemini_images"}:
+        api_key = settings.get("gemini_api_key") or (os.getenv("GEMINI_API_KEY", "") if settings.get("allow_env_key") else "")
+        diagnostics = {
+            "provider": "gemini_image",
+            "requested_model": settings.get("gemini_image_model") or os.getenv("GEMINI_IMAGE_MODEL", ""),
+            "actual_model": "",
+            "provider_available": bool(api_key),
+            "image_generation_supported": False,
+            "sdk_version": _package_version("google-genai"),
+            "available_models": [],
+            "model_candidates": _gemini_image_model_candidates(settings),
+            "fallback_reason": "" if api_key else "missing_api_key",
+        }
+        if not api_key:
+            return diagnostics
+        try:
+            from google import genai  # type: ignore
+
+            client = genai.Client(api_key=api_key)
+            available = _gemini_list_available_models(client)
+            diagnostics["available_models"] = available
+            if available:
+                candidate_set = set(_gemini_image_model_candidates(settings))
+                image_like = [name for name in available if any(marker in name.lower() for marker in ("image", "imagen"))]
+                matched = next((name for name in _gemini_image_model_candidates(settings) if name in available), "")
+                diagnostics["actual_model"] = matched or (image_like[0] if image_like else "")
+                diagnostics["image_generation_supported"] = bool(diagnostics["actual_model"])
+                diagnostics["fallback_reason"] = "" if diagnostics["image_generation_supported"] else "no_image_capable_model_listed"
+            else:
+                diagnostics["actual_model"] = _gemini_image_model_candidates(settings)[0]
+                diagnostics["image_generation_supported"] = True
+                diagnostics["fallback_reason"] = "model_list_unavailable_try_configured_model"
+            return diagnostics
+        except Exception as error:
+            error_type, safe = _safe_error_message(error, "Gemini")
+            diagnostics["provider_available"] = False
+            diagnostics["fallback_reason"] = error_type
+            diagnostics["safe_error_message"] = safe
+            diagnostics["sdk_exception_type"] = type(error).__name__
+            return diagnostics
+    if provider == "openai_images":
+        api_key = settings.get("openai_api_key") or (os.getenv("OPENAI_API_KEY", "") if settings.get("allow_env_key") else "")
+        model = _openai_image_model_candidates(settings)[0]
+        return {
+            "provider": "openai_images",
+            "requested_model": settings.get("openai_image_model") or os.getenv("OPENAI_IMAGE_MODEL", ""),
+            "actual_model": model,
+            "provider_available": bool(api_key),
+            "image_generation_supported": bool(api_key),
+            "sdk_version": "http_api",
+            "model_candidates": _openai_image_model_candidates(settings),
+            "fallback_reason": "" if api_key else "missing_api_key",
+        }
+    return {
+        "provider": provider,
+        "requested_model": "",
+        "actual_model": "offline_placeholder",
+        "provider_available": provider in {"offline", "manual"},
+        "image_generation_supported": provider in {"offline", "manual"},
+        "sdk_version": "",
+        "fallback_reason": "offline_placeholder_selected" if provider in {"offline", "manual"} else "unsupported_provider",
+    }
 
 
 def _safe_name(value: str) -> str:
@@ -203,12 +324,11 @@ def _decode_image_payload(data: Dict[str, Any], output_path: Path) -> str | None
     return None
 
 
-def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
+def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> tuple[str, str]:
     api_key = settings.get("openai_api_key") or (os.getenv("OPENAI_API_KEY", "") if settings.get("allow_env_key") else "")
     if not api_key:
         raise ImageProviderError("missing_api_key", "OpenAI API key is missing.", "openai_images")
-    requested_model = settings.get("openai_image_model") or os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1.5")
-    models = list(dict.fromkeys([requested_model, "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini"]))
+    models = _openai_image_model_candidates(settings)
     last_error: Exception | None = None
     for model_name in models:
         body = {
@@ -231,7 +351,7 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> s
             decoded = _decode_image_payload(response.json(), output_path)
             if not decoded:
                 raise RuntimeError("OpenAI image response did not contain an image payload")
-            return decoded
+            return decoded, model_name
         except Exception as error:
             last_error = error
             if "404" not in str(error) and "model" not in str(error).lower():
@@ -240,35 +360,91 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> s
     raise ImageProviderError(error_type, safe_message, "openai_images", type(last_error).__name__ if last_error else "RuntimeError")
 
 
-def _gemini_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> str:
+def _extract_gemini_generated_image(response: Any, output_path: Path) -> str | None:
+    generated_images = getattr(response, "generated_images", None) or []
+    for generated in generated_images:
+        image = getattr(generated, "image", None)
+        data = getattr(image, "image_bytes", None) or getattr(image, "data", None)
+        if data:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(data)
+            return str(output_path)
+    candidates = getattr(response, "candidates", []) or []
+    for candidate in candidates:
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", []) if content else []
+        for part in parts:
+            inline_data = getattr(part, "inline_data", None)
+            data = getattr(inline_data, "data", None) if inline_data else None
+            if data:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(data)
+                return str(output_path)
+    return None
+
+
+def _gemini_generate_with_model(client: Any, types: Any, model_name: str, prompt: str, output_path: Path) -> str:
+    if model_name.lower().startswith("imagen"):
+        config_cls = getattr(types, "GenerateImagesConfig", None)
+        if not config_cls:
+            raise ImageProviderError("sdk_method_mismatch", "Installed google-genai SDK does not support Imagen image generation.", "gemini_image")
+        response = client.models.generate_images(
+            model=model_name,
+            prompt=prompt,
+            config=config_cls(number_of_images=1, output_mime_type="image/jpeg", aspect_ratio="9:16"),
+        )
+    else:
+        modality = getattr(types, "Modality", None)
+        text_modality = getattr(modality, "TEXT", "TEXT") if modality else "TEXT"
+        image_modality = getattr(modality, "IMAGE", "IMAGE") if modality else "IMAGE"
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=types.GenerateContentConfig(response_modalities=[text_modality, image_modality]),
+        )
+    decoded = _extract_gemini_generated_image(response, output_path)
+    if not decoded:
+        raise ImageProviderError("empty_image_response", "Gemini returned no image bytes.", "gemini_image")
+    return decoded
+
+
+def _gemini_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> tuple[str, str, Dict[str, Any]]:
     api_key = settings.get("gemini_api_key") or (os.getenv("GEMINI_API_KEY", "") if settings.get("allow_env_key") else "")
     if not api_key:
         raise ImageProviderError("missing_api_key", "Gemini API key is missing.", "gemini_image")
-    model_name = settings.get("gemini_image_model") or os.getenv("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image-preview")
+    capability: Dict[str, Any] = {"provider": "gemini_image", "sdk_version": _package_version("google-genai")}
     try:
         from google import genai  # type: ignore
         from google.genai import types  # type: ignore
 
         client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(response_modalities=["IMAGE"]),
-        )
-        candidates = getattr(response, "candidates", []) or []
-        for candidate in candidates:
-            content = getattr(candidate, "content", None)
-            parts = getattr(content, "parts", []) if content else []
-            for part in parts:
-                inline_data = getattr(part, "inline_data", None)
-                data = getattr(inline_data, "data", None) if inline_data else None
-                if data:
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_bytes(data)
-                    return str(output_path)
-        raise RuntimeError("Gemini image response did not contain image bytes")
+        available_models = _gemini_list_available_models(client)
+        capability["available_models"] = available_models
+        candidates = _gemini_image_model_candidates(settings)
+        if available_models:
+            image_like = [name for name in available_models if any(marker in name.lower() for marker in ("image", "imagen"))]
+            candidates = [name for name in candidates if name in available_models] or image_like
+        if not candidates:
+            capability["image_generation_supported"] = False
+            raise ImageProviderError("model_unavailable", "No Gemini image-capable model is available for this API key.", "gemini_image")
+        last_error: Exception | None = None
+        for model_name in candidates:
+            try:
+                result = _gemini_generate_with_model(client, types, model_name, prompt, output_path)
+                capability.update({"actual_model": model_name, "image_generation_supported": True})
+                return result, model_name, capability
+            except Exception as error:
+                last_error = error
+                if isinstance(error, ImageProviderError) and error.error_type in {"auth_failed", "quota_exceeded"}:
+                    raise
+                continue
+        raise last_error or ImageProviderError("model_unavailable", "Gemini image generation did not succeed with available models.", "gemini_image")
     except Exception as error:
         error_type, safe_message = _safe_error_message(error, "Gemini")
+        if isinstance(error, ImageProviderError):
+            error_type = error.error_type
+            safe_message = error.safe_message
+        capability.update({"image_generation_supported": False, "fallback_reason": error_type})
         raise ImageProviderError(error_type, safe_message, "gemini_image", type(error).__name__)
 
 
@@ -341,16 +517,47 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
     error_type = ""
     safe_error_message = ""
     exception_type = ""
+    requested_model = ""
+    actual_model = ""
+    provider_available = provider in {"manual", "offline"}
+    image_generation_supported = provider in {"manual", "offline"}
+    sdk_version = ""
+    primary_diagnostics: Dict[str, Any] = {}
     try:
         if provider in {"manual", "offline"}:
             fallback_used = True
             fallback_reason = "offline_placeholder_selected"
             provider_used = "offline"
+            actual_model = "offline_placeholder"
             generated = _placeholder_image(output, prompt, "offline_placeholder", settings.get("size", "1024x1536"))
         elif provider == "openai_images":
-            generated = _openai_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+            primary_diagnostics = detect_image_provider_capability("openai_images", settings)
+            requested_model = str(primary_diagnostics.get("requested_model") or "")
+            generated, actual_model = _openai_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+            provider_available = True
+            image_generation_supported = True
         elif provider in {"gemini_image", "gemini_images"}:
-            generated = _gemini_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+            primary_diagnostics = detect_image_provider_capability("gemini_image", settings)
+            requested_model = str(primary_diagnostics.get("requested_model") or "")
+            try:
+                generated, actual_model, gemini_capability = _gemini_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+                primary_diagnostics.update(gemini_capability)
+                provider_available = True
+                image_generation_supported = True
+            except Exception as gemini_error:
+                openai_key = settings.get("openai_api_key") or (os.getenv("OPENAI_API_KEY", "") if settings.get("allow_env_key") else "")
+                if openai_key:
+                    fallback_reason = _safe_error_message(gemini_error, "Gemini")[0]
+                    primary_diagnostics["fallback_reason"] = fallback_reason
+                    generated, actual_model = _openai_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
+                    provider_used = "openai_images"
+                    fallback_used = False
+                    provider_available = True
+                    image_generation_supported = True
+                    primary_diagnostics["openai_fallback_active"] = True
+                    primary_diagnostics["gemini_unavailable_reason"] = fallback_reason
+                else:
+                    raise gemini_error
         elif provider in {"flux", "sdxl"}:
             generated = _generic_http_image(provider, prompt, negative_prompt, raw_output, settings)
         else:
@@ -366,9 +573,13 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
     except Exception as error:
         fallback_used = True
         error_type, safe_error_message = _safe_error_message(error, provider)
+        if isinstance(error, ImageProviderError):
+            error_type = error.error_type
+            safe_error_message = error.safe_message
         exception_type = getattr(error, "exception_type", "") or type(error).__name__
         fallback_reason = error_type
         provider_used = "offline"
+        actual_model = "offline_placeholder"
         generated = _placeholder_image(output, prompt, f"{provider}_{error_type}", settings.get("size", "1024x1536"))
     validation = validate_image_file(generated, expected_aspect_ratio="9:16")
     if validation.get("error") == "aspect_ratio_needs_normalization":
@@ -391,11 +602,19 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             "path": str(generated),
             "provider_requested": provider,
             "provider_used": provider_used,
+            "requested_model": requested_model or str(primary_diagnostics.get("requested_model") or ""),
+            "actual_model": actual_model or str(primary_diagnostics.get("actual_model") or ""),
+            "provider_available": provider_available or bool(primary_diagnostics.get("provider_available")),
+            "image_generation_supported": image_generation_supported or bool(primary_diagnostics.get("image_generation_supported")),
+            "sdk_version": sdk_version or str(primary_diagnostics.get("sdk_version") or ""),
+            "openai_fallback_active": bool(primary_diagnostics.get("openai_fallback_active")),
+            "gemini_unavailable_reason": str(primary_diagnostics.get("gemini_unavailable_reason") or ""),
             "fallback_used": fallback_used,
             "fallback_reason": fallback_reason,
             "error_type": error_type,
             "safe_error_message": safe_error_message,
             "sdk_exception_type": exception_type,
+            "provider_diagnostics": primary_diagnostics,
             "validation": validation,
             "prompt": prompt,
         },
