@@ -39,7 +39,12 @@ def run_healthcheck(settings: Any | None = None, runtime_api_keys: Dict[str, str
     add("FFmpeg installed", bool(ffmpeg_info.get("ok")), ffmpeg_info.get("version") or ffmpeg_info.get("error", "not found"), "WARN")
     add("FFmpeg executable path", bool(ffmpeg_info.get("path")), str(ffmpeg_info.get("path") or "not found"), "WARN")
     add("FFmpeg version", bool(ffmpeg_info.get("version")), str(ffmpeg_info.get("version") or "not available"), "WARN")
-    add("MoviePy FFmpeg access", bool(moviepy_info.get("ok")), str(moviepy_info.get("path") or moviepy_info.get("error") or "not configured"), "WARN")
+    moviepy_message = (
+        f"path={moviepy_info.get('path')}; "
+        f"imageio={moviepy_info.get('imageio_ffmpeg_message', '') or 'not checked'}; "
+        f"moviepy={moviepy_info.get('moviepy_message', '') or 'not checked'}"
+    )
+    add("MoviePy FFmpeg access", bool(moviepy_info.get("ok")), moviepy_message, "WARN")
     runtime_keys = runtime_api_keys or {}
     gemini_key = str(runtime_keys.get("gemini", "") or (getattr(settings, "gemini_api_key", "") if settings else ""))
     openai_key = str(runtime_keys.get("openai", "") or (getattr(settings, "openai_api_key", "") if settings else ""))

@@ -130,6 +130,8 @@ def _render_scene_clip(
             str(profile.get("crf", 23)),
             "-pix_fmt",
             "yuv420p",
+            "-frames:v",
+            str(max(1, int(duration * fps))),
             str(scene_output),
         ]
     else:
@@ -161,6 +163,8 @@ def _render_scene_clip(
             str(profile.get("crf", 23)),
             "-pix_fmt",
             "yuv420p",
+            "-frames:v",
+            str(max(1, int(duration * fps))),
             str(scene_output),
         ]
 

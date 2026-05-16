@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
 from providers.ai_provider import normalize_provider, provider_display_name
 
 
@@ -79,6 +80,26 @@ def build_provider_runtime_diagnostics(
         return diagnostics
 
     return diagnostics
+
+
+def build_ffmpeg_runtime_diagnostics(ffmpeg_path: str = "ffmpeg") -> dict[str, Any]:
+    """Return FFmpeg/MoviePy readiness for cloud runtime diagnostics."""
+    version_info = ffmpeg_version(ffmpeg_path)
+    moviepy_info = configure_moviepy_ffmpeg(ffmpeg_path)
+    ready = bool(version_info.get("ok") and moviepy_info.get("ok"))
+    return {
+        "runtime_ready": ready,
+        "status": "Ready" if ready else "Missing FFmpeg",
+        "ffmpeg_installed": bool(version_info.get("ok")),
+        "ffmpeg_path": version_info.get("path", ""),
+        "ffmpeg_version": version_info.get("version", ""),
+        "ffmpeg_error": version_info.get("error", ""),
+        "moviepy_ffmpeg_access": bool(moviepy_info.get("ok")),
+        "imageio_ffmpeg_access": bool(moviepy_info.get("imageio_ffmpeg_access", False)),
+        "imageio_ffmpeg_message": moviepy_info.get("imageio_ffmpeg_message", ""),
+        "moviepy_access": bool(moviepy_info.get("moviepy_access", False)),
+        "moviepy_message": moviepy_info.get("moviepy_message", ""),
+    }
 
 
 def classify_provider_error(error: Any) -> str:

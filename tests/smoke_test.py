@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from core.asset_manager import clear_rejected_images
 from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
-from core.provider_runtime import build_provider_runtime_diagnostics
+from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
@@ -53,6 +53,10 @@ from core.visual_presets import list_camera_presets, list_lighting_presets, list
 from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.automatic_hook_clip import quick_generate_hook_clip
+from core.character_engine import apply_character_consistency, create_character_profile
+from core.subtitle_engine import generate_styled_subtitles, get_viral_subtitle_preset, list_viral_subtitle_presets, mode_for_preset
+from core.viral_timing_engine import create_viral_timing_plan
+from core.hook_intelligence import analyze_opening_hook
 from core.preset_engine import get_preset, list_presets, preset_to_render_settings
 from core.podcast_content import (
     EPISODE_LENGTHS,
@@ -87,7 +91,7 @@ from core.artist_presets import (
     validate_artist_preset,
 )
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
-from core.song_workflow import _extract_json, generate_hook_candidates, generate_hook_candidates_with_provider, save_song_state, select_best_hook
+from core.song_workflow import _extract_json, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, save_song_state, select_best_hook
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -293,7 +297,9 @@ def main():
     ffmpeg_path = resolve_ffmpeg_path("ffmpeg")
     ffmpeg_info = ffmpeg_version("ffmpeg")
     moviepy_info = configure_moviepy_ffmpeg("ffmpeg")
+    ffmpeg_runtime = build_ffmpeg_runtime_diagnostics("ffmpeg")
     assert_true((not ffmpeg_path and not ffmpeg_info["ok"]) or (ffmpeg_info["ok"] and moviepy_info["ok"]), "FFmpeg runtime detection failed")
+    assert_true(ffmpeg_runtime["status"] in {"Ready", "Missing FFmpeg"} and "moviepy_ffmpeg_access" in ffmpeg_runtime, "FFmpeg runtime diagnostics failed")
     byo_health = run_healthcheck(
         type("Settings", (), {"velaflow_mode": "CLOUD", "gemini_api_key": "", "openai_api_key": "", "xai_api_key": "", "default_ai_provider": "gemini", "ffmpeg_path": "ffmpeg"})(),
         runtime_api_keys={"gemini": "user-gemini"},
@@ -933,6 +939,13 @@ def main():
     link_analysis = analyze_product_link("https://www.tiktok.com/shop/product/smoke-bottle", "price 199, creator-friendly bottle")
     assert_true(link_analysis["ok"] and link_analysis["data"]["platform"] == "tiktok_shop" and link_analysis["data"]["keywords"], "product link analyzer failed")
     best_music_hook = extract_best_hook("music", {"selected_hook": {"hook_text": "เดินต่อ ทั้งที่ใจยังเจ็บ"}})
+    song_to_short_song = {
+        "title": "Smoke Song Hook",
+        "selected_hook": {"hook_text": "เดินต่อ ทั้งที่ใจยังเจ็บ", "emotional_score": 92, "catchy_score": 88, "tiktok_potential": 90},
+        "normalized_song_output": "[Chorus]\nเดินต่อ ทั้งที่ใจยังเจ็บ\nให้ฝนล้างคำว่าเรา\n\n[Verse 1]\nคืนนี้ยังคิดถึงเธอ",
+    }
+    song_to_short_hook = detect_best_song_hook(song_to_short_song)
+    assert_true(song_to_short_hook["hook_text"] and song_to_short_hook["total_score"] > 0 and song_to_short_hook["clip_prompt"], "song-to-short hook detection failed")
     best_seller_hook = extract_best_hook("seller", seller_package)
     best_podcast_hook = extract_best_hook("podcast", podcast_package)
     best_viral_hook = extract_best_hook("viral_clips", viral_package)
@@ -967,6 +980,13 @@ def main():
     outcome_presets = list_presets()
     assert_true(len(outcome_presets) >= 6 and get_preset("cute_character")["motion_style"] == "bounce", "creator outcome presets failed")
     assert_true(preset_to_render_settings(get_preset("emotional_story"))["duration"] == "30s", "preset render defaults failed")
+    character_profile = create_character_profile("banana", personality="Funny", style="Cute 3D", voice_style="Cute", seed="smokeseed")
+    consistent_prompt = apply_character_consistency("banana walking in office", character_profile)
+    assert_true("same character" in consistent_prompt and "smokeseed" in consistent_prompt, "character consistency prompt failed")
+    opening_hook = analyze_opening_hook("กล้วยโดนเทแล้วบ่นเรื่องชีวิต", hook_style="Funny", preset=get_preset("cute_character"), character_profile=character_profile)
+    assert_true(opening_hook["ok"] and opening_hook["data"]["hook_score"] >= 0 and opening_hook["data"]["opening_line"], "opening hook intelligence failed")
+    styled_subtitles = generate_styled_subtitles(hook_subtitles, out / "hook_clip_projects" / "styled_subtitles", preset_id="cute_character")
+    assert_true(styled_subtitles["ok"] and Path(styled_subtitles["data"]["ass"]).exists() and mode_for_preset("cute_character") == "bounce", "TikTok styled subtitle engine failed")
     combine_manifest = combine_scene_clips(["scene_1.mp4", "scene_2.mp4"], out / "hook_clip_projects" / "final_hook_clip.mp4", subtitle_timing=hook_subtitles)
     assert_true(combine_manifest["ok"] and Path(combine_manifest["data"]["manifest_path"]).exists(), "combine fallback manifest failed")
     voiceover_plan = build_voiceover_plan(podcast_package["main_script"], style="tired office worker")
@@ -997,10 +1017,35 @@ def main():
         assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
         assert_true(Path(quick_data["render_manifest_path"]).exists() and Path(quick_data["scene_manifest_path"]).exists(), "quick hook clip manifests failed")
         assert_true(Path(quick_data["voiceover"]["audio_path"]).name == "voiceover.mp3", "quick hook clip voiceover filename failed")
+        assert_true(Path(quick_data["viral_timing_plan_path"]).exists(), "quick hook viral timing plan missing")
+        tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
+        for filename in ["final_hook_clip.mp4", "captions.txt", "hashtags.txt", "title.txt", "thumbnail_prompt.txt", "upload_checklist.txt", "viral_timing_plan.json"]:
+            assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
+        assert_true("Thai Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")
+        timing_plan = create_viral_timing_plan(quick_data["package"], target_duration=15, preset_id="viral_meme")
+        assert_true(timing_plan["first_3_seconds"]["opening_line"] and timing_plan["scene_count"] >= 1, "viral timing engine failed")
+        song_short_clip = quick_generate_hook_clip(
+            "Smoke Song To Short Clip",
+            song_to_short_hook["clip_prompt"],
+            source_workflow="music",
+            duration_seconds=15,
+            image_provider="offline",
+            preset_id="emotional_story",
+            subtitle_preset="Emotional Karaoke",
+        )
+        song_short_data = song_short_clip.get("data", {})
+        assert_true(song_short_clip["ok"] and Path(song_short_data["final_mp4"]).exists(), "song-to-short final_hook_clip.mp4 export failed")
+        assert_true(Path(song_short_data["render"]["subtitles"]).exists(), "song-to-short subtitles.srt export failed")
+        assert_true(len((song_short_data.get("package") or {}).get("scene_sequence", [])) == 3, "song-to-short 3-scene structure failed")
         cute_clip = quick_generate_hook_clip("Smoke Cute Character Clip", "กล้วยพูดได้บ่นเรื่องชีวิต", image_provider="offline", preset_id="cute_character")
         cute_package = cute_clip.get("data", {}).get("package", {})
         assert_true(cute_clip["ok"] and cute_package.get("creator_outcome_preset", {}).get("preset_id") == "cute_character", "cute character quick pipeline failed")
         assert_true(any(scene.get("motion_effect") == "bounce" for scene in cute_package.get("scene_sequence", [])), "cute character motion behavior failed")
+        cute_data = cute_clip.get("data", {})
+        assert_true(Path(cute_data["character_profile_path"]).exists() and Path(cute_data["hook_analysis_path"]).exists(), "character/hook export failed")
+        assert_true(Path(cute_data["styled_subtitles"]["ass"]).name == "styled_subtitles.ass", "styled subtitles export failed")
+        prompts = [scene.get("image_prompt", "") for scene in cute_package.get("scene_sequence", [])]
+        assert_true(prompts and all("same character" in prompt and "character consistency" in prompt for prompt in prompts), "scene character consistency missing")
     veo_payload = build_veo_payload(prompt=hook_clip_package["render_prompt"], aspect_ratio="9:16", duration_seconds=8, scene_id="scene_01", subtitle_timing=hook_subtitles)
     missing_veo = submit_veo_render_job(veo_payload, api_key="")
     assert_true(veo_payload["aspect_ratio"] == "9:16" and not missing_veo["ok"] and missing_veo["error"] == "missing_api_key", "Veo connector missing-key safety failed")

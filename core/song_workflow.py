@@ -217,6 +217,112 @@ def select_best_hook(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
     )
 
 
+def _strip_song_markup(line: str) -> str:
+    cleaned = re.sub(r"\[[^\]]+\]", "", str(line or ""))
+    cleaned = re.sub(r"\([^)]*\)", "", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _section_name(line: str) -> str:
+    match = re.match(r"\s*\[([^\]]+)\]", str(line or ""))
+    return match.group(1).strip() if match else ""
+
+
+def _lyric_line_candidates(lyrics: str) -> List[Dict[str, Any]]:
+    candidates: List[Dict[str, Any]] = []
+    current_section = ""
+    for raw_line in str(lyrics or "").splitlines():
+        section = _section_name(raw_line)
+        if section:
+            current_section = section
+            continue
+        line = _strip_song_markup(raw_line)
+        compact = re.sub(r"\s+", "", line)
+        if not line or len(compact) < 4 or len(line) > 90:
+            continue
+        section_lower = current_section.lower()
+        score = 50
+        if "chorus" in section_lower or "hook" in section_lower or "post" in section_lower:
+            score += 26
+        if "final" in section_lower:
+            score += 10
+        if 8 <= len(compact) <= 34:
+            score += 14
+        if any(word in line for word in ["ใจ", "รัก", "เจ็บ", "คิดถึง", "เหงา", "ลืม", "พอ", "ฝน", "คืน", "กลับ"]):
+            score += 12
+        if any(mark in line for mark in ["?", "!", "ไหม", "ทำไม"]):
+            score += 6
+        candidates.append({"text": line, "section": current_section or "Lyrics", "score": min(100, score)})
+    return candidates
+
+
+def detect_best_song_hook(song: Dict[str, Any]) -> Dict[str, Any]:
+    """Pick the strongest short-form hook from saved song data.
+
+    This stays local/offline: it prefers the selected hook, then chorus-like lyric
+    lines, then any compact emotional lyric line.
+    """
+    normalized = normalize_song_metadata(song or {})
+    selected = normalized.get("selected_hook") if isinstance(normalized.get("selected_hook"), dict) else {}
+    selected_text = _hook_text(selected) or normalized.get("selected_hook_text", "")
+    candidates: List[Dict[str, Any]] = []
+    if selected_text:
+        scores = _score_hook(selected_text)
+        candidates.append(
+            {
+                "hook_text": selected_text,
+                "section": selected.get("suggested_usage") or "Selected Hook",
+                "source": "selected_hook",
+                "emotional_score": int(selected.get("emotional_score") or scores["emotional_score"]),
+                "catchy_score": int(selected.get("catchy_score") or scores["catchy_score"]),
+                "tiktok_potential": int(selected.get("tiktok_potential") or scores["tiktok_potential"]),
+                "replay_value": min(100, int(selected.get("tiktok_potential") or scores["tiktok_potential"]) + (6 if len(re.sub(r"\s+", "", selected_text)) <= 18 else 0)),
+                "reason": "Selected song hook with strong short-form potential.",
+            }
+        )
+    for index, line in enumerate(_lyric_line_candidates(normalized.get("normalized_song_output") or normalized.get("complete_lyrics") or "")):
+        scores = _score_hook(line["text"], index)
+        section_bonus = int(line.get("score", 0))
+        candidates.append(
+            {
+                "hook_text": line["text"],
+                "section": line.get("section", "Lyrics"),
+                "source": "lyrics",
+                "emotional_score": min(100, scores["emotional_score"] + section_bonus // 10),
+                "catchy_score": min(100, scores["catchy_score"] + section_bonus // 12),
+                "tiktok_potential": min(100, scores["tiktok_potential"] + section_bonus // 10),
+                "replay_value": min(100, scores["tiktok_potential"] + section_bonus // 12 + (8 if line.get("score", 0) >= 80 else 0)),
+                "reason": "Detected from chorus/emotional lyric lines.",
+            }
+        )
+    if not candidates:
+        fallback = select_best_hook(normalized.get("hook_candidates") or [])
+        candidates.append(
+            {
+                "hook_text": fallback.get("hook_text", ""),
+                "section": fallback.get("suggested_usage", "chorus"),
+                "source": "fallback_hook",
+                "emotional_score": fallback.get("emotional_score", 70),
+                "catchy_score": fallback.get("catchy_score", 70),
+                "tiktok_potential": fallback.get("tiktok_potential", 70),
+                "replay_value": min(100, int(fallback.get("tiktok_potential", 70)) + 5),
+                "reason": "Fallback from hook candidates.",
+            }
+        )
+    best = max(
+        [item for item in candidates if item.get("hook_text")],
+        key=lambda item: int(item.get("emotional_score", 0)) + int(item.get("catchy_score", 0)) + int(item.get("tiktok_potential", 0)),
+    )
+    best["total_score"] = int(best.get("emotional_score", 0)) + int(best.get("catchy_score", 0)) + int(best.get("tiktok_potential", 0))
+    best["total_score"] += int(best.get("replay_value", 0))
+    best["clip_prompt"] = (
+        f"Create a 3-scene vertical short clip from this song hook: {best.get('hook_text', '')}. "
+        f"Song title: {normalized.get('title', '')}. Section: {best.get('section', '')}. "
+        "Use emotional music-video visuals, Thai subtitles, local image-motion scenes, and TikTok-friendly pacing."
+    )
+    return best
+
+
 def normalize_song_metadata(song: Dict[str, Any], artist_preset: Dict[str, Any] | None = None) -> Dict[str, Any]:
     preset = artist_preset or get_artist_preset(song.get("artist_preset", "vela_moon"))
     normalized = dict(song or {})

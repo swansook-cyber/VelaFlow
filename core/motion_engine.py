@@ -87,5 +87,5 @@ def image_motion_filter(motion: str, width: int, height: int, duration_seconds: 
         f"scale={width}:{height}:force_original_aspect_ratio=increase,"
         f"crop={width}:{height},"
         f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={frames}:s={width}x{height}:fps={fps},"
-        "setsar=1,format=yuv420p"
+        f"trim=duration={float(duration_seconds or 1):.3f},setpts=PTS-STARTPTS,setsar=1,format=yuv420p"
     )

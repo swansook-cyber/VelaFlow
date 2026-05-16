@@ -15,14 +15,31 @@ ASPECT_RATIOS: Dict[str, Dict[str, Any]] = {
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _nix_ffmpeg_candidates() -> list[Path]:
+    nix_root = Path("/nix/store")
+    if not nix_root.exists():
+        return []
+    candidates: list[Path] = []
+    try:
+        for path in nix_root.glob("*ffmpeg*/bin/ffmpeg"):
+            if path.exists():
+                candidates.append(path)
+    except Exception:
+        return []
+    return sorted(candidates, key=lambda path: str(path))
+
+
 def resolve_ffmpeg_path(ffmpeg_path: str = "ffmpeg") -> str:
     configured = str(ffmpeg_path or "").strip() or os.getenv("FFMPEG_PATH", "ffmpeg")
+    if configured == "__missing_ffmpeg__":
+        return ""
     candidates: list[str | Path] = []
-    if configured:
+    if configured and configured != "__missing_ffmpeg__":
         candidates.append(configured)
-    env_path = os.getenv("FFMPEG_PATH", "").strip()
-    if env_path and env_path not in candidates:
-        candidates.append(env_path)
+    for env_name in ["FFMPEG_PATH", "IMAGEIO_FFMPEG_EXE", "FFMPEG_BINARY"]:
+        env_path = os.getenv(env_name, "").strip()
+        if env_path and env_path not in {str(item) for item in candidates} and env_path != "__missing_ffmpeg__":
+            candidates.append(env_path)
     candidates.extend(
         [
             "ffmpeg",
@@ -31,8 +48,10 @@ def resolve_ffmpeg_path(ffmpeg_path: str = "ffmpeg") -> str:
             ROOT / "bin" / "ffmpeg.exe",
             "/usr/bin/ffmpeg",
             "/usr/local/bin/ffmpeg",
+            "/bin/ffmpeg",
         ]
     )
+    candidates.extend(_nix_ffmpeg_candidates())
     for candidate in candidates:
         value = str(candidate)
         found = shutil.which(value)
@@ -77,7 +96,34 @@ def configure_moviepy_ffmpeg(ffmpeg_path: str = "ffmpeg") -> Dict[str, Any]:
     if resolved:
         os.environ["IMAGEIO_FFMPEG_EXE"] = resolved
         os.environ["FFMPEG_BINARY"] = resolved
-        return {"ok": True, "path": resolved, "error": ""}
+        imageio_access = False
+        imageio_message = ""
+        try:
+            import imageio_ffmpeg
+
+            imageio_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            imageio_access = bool(imageio_exe)
+            imageio_message = str(imageio_exe)
+        except Exception as exc:
+            imageio_message = str(exc)
+        moviepy_access = False
+        moviepy_message = ""
+        try:
+            import moviepy  # noqa: F401
+
+            moviepy_access = True
+            moviepy_message = "moviepy import ok"
+        except Exception as exc:
+            moviepy_message = str(exc)
+        return {
+            "ok": True,
+            "path": resolved,
+            "error": "",
+            "imageio_ffmpeg_access": imageio_access,
+            "imageio_ffmpeg_message": imageio_message,
+            "moviepy_access": moviepy_access,
+            "moviepy_message": moviepy_message,
+        }
     return {"ok": False, "path": "", "error": "missing_ffmpeg"}
 
 
@@ -89,10 +135,15 @@ def append_log(log_path: str | Path, text: str) -> None:
 
 
 def run_ffmpeg(command: List[str], log_path: str | Path, cwd: str | Path | None = None) -> Dict[str, Any]:
+    command = [str(part) for part in command]
+    if command:
+        resolved = resolve_ffmpeg_path(command[0])
+        if resolved:
+            command[0] = resolved
     append_log(log_path, "$ " + " ".join(f'"{part}"' if " " in str(part) else str(part) for part in command))
     try:
         process = subprocess.run(
-            [str(part) for part in command],
+            command,
             cwd=str(cwd) if cwd else None,
             capture_output=True,
             text=True,

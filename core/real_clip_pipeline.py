@@ -9,23 +9,39 @@ from typing import Any
 from core.project_io import safe_name
 from core.paths import workflow_project_root
 from core.scene_story_engine import build_subtitle_timing
-from core.ffmpeg_utils import resolve_ffmpeg_path
+from core.ffmpeg_utils import configure_moviepy_ffmpeg, resolve_ffmpeg_path
 
 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
 
 
 def find_ffmpeg() -> str:
-    return resolve_ffmpeg_path("ffmpeg")
+    resolved = resolve_ffmpeg_path("ffmpeg")
+    if resolved:
+        configure_moviepy_ffmpeg(resolved)
+    return resolved
 
 
 def _run_ffmpeg(args: list[str], log_path: Path) -> dict[str, Any]:
+    if args:
+        resolved = resolve_ffmpeg_path(args[0])
+        if resolved:
+            args = [resolved, *args[1:]]
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as log:
         log.write("\n$ " + " ".join(args) + "\n")
-        proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
-        log.write(proc.stdout or "")
-    return {"ok": proc.returncode == 0, "returncode": proc.returncode, "output": proc.stdout or ""}
+        try:
+            proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+            log.write(proc.stdout or "")
+            return {"ok": proc.returncode == 0, "returncode": proc.returncode, "output": proc.stdout or ""}
+        except FileNotFoundError as exc:
+            message = f"missing_ffmpeg: {exc}"
+            log.write(message + "\n")
+            return {"ok": False, "returncode": -1, "output": message}
+        except Exception as exc:
+            message = str(exc)
+            log.write(message + "\n")
+            return {"ok": False, "returncode": -1, "output": message}
 
 
 def _srt_time(seconds: float) -> str:

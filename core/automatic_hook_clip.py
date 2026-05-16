@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 import json
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.character_engine import apply_character_consistency, create_character_profile, save_character_profile
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package
+from core.hook_intelligence import analyze_opening_hook, save_hook_analysis
 from core.paths import resolve_project_folder
 from core.preset_engine import get_preset, preset_to_render_settings, preset_to_visual_settings
 from core.project_io import safe_name
 from core.real_clip_pipeline import render_real_hook_clip
+from core.subtitle_engine import generate_styled_subtitles
+from core.viral_timing_engine import create_viral_timing_plan, save_viral_timing_plan
 from core.voiceover_engine import generate_voiceover_audio
 from providers.image_ai import generate_image
 
@@ -49,6 +54,65 @@ VOICE_STYLE_MAP = {
 }
 
 
+def export_tiktok_package(project_name: str, package: dict[str, Any], render_data: dict[str, Any] | None = None) -> dict[str, Any]:
+    try:
+        project_dir = resolve_project_folder(project_name or "hook_clip", "clips")
+        exports_dir = project_dir / "exports"
+        final_dir = exports_dir / "final"
+        final_dir.mkdir(parents=True, exist_ok=True)
+        render_data = render_data or {}
+        final_mp4 = Path(str(render_data.get("final_mp4") or ""))
+        subtitle_path = Path(str(render_data.get("subtitles") or exports_dir / "subtitles.srt"))
+        if final_mp4.is_file():
+            shutil.copy2(final_mp4, final_dir / "final_hook_clip.mp4")
+        if subtitle_path.is_file():
+            shutil.copy2(subtitle_path, final_dir / "subtitles.srt")
+        captions = str(package.get("caption") or package.get("subtitle_line") or package.get("hook_text") or "").strip()
+        hashtags = package.get("hashtags") or ["#VelaFlow", "#TikTok", "#Reels", "#Shorts"]
+        title = str(package.get("hook_text") or "VelaFlow Hook Clip").strip()
+        thumbnail_prompt = str(package.get("thumbnail_prompt") or "").strip() or f"Vertical TikTok thumbnail for: {title}"
+        checklist = [
+            "[ ] Review final_hook_clip.mp4",
+            "[ ] Check subtitles are readable on mobile",
+            "[ ] Copy caption and hashtags",
+            "[ ] Upload as 9:16 vertical clip",
+            "[ ] Review AI output before publishing",
+        ]
+        timing_plan = package.get("viral_timing_plan") or create_viral_timing_plan(
+            package,
+            target_duration=(package.get("scene_package") or {}).get("duration_seconds"),
+            preset_id=(package.get("creator_outcome_preset") or {}).get("preset_id", ""),
+        )
+        timing_result = save_viral_timing_plan(timing_plan, final_dir / "viral_timing_plan.json")
+        files = {
+            "captions.txt": captions,
+            "hashtags.txt": " ".join(str(tag) for tag in hashtags),
+            "title.txt": title,
+            "thumbnail_prompt.txt": thumbnail_prompt,
+            "upload_checklist.txt": "\n".join(checklist),
+        }
+        written: dict[str, str] = {}
+        for filename, content in files.items():
+            path = final_dir / filename
+            path.write_text(str(content).strip() + "\n", encoding="utf-8")
+            written[filename] = str(path)
+        manifest = {
+            "generated_by": "VelaFlow",
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "project_name": project_name,
+            "final_dir": str(final_dir),
+            "final_hook_clip": str(final_dir / "final_hook_clip.mp4") if (final_dir / "final_hook_clip.mp4").is_file() else "",
+            "subtitles": str(final_dir / "subtitles.srt") if (final_dir / "subtitles.srt").is_file() else "",
+            "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
+            "files": written,
+        }
+        manifest_path = final_dir / "tiktok_package_manifest.json"
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "message": "TikTok package exported", "data": {**manifest, "manifest_path": str(manifest_path)}, "error": ""}
+    except Exception as exc:
+        return {"ok": False, "message": "TikTok package export failed", "data": {}, "error": str(exc)}
+
+
 def _idea_content(idea: str, source_workflow: str, preset: dict[str, Any]) -> dict[str, Any]:
     cleaned = " ".join(str(idea or "").split()).strip()
     if not cleaned:
@@ -64,7 +128,7 @@ def _idea_content(idea: str, source_workflow: str, preset: dict[str, Any]) -> di
     }
 
 
-def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]) -> str:
+def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any], character_profile: dict[str, Any] | None = None, consistency_strength: str = "high") -> str:
     prompt = str(scene.get("visual_prompt") or "").strip()
     lighting = str(scene.get("lighting") or "natural cinematic lighting").strip()
     camera = str(scene.get("camera_direction") or "vertical creator shot").strip()
@@ -79,10 +143,11 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
         style_suffix = ", emotional cinematic realism, soft film look"
     elif preset.get("motion_style") == "cinematic_mv":
         style_suffix = ", music video cinematic frame, dramatic film look"
-    return (
+    base = (
         f"{prompt}, {camera}, {lighting}{style_suffix}, high quality composition, "
         "clear subject, no watermark, no random text"
     )
+    return apply_character_consistency(base, character_profile, consistency_strength)
 
 
 def _apply_preset_to_scenes(package: dict[str, Any], preset: dict[str, Any]) -> None:
@@ -101,6 +166,8 @@ def _generate_scene_images(
     *,
     idea: str,
     preset: dict[str, Any],
+    character_profile: dict[str, Any] | None,
+    consistency_strength: str,
     image_provider: str,
     image_settings: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
@@ -116,7 +183,7 @@ def _generate_scene_images(
     results: list[dict[str, Any]] = []
     for index, scene in enumerate(package.get("scene_sequence", []) or [], start=1):
         scene_id = str(scene.get("scene_id") or f"scene_{index:02d}")
-        prompt = _scene_image_prompt(scene, idea, preset)
+        prompt = _scene_image_prompt(scene, idea, preset, character_profile, consistency_strength)
         output_path = images_dir / f"{safe_name(scene_id)}.png"
         provider_used = image_provider or "offline"
         try:
@@ -154,10 +221,30 @@ def quick_generate_hook_clip(
     voiceover_style: str = "calm narrator",
     voiceover_api_key: str = "",
     preset_id: str = "viral_meme",
+    character_profile: dict[str, Any] | None = None,
+    character_type: str = "banana",
+    character_personality: str = "Funny",
+    character_style: str = "Cute 3D",
+    character_voice_style: str = "Cute",
+    character_seed: str = "",
+    consistency_strength: str = "high",
+    subtitle_animation: str = "",
+    subtitle_preset: str = "",
+    hook_intensity: int = 75,
+    meme_level: int = 70,
+    chaos_level: int = 35,
 ) -> dict[str, Any]:
     try:
         project_name = project_name or "Quick Hook Clip"
         preset = get_preset(preset_id)
+        if character_profile is None and preset.get("preset_id") == "cute_character":
+            character_profile = create_character_profile(
+                character_type,
+                personality=character_personality,
+                style=character_style,
+                voice_style=character_voice_style,
+                seed=character_seed,
+            )
         preset_duration = int(preset.get("default_duration") or 15)
         duration_seconds = max(5, min(60, int(duration_seconds or preset_duration)))
         visual = {**DEFAULT_VISUAL_SETTINGS, **preset_to_visual_settings(preset), **(visual_settings or {})}
@@ -165,7 +252,17 @@ def quick_generate_hook_clip(
         render["aspect_ratio"] = str(preset.get("aspect_ratio") or render.get("aspect_ratio") or "9:16")
         render["duration"] = f"{duration_seconds}s"
         voiceover_style = VOICE_STYLE_MAP.get(str(preset.get("voice_style") or ""), voiceover_style)
-        content = _idea_content(idea, source_workflow, preset)
+        hook_analysis = analyze_opening_hook(
+            idea,
+            hook_style=str(preset.get("hook_style") or "Curiosity").replace("_", " ").title(),
+            preset=preset,
+            character_profile=character_profile,
+        ).get("data", {})
+        hook_analysis["hook_intensity"] = hook_intensity
+        hook_analysis["meme_level"] = meme_level
+        hook_analysis["chaos_level"] = chaos_level
+        enriched_idea = f"{hook_analysis.get('opening_line', '')}\n{idea}".strip()
+        content = _idea_content(enriched_idea, source_workflow, preset)
         package_result = build_hook_render_package(
             project_name,
             source_workflow,
@@ -183,6 +280,10 @@ def quick_generate_hook_clip(
         package["subtitle_style"] = preset.get("subtitle_style", "")
         package["transition_style"] = preset.get("transition_style", "")
         package["voice_style"] = preset.get("voice_style", "")
+        package["character_profile"] = character_profile or {}
+        package["hook_analysis"] = hook_analysis
+        effective_subtitle_style = subtitle_preset or subtitle_animation or package.get("subtitle_style", "")
+        package["subtitle_animation"] = effective_subtitle_style
         package["render_settings"] = {**package.get("render_settings", {}), **render}
         package["quick_generate"] = {
             "enabled": True,
@@ -192,7 +293,16 @@ def quick_generate_hook_clip(
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
         _apply_preset_to_scenes(package, preset)
-        image_results = _generate_scene_images(project_name, package, idea=idea, preset=preset, image_provider=image_provider or "offline", image_settings=image_settings)
+        image_results = _generate_scene_images(
+            project_name,
+            package,
+            idea=idea,
+            preset=preset,
+            character_profile=character_profile,
+            consistency_strength=consistency_strength,
+            image_provider=image_provider or "offline",
+            image_settings=image_settings,
+        )
         voice_script = _voiceover_script(package)
         package["voiceover_script"] = voice_script
         voice_result = generate_voiceover_audio(
@@ -209,6 +319,18 @@ def quick_generate_hook_clip(
         project_dir = resolve_project_folder(project_name, "clips")
         exports_dir = project_dir / "exports"
         exports_dir.mkdir(parents=True, exist_ok=True)
+        character_save = save_character_profile(project_name, character_profile, "clips") if character_profile else {"ok": False, "data": {}, "error": "no_character_profile"}
+        hook_save = save_hook_analysis(project_name, hook_analysis, exports_dir)
+        subtitle_result = generate_styled_subtitles(
+            package.get("subtitle_timing", []),
+            exports_dir,
+            preset_id=str(preset.get("preset_id") or ""),
+            subtitle_style=effective_subtitle_style or str(preset.get("subtitle_style") or ""),
+        )
+        viral_timing_plan = create_viral_timing_plan(package, target_duration=duration_seconds, preset_id=str(preset.get("preset_id") or ""))
+        timing_result = save_viral_timing_plan(viral_timing_plan, exports_dir / "viral_timing_plan.json")
+        package["viral_timing_plan"] = viral_timing_plan
+        tiktok_package = export_tiktok_package(project_name, package, render_result.get("data", {}))
         manifest = {
             "generated_by": "VelaFlow",
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -219,6 +341,14 @@ def quick_generate_hook_clip(
             "preset": preset,
             "image_provider": image_provider or "offline",
             "image_results": image_results,
+            "character_profile": character_profile or {},
+            "character_profile_path": (character_save.get("data") or {}).get("path", ""),
+            "hook_analysis": hook_analysis,
+            "hook_analysis_path": (hook_save.get("data") or {}).get("path", ""),
+            "styled_subtitles": subtitle_result,
+            "viral_timing_plan": viral_timing_plan,
+            "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
+            "tiktok_package": tiktok_package,
             "voiceover": voice_result,
             "render": render_result,
             "hook_package_export": export_result,
@@ -236,6 +366,8 @@ def quick_generate_hook_clip(
                     "created_at": datetime.now().isoformat(timespec="seconds"),
                     "project_name": project_name,
                     "preset": preset,
+                    "character_profile": character_profile or {},
+                    "hook_analysis": hook_analysis,
                     "scenes": package.get("scene_sequence", []),
                     "image_results": image_results,
                 },
@@ -252,6 +384,14 @@ def quick_generate_hook_clip(
                 "package": package,
                 "package_export": export_result.get("data", {}),
                 "image_results": image_results,
+                "character_profile": character_profile or {},
+                "character_profile_path": (character_save.get("data") or {}).get("path", ""),
+                "hook_analysis": hook_analysis,
+                "hook_analysis_path": (hook_save.get("data") or {}).get("path", ""),
+                "styled_subtitles": subtitle_result.get("data", {}),
+                "viral_timing_plan": viral_timing_plan,
+                "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
+                "tiktok_package": tiktok_package.get("data", {}),
                 "voiceover": voice_result.get("data", {}),
                 "render": render_result.get("data", {}),
                 "manifest_path": str(quick_manifest_path),
