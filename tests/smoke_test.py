@@ -1025,6 +1025,9 @@ def main():
         assert_true(real_clip["data"].get("background_audio_path"), "real hook background audio metadata missing")
         assert_true(real_clip["data"]["validation"]["valid_mp4"] and real_clip["data"]["duration"] > 1, "real hook MP4 playable validation failed")
         assert_true(all((job.get("validation") or {}).get("valid_mp4") for job in real_clip["data"]["scene_jobs"] if job.get("status") == "completed"), "scene MP4 validation failed")
+        assert_true(Path(real_clip["data"]["render_stage_path"]).exists(), "render_stage.json missing")
+        assert_true(real_clip["data"]["render_stage"]["scene_render_ok"] and real_clip["data"]["render_stage"]["combine_ok"] and real_clip["data"]["render_stage"]["final_mp4_ok"], "render stage flags failed")
+        assert_true(real_clip["data"].get("audio_attached"), "audio attach status missing")
         quick_clip = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
             "ทดสอบคลิปสั้นแนวตั้งสำหรับ VelaFlow",
@@ -1043,6 +1046,7 @@ def main():
         assert_true(all({"provider_used", "fallback_used", "fallback_reason", "error_type", "safe_error_message"}.issubset(set(item.keys())) for item in quick_data["image_results"]), "image diagnostics missing")
         assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
         assert_true(Path(quick_data["render_manifest_path"]).exists() and Path(quick_data["scene_manifest_path"]).exists(), "quick hook clip manifests failed")
+        assert_true(Path(quick_data["render_stage_path"]).exists(), "quick hook render_stage.json missing")
         assert_true(Path(quick_data["voiceover"]["audio_path"]).name == "voiceover.mp3", "quick hook clip voiceover filename failed")
         assert_true(Path(quick_data["viral_timing_plan_path"]).exists(), "quick hook viral timing plan missing")
         assert_true(Path(quick_data["scene_prompts_path"]).exists(), "quick hook scene_prompts.json missing")
@@ -1052,7 +1056,7 @@ def main():
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
-        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
+        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
         assert_true("TikTok Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")

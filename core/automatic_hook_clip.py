@@ -86,6 +86,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         render_manifest = Path(str(render_data.get("manifest_path") or package.get("render_manifest_path") or ""))
         if render_manifest.is_file():
             shutil.copy2(render_manifest, ensure_parent_dir(final_dir / "render_manifest.json"))
+        render_stage = Path(str(render_data.get("render_stage_path") or package.get("render_stage_path") or ""))
+        if render_stage.is_file():
+            shutil.copy2(render_stage, ensure_parent_dir(final_dir / "render_stage.json"))
         image_manifest = Path(str(render_data.get("image_generation_manifest") or package.get("image_generation_manifest_path") or ""))
         if image_manifest.is_file():
             shutil.copy2(image_manifest, ensure_parent_dir(final_dir / "image_generation_manifest.json"))
@@ -140,6 +143,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "scene_prompts": str(final_dir / "scene_prompts.json") if (final_dir / "scene_prompts.json").is_file() else "",
             "beat_timing": str(final_dir / "beat_timing.json") if (final_dir / "beat_timing.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
+            "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
             "files": written,
@@ -475,6 +479,7 @@ def quick_generate_hook_clip(
         render_manifest_payload = dict((render_result.get("data") or {}).get("manifest", manifest))
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
+        render_manifest_payload["render_stage_path"] = (render_result.get("data") or {}).get("render_stage_path", "")
         render_manifest_path.write_text(json.dumps(render_manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
         scene_manifest_path.write_text(
             json.dumps(
@@ -522,6 +527,7 @@ def quick_generate_hook_clip(
                 "render": render_result.get("data", {}),
                 "manifest_path": str(quick_manifest_path),
                 "render_manifest_path": str(render_manifest_path),
+                "render_stage_path": (render_result.get("data") or {}).get("render_stage_path", ""),
                 "scene_manifest_path": str(scene_manifest_path),
                 "final_mp4": (render_result.get("data") or {}).get("final_mp4", ""),
             },

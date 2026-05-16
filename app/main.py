@@ -765,7 +765,9 @@ def _render_final_downloads(section_key: str, real_output: dict[str, Any]) -> No
     if status == "completed":
         st.success(f"Render completed · {float(duration or 0):.1f}s")
     elif status == "failed":
-        st.warning("Render failed. Generated images/assets are preserved.")
+        stage = real_output.get("render_stage") or (real_output.get("manifest", {}) or {}).get("render_stage", {})
+        clean_error = stage.get("safe_error_message") or real_output.get("error") or "Render failed. Generated images/assets are preserved."
+        st.warning(clean_error)
     else:
         st.caption(f"Render Status: {status}")
     if real_output.get("final_mp4") and Path(real_output["final_mp4"]).is_file():
@@ -811,6 +813,7 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
         ("scene_prompts.json", "application/json"),
         ("beat_timing.json", "application/json"),
         ("render_manifest.json", "application/json"),
+        ("render_stage.json", "application/json"),
         ("upload_checklist.txt", "text/plain"),
         ("viral_timing_plan.json", "application/json"),
         ("hook_audio.mp3", "audio/mpeg"),

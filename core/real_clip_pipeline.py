@@ -158,6 +158,12 @@ def validate_mp4(path: str | Path, *, min_duration: float = 1.0, ffmpeg_path: st
     return probe
 
 
+def _write_render_stage(exports_dir: Path, stage: dict[str, Any]) -> Path:
+    path = ensure_parent_dir(exports_dir / "render_stage.json")
+    path.write_text(json.dumps(stage, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
+
+
 def _srt_time(seconds: float) -> str:
     ms = int(round((seconds - int(seconds)) * 1000))
     total = int(seconds)
@@ -441,6 +447,7 @@ def combine_scene_clips_to_mp4(
             "background_audio_path": str(background_audio_path or ""),
             "voiceover_path": str(voiceover_path or ""),
             "subtitle_burned": subtitle_burned,
+            "audio_attached": bool(audio_inputs),
             "validation": validation,
             "duration": validation.get("duration", 0),
             "file_size": validation.get("file_size", 0),
@@ -474,6 +481,18 @@ def render_real_hook_clip(
         subtitle_timing = hook_package.get("subtitle_timing") or build_subtitle_timing(scenes)
         srt_path = exports_dir / "subtitles.srt"
         write_subtitles(subtitle_timing, srt_path)
+        render_stage = {
+            "scene_render_ok": False,
+            "combine_ok": False,
+            "audio_attach_ok": False,
+            "subtitle_ok": bool(srt_path.is_file()),
+            "final_mp4_ok": False,
+            "final_mp4_path": "",
+            "safe_error_message": "",
+            "scene_count": len(scenes),
+            "completed_scene_count": 0,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
         scene_jobs = []
         scene_paths = []
         for scene in scenes:
@@ -481,9 +500,12 @@ def render_real_hook_clip(
             clip_path = ensure_parent_dir(scenes_dir / f"{scene_id}.mp4")
             job = {"scene_id": scene_id, "status": "pending", "path": str(clip_path), "error": ""}
             if clip_path.is_file() and not force:
+                scene_validation = validate_mp4(clip_path, min_duration=0.3, ffmpeg_path=ffmpeg_path or "ffmpeg")
                 job["status"] = "completed_existing"
+                job["validation"] = scene_validation
                 scene_jobs.append(job)
-                scene_paths.append(clip_path)
+                if scene_validation.get("valid_mp4", False):
+                    scene_paths.append(clip_path)
                 continue
             result = render_image_motion_scene(scene, clip_path, ffmpeg_path=ffmpeg_path, aspect_ratio=aspect_ratio, log_path=log_path)
             scene_validation = validate_mp4(clip_path, min_duration=0.3, ffmpeg_path=ffmpeg_path or "ffmpeg")
@@ -495,6 +517,8 @@ def render_real_hook_clip(
             scene_jobs.append(job)
             if result.get("ok") and scene_validation.get("valid_mp4", False):
                 scene_paths.append(clip_path)
+        render_stage["completed_scene_count"] = len(scene_paths)
+        render_stage["scene_render_ok"] = bool(scene_paths) and len(scene_paths) == len(scenes)
         final_name = {
             "seller": "final_seller_clip.mp4",
             "podcast": "final_podcast_clip.mp4",
@@ -510,6 +534,20 @@ def render_real_hook_clip(
             ffmpeg_path=ffmpeg_path,
             log_path=log_path,
         )
+        combine_data = combine.get("data") or {}
+        final_validation = combine_data.get("validation") or validate_mp4(final_path, ffmpeg_path=ffmpeg_path or "ffmpeg")
+        render_stage.update(
+            {
+                "combine_ok": bool(combine.get("ok")),
+                "audio_attach_ok": bool(combine_data.get("audio_attached")) if (background_audio_path or voiceover_path) else True,
+                "subtitle_ok": bool(srt_path.is_file()),
+                "final_mp4_ok": bool(final_validation.get("valid_mp4", False)),
+                "final_mp4_path": str(final_path) if final_path.is_file() else "",
+                "safe_error_message": "" if combine.get("ok") else (combine.get("error") or "Final MP4 render failed"),
+                "validation": final_validation,
+            }
+        )
+        render_stage_path = _write_render_stage(exports_dir, render_stage)
         manifest = {
             "generated_by": "VelaFlow",
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -525,9 +563,11 @@ def render_real_hook_clip(
             "duration": (combine.get("data") or {}).get("duration", 0),
             "validation": (combine.get("data") or {}).get("validation", {}),
             "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False),
+            "render_stage_path": str(render_stage_path),
+            "render_stage": render_stage,
         }
         manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False)}, "error": combine.get("error", "")}
+        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "render_stage_path": str(render_stage_path), "render_stage": render_stage, "final_mp4": str(final_path), "subtitles": str(srt_path), "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False), "audio_attached": (combine.get("data") or {}).get("audio_attached", False)}, "error": combine.get("error", "")}
     except Exception as exc:
         return {"ok": False, "message": "Real hook clip render failed", "data": {}, "error": str(exc)}
