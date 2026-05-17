@@ -1101,6 +1101,8 @@ def main():
         assert_true(quick_data["progress_stages"][-1]["status"] == "completed", "creator progress did not complete")
         assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
         assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
+        quick_validation = quick_data["render"].get("validation") or {}
+        assert_true(quick_validation.get("width") in {720, 1080} and quick_validation.get("height") in {1280, 1920} and quick_validation.get("height", 0) > quick_validation.get("width", 0), "quick hook final MP4 is not fullscreen 9:16")
         assert_true((quick_data["render"].get("render_stage") or {}).get("uploaded_audio_attached") is True, "quick hook uploaded audio was not attached")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
         assert_true((quick_data.get("clip_version") or {}).get("version_id") == "v1" and Path((quick_data.get("clip_version") or {}).get("path", "")).exists(), "clip version v1 missing")
@@ -1113,6 +1115,8 @@ def main():
         subtitle_text = Path(quick_data["render"]["subtitles"]).read_text(encoding="utf-8-sig")
         styled_text = Path((quick_data.get("styled_subtitles") or {}).get("ass", "")).read_text(encoding="utf-8-sig")
         assert_true("□" not in subtitle_text and "�" not in subtitle_text and "Noto Sans Thai" in styled_text, "Thai subtitle font/encoding failed")
+        style_lines = [line for line in styled_text.splitlines() if line.startswith("Style: Default,")]
+        assert_true(style_lines and all(line.split(",")[18] == "2" and int(line.split(",")[21]) >= 120 for line in style_lines), "subtitle style is not bottom-safe")
         assert_true(Path(quick_data["render_manifest_path"]).exists() and Path(quick_data["scene_manifest_path"]).exists(), "quick hook clip manifests failed")
         assert_true(Path(quick_data["render_stage_path"]).exists(), "quick hook render_stage.json missing")
         assert_true(Path(quick_data["voiceover"]["audio_path"]).name == "voiceover.mp3", "quick hook clip voiceover filename failed")
@@ -1126,6 +1130,7 @@ def main():
         assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
         assert_true(any("different framing" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing variety/continuity guidance")
         assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "same character" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
+        assert_true(all("collage" not in str(job.get("render_mode_used", "")).lower() and "stack" not in str(job.get("render_mode_used", "")).lower() for job in quick_data["render"].get("scene_jobs", [])), "stacked/collage render mode detected")
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")

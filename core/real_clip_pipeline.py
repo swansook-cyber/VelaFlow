@@ -147,7 +147,7 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
                 "-v",
                 "error",
                 "-show_entries",
-                "stream=codec_type",
+                "stream=codec_type,width,height",
                 "-of",
                 "json",
                 str(media),
@@ -166,6 +166,12 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
                 stream_types = [str(item.get("codec_type", "")) for item in stream_payload.get("streams", []) if item.get("codec_type")]
             except Exception:
                 stream_types = []
+        width = height = 0
+        for stream in (stream_payload.get("streams", []) if "stream_payload" in locals() else []):
+            if stream.get("codec_type") == "video":
+                width = int(stream.get("width") or 0)
+                height = int(stream.get("height") or 0)
+                break
         return {
             "ok": duration_proc.returncode == 0 and media.stat().st_size > 0 and duration > 0,
             "path": str(media),
@@ -175,6 +181,9 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
             "stream_types": stream_types,
             "has_video": "video" in stream_types,
             "has_audio": "audio" in stream_types,
+            "width": width,
+            "height": height,
+            "aspect_ratio": round(width / height, 4) if width and height else 0,
             "error": "" if duration_proc.returncode == 0 else (duration_proc.stderr or "ffprobe_failed"),
         }
     except Exception as exc:
@@ -655,11 +664,11 @@ def combine_scene_clips_to_mp4(
     if subtitle_path and Path(subtitle_path).is_file():
         vf.insert(0, _subtitle_burn_filter(subtitle_path))
     complex_args = ["-filter_complex", ";".join(filter_complex)] if filter_complex else []
-    final_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
+    final_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", ",".join(vf), "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart"] + [str(output)]
     final_result = _run_ffmpeg(final_args, log)
     subtitle_burned = bool(final_result["ok"] and subtitle_path)
     if not final_result["ok"] and subtitle_path:
-        fallback_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + audio_args + [str(output)]
+        fallback_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart"] + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
         subtitle_burned = False
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
