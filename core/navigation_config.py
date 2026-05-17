@@ -3,6 +3,7 @@ from __future__ import annotations
 
 PAGE_LABELS = {
     "Creator Wizard": "Release Workflow Wizard",
+    "Hook Clip Studio": "Clip Studio",
     "Smart Clip Factory": "Clip Factory",
     "Production Audit": "Quality Audit",
     "Release Hardening Tools": "Recovery Tools",
@@ -19,7 +20,7 @@ FULL_MENU_GROUPS = {
 
 SONG_ONLY_MENU_GROUPS = {
     "START": ["Dashboard"],
-    "MUSIC": ["Song Studio"],
+    "MUSIC": ["Song Studio", "Hook Clip Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }
 

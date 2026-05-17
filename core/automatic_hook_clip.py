@@ -250,11 +250,20 @@ def _apply_preset_to_scenes(package: dict[str, Any], preset: dict[str, Any]) -> 
     sequence = PRESET_MOTION_SEQUENCES.get(str(preset.get("motion_style") or ""), MOTION_EFFECTS)
     for index, scene in enumerate(package.get("scene_sequence", []) or [], start=1):
         scene["motion_effect"] = sequence[(index - 1) % len(sequence)]
-        scene["render_mode"] = "static_safe"
+        scene["render_mode"] = "cinematic_motion"
         scene["subtitle_style"] = preset.get("subtitle_style", "")
         scene["transition"] = preset.get("transition_style") or scene.get("transition", "")
         scene["pace"] = preset.get("pace", "")
         scene.setdefault("render_provider_metadata", {})["aspect_ratio"] = preset.get("aspect_ratio", "9:16")
+        if index == 1:
+            scene["motion_effect"] = "emotional_push_in"
+            scene["pacing_note"] = "first 2 seconds: strongest close-up hook frame, no slow opening"
+        elif index == 2:
+            scene["motion_effect"] = "cinematic_drift"
+            scene["pacing_note"] = "emotional story turn with subtle parallax"
+        else:
+            scene["motion_effect"] = "slow_cinematic"
+            scene["pacing_note"] = "strongest ending frame with soft cinematic push"
 
 
 def _generate_scene_images(

@@ -248,7 +248,7 @@ def _format_ass_time(seconds: float) -> str:
 
 
 def _ass_animated_text(text: str, mode: str, duration: float) -> str:
-    safe = str(text).replace("\n", r"\N").replace(",", "،")
+    safe = str(text).replace("\n", r"\N").replace(",", " ")
     if mode == "karaoke":
         words = [word for word in safe.split(" ") if word]
         if not words:

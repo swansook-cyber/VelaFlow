@@ -129,22 +129,22 @@ def build_scene_prompt(
     metaphor = _metaphor_for_emotion(emotion["primary_emotion"], style_config)
     scene_progression = {
         1: {
-            "focus": "opening stop-scroll hook moment",
-            "camera": "tight vertical close-up with strong foreground subject",
-            "lighting": "clean high-contrast key light, face-safe composition",
-            "composition": "centered subject, empty lower third for subtitles",
+            "focus": "opening stop-scroll hook moment, strongest emotional frame in the first 2 seconds",
+            "camera": "tight vertical emotional close-up, one subject only, full-screen scene",
+            "lighting": "cinematic key light with soft shadow, face-safe composition",
+            "composition": "centered face or silhouette, no collage, no split screen, empty lower third for subtitles",
         },
         2: {
             "focus": "emotional story turn with new angle",
-            "camera": "medium side angle with cinematic depth and parallax",
-            "lighting": "softer practical light from the opposite side",
-            "composition": "subject placed on one third, different room angle from scene 1",
+            "camera": "medium side angle in the same environment, cinematic depth and parallax",
+            "lighting": "same color palette, softer practical light from the opposite side",
+            "composition": "same character and location continuity, one emotional moment at a time",
         },
         3: {
             "focus": "strongest ending frame, replay-worthy emotional peak",
-            "camera": "dramatic push-in frame with clear silhouette or face priority",
-            "lighting": "strong rim light and cinematic contrast for thumbnail quality",
-            "composition": "mobile thumbnail readable, high contrast center subject",
+            "camera": "dramatic push-in frame with the same character, clear silhouette or face priority",
+            "lighting": "same cinematic palette, strong rim light and contrast for thumbnail quality",
+            "composition": "full-screen mini movie ending, mobile thumbnail readable, high contrast center subject",
         },
     }
     progression = scene_progression.get(scene_index, scene_progression[3])
@@ -153,6 +153,8 @@ def build_scene_prompt(
         f"emotion: {emotion['primary_emotion']} intensity {emotion['intensity']}/100, "
         f"{progression['camera']}, {progression['lighting']}, {progression['composition']}, "
         f"vertical 9:16 composition, TikTok-ready framing, subtitle-safe lower third, "
+        "same character, same wardrobe, same emotional environment, same cinematic color palette, "
+        "one full-screen scene at a time, no stacked images, no collage, no split-screen layout, "
         "consistent visual story across scenes but clearly different framing, "
         f"{style_config['palette']} color palette, realistic depth, high quality, no watermark, no random text"
     )

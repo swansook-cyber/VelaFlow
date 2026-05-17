@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,31 @@ def _duration_from_audio(audio_path: str | Path | None, fallback: float) -> floa
     path = Path(str(audio_path or ""))
     if not path.is_file():
         return fallback
+    try:
+        proc = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        if proc.returncode == 0:
+            duration = float((proc.stdout or "0").strip() or 0)
+            if duration > 1:
+                return _safe_duration(duration, fallback)
+    except Exception:
+        pass
     # Keep this lightweight and cloud-safe. File size gives us enough variation for
     # retention timing without requiring ffprobe in the critical creator flow.
     size_mb = max(0.05, path.stat().st_size / (1024 * 1024))
@@ -58,7 +84,7 @@ def create_beat_timing_plan(
         timing_profile = "balanced_story_hook"
         emotional_curve = ["setup", "turn", "strong_finish"]
     else:
-        weights = [0.18, 0.30, 0.52]
+        weights = [0.14, 0.32, 0.54]
         timing_profile = "fast_retention_hook"
         emotional_curve = ["instant_hook", "punchline", "shareable_peak"]
     if emotional_intensity > punchline_intensity + 15:
@@ -75,7 +101,7 @@ def create_beat_timing_plan(
     loudness_peaks = [round(max(0.15, duration * ratio), 2) for ratio in (0.08, 0.36, 0.68, 0.88) if duration * ratio < duration]
     scene_timing = []
     cursor = 0.0
-    hook_peak_moment = round(max(0.8, duration * (0.38 if pace == "fast" else 0.58 if pace == "slow" else 0.48)), 2)
+    hook_peak_moment = round(max(0.55, min(1.8, duration * 0.12)) if pace == "fast" else max(0.8, duration * (0.58 if pace == "slow" else 0.48)), 2)
     for index, weight in enumerate(weights[:scene_count], start=1):
         if index == scene_count:
             end = duration

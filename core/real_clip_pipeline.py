@@ -705,7 +705,7 @@ def render_real_hook_clip(
         ass_path = Path(str((styled_subtitle.get("data") or {}).get("ass") or ""))
         burn_subtitle_path = ass_path if ass_path.is_file() else srt_path
         render_stage = {
-            "render_mode_used": "static_safe",
+            "render_mode_used": "cinematic_motion",
             "scene_render_ok": False,
             "combine_ok": False,
             "audio_attach_ok": False,
@@ -762,6 +762,7 @@ def render_real_hook_clip(
         render_stage["completed_scene_count"] = len(scene_paths)
         render_stage["scene_render_ok"] = bool(scene_paths) and len(scene_paths) == len(scenes)
         render_stage["scene_jobs"] = scene_jobs
+        render_stage["render_mode_used"] = "cinematic_motion" if any(str(job.get("render_mode_used")) == "motion" for job in scene_jobs) else "static_safe"
         render_stage["ffmpeg_return_code"] = next((int(job.get("ffmpeg_return_code", -1)) for job in reversed(scene_jobs) if "ffmpeg_return_code" in job), -1)
         final_name = {
             "seller": "final_seller_clip.mp4",

@@ -914,7 +914,7 @@ def _creator_image_settings() -> tuple[str, dict[str, Any]]:
     return "offline", image_settings
 
 
-def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_preset: dict[str, Any], variation: str, *, force_cache_refresh: bool, force_final_render: bool) -> dict[str, Any]:
+def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_preset: dict[str, Any], variation: str, *, force_cache_refresh: bool, force_final_render: bool, hook_audio_path: str = "") -> dict[str, Any]:
     project_name = project.get("title") or "My Viral Clip"
     image_provider, image_settings = _creator_image_settings()
     cleanup_project_storage(project_name, "song", keep_versions=3, dry_run=False)
@@ -943,6 +943,7 @@ def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_pre
             voiceover_style="emotional storyteller",
             voiceover_api_key=_user_api_key("openai"),
             subtitle_preset="Thai Emotional MV" if str(selected_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
+            hook_audio_path=hook_audio_path,
             force_cache_refresh=force_cache_refresh,
             force_final_render=force_final_render,
             variation=variation,
@@ -1274,7 +1275,7 @@ def _export_beta_feedback(project: dict[str, Any], message: str = "") -> dict[st
 
 def _render_creator_music_flow(project: dict[str, Any]) -> None:
     st.markdown("## Create a Viral TikTok Clip")
-    st.caption(f"VelaFlow Beta {APP_VERSION} · Creator Mode · One-click music clip workflow")
+    st.caption(f"VelaFlow Beta {APP_VERSION} · Creator Mode · Song idea → hook → finished song audio → cinematic TikTok clip")
     song = project.setdefault("song", {})
     creator_state = song.get("creator_clip") or song.get("short_clip") or {}
     content_presets = list_presets()
@@ -1298,13 +1299,19 @@ def _render_creator_music_flow(project: dict[str, Any]) -> None:
         )
         selected_preset = content_presets[preset_labels.index(selected_label)] if content_presets else get_preset("emotional_story")
         st.caption(str(selected_preset.get("description") or "Designed for one-click creator output."))
+        st.markdown("**Upload Finished Song**")
+        audio_state = song.setdefault("creator_audio", creator_state.get("hook_audio", {}))
+        song["creator_audio"] = _render_hook_audio_controls(project.get("title") or "My Viral Clip", audio_state, "creator_song_audio", "song")
+        hook_audio_path = str(((song.get("creator_audio") or {}).get("hook_audio") or {}).get("path") or "")
+        if hook_audio_path:
+            st.caption("This hook audio will drive scene timing, subtitle emphasis, and final MP4 duration.")
         generate_clicked = st.button(
-            "Generate Viral TikTok Clip",
+            "Generate Cinematic Hook Clip",
             type="primary",
             use_container_width=True,
             disabled=not bool(idea.strip()),
             key="creator_generate_viral_tiktok_clip",
-            help="สร้าง hook, scene images, subtitles, MP4 และ TikTok package ในปุ่มเดียว",
+            help="สร้าง hook, cinematic scene images, audio-synced motion, subtitles, MP4 และ TikTok package ในปุ่มเดียว",
         )
     retry_variation = st.session_state.pop("creator_retry_variation", "")
     if retry_variation:
@@ -1317,7 +1324,7 @@ def _render_creator_music_flow(project: dict[str, Any]) -> None:
         with status_box:
             for label in ["Analyzing hook", "Generating scenes", "Rendering video", "Syncing audio", "Exporting package"]:
                 st.write(label)
-            result = _run_creator_one_click_clip(project, idea, selected_preset, active_variation, force_cache_refresh=force_cache_refresh, force_final_render=force_final_render)
+            result = _run_creator_one_click_clip(project, idea, selected_preset, active_variation, force_cache_refresh=force_cache_refresh, force_final_render=force_final_render, hook_audio_path=str(((song.get("creator_audio") or {}).get("hook_audio") or {}).get("path") or ""))
             if result.get("ok"):
                 status_box.update(label="Clip ready", state="complete", expanded=False)
             else:
@@ -1332,6 +1339,7 @@ def _render_creator_music_flow(project: dict[str, Any]) -> None:
             "real_output": data.get("render", {}),
             "final_mp4": data.get("final_mp4", ""),
             "tiktok_package": data.get("tiktok_package", {}),
+            "hook_audio": (song.get("creator_audio") or {}).get("hook_audio", {}),
             "ok": bool(result.get("ok")),
             "safe_error_message": "" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")),
         }
@@ -1365,25 +1373,24 @@ def _render_creator_music_flow(project: dict[str, Any]) -> None:
     else:
         message = creator_state.get("safe_error_message") or "No clip yet. Add a song idea and tap Generate Viral TikTok Clip."
         st.info(message)
-    health = project_health_summary(project.get("title") or "My Viral Clip", "song")
-    if health.get("ok"):
-        data = health.get("data", {})
-        analytics = beta_analytics_summary().get("data", {})
-        h1, h2, h3 = st.columns(3)
-        h1.caption(f"Render success rate: {data.get('render_success_rate', 0)}%")
-        h2.caption(f"Avg render time: {analytics.get('avg_render_duration', 0)}s")
-        h3.caption(f"Storage: {data.get('storage_usage', '0 B')}")
-    with st.expander("Send Feedback", expanded=False):
-        feedback_text = st.text_area("Feedback note", value="", height=90, key="creator_feedback_note", placeholder="บอกเราว่าคลิปนี้ใช้ได้ไหม มีอะไรที่อยากให้ปรับ")
-        if st.button("Send Feedback", use_container_width=True, key="creator_send_feedback"):
-            feedback = _export_beta_feedback(project, feedback_text)
-            if feedback.get("ok"):
-                st.success("Feedback saved for beta review.")
-                st.caption((feedback.get("data") or {}).get("path", ""))
-            else:
-                st.warning(friendly_error_message(feedback.get("error") or feedback.get("message")))
-    with st.expander("Advanced / Developer Tools", expanded=False):
-        st.caption("เปิด Developer Mode จาก sidebar เพื่อใช้ Song Studio แบบเต็ม, provider diagnostics, queue metadata และ workflow tools ทั้งหมด")
+    if st.session_state.get("developer_mode"):
+        health = project_health_summary(project.get("title") or "My Viral Clip", "song")
+        if health.get("ok"):
+            data = health.get("data", {})
+            analytics = beta_analytics_summary().get("data", {})
+            h1, h2, h3 = st.columns(3)
+            h1.caption(f"Render success rate: {data.get('render_success_rate', 0)}%")
+            h2.caption(f"Avg render time: {analytics.get('avg_render_duration', 0)}s")
+            h3.caption(f"Storage: {data.get('storage_usage', '0 B')}")
+        with st.expander("Send Feedback / Diagnostics", expanded=False):
+            feedback_text = st.text_area("Feedback note", value="", height=90, key="creator_feedback_note", placeholder="บอกเราว่าคลิปนี้ใช้ได้ไหม มีอะไรที่อยากให้ปรับ")
+            if st.button("Send Feedback", use_container_width=True, key="creator_send_feedback"):
+                feedback = _export_beta_feedback(project, feedback_text)
+                if feedback.get("ok"):
+                    st.success("Feedback saved for beta review.")
+                    st.caption((feedback.get("data") or {}).get("path", ""))
+                else:
+                    st.warning(friendly_error_message(feedback.get("error") or feedback.get("message")))
 
 
 def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = "song") -> dict[str, Any]:

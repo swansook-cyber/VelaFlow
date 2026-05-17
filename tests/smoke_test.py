@@ -1090,7 +1090,7 @@ def main():
         quick_data = quick_clip.get("data", {})
         assert_true(quick_clip["ok"] and Path(quick_data["final_mp4"]).exists(), "quick hook clip MP4 export failed")
         assert_true(validate_mp4(quick_data["final_mp4"])["valid_mp4"], "quick hook final_hook_clip.mp4 not playable")
-        assert_true((quick_data["render"].get("render_stage") or {}).get("render_mode_used") == "static_safe", "quick hook static_safe render stage missing")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("render_mode_used") in {"cinematic_motion", "static_safe"}, "quick hook cinematic render stage missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("completed_scene_count") == 3, "quick hook scene render count failed")
         assert_true((quick_data["render"].get("render_stage") or {}).get("subtitle_status") in {"burned", "exported_only"}, "quick hook subtitle status missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("audio_sync_status") in {"matched_hook_audio", "matched_video", "silent_audio"}, "quick hook audio sync status missing")
@@ -1118,6 +1118,7 @@ def main():
         assert_true((thumbnail_score.get("quality") or {}).get("thumbnail_quality", 0) > 0, "thumbnail quality scoring failed")
         assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
         assert_true(any("different framing" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing variety/continuity guidance")
+        assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "same character" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")
