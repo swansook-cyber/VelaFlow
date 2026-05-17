@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from PIL import Image
+
 from core.character_engine import apply_character_consistency, create_character_profile, save_character_profile
 from core.beat_timing_engine import apply_beat_timing_to_package, create_beat_timing_plan, save_beat_timing
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package
@@ -21,7 +23,7 @@ from core.thumbnail_selector import export_thumbnail
 from core.versioning import save_clip_version
 from core.viral_timing_engine import create_viral_timing_plan, save_viral_timing_plan
 from core.voiceover_engine import generate_voiceover_audio
-from providers.image_ai import generate_image, generate_image_with_diagnostics
+from providers.image_ai import generate_image, generate_image_with_diagnostics, validate_image_file
 
 
 DEFAULT_VISUAL_SETTINGS = {
@@ -108,6 +110,11 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         image_manifest = Path(str(render_data.get("image_generation_manifest") or package.get("image_generation_manifest_path") or ""))
         if image_manifest.is_file():
             shutil.copy2(image_manifest, ensure_parent_dir(final_dir / "image_generation_manifest.json"))
+        scene_generation_report = Path(str(render_data.get("scene_generation_report") or package.get("scene_generation_report_path") or ""))
+        if scene_generation_report.is_file():
+            debug_dir = final_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(scene_generation_report, ensure_parent_dir(debug_dir / "scene_generation_report.json"))
         hook_analysis_file = Path(str(render_data.get("hook_analysis") or package.get("hook_analysis_path") or ""))
         if hook_analysis_file.is_file():
             shutil.copy2(hook_analysis_file, ensure_parent_dir(final_dir / "hook_analysis.json"))
@@ -169,6 +176,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
             "render_pipeline_report": str(final_dir / "debug" / "render_pipeline_report.json") if (final_dir / "debug" / "render_pipeline_report.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
+            "scene_generation_report": str(final_dir / "debug" / "scene_generation_report.json") if (final_dir / "debug" / "scene_generation_report.json").is_file() else "",
             "hook_analysis": str(final_dir / "hook_analysis.json") if (final_dir / "hook_analysis.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
             "files": written,
@@ -261,6 +269,119 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
         "clear subject, no watermark, no random text"
     )
     return apply_character_consistency(base, character_profile, consistency_strength)
+
+
+def _divider_strength(values: list[int]) -> float:
+    if len(values) < 8:
+        return 0.0
+    avg = sum(values) / len(values)
+    variance = sum((value - avg) ** 2 for value in values) / len(values)
+    stddev = variance ** 0.5
+    contrast = min(1.0, abs(avg - 128) / 128)
+    uniformity = max(0.0, 1.0 - (stddev / 64.0))
+    return round(contrast * uniformity, 3)
+
+
+def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
+    image_path = Path(path)
+    validation = validate_image_file(image_path, expected_aspect_ratio="9:16")
+    result = {
+        "path": str(image_path),
+        "validation": validation,
+        "multiple_frames_detected": False,
+        "collage_detection_score": 0.0,
+        "fullscreen_validation": {
+            "exists": bool(validation.get("file_exists")),
+            "vertical_9x16": bool(validation.get("ok")) and abs(float(validation.get("aspect_ratio") or 0) - (9 / 16)) <= 0.09,
+            "single_composition": True,
+        },
+        "error": "",
+    }
+    if not validation.get("ok"):
+        result["error"] = validation.get("error", "image_validation_failed")
+        result["fullscreen_validation"]["single_composition"] = False
+        result["collage_detection_score"] = 1.0
+        result["multiple_frames_detected"] = True
+        return result
+    try:
+        with Image.open(image_path) as image:
+            gray = image.convert("L").resize((90, 160))
+            width, height = gray.size
+            pixels = gray.load()
+            vertical_scores = []
+            for x in [width // 3, width // 2, (width * 2) // 3]:
+                values = [pixels[x, y] for y in range(height)]
+                vertical_scores.append(_divider_strength(values))
+            horizontal_scores = []
+            for y in [height // 3, height // 2, (height * 2) // 3]:
+                values = [pixels[x, y] for x in range(width)]
+                horizontal_scores.append(_divider_strength(values))
+            strong_vertical = sum(1 for score in vertical_scores if score >= 0.86)
+            strong_horizontal = sum(1 for score in horizontal_scores if score >= 0.86)
+            # Contact sheets usually have multiple clean divider lines. Single-image scenes can contain
+            # high-contrast text, windows, or borders, so require repeated panel-like separators.
+            if strong_vertical >= 2 and strong_horizontal >= 1:
+                score = round(max(vertical_scores + horizontal_scores), 3)
+            elif strong_horizontal >= 2:
+                score = round(max(horizontal_scores), 3)
+            else:
+                score = 0.0
+            result["collage_detection_score"] = score
+            result["multiple_frames_detected"] = score >= 0.82
+            result["fullscreen_validation"]["single_composition"] = not result["multiple_frames_detected"]
+            result["error"] = "possible_contact_sheet_or_panel_grid" if result["multiple_frames_detected"] else ""
+    except Exception as exc:
+        result["error"] = f"scene_image_scan_failed: {type(exc).__name__}"
+        result["collage_detection_score"] = 1.0
+        result["multiple_frames_detected"] = True
+        result["fullscreen_validation"]["single_composition"] = False
+    return result
+
+
+def _write_scene_generation_report(project_name: str, image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
+    validations = []
+    for item in image_results or []:
+        scan = _detect_multi_frame_scene_image(item.get("path", ""))
+        validations.append(
+            {
+                "scene_id": item.get("scene_id", ""),
+                "path": item.get("path", ""),
+                "provider_used": item.get("provider_used", item.get("provider", "")),
+                "dimensions": {
+                    "width": (scan.get("validation") or {}).get("width", 0),
+                    "height": (scan.get("validation") or {}).get("height", 0),
+                    "aspect_ratio": (scan.get("validation") or {}).get("aspect_ratio", 0),
+                },
+                "fullscreen_validation": scan.get("fullscreen_validation", {}),
+                "multiple_frame_detection": {
+                    "multiple_frames_detected": scan.get("multiple_frames_detected", False),
+                    "error": scan.get("error", ""),
+                },
+                "collage_detection_score": scan.get("collage_detection_score", 0.0),
+            }
+        )
+    forbidden = [item for item in validations if (item.get("multiple_frame_detection") or {}).get("multiple_frames_detected")]
+    report = {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "project_name": project_name,
+        "scene_generation_architecture": "independent_fullscreen_scene_images",
+        "scene_count": len(image_results or []),
+        "per_scene_dimensions": [item.get("dimensions", {}) for item in validations],
+        "fullscreen_validation": {
+            "one_image_per_scene": len(image_results or []) == len({item.get("scene_id") for item in image_results or []}),
+            "all_vertical_9x16": all((item.get("fullscreen_validation") or {}).get("vertical_9x16") for item in validations),
+            "all_single_composition": all((item.get("fullscreen_validation") or {}).get("single_composition") for item in validations),
+            "no_contact_sheet_assets": not forbidden,
+        },
+        "multiple_frame_detection": [item.get("multiple_frame_detection", {}) for item in validations],
+        "collage_detection_score": max([float(item.get("collage_detection_score") or 0) for item in validations] or [0.0]),
+        "forbidden_scene_image_layout_found": bool(forbidden),
+        "scene_images": validations,
+    }
+    path = ensure_parent_dir(output_path)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": not forbidden and report["fullscreen_validation"]["all_vertical_9x16"], "message": "Scene generation report exported", "data": {"path": str(path), "report": report}, "error": "scene_image_contact_sheet_detected" if forbidden else ""}
 
 
 def _apply_preset_to_scenes(package: dict[str, Any], preset: dict[str, Any]) -> None:
@@ -550,6 +671,22 @@ def quick_generate_hook_clip(
                 image_settings=image_settings,
             )
         package["image_results"] = image_results
+        scene_generation_result = _write_scene_generation_report(project_name, image_results, exports_dir / "debug" / "scene_generation_report.json")
+        package["scene_generation_report_path"] = (scene_generation_result.get("data") or {}).get("path", "")
+        if not scene_generation_result.get("ok"):
+            mark_stage("generating_scenes", "failed")
+            return {
+                "ok": False,
+                "message": "Scene image generation failed fullscreen validation",
+                "data": {
+                    "package": package,
+                    "image_results": image_results,
+                    "scene_generation_report": (scene_generation_result.get("data") or {}).get("report", {}),
+                    "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                    "progress_stages": progress_stages,
+                },
+                "error": scene_generation_result.get("error") or "scene_image_fullscreen_validation_failed",
+            }
         image_manifest_path = ensure_parent_dir(exports_dir / "image_generation_manifest.json")
         image_manifest = {
             "generated_by": "VelaFlow",
@@ -558,6 +695,7 @@ def quick_generate_hook_clip(
             "provider_requested": image_provider or "offline",
             "fallback_count": sum(1 for item in image_results if item.get("fallback_used")),
             "images": image_results,
+            "scene_generation_report_path": package.get("scene_generation_report_path", ""),
             "api_keys_exported": False,
         }
         image_manifest_path.write_text(json.dumps(image_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -629,6 +767,7 @@ def quick_generate_hook_clip(
             "scene_director_plan": package.get("scene_director_plan_path", ""),
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
+            "scene_generation_report": package.get("scene_generation_report_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
             "render_pipeline_report_path": (render_result.get("data") or {}).get("render_pipeline_report_path", ""),
         }
@@ -655,6 +794,7 @@ def quick_generate_hook_clip(
             "image_results": image_results,
             "image_generation_manifest": image_manifest,
             "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
+            "scene_generation_report_path": package.get("scene_generation_report_path", ""),
             "character_profile": character_profile or {},
             "character_profile_path": (character_save.get("data") or {}).get("path", ""),
             "hook_analysis": hook_analysis,
@@ -689,6 +829,7 @@ def quick_generate_hook_clip(
         render_manifest_payload = dict((render_result.get("data") or {}).get("manifest", manifest))
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
+        render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
         render_manifest_payload["render_stage_path"] = (render_result.get("data") or {}).get("render_stage_path", "")
         render_manifest_payload["render_pipeline_report_path"] = (render_result.get("data") or {}).get("render_pipeline_report_path", "")
         render_manifest_payload["progress_stages"] = progress_stages
@@ -709,6 +850,7 @@ def quick_generate_hook_clip(
                     "scenes": package.get("scene_sequence", []),
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
+                    "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -725,6 +867,7 @@ def quick_generate_hook_clip(
                 "package_export": export_result.get("data", {}),
                 "image_results": image_results,
                 "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
+                "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                 "character_profile": character_profile or {},
                 "character_profile_path": (character_save.get("data") or {}).get("path", ""),
                 "hook_analysis": hook_analysis,

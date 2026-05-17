@@ -1118,6 +1118,15 @@ def main():
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
         assert_true(all({"provider_used", "fallback_used", "fallback_reason", "error_type", "safe_error_message"}.issubset(set(item.keys())) for item in quick_data["image_results"]), "image diagnostics missing")
+        scene_generation_report_path = Path(quick_data.get("scene_generation_report_path", ""))
+        assert_true(scene_generation_report_path.exists(), "scene_generation_report.json missing")
+        scene_generation_report = json.loads(scene_generation_report_path.read_text(encoding="utf-8"))
+        assert_true(scene_generation_report.get("scene_generation_architecture") == "independent_fullscreen_scene_images", "scene generation architecture is not fullscreen independent")
+        assert_true(scene_generation_report.get("scene_count") == len(quick_data["image_results"]), "scene generation report scene count mismatch")
+        assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("one_image_per_scene"), "scene image report did not enforce one image per scene")
+        assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("all_vertical_9x16"), "scene image report did not enforce vertical 9:16")
+        assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("all_single_composition"), "scene image report detected multi-frame composition")
+        assert_true(scene_generation_report.get("forbidden_scene_image_layout_found") is False, "scene generation report found contact-sheet/grid layout")
         assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
         subtitle_text = Path(quick_data["render"]["subtitles"]).read_text(encoding="utf-8-sig")
         styled_text = Path((quick_data.get("styled_subtitles") or {}).get("ass", "")).read_text(encoding="utf-8-sig")
@@ -1174,6 +1183,7 @@ def main():
         for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_director_plan.json", "cinematic_quality_report.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true((tiktok_final_dir / "debug" / "render_pipeline_report.json").exists(), "TikTok package missing debug/render_pipeline_report.json")
+        assert_true((tiktok_final_dir / "debug" / "scene_generation_report.json").exists(), "TikTok package missing debug/scene_generation_report.json")
         for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
             path = tiktok_final_dir / filename
             assert_true(path.exists() and path.read_text(encoding="utf-8-sig").strip(), f"creator export package missing {filename}")

@@ -2970,20 +2970,22 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         image_results = quick_data.get("image_results") or []
         if image_results:
             st.markdown("**Generated Scene Images**")
-            cols = st.columns(min(3, max(1, len(image_results))))
             for index, item in enumerate(image_results):
                 path = Path(str(item.get("path") or ""))
-                with cols[index % len(cols)]:
-                    if path.is_file():
-                        st.image(str(path), caption=str(item.get("scene_id") or path.stem), use_container_width=True)
-                    provider_label = str(item.get("provider") or item.get("provider_used") or "-")
-                    fallback_used = bool(item.get("fallback_used"))
-                    if fallback_used:
-                        st.warning(f"Fallback image: {item.get('fallback_reason') or item.get('error_type') or 'provider unavailable'}")
-                    else:
-                        st.caption(f"Provider: {provider_label}")
-                    if st.session_state.get("developer_mode") and item.get("safe_error_message"):
-                        st.caption(str(item.get("safe_error_message")))
+                scene_label = str(item.get("scene_id") or path.stem or f"scene_{index + 1:02d}")
+                st.caption(f"{index + 1}. {scene_label} · fullscreen vertical scene")
+                if path.is_file():
+                    st.image(str(path), caption=scene_label, use_container_width=True)
+                provider_label = str(item.get("provider") or item.get("provider_used") or "-")
+                fallback_used = bool(item.get("fallback_used"))
+                if fallback_used:
+                    st.warning(f"Fallback image: {item.get('fallback_reason') or item.get('error_type') or 'provider unavailable'}")
+                else:
+                    st.caption(f"Provider: {provider_label}")
+                if index < len(image_results) - 1:
+                    st.divider()
+                if st.session_state.get("developer_mode") and item.get("safe_error_message"):
+                    st.caption(str(item.get("safe_error_message")))
         if real_output:
             if st.button("Refresh TikTok Package", key="song_short_export_tiktok", use_container_width=True):
                 package_result = export_tiktok_package(
