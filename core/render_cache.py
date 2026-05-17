@@ -46,6 +46,7 @@ def save_render_cache(
     *,
     scene_prompt_path: str = "",
     beat_timing_path: str = "",
+    scene_director_plan_path: str = "",
     image_manifest_path: str = "",
     image_results: list[dict[str, Any]] | None = None,
     subtitle_path: str = "",
@@ -57,6 +58,7 @@ def save_render_cache(
     for label, source in {
         "scene_prompts": scene_prompt_path,
         "beat_timing": beat_timing_path,
+        "scene_director_plan": scene_director_plan_path,
         "image_manifest": image_manifest_path,
         "subtitles": subtitle_path,
     }.items():

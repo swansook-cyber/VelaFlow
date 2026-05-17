@@ -15,7 +15,7 @@ from core.preset_engine import get_preset, preset_to_render_settings, preset_to_
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir, render_real_hook_clip
 from core.render_cache import cache_fingerprint, copy_cached_assets_to_project, load_render_cache, save_render_cache
-from core.scene_prompt_engine import apply_scene_prompts_to_package, build_scene_prompts, save_scene_prompts
+from core.scene_prompt_engine import apply_scene_director_to_package, apply_scene_prompts_to_package, build_scene_director_plan, build_scene_prompts, save_scene_director_plan, save_scene_prompts
 from core.subtitle_engine import generate_styled_subtitles
 from core.thumbnail_selector import export_thumbnail
 from core.versioning import save_clip_version
@@ -88,6 +88,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         beat_timing = Path(str(render_data.get("beat_timing") or package.get("beat_timing_path") or ""))
         if beat_timing.is_file():
             shutil.copy2(beat_timing, ensure_parent_dir(final_dir / "beat_timing.json"))
+        scene_director_plan = Path(str(render_data.get("scene_director_plan") or package.get("scene_director_plan_path") or ""))
+        if scene_director_plan.is_file():
+            shutil.copy2(scene_director_plan, ensure_parent_dir(final_dir / "scene_director_plan.json"))
         render_manifest = Path(str(render_data.get("manifest_path") or package.get("render_manifest_path") or ""))
         if render_manifest.is_file():
             shutil.copy2(render_manifest, ensure_parent_dir(final_dir / "render_manifest.json"))
@@ -152,6 +155,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "thumbnail_score": str(final_dir / "thumbnail_score.json") if (final_dir / "thumbnail_score.json").is_file() else "",
             "scene_prompts": str(final_dir / "scene_prompts.json") if (final_dir / "scene_prompts.json").is_file() else "",
             "beat_timing": str(final_dir / "beat_timing.json") if (final_dir / "beat_timing.json").is_file() else "",
+            "scene_director_plan": str(final_dir / "scene_director_plan.json") if (final_dir / "scene_director_plan.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
             "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
@@ -469,22 +473,6 @@ def quick_generate_hook_clip(
             cache_status = load_render_cache(project_name, storage_workflow_type, cache_key)
             if cache_status.get("ok"):
                 cached_assets = copy_cached_assets_to_project((cache_status.get("data") or {}).get("manifest", {}), project_name, storage_workflow_type).get("data", {})
-        scene_prompt_style = "Cute Character" if preset.get("preset_id") == "cute_character" else "TikTok Meme" if preset.get("preset_id") == "viral_meme" else "Emotional"
-        cached_scene_prompts = Path(str((cached_assets.get("files") or {}).get("scene_prompts") or ""))
-        if cached_scene_prompts.is_file():
-            scene_prompt_plan = json.loads(cached_scene_prompts.read_text(encoding="utf-8"))
-            scene_prompt_result = {"ok": True, "data": {"path": str(cached_scene_prompts)}, "error": ""}
-        else:
-            scene_prompt_plan = build_scene_prompts(
-                package.get("scene_sequence", []),
-                hook_text=str(package.get("hook_text") or content.get("selected_hook_text") or idea),
-                style=scene_prompt_style,
-                preset_id=str(preset.get("preset_id") or ""),
-                mood=str(preset.get("label") or ""),
-            )
-            scene_prompt_result = save_scene_prompts(scene_prompt_plan, exports_dir / "scene_prompts.json")
-        apply_scene_prompts_to_package(package, scene_prompt_plan)
-        package["scene_prompts_path"] = (scene_prompt_result.get("data") or {}).get("path", "")
         cached_beat_timing = Path(str((cached_assets.get("files") or {}).get("beat_timing") or ""))
         if cached_beat_timing.is_file():
             beat_timing_plan = json.loads(cached_beat_timing.read_text(encoding="utf-8"))
@@ -503,6 +491,35 @@ def quick_generate_hook_clip(
             for scene in package.get("scene_sequence", []) or []:
                 scene["motion_effect"] = "bounce"
         package["beat_timing_path"] = (beat_timing_result.get("data") or {}).get("path", "")
+        director_plan = build_scene_director_plan(
+            package.get("scene_sequence", []),
+            song_idea=idea,
+            hook_text=str(package.get("hook_text") or strongest_hook or idea),
+            lyrics=str(content.get("main_idea") or idea),
+            mood=str(preset.get("label") or ""),
+            preset_id=str(preset.get("preset_id") or ""),
+            audio_duration=float(beat_timing_plan.get("duration") or duration_seconds),
+        )
+        apply_scene_director_to_package(package, director_plan)
+        director_result = save_scene_director_plan(director_plan, exports_dir / "scene_director_plan.json")
+        package["scene_director_plan_path"] = (director_result.get("data") or {}).get("path", "")
+        scene_prompt_style = "Cute Character" if preset.get("preset_id") == "cute_character" else "TikTok Meme" if preset.get("preset_id") == "viral_meme" else "Emotional"
+        cached_scene_prompts = Path(str((cached_assets.get("files") or {}).get("scene_prompts") or ""))
+        if cached_scene_prompts.is_file():
+            scene_prompt_plan = json.loads(cached_scene_prompts.read_text(encoding="utf-8"))
+            scene_prompt_result = {"ok": True, "data": {"path": str(cached_scene_prompts)}, "error": ""}
+        else:
+            scene_prompt_plan = build_scene_prompts(
+                package.get("scene_sequence", []),
+                hook_text=str(package.get("hook_text") or content.get("selected_hook_text") or idea),
+                style=scene_prompt_style,
+                preset_id=str(preset.get("preset_id") or ""),
+                mood=str(preset.get("label") or ""),
+                scene_director_plan=director_plan,
+            )
+            scene_prompt_result = save_scene_prompts(scene_prompt_plan, exports_dir / "scene_prompts.json")
+        apply_scene_prompts_to_package(package, scene_prompt_plan)
+        package["scene_prompts_path"] = (scene_prompt_result.get("data") or {}).get("path", "")
         cached_images = cached_assets.get("image_results") or []
         if cached_images:
             image_results = cached_images
@@ -541,6 +558,7 @@ def quick_generate_hook_clip(
             cache_key,
             scene_prompt_path=package.get("scene_prompts_path", ""),
             beat_timing_path=package.get("beat_timing_path", ""),
+            scene_director_plan_path=package.get("scene_director_plan_path", ""),
             image_manifest_path=package.get("image_generation_manifest_path", ""),
             image_results=image_results,
         )
@@ -590,6 +608,7 @@ def quick_generate_hook_clip(
             "thumbnail_score": package.get("thumbnail_score_path", ""),
             "scene_prompts": package.get("scene_prompts_path", ""),
             "beat_timing": package.get("beat_timing_path", ""),
+            "scene_director_plan": package.get("scene_director_plan_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
         }
@@ -626,6 +645,8 @@ def quick_generate_hook_clip(
             "scene_prompts_path": package.get("scene_prompts_path", ""),
             "beat_timing": beat_timing_plan,
             "beat_timing_path": package.get("beat_timing_path", ""),
+            "scene_director_plan": director_plan,
+            "scene_director_plan_path": package.get("scene_director_plan_path", ""),
             "viral_timing_plan": viral_timing_plan,
             "viral_metrics": viral_metrics,
             "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
@@ -658,6 +679,8 @@ def quick_generate_hook_clip(
                     "preset": preset,
                     "character_profile": character_profile or {},
                     "hook_analysis": hook_analysis,
+                    "scene_director_plan": director_plan,
+                    "scene_director_plan_path": package.get("scene_director_plan_path", ""),
                     "scenes": package.get("scene_sequence", []),
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
@@ -687,6 +710,8 @@ def quick_generate_hook_clip(
                 "thumbnail_score_path": package.get("thumbnail_score_path", ""),
                 "scene_prompts": scene_prompt_plan,
                 "scene_prompts_path": package.get("scene_prompts_path", ""),
+                "scene_director_plan": director_plan,
+                "scene_director_plan_path": package.get("scene_director_plan_path", ""),
                 "beat_timing": beat_timing_plan,
                 "beat_timing_path": package.get("beat_timing_path", ""),
                 "viral_timing_plan": viral_timing_plan,

@@ -121,6 +121,7 @@ def build_scene_prompt(
     hook_text: str = "",
     preset_id: str = "",
     mood: str = "",
+    director_scene: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     prompt_style = normalize_prompt_style(style, preset_id)
     style_config = PROMPT_STYLES[prompt_style]
@@ -129,35 +130,56 @@ def build_scene_prompt(
     metaphor = _metaphor_for_emotion(emotion["primary_emotion"], style_config)
     scene_progression = {
         1: {
-            "focus": "opening stop-scroll hook moment, strongest emotional frame in the first 2 seconds",
-            "camera": "tight vertical emotional close-up, one subject only, full-screen scene",
+            "focus": "wide establishing shot, lonely room and emotional atmosphere, strongest mood in the first 2 seconds",
+            "camera": "wide vertical establishing shot, one subject only, full-screen scene",
+            "shot_type": "wide establishing shot",
+            "camera_distance": "wide",
+            "subject_action": "same character alone in the room, still body language, looking toward a window or empty space",
             "lighting": "cinematic key light with soft shadow, face-safe composition",
             "composition": "centered face or silhouette, no collage, no split screen, empty lower third for subtitles",
         },
         2: {
             "focus": "emotional story turn with new angle",
             "camera": "medium side angle in the same environment, cinematic depth and parallax",
+            "shot_type": "medium emotional shot",
+            "camera_distance": "medium",
+            "subject_action": "same character in the same room, stronger feeling, hand holding a phone or small memory object",
             "lighting": "same color palette, softer practical light from the opposite side",
             "composition": "same character and location continuity, one emotional moment at a time",
         },
         3: {
-            "focus": "strongest ending frame, replay-worthy emotional peak",
+            "focus": "close-up emotional face and eyes, strongest hook moment, replay-worthy emotional peak",
             "camera": "dramatic push-in frame with the same character, clear silhouette or face priority",
+            "shot_type": "close-up emotional face / eyes",
+            "camera_distance": "close-up",
+            "subject_action": "same character close-up, eyes carrying the hook lyric, strongest emotional expression",
             "lighting": "same cinematic palette, strong rim light and contrast for thumbnail quality",
             "composition": "full-screen mini movie ending, mobile thumbnail readable, high contrast center subject",
         },
     }
     progression = scene_progression.get(scene_index, scene_progression[3])
+    if director_scene:
+        progression = {
+            **progression,
+            "focus": director_scene.get("emotional_intent") or progression["focus"],
+            "shot_type": director_scene.get("shot_type") or progression["shot_type"],
+            "camera_distance": director_scene.get("camera_distance") or progression["camera_distance"],
+            "subject_action": director_scene.get("subject_action") or progression["subject_action"],
+            "lighting": director_scene.get("lighting_direction") or progression["lighting"],
+        }
     cinematic_prompt = (
         f"{style_config['aesthetic']}, {progression['focus']}, visual metaphor: {metaphor}, "
         f"emotion: {emotion['primary_emotion']} intensity {emotion['intensity']}/100, "
-        f"{progression['camera']}, {progression['lighting']}, {progression['composition']}, "
+        f"cinematic shot type: {progression['shot_type']}, camera distance: {progression['camera_distance']}, "
+        f"subject action: {progression['subject_action']}, {progression['camera']}, {progression['lighting']}, {progression['composition']}, "
+        "lens feeling: intimate 35mm/50mm emotional cinema lens, motion-friendly composition, "
         f"vertical 9:16 composition, TikTok-ready framing, subtitle-safe lower third, "
-        "same character, same wardrobe, same emotional environment, same cinematic color palette, "
+        "same character, same face, same hairstyle, same clothes, same wardrobe, same room/location, "
+        "same emotional environment, same cinematic color palette, same lighting palette, "
         "one full-screen scene at a time, no stacked images, no collage, no split-screen layout, "
         "not a contact sheet, not a storyboard panel page, not a grid montage, not tiled frames, "
         "consistent visual story across scenes but clearly different framing, "
-        f"{style_config['palette']} color palette, realistic depth, high quality, no watermark, no random text"
+        f"{style_config['palette']} color palette, realistic depth, high quality, no watermark, no random text, no text inside image"
     )
     return {
         "scene_id": f"scene_{scene_index:02d}",
@@ -166,11 +188,121 @@ def build_scene_prompt(
         "emotion": emotion,
         "visual_metaphor": metaphor,
         "camera_language": progression["camera"],
+        "shot_type": progression["shot_type"],
+        "camera_distance": progression["camera_distance"],
+        "subject_action": progression["subject_action"],
         "lighting_direction": progression["lighting"],
         "composition_note": progression["composition"],
         "cinematic_prompt": cinematic_prompt,
         "tiktok_aesthetic": style_config["aesthetic"],
         "subtitle_safe_note": "Keep important faces and objects away from the lower subtitle area.",
+    }
+
+
+def build_scene_director_plan(
+    scenes: list[dict[str, Any]],
+    *,
+    song_idea: str = "",
+    hook_text: str = "",
+    lyrics: str = "",
+    mood: str = "",
+    preset_id: str = "",
+    audio_duration: float = 0.0,
+) -> dict[str, Any]:
+    text_context = " ".join([song_idea, hook_text, lyrics, mood])
+    emotion = detect_scene_emotion(text_context)
+    scene_count = max(3, min(4, len(scenes or []) or 3))
+    continuity = {
+        "character": "same character across every scene",
+        "face": "same face and emotional expression family",
+        "hair": "same hairstyle",
+        "clothes": "same clothing and wardrobe",
+        "location": "same room or connected emotional location",
+        "lighting_palette": "same cinematic warm/low-key palette",
+        "mood": "same emotional cinematic mood",
+    }
+    progression = [
+        {
+            "song_section": "hook opening",
+            "emotional_intent": "establish loneliness and atmosphere immediately",
+            "shot_type": "wide establishing shot",
+            "camera_distance": "wide",
+            "subject_action": "alone in the same room, still body language, emotional atmosphere",
+            "lighting_direction": "warm side light, soft shadows, subtitle-safe lower third",
+            "motion_intensity": "slow cinematic motion",
+            "transition_style": "cinematic_cross_dissolve",
+            "hook_peak": False,
+        },
+        {
+            "song_section": "hook build",
+            "emotional_intent": "make the feeling more personal and intimate",
+            "shot_type": "medium emotional shot",
+            "camera_distance": "medium",
+            "subject_action": "same character holding a phone or memory object in the same room",
+            "lighting_direction": "same palette, practical light from opposite side",
+            "motion_intensity": "subtle handheld drift / parallax",
+            "transition_style": "blur_motion_transition",
+            "hook_peak": False,
+        },
+        {
+            "song_section": "strongest hook lyric",
+            "emotional_intent": "land the strongest hook with the most emotional face/eyes",
+            "shot_type": "close-up emotional face / eyes",
+            "camera_distance": "close-up",
+            "subject_action": "same character close-up, eyes carry the hook lyric",
+            "lighting_direction": "same palette with stronger rim light and eye catchlight",
+            "motion_intensity": "strongest camera push",
+            "transition_style": "light_flash_transition",
+            "hook_peak": True,
+        },
+        {
+            "song_section": "emotional release",
+            "emotional_intent": "give visual closure without changing character or location",
+            "shot_type": "emotional release ending",
+            "camera_distance": "medium close-up",
+            "subject_action": "same character exhales or turns away slowly",
+            "lighting_direction": "same palette, softer falloff, quiet ending",
+            "motion_intensity": "slow pull out",
+            "transition_style": "dip_to_black",
+            "hook_peak": False,
+        },
+    ][:scene_count]
+    directed_scenes = []
+    total = float(audio_duration or 0.0)
+    first_cut = 1.8 if total >= 5 else max(1.0, total * 0.33)
+    for index, scene in enumerate(scenes or [{} for _ in range(scene_count)], start=1):
+        template = progression[min(index - 1, len(progression) - 1)]
+        directed_scenes.append(
+            {
+                "scene_id": scene.get("scene_id") or f"scene_{index:02d}",
+                "song_section": template["song_section"],
+                "emotional_intent": template["emotional_intent"],
+                "shot_type": template["shot_type"],
+                "camera_distance": template["camera_distance"],
+                "subject_action": template["subject_action"],
+                "lighting_direction": template["lighting_direction"],
+                "motion_intensity": template["motion_intensity"],
+                "transition_style": template["transition_style"],
+                "continuity_notes": continuity,
+                "hook_peak_scene": bool(template["hook_peak"]),
+                "subtitle_emphasis": "strongest hook line" if template["hook_peak"] else "short emotional line",
+                "target_start": 0.0 if index == 1 else round(first_cut + (index - 2) * max(1.5, (total - first_cut) / max(1, scene_count - 1)), 2) if total else 0.0,
+                "director_note": "Keep the same character, same room, same clothing, same lighting. Do not change faces, outfits, locations, or palette.",
+            }
+        )
+    return {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "song_idea": song_idea,
+        "hook_text": hook_text,
+        "mood": mood,
+        "preset_id": preset_id,
+        "audio_duration": audio_duration,
+        "primary_emotion": emotion,
+        "hook_peak_target": "within first 2 seconds when possible",
+        "continuity_notes": continuity,
+        "shot_progression": [item["shot_type"] for item in directed_scenes],
+        "scenes": directed_scenes,
     }
 
 
@@ -181,17 +313,21 @@ def build_scene_prompts(
     style: str = "Emotional",
     preset_id: str = "",
     mood: str = "",
+    scene_director_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     prompts: list[dict[str, Any]] = []
+    director_scenes = (scene_director_plan or {}).get("scenes") or []
     for index, scene in enumerate(scenes or [], start=1):
         lyric = str(scene.get("subtitle") or scene.get("lyric_part") or scene.get("visual_prompt") or hook_text)
-        prompt = build_scene_prompt(lyric, style=style, scene_index=index, hook_text=hook_text, preset_id=preset_id, mood=mood)
+        director_scene = director_scenes[min(index - 1, len(director_scenes) - 1)] if director_scenes else None
+        prompt = build_scene_prompt(lyric, style=style, scene_index=index, hook_text=hook_text, preset_id=preset_id, mood=mood, director_scene=director_scene)
         prompts.append(prompt)
     return {
         "generated_by": "VelaFlow",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "style": normalize_prompt_style(style, preset_id),
         "hook_text": hook_text,
+        "scene_director_applied": bool(scene_director_plan),
         "scene_prompts": prompts,
     }
 
@@ -208,8 +344,34 @@ def apply_scene_prompts_to_package(package: dict[str, Any], scene_prompt_plan: d
     return package
 
 
+def apply_scene_director_to_package(package: dict[str, Any], director_plan: dict[str, Any]) -> dict[str, Any]:
+    by_id = {item.get("scene_id"): item for item in director_plan.get("scenes", []) or []}
+    for index, scene in enumerate(package.get("scene_sequence") or [], start=1):
+        directed = by_id.get(scene.get("scene_id")) or (director_plan.get("scenes") or [{}])[min(index - 1, len(director_plan.get("scenes") or [{}]) - 1)]
+        scene["song_section"] = directed.get("song_section", scene.get("song_section", "hook"))
+        scene["emotional_intent"] = directed.get("emotional_intent", "")
+        scene["shot_type"] = directed.get("shot_type", "")
+        scene["camera_distance"] = directed.get("camera_distance", "")
+        scene["subject_action"] = directed.get("subject_action", "")
+        scene["lighting_direction"] = directed.get("lighting_direction", scene.get("lighting", ""))
+        scene["motion_intensity"] = directed.get("motion_intensity", "")
+        scene["transition"] = directed.get("transition_style", scene.get("transition", "cinematic_cross_dissolve"))
+        scene["continuity_notes"] = directed.get("continuity_notes", {})
+        scene["hook_peak_scene"] = bool(directed.get("hook_peak_scene"))
+        scene["subtitle_emphasis"] = directed.get("subtitle_emphasis", "")
+    package["scene_director_plan"] = director_plan
+    return package
+
+
 def save_scene_prompts(scene_prompt_plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(scene_prompt_plan, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "message": "Scene prompts exported", "data": {"path": str(path)}, "error": ""}
+
+
+def save_scene_director_plan(scene_director_plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(scene_director_plan, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "message": "Scene director plan exported", "data": {"path": str(path)}, "error": ""}
