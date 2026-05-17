@@ -41,6 +41,7 @@ from core.artist_presets import (
     set_default_artist_preset,
 )
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
+from core.affiliate_engine import AFFILIATE_MODES, build_affiliate_clip_brief, export_affiliate_package
 from core.automatic_hook_clip import export_tiktok_package, quick_generate_hook_clip
 from core.character_engine import CHARACTER_TYPES, PERSONALITY_PROMPTS, STYLE_PROMPTS, random_viral_character_idea
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_provider_credentials
@@ -993,6 +994,134 @@ def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_pre
             },
         )
     return result
+
+
+def _run_affiliate_one_click_clip(project_name: str, brief: dict[str, Any], preset_id: str = "affiliate_sell") -> dict[str, Any]:
+    image_provider, image_settings = _creator_image_settings()
+    release_stale_render_jobs(project_name, "clips")
+    queue_result = start_creator_render_job(
+        project_name,
+        "clips",
+        stage="affiliate_clip",
+        metadata={"mode": brief.get("mode", ""), "preset_id": preset_id},
+    )
+    if not queue_result.get("ok"):
+        return {"ok": False, "message": queue_result.get("message", ""), "data": {}, "error": queue_result.get("error", "active_render_job")}
+    job_id = ((queue_result.get("data") or {}).get("job") or {}).get("job_id", "")
+    started_at = time.time()
+    result: dict[str, Any] = {"ok": False, "message": "", "data": {}, "error": ""}
+    try:
+        result = quick_generate_hook_clip(
+            project_name,
+            str(brief.get("prompt") or ""),
+            source_workflow="seller",
+            clip_mode="Fast Hook",
+            duration_seconds=20,
+            image_provider=image_provider,
+            image_settings=image_settings,
+            preset_id=preset_id,
+            voiceover_style="meme voice",
+            voiceover_api_key=_user_api_key("openai"),
+            subtitle_preset="Affiliate CTA",
+            force_cache_refresh=False,
+            force_final_render=True,
+            variation="affiliate_phase_1",
+        )
+    except Exception as exc:
+        result = {"ok": False, "message": "Affiliate render failed", "data": {}, "error": str(exc)}
+    finally:
+        render_duration = round(time.time() - started_at, 2)
+        complete_creator_render_job(
+            project_name,
+            "clips",
+            job_id,
+            status="completed" if result.get("ok") else "failed",
+            result={"final_mp4": (result.get("data") or {}).get("final_mp4", "")},
+            error=str(result.get("error") or ""),
+            safe_error_message="" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")),
+        )
+        log_beta_event(
+            "creator_render",
+            workflow="seller",
+            preset_bundle="Affiliate Studio",
+            metadata={
+                "status": "completed" if result.get("ok") else "failed",
+                "ok": bool(result.get("ok")),
+                "mood_preset": str(brief.get("mode") or "Affiliate Studio"),
+                "hook_style": str(((brief.get("viral_score") or {}).get("best_hook") or {}).get("hook_type") or "affiliate"),
+                "render_duration": render_duration,
+                "page": "Affiliate Studio",
+            },
+        )
+    return result
+
+
+def _render_affiliate_studio(project: dict[str, Any]) -> None:
+    _page_header("Affiliate Studio", "One-click TikTok affiliate and seller product clips.", project)
+    st.caption("Phase 1: product idea → hooks → product scenes → MP4 → affiliate package. No scraping or auto posting.")
+    state = project.setdefault("affiliate_studio", {})
+    with st.container(border=True):
+        mode = st.selectbox("Mode", AFFILIATE_MODES, index=0, key="affiliate_mode")
+        product_name = st.text_input("Product Name", value=state.get("product_name", ""), key="affiliate_product_name", help="ชื่อสินค้า เช่น หมอนสุขภาพ, เซรั่ม, แก้วเก็บความเย็น")
+        product_type = st.text_input("Product Type", value=state.get("product_type", ""), key="affiliate_product_type", help="ประเภทสินค้า เช่น home item, skincare, gadget")
+        target_audience = st.text_input("Target Audience", value=state.get("target_audience", ""), key="affiliate_target_audience", help="กลุ่มคนที่น่าจะซื้อสินค้า")
+        emotional_angle = st.text_input("Emotional Angle", value=state.get("emotional_angle", "ชีวิตง่ายขึ้น"), key="affiliate_emotional_angle", help="มุมอารมณ์ เช่น ประหยัดเวลา, สบายขึ้น, มั่นใจขึ้น")
+        pain_point = st.text_input("Pain Point", value=state.get("pain_point", ""), key="affiliate_pain_point", help="ปัญหาที่สินค้าช่วยแก้")
+        cta_style = st.selectbox("CTA Style", ["soft sell", "urgent deal", "review first", "creator recommendation"], index=0, key="affiliate_cta_style")
+        generate = st.button("Generate Viral Affiliate Clip", type="primary", use_container_width=True, disabled=not bool(product_name.strip()), key="affiliate_generate_clip")
+    if generate:
+        product = {
+            "product_name": product_name,
+            "product_type": product_type,
+            "target_audience": target_audience,
+            "emotional_angle": emotional_angle,
+            "pain_point": pain_point,
+            "cta_style": cta_style,
+        }
+        brief = build_affiliate_clip_brief(product, mode)
+        project_name = project.get("title") or product_name or "Affiliate Clip"
+        with st.status("Generating affiliate clip...", expanded=True) as status:
+            st.write("Generating hooks")
+            st.write("Creating product scenes")
+            st.write("Rendering final MP4")
+            result = _run_affiliate_one_click_clip(project_name, brief)
+            package_result = export_affiliate_package(project_name, brief, result.get("data", {}) or {}) if result.get("data") else {"ok": False, "data": {}, "error": result.get("error", "")}
+            status.update(label="Affiliate clip ready" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")), state="complete" if result.get("ok") else "error", expanded=False)
+        state.update(product)
+        state["mode"] = mode
+        state["brief"] = brief
+        state["quick_generate"] = result.get("data", {})
+        state["affiliate_package"] = package_result.get("data", {})
+        state["ok"] = bool(result.get("ok"))
+        state["safe_error_message"] = "" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message"))
+        project["affiliate_studio"] = state
+        _save_project()
+        st.rerun()
+
+    package = state.get("affiliate_package") or {}
+    quick_data = state.get("quick_generate") or {}
+    if package and Path(str(package.get("final_mp4") or "")).is_file():
+        st.markdown("## Affiliate Export Package")
+        _render_final_downloads("affiliate_studio", {"final_mp4": package.get("final_mp4"), "status": "completed", "duration": (quick_data.get("render") or {}).get("duration", 0)})
+        score = package.get("viral_score") or ((state.get("brief") or {}).get("viral_score") or {})
+        cols = st.columns(5)
+        cols[0].metric("Hook", score.get("hook_strength", 0))
+        cols[1].metric("CTA", score.get("cta_strength", 0))
+        cols[2].metric("Replay", score.get("replay_potential", 0))
+        cols[3].metric("Pacing", score.get("conversion_pacing", 0))
+        cols[4].metric("Scroll Stop", score.get("scroll_stop_score", 0))
+        final_dir = Path(str(package.get("final_dir") or ""))
+        if final_dir.exists():
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+                for path in final_dir.iterdir():
+                    if path.is_file():
+                        archive.write(path, path.name)
+            st.download_button("Download Affiliate Package ZIP", data=zip_buffer.getvalue(), file_name="velaflow_affiliate_package.zip", mime="application/zip", use_container_width=True)
+    elif state.get("safe_error_message"):
+        st.warning(state.get("safe_error_message"))
+    else:
+        st.info("Enter a product idea and click Generate Viral Affiliate Clip.")
 
 
 def _export_beta_feedback(project: dict[str, Any], message: str = "") -> dict[str, Any]:
@@ -3161,7 +3290,7 @@ if page == "Dashboard":
     st.dataframe(pd.DataFrame(status_data.get("stages", []) or []), use_container_width=True, height=220)
     cols = st.columns(6)
     if is_seller_mode:
-        navs = [("Seller Studio", "Seller Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
+        navs = [("Affiliate Studio", "Affiliate Studio"), ("Seller Studio", "Seller Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
     elif is_podcast_mode:
         navs = [("Podcast Studio", "Podcast Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
     elif is_clips_mode:
@@ -3211,6 +3340,9 @@ if page == "Dashboard":
         st.json(project_lock_status(project), expanded=False)
         if st.button("Export Diagnostics"):
             st.json(export_diagnostic_bundle(project), expanded=False)
+
+elif page == "Affiliate Studio":
+    _render_affiliate_studio(project)
 
 elif page == "Seller Studio":
     _page_header("Seller Studio", "Generate short-form TikTok, Reels, and affiliate seller content from product details.", project)

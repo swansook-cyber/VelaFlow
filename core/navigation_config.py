@@ -12,7 +12,7 @@ FULL_MENU_GROUPS = {
     "START": ["Dashboard", "Creator Wizard"],
     "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
     "VISUAL": ["MV Director", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
-    "PRODUCTION": ["Hook Clip Studio", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
+    "PRODUCTION": ["Hook Clip Studio", "Affiliate Studio", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
     "INTELLIGENCE": ["Creative Intelligence", "Production Audit", "Beta Test Mode", "Asset Intelligence"],
     "SYSTEM": ["Queue Monitor", "System Health", "Release Hardening Tools", "AI Settings"],
 }
@@ -25,7 +25,7 @@ SONG_ONLY_MENU_GROUPS = {
 
 SELLER_STUDIO_MENU_GROUPS = {
     "START": ["Dashboard"],
-    "SELLER": ["Seller Studio", "Hook Clip Studio"],
+    "SELLER": ["Affiliate Studio", "Seller Studio", "Hook Clip Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }
 

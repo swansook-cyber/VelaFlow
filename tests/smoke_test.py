@@ -12,6 +12,8 @@ sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
+from core.affiliate_engine import AFFILIATE_MODES, build_affiliate_clip_brief, export_affiliate_package, generate_affiliate_hooks
+from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
 from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
@@ -62,6 +64,7 @@ from core.subtitle_engine import generate_styled_subtitles, get_viral_subtitle_p
 from core.viral_timing_engine import create_viral_timing_plan
 from core.hook_intelligence import analyze_opening_hook
 from core.preset_engine import get_preset, list_presets, preset_to_render_settings
+from core.product_prompt_engine import build_product_scene_prompts
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -464,10 +467,10 @@ def main():
     assert_true(normalize_navigation_state(FULL_MENU_GROUPS, "PRODUCTION", "Dashboard") == ("PRODUCTION", "Hook Clip Studio"), "Full Pipeline cannot select PRODUCTION")
     assert_true("VISUAL" not in SONG_ONLY_MENU_GROUPS and "PRODUCTION" not in SONG_ONLY_MENU_GROUPS, "Song Studio Only did not hide VISUAL/PRODUCTION groups")
     seller_pages = flatten_pages(SELLER_STUDIO_MENU_GROUPS)
-    assert_true(menu_groups_for_mode("Seller Studio (Beta)") == SELLER_STUDIO_MENU_GROUPS, "Seller Studio workflow mode failed")
+    assert_true(menu_groups_for_mode("Seller Studio (Beta)") == SELLER_STUDIO_MENU_GROUPS and "Affiliate Studio" in SELLER_STUDIO_ALLOWED_PAGES, "Seller Studio workflow mode failed")
     assert_true(set(seller_pages) == SELLER_STUDIO_ALLOWED_PAGES, "Seller Studio allowed page set mismatch")
     assert_true("Seller Studio" in seller_pages and "Render Lab" not in seller_pages and "Song Studio" not in seller_pages, "Seller Studio navigation filtering failed")
-    assert_true(normalize_navigation_state(SELLER_STUDIO_MENU_GROUPS, "SELLER", "Dashboard") == ("SELLER", "Seller Studio"), "Seller Studio section selection failed")
+    assert_true(normalize_navigation_state(SELLER_STUDIO_MENU_GROUPS, "SELLER", "Dashboard") == ("SELLER", "Affiliate Studio"), "Seller Studio section selection failed")
     assert_true(workflow_type_for_mode("Seller Studio (Beta)") == "seller", "Seller workflow type mapping failed")
     assert_true(session_label_for_mode("Seller Studio (Beta)") == "Current Seller Session", "Seller session label failed")
     podcast_pages = flatten_pages(PODCAST_STUDIO_MENU_GROUPS)
@@ -1119,6 +1122,35 @@ def main():
         for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
+        affiliate_product = {
+            "product_name": "Smoke Pillow",
+            "product_type": "home item",
+            "target_audience": "คนทำงานที่นอนหลับยาก",
+            "emotional_angle": "นอนสบายขึ้น",
+            "pain_point": "ปวดคอหลังตื่นนอน",
+            "cta_style": "soft sell",
+        }
+        affiliate_hooks = generate_affiliate_hooks(affiliate_product, "TikTok Affiliate")
+        assert_true(AFFILIATE_MODES[0] == "TikTok Affiliate" and len(affiliate_hooks) >= 5 and affiliate_hooks[0]["hook_strength"] > 0, "affiliate hooks failed")
+        product_prompts = build_product_scene_prompts(affiliate_product, "TikTok Affiliate")
+        assert_true(len(product_prompts["scene_prompts"]) == 3 and "vertical 9:16" in product_prompts["scene_prompts"][0]["prompt"], "product prompt engine failed")
+        affiliate_captions = build_affiliate_caption_package(affiliate_product, affiliate_hooks)
+        assert_true(affiliate_captions["captions"] and affiliate_captions["hashtags"] and affiliate_captions["cta_variants"], "affiliate captions failed")
+        affiliate_brief = build_affiliate_clip_brief(affiliate_product, "TikTok Affiliate")
+        affiliate_clip = quick_generate_hook_clip(
+            "Smoke Affiliate Clip",
+            affiliate_brief["prompt"],
+            source_workflow="seller",
+            duration_seconds=15,
+            image_provider="offline",
+            preset_id="affiliate_sell",
+            subtitle_preset="Affiliate CTA",
+        )
+        affiliate_data = affiliate_clip.get("data", {})
+        assert_true(affiliate_clip["ok"] and Path(affiliate_data["final_mp4"]).exists() and validate_mp4(affiliate_data["final_mp4"])["valid_mp4"], "affiliate final MP4 failed")
+        affiliate_export = export_affiliate_package("Smoke Affiliate Clip", affiliate_brief, affiliate_data)
+        affiliate_dir = Path((affiliate_export.get("data") or {}).get("final_dir", ""))
+        assert_true(affiliate_export["ok"] and (affiliate_dir / "final_hook_clip.mp4").exists() and (affiliate_dir / "cta_text.txt").exists() and (affiliate_dir / "affiliate_scene_prompts.json").exists(), "affiliate export package failed")
         cache_key = (quick_data.get("render_cache") or {}).get("cache_key")
         assert_true(load_render_cache("Smoke Quick Hook Clip", "clips", cache_key)["ok"], "render cache was not saved")
         queue_start = start_render_job("Smoke Queue Clip", "clips", stage="smoke_render")
