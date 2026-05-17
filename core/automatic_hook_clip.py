@@ -14,9 +14,11 @@ from core.paths import workflow_project_root
 from core.preset_engine import get_preset, preset_to_render_settings, preset_to_visual_settings
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir, render_real_hook_clip
+from core.render_cache import cache_fingerprint, copy_cached_assets_to_project, load_render_cache, save_render_cache
 from core.scene_prompt_engine import apply_scene_prompts_to_package, build_scene_prompts, save_scene_prompts
 from core.subtitle_engine import generate_styled_subtitles
 from core.thumbnail_selector import export_thumbnail
+from core.versioning import save_clip_version
 from core.viral_timing_engine import create_viral_timing_plan, save_viral_timing_plan
 from core.voiceover_engine import generate_voiceover_audio
 from providers.image_ai import generate_image, generate_image_with_diagnostics
@@ -95,6 +97,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         image_manifest = Path(str(render_data.get("image_generation_manifest") or package.get("image_generation_manifest_path") or ""))
         if image_manifest.is_file():
             shutil.copy2(image_manifest, ensure_parent_dir(final_dir / "image_generation_manifest.json"))
+        hook_analysis_file = Path(str(render_data.get("hook_analysis") or package.get("hook_analysis_path") or ""))
+        if hook_analysis_file.is_file():
+            shutil.copy2(hook_analysis_file, ensure_parent_dir(final_dir / "hook_analysis.json"))
         for item in package.get("image_results", []) or []:
             image_path = Path(str(item.get("path") or ""))
             scene_id = str(item.get("scene_id") or image_path.stem or "scene")
@@ -124,6 +129,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "captions.txt": captions,
             "hashtags.txt": " ".join(str(tag) for tag in hashtags),
             "title.txt": title,
+            "title_ideas.txt": "\n".join([title, f"{title} | Hook Clip", f"{title} - Short Version"]),
             "thumbnail_prompt.txt": thumbnail_prompt,
             "upload_checklist.txt": "\n".join(checklist),
         }
@@ -149,6 +155,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
             "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
+            "hook_analysis": str(final_dir / "hook_analysis.json") if (final_dir / "hook_analysis.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
             "files": written,
         }
@@ -338,6 +345,9 @@ def quick_generate_hook_clip(
     hook_intensity: int = 75,
     meme_level: int = 70,
     chaos_level: int = 35,
+    force_cache_refresh: bool = False,
+    force_final_render: bool = True,
+    variation: str = "default",
 ) -> dict[str, Any]:
     try:
         project_name = project_name or "Quick Hook Clip"
@@ -410,41 +420,74 @@ def quick_generate_hook_clip(
         project_dir = workflow_project_root(storage_workflow_type) / safe_name(project_name or "hook_clip")
         exports_dir = project_dir / "exports"
         exports_dir.mkdir(parents=True, exist_ok=True)
+        cache_key = cache_fingerprint(
+            strongest_hook,
+            preset.get("preset_id"),
+            source_workflow,
+            image_provider or "offline",
+            effective_subtitle_style,
+            variation,
+            character_profile or {},
+        )
+        cache_status = {"ok": False, "message": "Cache skipped", "data": {"cache_key": cache_key}, "error": "cache_skipped"}
+        cached_assets: dict[str, Any] = {}
+        if not force_cache_refresh:
+            cache_status = load_render_cache(project_name, storage_workflow_type, cache_key)
+            if cache_status.get("ok"):
+                cached_assets = copy_cached_assets_to_project((cache_status.get("data") or {}).get("manifest", {}), project_name, storage_workflow_type).get("data", {})
         scene_prompt_style = "Cute Character" if preset.get("preset_id") == "cute_character" else "TikTok Meme" if preset.get("preset_id") == "viral_meme" else "Emotional"
-        scene_prompt_plan = build_scene_prompts(
-            package.get("scene_sequence", []),
-            hook_text=str(package.get("hook_text") or content.get("selected_hook_text") or idea),
-            style=scene_prompt_style,
-            preset_id=str(preset.get("preset_id") or ""),
-            mood=str(preset.get("label") or ""),
-        )
+        cached_scene_prompts = Path(str((cached_assets.get("files") or {}).get("scene_prompts") or ""))
+        if cached_scene_prompts.is_file():
+            scene_prompt_plan = json.loads(cached_scene_prompts.read_text(encoding="utf-8"))
+            scene_prompt_result = {"ok": True, "data": {"path": str(cached_scene_prompts)}, "error": ""}
+        else:
+            scene_prompt_plan = build_scene_prompts(
+                package.get("scene_sequence", []),
+                hook_text=str(package.get("hook_text") or content.get("selected_hook_text") or idea),
+                style=scene_prompt_style,
+                preset_id=str(preset.get("preset_id") or ""),
+                mood=str(preset.get("label") or ""),
+            )
+            scene_prompt_result = save_scene_prompts(scene_prompt_plan, exports_dir / "scene_prompts.json")
         apply_scene_prompts_to_package(package, scene_prompt_plan)
-        scene_prompt_result = save_scene_prompts(scene_prompt_plan, exports_dir / "scene_prompts.json")
         package["scene_prompts_path"] = (scene_prompt_result.get("data") or {}).get("path", "")
-        beat_timing_plan = create_beat_timing_plan(
-            audio_path=hook_audio_path,
-            total_duration=duration_seconds,
-            scene_count=len(package.get("scene_sequence", []) or []) or 3,
-            pace=str(preset.get("pace") or "fast"),
-            hook_text=str(package.get("hook_text") or strongest_hook or idea),
-        )
+        cached_beat_timing = Path(str((cached_assets.get("files") or {}).get("beat_timing") or ""))
+        if cached_beat_timing.is_file():
+            beat_timing_plan = json.loads(cached_beat_timing.read_text(encoding="utf-8"))
+            beat_timing_result = {"ok": True, "data": {"path": str(cached_beat_timing)}, "error": ""}
+        else:
+            beat_timing_plan = create_beat_timing_plan(
+                audio_path=hook_audio_path,
+                total_duration=duration_seconds,
+                scene_count=len(package.get("scene_sequence", []) or []) or 3,
+                pace=str(preset.get("pace") or "fast"),
+                hook_text=str(package.get("hook_text") or strongest_hook or idea),
+            )
+            beat_timing_result = save_beat_timing(beat_timing_plan, exports_dir / "beat_timing.json")
         apply_beat_timing_to_package(package, beat_timing_plan)
         if preset.get("motion_style") == "bounce":
             for scene in package.get("scene_sequence", []) or []:
                 scene["motion_effect"] = "bounce"
-        beat_timing_result = save_beat_timing(beat_timing_plan, exports_dir / "beat_timing.json")
         package["beat_timing_path"] = (beat_timing_result.get("data") or {}).get("path", "")
-        image_results = _generate_scene_images(
-            project_name,
-            package,
-            idea=idea,
-            preset=preset,
-            character_profile=character_profile,
-            consistency_strength=consistency_strength,
-            image_provider=image_provider or "offline",
-            storage_workflow_type=storage_workflow_type,
-            image_settings=image_settings,
-        )
+        cached_images = cached_assets.get("image_results") or []
+        if cached_images:
+            image_results = cached_images
+            for scene, item in zip(package.get("scene_sequence", []) or [], image_results):
+                scene["source_image_path"] = item.get("path", "")
+                scene["image_prompt"] = item.get("prompt", scene.get("image_prompt", ""))
+                scene["image_provider"] = item.get("provider_used", item.get("provider", "cache"))
+        else:
+            image_results = _generate_scene_images(
+                project_name,
+                package,
+                idea=idea,
+                preset=preset,
+                character_profile=character_profile,
+                consistency_strength=consistency_strength,
+                image_provider=image_provider or "offline",
+                storage_workflow_type=storage_workflow_type,
+                image_settings=image_settings,
+            )
         package["image_results"] = image_results
         image_manifest_path = ensure_parent_dir(exports_dir / "image_generation_manifest.json")
         image_manifest = {
@@ -458,6 +501,15 @@ def quick_generate_hook_clip(
         }
         image_manifest_path.write_text(json.dumps(image_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         package["image_generation_manifest_path"] = str(image_manifest_path)
+        cache_save = save_render_cache(
+            project_name,
+            storage_workflow_type,
+            cache_key,
+            scene_prompt_path=package.get("scene_prompts_path", ""),
+            beat_timing_path=package.get("beat_timing_path", ""),
+            image_manifest_path=package.get("image_generation_manifest_path", ""),
+            image_results=image_results,
+        )
         voice_script = _voiceover_script(package)
         package["voiceover_script"] = voice_script
         voice_result = generate_voiceover_audio(
@@ -469,10 +521,11 @@ def quick_generate_hook_clip(
             output_name="voiceover.mp3",
         )
         voiceover_path = str((voice_result.get("data") or {}).get("audio_path") or "")
-        render_result = render_real_hook_clip(project_name, package, workflow_type="hook", voiceover_path=voiceover_path, background_audio_path=hook_audio_path, storage_workflow_type=storage_workflow_type, force=True)
+        render_result = render_real_hook_clip(project_name, package, workflow_type="hook", voiceover_path=voiceover_path, background_audio_path=hook_audio_path, storage_workflow_type=storage_workflow_type, force=force_final_render)
         export_result = export_hook_clip_package(project_name, package)
         character_save = save_character_profile(project_name, character_profile, "clips") if character_profile else {"ok": False, "data": {}, "error": "no_character_profile"}
         hook_save = save_hook_analysis(project_name, hook_analysis, exports_dir)
+        package["hook_analysis_path"] = (hook_save.get("data") or {}).get("path", "")
         subtitle_result = generate_styled_subtitles(
             package.get("subtitle_timing", []),
             exports_dir,
@@ -501,8 +554,18 @@ def quick_generate_hook_clip(
             "scene_prompts": package.get("scene_prompts_path", ""),
             "beat_timing": package.get("beat_timing_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
+            "hook_analysis": package.get("hook_analysis_path", ""),
         }
         tiktok_package = export_tiktok_package(project_name, package, render_data_for_export)
+        clip_version = save_clip_version(
+            project_name,
+            storage_workflow_type,
+            final_mp4=(render_result.get("data") or {}).get("final_mp4", ""),
+            package=package,
+            render_data=render_result.get("data", {}),
+            tiktok_package=tiktok_package.get("data", {}),
+            variation=variation,
+        )
         manifest = {
             "generated_by": "VelaFlow",
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -529,6 +592,8 @@ def quick_generate_hook_clip(
             "viral_metrics": viral_metrics,
             "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
             "tiktok_package": tiktok_package,
+            "clip_version": clip_version,
+            "render_cache": {"cache_key": cache_key, "cache_status": cache_status, "cache_save": cache_save},
             "voiceover": voice_result,
             "hook_audio_path": hook_audio_path,
             "render": render_result,
@@ -587,6 +652,8 @@ def quick_generate_hook_clip(
                 "viral_metrics": viral_metrics,
                 "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
                 "tiktok_package": tiktok_package.get("data", {}),
+                "clip_version": clip_version.get("data", {}),
+                "render_cache": {"cache_key": cache_key, "cache_hit": bool(cache_status.get("ok")), "cache_status": cache_status.get("message", ""), "cache_dir": (cache_save.get("data") or {}).get("cache_dir", "")},
                 "voiceover": voice_result.get("data", {}),
                 "hook_audio_path": hook_audio_path,
                 "render": render_result.get("data", {}),

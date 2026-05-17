@@ -197,6 +197,7 @@ from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, save_scene_job, scene_output_path, submit_veo_scene_job
 from core.version import APP_VERSION, BUILD_VERSION, RELEASE_CHANNEL, build_label
+from core.versioning import list_clip_versions
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
@@ -813,9 +814,11 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
         ("captions.txt", "text/plain"),
         ("hashtags.txt", "text/plain"),
         ("title.txt", "text/plain"),
+        ("title_ideas.txt", "text/plain"),
         ("thumbnail.jpg", "image/jpeg"),
         ("thumbnail_score.json", "application/json"),
         ("thumbnail_prompt.txt", "text/plain"),
+        ("hook_analysis.json", "application/json"),
         ("styled_subtitles.ass", "text/plain"),
         ("scene_prompts.json", "application/json"),
         ("beat_timing.json", "application/json"),
@@ -2125,8 +2128,37 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             else:
                 image_provider = "offline"
         hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
+        r1, r2, r3 = st.columns(3)
+        if r1.button("Retry Scene Images", use_container_width=True, key="song_retry_scene_images"):
+            st.session_state["song_short_force_cache_refresh"] = True
+            st.session_state["song_short_variation"] = "retry_images"
+            st.rerun()
+        if r2.button("Retry Final Render", use_container_width=True, key="song_retry_final_render"):
+            st.session_state["song_short_force_render"] = True
+            st.session_state["song_short_variation"] = "retry_render"
+            st.rerun()
+        if r3.button("Generate Alternate Version", use_container_width=True, key="song_generate_alternate"):
+            st.session_state["song_short_force_cache_refresh"] = True
+            st.session_state["song_short_variation"] = "alternate"
+            st.rerun()
+        s1, s2, s3 = st.columns(3)
+        if s1.button("Stronger Emotion", use_container_width=True, key="song_stronger_emotion"):
+            st.session_state["song_short_variation"] = "stronger_emotion"
+            st.session_state["song_short_force_cache_refresh"] = True
+            st.rerun()
+        if s2.button("More Cinematic", use_container_width=True, key="song_more_cinematic"):
+            st.session_state["song_short_variation"] = "more_cinematic"
+            st.session_state["song_short_force_cache_refresh"] = True
+            st.rerun()
+        if s3.button("Faster TikTok Pace", use_container_width=True, key="song_faster_tiktok"):
+            st.session_state["song_short_variation"] = "faster_tiktok"
+            st.session_state["song_short_force_cache_refresh"] = True
+            st.rerun()
+        active_variation = st.session_state.get("song_short_variation", "default")
+        if active_variation != "default":
+            st.caption(f"Next version: {active_variation.replace('_', ' ')}")
         if st.button(
-            "Generate TikTok Hook Clip",
+            "Quick Generate TikTok Hook",
             type="primary",
             use_container_width=True,
             disabled=not bool(best_hook.get("hook_text")),
@@ -2141,6 +2173,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     f"Hook text: {best_hook.get('hook_text', '')}",
                     f"Song mood: {mood}",
                     f"Music preset: {song.get('music_preset', DEFAULT_MUSIC_PRESET)}",
+                    f"Variation: {active_variation}",
                     "Create exactly 3 concise scenes for a 9:16 short-form hook clip.",
                 ]
             )
@@ -2158,7 +2191,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     voiceover_api_key=_user_api_key("openai"),
                     subtitle_preset="Thai Emotional MV" if str(selected_clip_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
                     hook_audio_path=hook_audio_path,
+                    force_cache_refresh=bool(st.session_state.pop("song_short_force_cache_refresh", False)),
+                    force_final_render=bool(st.session_state.pop("song_short_force_render", True)),
+                    variation=str(active_variation or "default"),
                 )
+            st.session_state["song_short_variation"] = "default"
             song["short_clip"] = {
                 "selected_hook": best_hook,
                 "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -2187,6 +2224,18 @@ def _render_song_studio(project: dict[str, Any]) -> None:
 
         st.markdown("## ✅ Preview / Download")
         quick_data = short_clip.get("quick_generate") or {}
+        if real_output:
+            _render_final_downloads("song_short_clip", real_output)
+            package_data = (short_clip.get("quick_generate") or {}).get("tiktok_package") or {}
+            _render_tiktok_package_downloads("song_short_clip", package_data)
+        elif short_clip.get("final_mp4") and Path(str(short_clip.get("final_mp4"))).is_file():
+            _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
+        else:
+            st.info("Quick Generate TikTok Hook แล้ว preview และ download จะขึ้นตรงนี้ทันที")
+        thumbnail_path = Path(str((quick_data.get("thumbnail") or {}).get("path") or quick_data.get("thumbnail_path") or ""))
+        if thumbnail_path.is_file():
+            st.markdown("**Thumbnail Preview**")
+            st.image(str(thumbnail_path), use_container_width=True)
         viral_metrics = quick_data.get("viral_metrics") or ((quick_data.get("package") or {}).get("viral_metrics") or {})
         thumbnail_quality = ((quick_data.get("thumbnail") or {}).get("score") or ((quick_data.get("tiktok_package") or {}).get("thumbnail_quality") or 0))
         timing_profile = (quick_data.get("beat_timing") or {}).get("timing_profile") or (quick_data.get("viral_timing_plan") or {}).get("timing_profile", "")
@@ -2199,6 +2248,22 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             vm4.metric("Thumbnail quality", thumbnail_quality or "-")
             if timing_profile:
                 st.caption(f"Pacing profile: {timing_profile}")
+        versions = list_clip_versions(project.get("title") or song.get("title") or title, "song")
+        if versions:
+            with st.expander("Compare Versions", expanded=False):
+                rows = [
+                    {
+                        "version": item.get("version_id"),
+                        "variation": item.get("variation", "default"),
+                        "hook_score": ((item.get("viral_metrics") or {}).get("hook_score") or "-"),
+                        "created_at": item.get("created_at", ""),
+                    }
+                    for item in versions[-5:]
+                ]
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                latest = Path(str(versions[-1].get("final_mp4") or ""))
+                if latest.is_file():
+                    st.download_button("Download Latest Version MP4", data=latest.read_bytes(), file_name=latest.name, mime="video/mp4", use_container_width=True, key="song_download_latest_version")
         image_results = quick_data.get("image_results") or []
         if image_results:
             st.markdown("**Generated Scene Images**")
@@ -2217,9 +2282,6 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     if st.session_state.get("developer_mode") and item.get("safe_error_message"):
                         st.caption(str(item.get("safe_error_message")))
         if real_output:
-            _render_final_downloads("song_short_clip", real_output)
-            package_data = (short_clip.get("quick_generate") or {}).get("tiktok_package") or {}
-            _render_tiktok_package_downloads("song_short_clip", package_data)
             if st.button("Refresh TikTok Package", key="song_short_export_tiktok", use_container_width=True):
                 package_result = export_tiktok_package(
                     project.get("title") or song.get("title") or title,
@@ -2230,10 +2292,6 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 _save_project()
                 st.success("TikTok package exported") if package_result.get("ok") else st.error(package_result.get("error") or package_result.get("message"))
                 st.rerun()
-        elif short_clip.get("final_mp4") and Path(str(short_clip.get("final_mp4"))).is_file():
-            _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
-        else:
-            st.info("Generate TikTok Hook Clip แล้ว preview และ download จะขึ้นตรงนี้ทันที")
         if st.session_state.get("developer_mode") and quick_data.get("manifest_path"):
             st.caption(f"Clip manifest: {quick_data.get('manifest_path')}")
 

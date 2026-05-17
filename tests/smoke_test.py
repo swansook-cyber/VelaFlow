@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sys
 import time
 import zipfile
@@ -133,7 +134,9 @@ from core.render_connector import (
     send_render_job,
 )
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_image_motion_scene, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, validate_mp4, write_subtitles
+from core.render_cache import load_render_cache
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
+from core.versioning import list_clip_versions
 from core.rendering_presets import get_render_preset_bundle, get_rendering_provider_preset, list_render_preset_bundles, list_rendering_providers
 from core.preset_system import list_global_presets, list_preset_packs, list_project_templates, list_scene_presets
 from core.project_templates import create_project_from_template, suggested_scene_preset_details
@@ -1001,6 +1004,9 @@ def main():
     cloud_style_scene = out / "cloud_paths" / "project_data" / "clips" / "ทดสอบคลาวด์" / "scenes" / "scene_01.mp4"
     assert_true(ensure_parent_dir(cloud_style_scene).parent.exists(), "ensure_parent_dir failed for cloud-style Thai path")
     if find_ffmpeg():
+        smoke_quick_root = ROOT / "project_data" / "clips" / "Smoke_Quick_Hook_Clip"
+        shutil.rmtree(smoke_quick_root / "exports" / "versions", ignore_errors=True)
+        shutil.rmtree(smoke_quick_root / "cache", ignore_errors=True)
         hook_audio_trim = trim_audio_clip(
             voiceover_audio["data"]["audio_path"],
             out / "hook_clip_projects" / "exports" / "hook_audio.mp3",
@@ -1068,6 +1074,8 @@ def main():
         assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
         assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
+        assert_true((quick_data.get("clip_version") or {}).get("version_id") == "v1" and Path((quick_data.get("clip_version") or {}).get("path", "")).exists(), "clip version v1 missing")
+        assert_true((quick_data.get("render_cache") or {}).get("cache_key"), "render cache key missing")
         assert_true((quick_data.get("viral_metrics") or {}).get("hook_score", 0) > 0 and (quick_data.get("viral_metrics") or {}).get("tiktok_retention_potential", 0) > 0, "TikTok hook scoring missing")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
@@ -1089,9 +1097,36 @@ def main():
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
-        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
+        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
+        cache_key = (quick_data.get("render_cache") or {}).get("cache_key")
+        assert_true(load_render_cache("Smoke Quick Hook Clip", "clips", cache_key)["ok"], "render cache was not saved")
+        quick_clip_cached = quick_generate_hook_clip(
+            "Smoke Quick Hook Clip",
+            "เธ—เธ”เธชเธญเธเธเธฅเธดเธเธชเธฑเนเธเนเธเธงเธ•เธฑเนเธเธชเธณเธซเธฃเธฑเธ VelaFlow",
+            image_provider="offline",
+            voiceover_style="calm narrator",
+            preset_id="viral_meme",
+            hook_audio_path=hook_audio_trim["data"]["path"],
+            force_final_render=True,
+        )
+        cached_data = quick_clip_cached.get("data", {})
+        assert_true(quick_clip_cached["ok"] and (cached_data.get("render_cache") or {}).get("cache_hit"), "render cache reuse failed")
+        assert_true((cached_data.get("clip_version") or {}).get("version_id") == "v2", "clip version v2 missing")
+        quick_clip_alt = quick_generate_hook_clip(
+            "Smoke Quick Hook Clip",
+            "เธ—เธ”เธชเธญเธเธเธฅเธดเธเธชเธฑเนเธเนเธเธงเธ•เธฑเนเธเธชเธณเธซเธฃเธฑเธ VelaFlow",
+            image_provider="offline",
+            voiceover_style="calm narrator",
+            preset_id="viral_meme",
+            hook_audio_path=hook_audio_trim["data"]["path"],
+            force_cache_refresh=True,
+            variation="alternate",
+        )
+        assert_true(quick_clip_alt["ok"] and (quick_clip_alt.get("data", {}).get("clip_version") or {}).get("version_id") == "v3", "alternate version generation failed")
+        versions = list_clip_versions("Smoke Quick Hook Clip", "clips")
+        assert_true(len(versions) >= 3 and all(Path(item.get("final_mp4", "")).exists() for item in versions[-3:]), "clip version list failed")
         for utf8_bom_file in ["subtitles.srt", "styled_subtitles.ass", "captions.txt"]:
             assert_true((tiktok_final_dir / utf8_bom_file).read_bytes().startswith(b"\xef\xbb\xbf"), f"{utf8_bom_file} is not UTF-8 BOM")
         assert_true("TikTok Meme" in list_viral_subtitle_presets() and get_viral_subtitle_preset("Affiliate CTA")["mode"] == "meme_caption", "viral subtitle presets missing")
