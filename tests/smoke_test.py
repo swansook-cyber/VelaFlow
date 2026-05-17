@@ -1106,6 +1106,10 @@ def main():
         assert_true((quick_data["render"].get("render_stage") or {}).get("uploaded_audio_attached") is True, "quick hook uploaded audio was not attached")
         assert_true((quick_data["render"].get("render_stage") or {}).get("visual_composition_mode") == "single_fullscreen_sequential", "fullscreen sequential render mode missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("forbidden_visual_filters_found") is False, "forbidden visual stack/tile filter detected")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("motion_quality_layer") == "cinematic_motion_v1", "cinematic motion quality layer missing")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("static_only_chain") is False, "static-only render chain detected")
+        rendered_scene_durations = (quick_data["render"].get("render_stage") or {}).get("scene_durations") or []
+        assert_true(rendered_scene_durations and all(1.45 <= float(duration) <= 3.1 for duration in rendered_scene_durations if duration), "scene durations are not cinematic short-form timing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
         assert_true((quick_data.get("clip_version") or {}).get("version_id") == "v1" and Path((quick_data.get("clip_version") or {}).get("path", "")).exists(), "clip version v1 missing")
         assert_true((quick_data.get("render_cache") or {}).get("cache_key"), "render cache key missing")
@@ -1134,6 +1138,8 @@ def main():
         assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "not a grid montage" in item.get("cinematic_prompt", "").lower() and "same character" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
         forbidden_filters = ["hstack", "vstack", "xstack", "tile", "grid", "collage"]
         assert_true(all(job.get("visual_composition_mode") == "single_fullscreen_scene" for job in quick_data["render"].get("scene_jobs", [])), "scene job is not single fullscreen")
+        assert_true(any(job.get("cinematic_motion") for job in quick_data["render"].get("scene_jobs", [])), "motion metadata missing")
+        assert_true(any(job.get("motion_effect") in {"emotional_push_in", "cinematic_drift", "slow_cinematic", "hook_energy_zoom"} for job in quick_data["render"].get("scene_jobs", [])), "cinematic motion effects missing")
         assert_true(all(not any(token in " ".join(str(part).lower() for part in (job.get("ffmpeg_command") or [])) for token in forbidden_filters) for job in quick_data["render"].get("scene_jobs", [])), "stacked/collage ffmpeg filter detected")
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
