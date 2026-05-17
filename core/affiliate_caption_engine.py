@@ -22,12 +22,20 @@ def build_affiliate_caption_package(product: dict[str, Any], hooks: list[dict[st
         f"{name} เหมาะกับ{audience}ที่อยากได้ตัวช่วยแบบง่าย ๆ",
     ]
     ctas = [
-        "ดูรายละเอียดก่อนของหมด",
+        "ลองดูรายละเอียดก่อนตัดสินใจ",
         "กดดูโปรในตะกร้า",
         "ลองเช็กรีวิวแล้วค่อยตัดสินใจ",
     ]
     if "hard" in cta_style.lower() or "urgent" in cta_style.lower():
         ctas = ["กดดูโปรตอนนี้", "ของหมดแล้วต้องรอรอบหน้า", "รีบเช็กก่อนโปรหาย"]
+    cta_variants = {
+        "soft_cta": "ลองดูรายละเอียดก่อน ถ้าใช่ค่อยตัดสินใจ",
+        "hard_cta": "กดดูโปรตอนนี้ ก่อนราคาหรือของเปลี่ยน",
+        "comment_bait_cta": "คอมเมนต์มาว่าอยากให้เทียบกับตัวไหน",
+        "fomo_cta": "เห็นคนใช้เยอะขึ้นเรื่อย ๆ อย่ารอจนของหมด",
+        "urgency_cta": "เช็กโปรวันนี้ก่อนหมดรอบ",
+        "curiosity_cta": "ลองดูรีวิวเต็ม แล้วจะเข้าใจว่าทำไมคนพูดถึง",
+    }
     hashtags = [
         "#TikTokAffiliate",
         "#ของดีบอกต่อ",
@@ -43,6 +51,7 @@ def build_affiliate_caption_package(product: dict[str, Any], hooks: list[dict[st
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "captions": captions,
         "cta_variants": ctas,
+        "cta_optimization": cta_variants,
         "hashtags": hashtags,
         "short_product_description": f"{name} สำหรับ{audience}ที่เจอ{pain} ใช้เล่าแบบ creator-friendly และเข้าใจง่าย",
         "comment_bait": [

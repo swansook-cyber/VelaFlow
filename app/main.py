@@ -180,6 +180,7 @@ from core.safe_mode import open_project_safe_mode
 from core.scene_scoring import score_project_scenes, smart_tiktok_recommendations
 from core.scene_story_engine import build_subtitle_timing
 from core.subtitle_engine import list_viral_subtitle_presets
+from core.thumbnail_selector import score_affiliate_thumbnail_candidates
 from core.seller_content import HOOK_STYLES, TONE_GUIDES, build_seller_dashboard_status, export_seller_content, generate_seller_content, seller_content_to_text
 from core.voiceover_engine import VOICEOVER_STYLES, build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
 from core.settings import get_settings
@@ -996,14 +997,14 @@ def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_pre
     return result
 
 
-def _run_affiliate_one_click_clip(project_name: str, brief: dict[str, Any], preset_id: str = "affiliate_sell") -> dict[str, Any]:
+def _run_affiliate_one_click_clip(project_name: str, brief: dict[str, Any], preset_id: str = "affiliate_sell", variation: str = "default") -> dict[str, Any]:
     image_provider, image_settings = _creator_image_settings()
     release_stale_render_jobs(project_name, "clips")
     queue_result = start_creator_render_job(
         project_name,
         "clips",
         stage="affiliate_clip",
-        metadata={"mode": brief.get("mode", ""), "preset_id": preset_id},
+        metadata={"mode": brief.get("mode", ""), "preset_id": preset_id, "variation": variation},
     )
     if not queue_result.get("ok"):
         return {"ok": False, "message": queue_result.get("message", ""), "data": {}, "error": queue_result.get("error", "active_render_job")}
@@ -1025,7 +1026,7 @@ def _run_affiliate_one_click_clip(project_name: str, brief: dict[str, Any], pres
             subtitle_preset="Affiliate CTA",
             force_cache_refresh=False,
             force_final_render=True,
-            variation="affiliate_phase_1",
+            variation=f"affiliate_{variation}",
         )
     except Exception as exc:
         result = {"ok": False, "message": "Affiliate render failed", "data": {}, "error": str(exc)}
@@ -1058,7 +1059,7 @@ def _run_affiliate_one_click_clip(project_name: str, brief: dict[str, Any], pres
 
 def _render_affiliate_studio(project: dict[str, Any]) -> None:
     _page_header("Affiliate Studio", "One-click TikTok affiliate and seller product clips.", project)
-    st.caption("Phase 1: product idea → hooks → product scenes → MP4 → affiliate package. No scraping or auto posting.")
+    st.caption("Phase 2: product idea → hook intelligence → conversion scenes → MP4 → affiliate package. No scraping or auto posting.")
     state = project.setdefault("affiliate_studio", {})
     with st.container(border=True):
         mode = st.selectbox("Mode", AFFILIATE_MODES, index=0, key="affiliate_mode")
@@ -1069,6 +1070,9 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         pain_point = st.text_input("Pain Point", value=state.get("pain_point", ""), key="affiliate_pain_point", help="ปัญหาที่สินค้าช่วยแก้")
         cta_style = st.selectbox("CTA Style", ["soft sell", "urgent deal", "review first", "creator recommendation"], index=0, key="affiliate_cta_style")
         generate = st.button("Generate Viral Affiliate Clip", type="primary", use_container_width=True, disabled=not bool(product_name.strip()), key="affiliate_generate_clip")
+    variation = st.session_state.pop("affiliate_variation", "")
+    if variation:
+        generate = True
     if generate:
         product = {
             "product_name": product_name,
@@ -1078,17 +1082,22 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
             "pain_point": pain_point,
             "cta_style": cta_style,
         }
-        brief = build_affiliate_clip_brief(product, mode)
+        active_variation = variation or "default"
+        brief = build_affiliate_clip_brief(product, mode, variation=active_variation)
         project_name = project.get("title") or product_name or "Affiliate Clip"
         with st.status("Generating affiliate clip...", expanded=True) as status:
             st.write("Generating hooks")
             st.write("Creating product scenes")
+            st.write("Optimizing timing and CTA")
             st.write("Rendering final MP4")
-            result = _run_affiliate_one_click_clip(project_name, brief)
+            result = _run_affiliate_one_click_clip(project_name, brief, variation=active_variation)
+            if result.get("data"):
+                brief["thumbnail_analysis"] = score_affiliate_thumbnail_candidates((result.get("data") or {}).get("package", {}), (result.get("data") or {}).get("image_results", []))
             package_result = export_affiliate_package(project_name, brief, result.get("data", {}) or {}) if result.get("data") else {"ok": False, "data": {}, "error": result.get("error", "")}
             status.update(label="Affiliate clip ready" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")), state="complete" if result.get("ok") else "error", expanded=False)
         state.update(product)
         state["mode"] = mode
+        state["variation"] = active_variation
         state["brief"] = brief
         state["quick_generate"] = result.get("data", {})
         state["affiliate_package"] = package_result.get("data", {})
@@ -1104,12 +1113,36 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         st.markdown("## Affiliate Export Package")
         _render_final_downloads("affiliate_studio", {"final_mp4": package.get("final_mp4"), "status": "completed", "duration": (quick_data.get("render") or {}).get("duration", 0)})
         score = package.get("viral_score") or ((state.get("brief") or {}).get("viral_score") or {})
-        cols = st.columns(5)
-        cols[0].metric("Hook", score.get("hook_strength", 0))
-        cols[1].metric("CTA", score.get("cta_strength", 0))
-        cols[2].metric("Replay", score.get("replay_potential", 0))
-        cols[3].metric("Pacing", score.get("conversion_pacing", 0))
-        cols[4].metric("Scroll Stop", score.get("scroll_stop_score", 0))
+        cols = st.columns(6)
+        cols[0].metric("Hook Power", score.get("hook_power", score.get("hook_strength", 0)))
+        cols[1].metric("CTA Power", score.get("cta_power", score.get("cta_strength", 0)))
+        cols[2].metric("Conversion", score.get("conversion_potential", 0))
+        cols[3].metric("Retention", score.get("retention_estimate", 0))
+        cols[4].metric("Replay", score.get("replay_score", score.get("replay_potential", 0)))
+        cols[5].metric("Scroll Stop", score.get("scroll_stop_score", 0))
+        thumb = package.get("thumbnail_analysis") or ((state.get("brief") or {}).get("thumbnail_analysis") or {})
+        if thumb:
+            t1, t2, t3, t4 = st.columns(4)
+            t1.metric("Thumbnail", thumb.get("thumbnail_score", 0))
+            t2.metric("Mobile", thumb.get("mobile_visibility_score", 0))
+            t3.metric("Readable", thumb.get("emotional_readability", 0))
+            t4.metric("Scroll", thumb.get("scroll_stop_score", 0))
+        r1, r2, r3, r4, r5 = st.columns(5)
+        if r1.button("Generate Stronger Hook", use_container_width=True, key="affiliate_stronger_hook"):
+            st.session_state["affiliate_variation"] = "stronger_hook"
+            st.rerun()
+        if r2.button("Faster TikTok Pace", use_container_width=True, key="affiliate_faster_pace"):
+            st.session_state["affiliate_variation"] = "faster_tiktok"
+            st.rerun()
+        if r3.button("More Emotional Version", use_container_width=True, key="affiliate_more_emotional"):
+            st.session_state["affiliate_variation"] = "more_emotional"
+            st.rerun()
+        if r4.button("More Aggressive CTA", use_container_width=True, key="affiliate_aggressive_cta"):
+            st.session_state["affiliate_variation"] = "aggressive_cta"
+            st.rerun()
+        if r5.button("Alternative Thumbnail Set", use_container_width=True, key="affiliate_alt_thumbnail"):
+            st.session_state["affiliate_variation"] = "alternate_thumbnail"
+            st.rerun()
         final_dir = Path(str(package.get("final_dir") or ""))
         if final_dir.exists():
             zip_buffer = io.BytesIO()

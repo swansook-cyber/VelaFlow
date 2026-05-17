@@ -158,3 +158,33 @@ def save_beat_timing(timing_plan: dict[str, Any], output_path: str | Path) -> di
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(timing_plan, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "message": "Beat timing exported", "data": {"path": str(path)}, "error": ""}
+
+
+def create_affiliate_retention_timing(*, duration: float | int = 20, hook_type: str = "curiosity") -> dict[str, Any]:
+    total = _safe_duration(duration, 20)
+    first_cut = min(2.2, total * 0.16)
+    proof_cut = min(total - 2.0, max(first_cut + 3.5, total * 0.48))
+    cta_start = max(proof_cut + 1.0, total * 0.72)
+    urgency_bias = 8 if hook_type in {"urgency", "shock", "social_proof"} else 0
+    return {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "workflow": "affiliate",
+        "duration": round(total, 2),
+        "hook_type": hook_type,
+        "first_3_seconds": {
+            "pace": "very_fast",
+            "cut_at": round(first_cut, 2),
+            "subtitle_emphasis": "large pain-point or curiosity phrase",
+            "zoom_pulse_at": [0.45, 1.25, round(first_cut, 2)],
+        },
+        "emotional_beat_timing": [
+            {"time": round(first_cut + 0.3, 2), "role": "problem recognition"},
+            {"time": round(proof_cut, 2), "role": "product proof"},
+            {"time": round(cta_start, 2), "role": "conversion push"},
+        ],
+        "subtitle_emphasis_timing": [0.35, round(first_cut + 0.25, 2), round(cta_start, 2)],
+        "cta_timing": {"start": round(cta_start, 2), "end": round(total, 2), "placement": "final 25 percent"},
+        "retention_estimate": min(100, 76 + urgency_bias),
+        "conversion_pacing": min(100, 78 + urgency_bias),
+    }

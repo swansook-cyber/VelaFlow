@@ -111,3 +111,33 @@ def export_thumbnail(package: dict[str, Any], image_results: list[dict[str, Any]
     }
     score_path.write_text(json.dumps(score_payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": output.is_file(), "message": "Thumbnail exported", "data": {"path": str(output), "score_path": str(score_path), **selected}, "error": "" if output.is_file() else "thumbnail_export_failed"}
+
+
+def score_affiliate_thumbnail_candidates(package: dict[str, Any], image_results: list[dict[str, Any]]) -> dict[str, Any]:
+    selected = select_thumbnail_source(package, image_results)
+    candidates = []
+    for item in selected.get("candidates", []) or []:
+        prompt_text = str(item.get("path", "")).lower()
+        base = int(item.get("score", 0) or 0)
+        scroll_stop = min(100, base + (10 if "scene_01" in prompt_text else 5))
+        mobile = int(item.get("mobile_readability", base) or base)
+        emotional = min(100, base + (8 if item.get("face_priority") else 0))
+        candidates.append(
+            {
+                **item,
+                "thumbnail_score": base,
+                "scroll_stop_score": scroll_stop,
+                "emotional_readability": emotional,
+                "mobile_visibility_score": mobile,
+            }
+        )
+    best = max(candidates, key=lambda row: int(row.get("scroll_stop_score", 0) or 0), default={})
+    return {
+        "generated_by": "VelaFlow",
+        "best_thumbnail": best,
+        "thumbnail_set": candidates,
+        "thumbnail_score": best.get("thumbnail_score", 0),
+        "scroll_stop_score": best.get("scroll_stop_score", 0),
+        "emotional_readability": best.get("emotional_readability", 0),
+        "mobile_visibility_score": best.get("mobile_visibility_score", 0),
+    }

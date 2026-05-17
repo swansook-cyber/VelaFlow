@@ -26,19 +26,19 @@ def build_product_scene_prompts(product: dict[str, Any], mode: str = "TikTok Aff
         {
             "scene_id": "scene_01",
             "title": "Problem Hook",
-            "prompt": f"{base}, product close-up beside a relatable problem: {pain_point}, creator desk setup, strong foreground subject, clean background",
+            "prompt": f"{base}, hand interaction with the product, packaging reveal, product close-up beside a relatable problem: {pain_point}, creator desk setup, strong foreground subject, clean background, scroll-stopping first frame",
             "purpose": "stop scroll with pain point",
         },
         {
             "scene_id": "scene_02",
             "title": "Product Proof",
-            "prompt": f"{base}, hands showing product benefit, before and after lifestyle scene, practical demo, soft warm light",
+            "prompt": f"{base}, before/after lifestyle usage, hands showing product benefit, creator reaction shot, practical demo, soft warm light, motion-friendly close-up",
             "purpose": "show product value",
         },
         {
             "scene_id": "scene_03",
             "title": "CTA Moment",
-            "prompt": f"{base}, satisfying product hero shot, {angle}, mobile-safe framing, space for Thai subtitles, upbeat ending",
+            "prompt": f"{base}, satisfying product hero shot, emotional reaction, lifestyle usage result, {angle}, mobile-safe framing, space for Thai subtitles, clear CTA composition, upbeat ending",
             "purpose": "push CTA and replay",
         },
     ]

@@ -59,12 +59,14 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_engine import apply_character_consistency, create_character_profile
 from core.beat_timing_engine import create_beat_timing_plan
+from core.beat_timing_engine import create_affiliate_retention_timing
 from core.scene_prompt_engine import build_scene_prompt
 from core.subtitle_engine import generate_styled_subtitles, get_viral_subtitle_preset, list_viral_subtitle_presets, mode_for_preset
 from core.viral_timing_engine import create_viral_timing_plan
 from core.hook_intelligence import analyze_opening_hook
 from core.preset_engine import get_preset, list_presets, preset_to_render_settings
 from core.product_prompt_engine import build_product_scene_prompts
+from core.thumbnail_selector import score_affiliate_thumbnail_candidates
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -1131,12 +1133,15 @@ def main():
             "cta_style": "soft sell",
         }
         affiliate_hooks = generate_affiliate_hooks(affiliate_product, "TikTok Affiliate")
-        assert_true(AFFILIATE_MODES[0] == "TikTok Affiliate" and len(affiliate_hooks) >= 5 and affiliate_hooks[0]["hook_strength"] > 0, "affiliate hooks failed")
+        assert_true(AFFILIATE_MODES[0] == "TikTok Affiliate" and len(affiliate_hooks) >= 7 and {item["hook_type"] for item in affiliate_hooks} >= {"shock", "curiosity", "pain_point", "problem_solution", "emotional", "social_proof", "urgency"} and affiliate_hooks[0]["hook_strength"] > 0, "affiliate hooks failed")
         product_prompts = build_product_scene_prompts(affiliate_product, "TikTok Affiliate")
-        assert_true(len(product_prompts["scene_prompts"]) == 3 and "vertical 9:16" in product_prompts["scene_prompts"][0]["prompt"], "product prompt engine failed")
+        assert_true(len(product_prompts["scene_prompts"]) == 3 and "vertical 9:16" in product_prompts["scene_prompts"][0]["prompt"] and "hand interaction" in product_prompts["scene_prompts"][0]["prompt"], "product prompt engine failed")
         affiliate_captions = build_affiliate_caption_package(affiliate_product, affiliate_hooks)
-        assert_true(affiliate_captions["captions"] and affiliate_captions["hashtags"] and affiliate_captions["cta_variants"], "affiliate captions failed")
+        assert_true(affiliate_captions["captions"] and affiliate_captions["hashtags"] and affiliate_captions["cta_variants"] and affiliate_captions["cta_optimization"].get("fomo_cta"), "affiliate captions failed")
+        affiliate_timing = create_affiliate_retention_timing(duration=20, hook_type="urgency")
+        assert_true(affiliate_timing["first_3_seconds"]["cut_at"] <= 2.2 and affiliate_timing["cta_timing"]["start"] > 0 and affiliate_timing["retention_estimate"] > 0, "affiliate retention timing failed")
         affiliate_brief = build_affiliate_clip_brief(affiliate_product, "TikTok Affiliate")
+        assert_true(affiliate_brief["viral_score"]["conversion_potential"] > 0 and affiliate_brief["retention_timing"]["cta_timing"]["start"] > 0, "affiliate viral score failed")
         affiliate_clip = quick_generate_hook_clip(
             "Smoke Affiliate Clip",
             affiliate_brief["prompt"],
@@ -1148,9 +1153,12 @@ def main():
         )
         affiliate_data = affiliate_clip.get("data", {})
         assert_true(affiliate_clip["ok"] and Path(affiliate_data["final_mp4"]).exists() and validate_mp4(affiliate_data["final_mp4"])["valid_mp4"], "affiliate final MP4 failed")
+        thumbnail_analysis = score_affiliate_thumbnail_candidates(affiliate_data.get("package", {}), affiliate_data.get("image_results", []))
+        affiliate_brief["thumbnail_analysis"] = thumbnail_analysis
+        assert_true(thumbnail_analysis["thumbnail_set"] and thumbnail_analysis["scroll_stop_score"] > 0 and thumbnail_analysis["mobile_visibility_score"] > 0, "affiliate thumbnail analysis failed")
         affiliate_export = export_affiliate_package("Smoke Affiliate Clip", affiliate_brief, affiliate_data)
         affiliate_dir = Path((affiliate_export.get("data") or {}).get("final_dir", ""))
-        assert_true(affiliate_export["ok"] and (affiliate_dir / "final_hook_clip.mp4").exists() and (affiliate_dir / "cta_text.txt").exists() and (affiliate_dir / "affiliate_scene_prompts.json").exists(), "affiliate export package failed")
+        assert_true(affiliate_export["ok"] and (affiliate_dir / "final_hook_clip.mp4").exists() and (affiliate_dir / "cta_text.txt").exists() and (affiliate_dir / "cta_variants.json").exists() and (affiliate_dir / "affiliate_thumbnail_analysis.json").exists() and (affiliate_dir / "viral_score_report.json").exists() and (affiliate_dir / "affiliate_scene_prompts.json").exists(), "affiliate export package failed")
         cache_key = (quick_data.get("render_cache") or {}).get("cache_key")
         assert_true(load_render_cache("Smoke Quick Hook Clip", "clips", cache_key)["ok"], "render cache was not saved")
         queue_start = start_render_job("Smoke Queue Clip", "clips", stage="smoke_render")
