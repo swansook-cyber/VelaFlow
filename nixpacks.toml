@@ -1,7 +1,7 @@
 providers = ["python"]
 
 [phases.setup]
-nixPkgs = ["python311", "ffmpeg"]
+nixPkgs = ["python311", "ffmpeg", "noto-fonts"]
 
 [start]
 cmd = "streamlit run app/main.py --server.port=$PORT --server.address=0.0.0.0"

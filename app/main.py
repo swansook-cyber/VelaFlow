@@ -2,6 +2,7 @@
 
 import io
 import json
+import hashlib
 import shutil
 import sys
 import time
@@ -809,6 +810,7 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
     final_dir = Path(str(package_data.get("final_dir") or ""))
     if not final_dir.exists():
         return
+    key_scope = hashlib.sha1(str(final_dir.resolve()).encode("utf-8", errors="ignore")).hexdigest()[:10]
     st.caption(f"Final export package: {final_dir}")
     thumbnail_path = final_dir / "thumbnail.jpg"
     if thumbnail_path.is_file():
@@ -830,16 +832,17 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
     ]
     if any(path.is_file() for _, path in cover_files):
         with st.expander("🖼 Generate Cover Prompts", expanded=False):
-            for label, path in cover_files:
+            for idx, (label, path) in enumerate(cover_files):
                 if path.is_file():
-                    st.text_area(f"{label} cover prompt", value=path.read_text(encoding="utf-8-sig"), height=120, key=f"{section_key}_cover_{label}")
+                    prompt_key = f"{section_key}_{key_scope}_cover_prompt_{idx}"
+                    st.text_area(f"{label} cover prompt", value=path.read_text(encoding="utf-8-sig"), height=120, key=prompt_key)
                     st.download_button(
                         f"Download {path.name}",
                         data=path.read_bytes(),
                         file_name=path.name,
                         mime="text/plain",
                         use_container_width=True,
-                        key=f"{section_key}_download_{path.name}",
+                        key=f"{section_key}_{key_scope}_download_cover_inline_{idx}_{path.stem}",
                     )
     caption_path = final_dir / "tiktok_caption.txt"
     youtube_path = final_dir / "youtube_caption.txt"
@@ -904,7 +907,7 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
                 file_name=filename,
                 mime=mime,
                 use_container_width=True,
-                key=f"{section_key}_download_{filename}",
+                key=f"{section_key}_{key_scope}_download_file_{len(seen_downloads)}_{Path(filename).stem}",
             )
 
 
