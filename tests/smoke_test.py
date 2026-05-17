@@ -1133,7 +1133,13 @@ def main():
         assert_true(scene_director_plan.get("shot_progression", [])[:3] == ["wide establishing shot", "medium emotional shot", "close-up emotional face / eyes"], "scene director shot progression failed")
         assert_true(any(scene.get("hook_peak_scene") for scene in scene_director_plan.get("scenes", [])), "scene director hook peak scene missing")
         assert_true(all((scene.get("continuity_notes") or {}).get("character") and (scene.get("continuity_notes") or {}).get("location") for scene in scene_director_plan.get("scenes", [])), "scene director continuity metadata missing")
+        assert_true(scene_director_plan.get("realistic_prompt_mode") and scene_director_plan.get("realism_mode") == "cinematic_realism_v1", "realistic prompt mode missing")
+        assert_true(scene_director_plan.get("lighting_profile") and scene_director_plan.get("motion_profile"), "cinematic realism profiles missing")
         assert_true(Path(quick_data["beat_timing_path"]).exists(), "quick hook beat_timing.json missing")
+        assert_true(Path(quick_data["cinematic_quality_report_path"]).exists(), "cinematic_quality_report.json missing")
+        cinematic_quality = json.loads(Path(quick_data["cinematic_quality_report_path"]).read_text(encoding="utf-8"))
+        assert_true(cinematic_quality.get("realistic_prompt_mode") and cinematic_quality.get("continuity_mode") == "same_character_same_room_same_palette", "cinematic quality report missing realism/continuity")
+        assert_true(cinematic_quality.get("lighting_profile") and cinematic_quality.get("motion_profile") and cinematic_quality.get("subtitle_profile"), "cinematic quality report missing profiles")
         assert_true(Path(quick_data["thumbnail_path"]).exists(), "quick hook thumbnail.jpg missing")
         assert_true(Path(quick_data["thumbnail_score_path"]).exists(), "quick hook thumbnail_score.json missing")
         thumbnail_score = json.loads(Path(quick_data["thumbnail_score_path"]).read_text(encoding="utf-8"))
@@ -1141,6 +1147,7 @@ def main():
         assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
         assert_true(any("different framing" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing variety/continuity guidance")
         assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "not a grid montage" in item.get("cinematic_prompt", "").lower() and "same hairstyle" in item.get("cinematic_prompt", "").lower() and "no text inside image" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
+        assert_true(all("realistic skin texture" in item.get("cinematic_prompt", "").lower() and "natural facial proportions" in item.get("cinematic_prompt", "").lower() and "avoid plastic ai faces" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing cinematic realism layer")
         forbidden_filters = ["hstack", "vstack", "xstack", "tile", "grid", "collage"]
         assert_true(all(job.get("visual_composition_mode") == "single_fullscreen_scene" for job in quick_data["render"].get("scene_jobs", [])), "scene job is not single fullscreen")
         assert_true(any(job.get("cinematic_motion") for job in quick_data["render"].get("scene_jobs", [])), "motion metadata missing")
@@ -1152,7 +1159,7 @@ def main():
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
         creator_assets = export_creator_final_assets("Quick Hook Smoke", workflow_song, tiktok_final_dir, workflow_mode="Song Studio Only")
         assert_true(creator_assets["ok"], "creator final assets export failed")
-        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_director_plan.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
+        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_director_plan.json", "cinematic_quality_report.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
             path = tiktok_final_dir / filename

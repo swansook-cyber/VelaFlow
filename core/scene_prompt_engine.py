@@ -51,6 +51,26 @@ PROMPT_STYLES: dict[str, dict[str, str]] = {
 }
 
 
+REALISM_PROMPT_LAYER = (
+    "cinematic realism, realistic skin texture, natural facial proportions, "
+    "realistic hair detail, realistic fabric folds, natural room detail, subtle imperfections, "
+    "natural depth, cinematic shadows, believable exposure, soft film grain, human emotional presence"
+)
+
+REALISM_NEGATIVE_LAYER = (
+    "avoid plastic AI faces, avoid synthetic skin, avoid oversharpened eyes, avoid fake HDR look, "
+    "avoid unrealistic glow, avoid fantasy aesthetics, avoid random exposure jumps, "
+    "avoid flat lighting, avoid robotic pose, avoid warped hands, avoid inconsistent face"
+)
+
+LIGHTING_EVOLUTION = {
+    1: "soft natural window light, gentle falloff, quiet intro atmosphere",
+    2: "mood isolation with practical room light, deeper side shadow, same exposure family",
+    3: "stronger contrast, emotional shadow depth, natural eye catchlight, hook peak intensity",
+    4: "softer release light, lower contrast, quiet emotional closure",
+}
+
+
 EMOTION_KEYWORDS: dict[str, list[str]] = {
     "heartbreak": ["เจ็บ", "เสียใจ", "เลิก", "ลืม", "ร้องไห้", "พอแล้ว", "hurt", "heartbreak"],
     "lonely": ["เหงา", "คนเดียว", "ว่างเปล่า", "คิดถึง", "lonely", "missing"],
@@ -135,8 +155,8 @@ def build_scene_prompt(
             "shot_type": "wide establishing shot",
             "camera_distance": "wide",
             "subject_action": "same character alone in the room, still body language, looking toward a window or empty space",
-            "lighting": "cinematic key light with soft shadow, face-safe composition",
-            "composition": "centered face or silhouette, no collage, no split screen, empty lower third for subtitles",
+            "lighting": LIGHTING_EVOLUTION[1],
+            "composition": "eyes near upper third when visible, cinematic negative space, no collage, no split screen, empty lower third for subtitles",
         },
         2: {
             "focus": "emotional story turn with new angle",
@@ -144,8 +164,8 @@ def build_scene_prompt(
             "shot_type": "medium emotional shot",
             "camera_distance": "medium",
             "subject_action": "same character in the same room, stronger feeling, hand holding a phone or small memory object",
-            "lighting": "same color palette, softer practical light from the opposite side",
-            "composition": "same character and location continuity, one emotional moment at a time",
+            "lighting": LIGHTING_EVOLUTION[2],
+            "composition": "proper headroom, same character and location continuity, one emotional moment at a time",
         },
         3: {
             "focus": "close-up emotional face and eyes, strongest hook moment, replay-worthy emotional peak",
@@ -153,8 +173,8 @@ def build_scene_prompt(
             "shot_type": "close-up emotional face / eyes",
             "camera_distance": "close-up",
             "subject_action": "same character close-up, eyes carrying the hook lyric, strongest emotional expression",
-            "lighting": "same cinematic palette, strong rim light and contrast for thumbnail quality",
-            "composition": "full-screen mini movie ending, mobile thumbnail readable, high contrast center subject",
+            "lighting": LIGHTING_EVOLUTION[3],
+            "composition": "eyes near upper third, full-screen mini movie ending, mobile thumbnail readable, high contrast center subject, subtitle-safe lower third",
         },
     }
     progression = scene_progression.get(scene_index, scene_progression[3])
@@ -172,14 +192,15 @@ def build_scene_prompt(
         f"emotion: {emotion['primary_emotion']} intensity {emotion['intensity']}/100, "
         f"cinematic shot type: {progression['shot_type']}, camera distance: {progression['camera_distance']}, "
         f"subject action: {progression['subject_action']}, {progression['camera']}, {progression['lighting']}, {progression['composition']}, "
+        f"{REALISM_PROMPT_LAYER}, "
         "lens feeling: intimate 35mm/50mm emotional cinema lens, motion-friendly composition, "
         f"vertical 9:16 composition, TikTok-ready framing, subtitle-safe lower third, "
-        "same character, same face, same hairstyle, same clothes, same wardrobe, same room/location, "
+        "strong continuity reference: same character identity, same face, same facial proportions, same hairstyle, same hair color, same clothes, same wardrobe fabric, same room/location, "
         "same emotional environment, same cinematic color palette, same lighting palette, "
         "one full-screen scene at a time, no stacked images, no collage, no split-screen layout, "
         "not a contact sheet, not a storyboard panel page, not a grid montage, not tiled frames, "
         "consistent visual story across scenes but clearly different framing, "
-        f"{style_config['palette']} color palette, realistic depth, high quality, no watermark, no random text, no text inside image"
+        f"{style_config['palette']} color palette, realistic depth, high quality, {REALISM_NEGATIVE_LAYER}, no watermark, no random text, no text inside image"
     )
     return {
         "scene_id": f"scene_{scene_index:02d}",
@@ -196,6 +217,9 @@ def build_scene_prompt(
         "cinematic_prompt": cinematic_prompt,
         "tiktok_aesthetic": style_config["aesthetic"],
         "subtitle_safe_note": "Keep important faces and objects away from the lower subtitle area.",
+        "realistic_prompt_mode": True,
+        "realism_prompt_layer": REALISM_PROMPT_LAYER,
+        "realism_negative_layer": REALISM_NEGATIVE_LAYER,
     }
 
 
@@ -213,13 +237,14 @@ def build_scene_director_plan(
     emotion = detect_scene_emotion(text_context)
     scene_count = max(3, min(4, len(scenes or []) or 3))
     continuity = {
-        "character": "same character across every scene",
-        "face": "same face and emotional expression family",
-        "hair": "same hairstyle",
-        "clothes": "same clothing and wardrobe",
-        "location": "same room or connected emotional location",
-        "lighting_palette": "same cinematic warm/low-key palette",
+        "character": "same character across every scene with consistent identity",
+        "face": "same face, natural facial proportions, realistic skin texture",
+        "hair": "same hairstyle, same hair color, realistic hair detail",
+        "clothes": "same clothing and wardrobe with realistic fabric folds",
+        "location": "same room or connected emotional location with consistent room details",
+        "lighting_palette": "same cinematic warm/low-key palette with emotionally evolving contrast",
         "mood": "same emotional cinematic mood",
+        "realism": "natural lighting, subtle imperfections, no plastic AI skin, no fake HDR glow",
     }
     progression = [
         {
@@ -228,8 +253,8 @@ def build_scene_director_plan(
             "shot_type": "wide establishing shot",
             "camera_distance": "wide",
             "subject_action": "alone in the same room, still body language, emotional atmosphere",
-            "lighting_direction": "warm side light, soft shadows, subtitle-safe lower third",
-            "motion_intensity": "slow cinematic motion",
+            "lighting_direction": LIGHTING_EVOLUTION[1],
+            "motion_intensity": "slow breathing motion",
             "transition_style": "cinematic_cross_dissolve",
             "hook_peak": False,
         },
@@ -239,7 +264,7 @@ def build_scene_director_plan(
             "shot_type": "medium emotional shot",
             "camera_distance": "medium",
             "subject_action": "same character holding a phone or memory object in the same room",
-            "lighting_direction": "same palette, practical light from opposite side",
+            "lighting_direction": LIGHTING_EVOLUTION[2],
             "motion_intensity": "subtle handheld drift / parallax",
             "transition_style": "blur_motion_transition",
             "hook_peak": False,
@@ -250,8 +275,8 @@ def build_scene_director_plan(
             "shot_type": "close-up emotional face / eyes",
             "camera_distance": "close-up",
             "subject_action": "same character close-up, eyes carry the hook lyric",
-            "lighting_direction": "same palette with stronger rim light and eye catchlight",
-            "motion_intensity": "strongest camera push",
+            "lighting_direction": LIGHTING_EVOLUTION[3],
+            "motion_intensity": "emotional push-in with cinematic micro movement",
             "transition_style": "light_flash_transition",
             "hook_peak": True,
         },
@@ -261,8 +286,8 @@ def build_scene_director_plan(
             "shot_type": "emotional release ending",
             "camera_distance": "medium close-up",
             "subject_action": "same character exhales or turns away slowly",
-            "lighting_direction": "same palette, softer falloff, quiet ending",
-            "motion_intensity": "slow pull out",
+            "lighting_direction": LIGHTING_EVOLUTION[4],
+            "motion_intensity": "slow pull out with quiet breathing motion",
             "transition_style": "dip_to_black",
             "hook_peak": False,
         },
@@ -301,6 +326,19 @@ def build_scene_director_plan(
         "primary_emotion": emotion,
         "hook_peak_target": "within first 2 seconds when possible",
         "continuity_notes": continuity,
+        "realistic_prompt_mode": True,
+        "realism_mode": "cinematic_realism_v1",
+        "lighting_profile": {
+            "intro": LIGHTING_EVOLUTION[1],
+            "verse": LIGHTING_EVOLUTION[2],
+            "hook": LIGHTING_EVOLUTION[3],
+            "ending": LIGHTING_EVOLUTION[4],
+        },
+        "motion_profile": {
+            "style": "human emotional cinematic micro movement",
+            "preferred_motion": ["slow breathing motion", "subtle handheld drift", "emotional push-in", "slow pull out"],
+            "avoid": ["robotic movement", "aggressive zoom spam", "slideshow feeling"],
+        },
         "shot_progression": [item["shot_type"] for item in directed_scenes],
         "scenes": directed_scenes,
     }
@@ -361,6 +399,55 @@ def apply_scene_director_to_package(package: dict[str, Any], director_plan: dict
         scene["subtitle_emphasis"] = directed.get("subtitle_emphasis", "")
     package["scene_director_plan"] = director_plan
     return package
+
+
+def build_cinematic_quality_report(
+    *,
+    scene_prompt_plan: dict[str, Any],
+    scene_director_plan: dict[str, Any],
+    render_stage: dict[str, Any] | None = None,
+    subtitle_result: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    render_stage = render_stage or {}
+    subtitle_data = (subtitle_result or {}).get("data") or {}
+    prompts = scene_prompt_plan.get("scene_prompts") or []
+    return {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "realism_mode": "cinematic_realism_v1",
+        "realistic_prompt_mode": bool(scene_director_plan.get("realistic_prompt_mode", True)),
+        "continuity_mode": "same_character_same_room_same_palette",
+        "lighting_profile": scene_director_plan.get("lighting_profile", {}),
+        "motion_profile": scene_director_plan.get("motion_profile", {}),
+        "subtitle_profile": {
+            "style": "premium bottom-safe cinematic Thai subtitles",
+            "mode": subtitle_data.get("mode", ""),
+            "font_size_target": "small-to-medium cinematic, hook line may slightly enlarge",
+            "position": "bottom safe area",
+            "shadow": "soft black outline/shadow",
+        },
+        "prompt_quality": {
+            "scene_count": len(prompts),
+            "realism_terms_present": all("realistic skin texture" in str(item.get("cinematic_prompt", "")).lower() for item in prompts),
+            "continuity_terms_present": all("same face" in str(item.get("cinematic_prompt", "")).lower() and "same hairstyle" in str(item.get("cinematic_prompt", "")).lower() for item in prompts),
+            "negative_ai_terms_present": all("avoid plastic ai faces" in str(item.get("cinematic_prompt", "")).lower() for item in prompts),
+        },
+        "render_quality": {
+            "visual_composition_mode": render_stage.get("visual_composition_mode", ""),
+            "motion_quality_layer": render_stage.get("motion_quality_layer", ""),
+            "static_only_chain": bool(render_stage.get("static_only_chain")),
+            "subtitle_status": render_stage.get("subtitle_status", ""),
+            "final_mp4_ok": bool(render_stage.get("final_mp4_ok")),
+            "audio_attach_ok": bool(render_stage.get("audio_attach_ok")),
+        },
+    }
+
+
+def save_cinematic_quality_report(report: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "message": "Cinematic quality report exported", "data": {"path": str(path)}, "error": ""}
 
 
 def save_scene_prompts(scene_prompt_plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:

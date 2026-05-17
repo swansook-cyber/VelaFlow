@@ -124,7 +124,7 @@ VIRAL_SUBTITLE_PRESETS = {
     },
     "Thai Emotional MV": {
         "mode": "soft_fade",
-        "font_size": 56,
+        "font_size": 46,
         "emphasis_words": ["ใจ", "รัก", "เจ็บ", "คิดถึง", "ลืม"],
         "caption_position": "bottom",
         "emoji_highlight": False,
@@ -140,7 +140,7 @@ VIRAL_SUBTITLE_PRESETS = {
     },
     "Karaoke Glow": {
         "mode": "karaoke",
-        "font_size": 58,
+        "font_size": 48,
         "emphasis_words": ["ใจ", "รัก", "เจ็บ", "คิดถึง", "เดินต่อ"],
         "caption_position": "bottom",
         "emoji_highlight": False,
@@ -172,7 +172,7 @@ VIRAL_SUBTITLE_PRESETS = {
     },
     "Emotional Karaoke": {
         "mode": "karaoke",
-        "font_size": 56,
+        "font_size": 48,
         "emphasis_words": ["ใจ", "รัก", "เจ็บ", "คิดถึง", "ลืม"],
         "caption_position": "bottom",
         "emoji_highlight": False,
@@ -215,9 +215,9 @@ VIRAL_SUBTITLE_PRESETS = {
 
 ASS_STYLES = {
     "simple": f"Style: Default,{THAI_SUBTITLE_FONT},48,&H00FFFFFF,&H000000FF,&H7F000000,&H7F000000,0,0,0,0,100,100,0,0,1,2,1,2,80,80,120,1",
-    "karaoke": f"Style: Default,{THAI_SUBTITLE_FONT},52,&H00FFFFFF,&H0000FFFF,&H7F000000,&H7F000000,1,0,0,0,100,100,0,0,1,2,1,2,80,80,130,1",
+    "karaoke": f"Style: Default,{THAI_SUBTITLE_FONT},48,&H00FFFFFF,&H0000FFFF,&H7F000000,&H7F000000,1,0,0,0,100,100,0,0,1,2,1,2,100,100,155,1",
     "tiktok_bold": f"Style: Default,{THAI_SUBTITLE_FONT},58,&H0000FFFF,&H000000FF,&H00000000,&H7F000000,1,0,0,0,100,100,0,0,1,4,1,2,80,80,155,1",
-    "cinematic": f"Style: Default,{THAI_SUBTITLE_FONT},46,&H00F8F1E8,&H000000FF,&H66000000,&H99000000,0,0,0,0,100,100,0,0,1,2,1,2,120,120,135,1",
+    "cinematic": f"Style: Default,{THAI_SUBTITLE_FONT},42,&H00F8F1E8,&H000000FF,&H66000000,&H99000000,0,0,0,0,100,100,0,0,1,2,1,2,120,120,165,1",
     "word_by_word": f"Style: Default,{THAI_SUBTITLE_FONT},54,&H00FFFFFF,&H0000FFFF,&H00000000,&H7F000000,1,0,0,0,100,100,0,0,1,4,1,2,80,80,150,1",
     "bounce": f"Style: Default,{THAI_SUBTITLE_FONT},56,&H00FFFFFF,&H0000FFAA,&H00000000,&H7F000000,1,0,0,0,100,100,0,0,1,4,1,2,80,80,155,1",
     "punch": f"Style: Default,{THAI_SUBTITLE_FONT},58,&H0000FFFF,&H000000FF,&H00000000,&H7F000000,1,0,0,0,104,104,0,0,1,4,1,2,80,80,150,1",
@@ -226,7 +226,7 @@ ASS_STYLES = {
     "meme_caption": f"Style: Default,{THAI_SUBTITLE_FONT},58,&H0000FFFF,&H000000FF,&H00000000,&H7F000000,1,0,0,0,100,100,0,0,1,4,1,2,80,80,150,1",
     "caption_heavy": f"Style: Default,{THAI_SUBTITLE_FONT},52,&H00FFFFFF,&H000000FF,&H00000000,&H7F000000,1,0,0,0,100,100,0,0,1,4,1,2,60,60,145,1",
     "colorful": f"Style: Default,{THAI_SUBTITLE_FONT},56,&H0000FFAA,&H0000FFFF,&H00000000,&H7F000000,1,0,0,0,104,104,0,0,1,4,1,2,80,80,150,1",
-    "soft_fade": f"Style: Default,{THAI_SUBTITLE_FONT},52,&H00F8F1E8,&H000000FF,&H66000000,&H99000000,0,0,0,0,100,100,0,0,1,2,1,2,100,100,150,1",
+    "soft_fade": f"Style: Default,{THAI_SUBTITLE_FONT},44,&H00F8F1E8,&H000000FF,&H66000000,&H99000000,0,0,0,0,100,100,0,0,1,2,1,2,120,120,170,1",
 }
 
 

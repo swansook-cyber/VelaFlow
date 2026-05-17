@@ -15,7 +15,7 @@ from core.preset_engine import get_preset, preset_to_render_settings, preset_to_
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir, render_real_hook_clip
 from core.render_cache import cache_fingerprint, copy_cached_assets_to_project, load_render_cache, save_render_cache
-from core.scene_prompt_engine import apply_scene_director_to_package, apply_scene_prompts_to_package, build_scene_director_plan, build_scene_prompts, save_scene_director_plan, save_scene_prompts
+from core.scene_prompt_engine import apply_scene_director_to_package, apply_scene_prompts_to_package, build_cinematic_quality_report, build_scene_director_plan, build_scene_prompts, save_cinematic_quality_report, save_scene_director_plan, save_scene_prompts
 from core.subtitle_engine import generate_styled_subtitles
 from core.thumbnail_selector import export_thumbnail
 from core.versioning import save_clip_version
@@ -91,6 +91,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         scene_director_plan = Path(str(render_data.get("scene_director_plan") or package.get("scene_director_plan_path") or ""))
         if scene_director_plan.is_file():
             shutil.copy2(scene_director_plan, ensure_parent_dir(final_dir / "scene_director_plan.json"))
+        cinematic_quality_report = Path(str(render_data.get("cinematic_quality_report") or package.get("cinematic_quality_report_path") or ""))
+        if cinematic_quality_report.is_file():
+            shutil.copy2(cinematic_quality_report, ensure_parent_dir(final_dir / "cinematic_quality_report.json"))
         render_manifest = Path(str(render_data.get("manifest_path") or package.get("render_manifest_path") or ""))
         if render_manifest.is_file():
             shutil.copy2(render_manifest, ensure_parent_dir(final_dir / "render_manifest.json"))
@@ -156,6 +159,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "scene_prompts": str(final_dir / "scene_prompts.json") if (final_dir / "scene_prompts.json").is_file() else "",
             "beat_timing": str(final_dir / "beat_timing.json") if (final_dir / "beat_timing.json").is_file() else "",
             "scene_director_plan": str(final_dir / "scene_director_plan.json") if (final_dir / "scene_director_plan.json").is_file() else "",
+            "cinematic_quality_report": str(final_dir / "cinematic_quality_report.json") if (final_dir / "cinematic_quality_report.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
             "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
@@ -589,6 +593,14 @@ def quick_generate_hook_clip(
         )
         styled_subtitle_path = (subtitle_result.get("data") or {}).get("ass", "")
         package["styled_subtitles_path"] = styled_subtitle_path
+        cinematic_quality_report = build_cinematic_quality_report(
+            scene_prompt_plan=scene_prompt_plan,
+            scene_director_plan=director_plan,
+            render_stage=render_stage,
+            subtitle_result=subtitle_result,
+        )
+        cinematic_quality_result = save_cinematic_quality_report(cinematic_quality_report, exports_dir / "cinematic_quality_report.json")
+        package["cinematic_quality_report_path"] = (cinematic_quality_result.get("data") or {}).get("path", "")
         thumbnail_result = export_thumbnail(package, image_results, exports_dir / "thumbnail.jpg")
         package["thumbnail_path"] = (thumbnail_result.get("data") or {}).get("path", "")
         package["thumbnail_score_path"] = (thumbnail_result.get("data") or {}).get("score_path", "")
@@ -609,6 +621,7 @@ def quick_generate_hook_clip(
             "scene_prompts": package.get("scene_prompts_path", ""),
             "beat_timing": package.get("beat_timing_path", ""),
             "scene_director_plan": package.get("scene_director_plan_path", ""),
+            "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
         }
@@ -647,6 +660,8 @@ def quick_generate_hook_clip(
             "beat_timing_path": package.get("beat_timing_path", ""),
             "scene_director_plan": director_plan,
             "scene_director_plan_path": package.get("scene_director_plan_path", ""),
+            "cinematic_quality_report": cinematic_quality_report,
+            "cinematic_quality_report_path": package.get("cinematic_quality_report_path", ""),
             "viral_timing_plan": viral_timing_plan,
             "viral_metrics": viral_metrics,
             "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
@@ -681,6 +696,8 @@ def quick_generate_hook_clip(
                     "hook_analysis": hook_analysis,
                     "scene_director_plan": director_plan,
                     "scene_director_plan_path": package.get("scene_director_plan_path", ""),
+                    "cinematic_quality_report": cinematic_quality_report,
+                    "cinematic_quality_report_path": package.get("cinematic_quality_report_path", ""),
                     "scenes": package.get("scene_sequence", []),
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
@@ -712,6 +729,8 @@ def quick_generate_hook_clip(
                 "scene_prompts_path": package.get("scene_prompts_path", ""),
                 "scene_director_plan": director_plan,
                 "scene_director_plan_path": package.get("scene_director_plan_path", ""),
+                "cinematic_quality_report": cinematic_quality_report,
+                "cinematic_quality_report_path": package.get("cinematic_quality_report_path", ""),
                 "beat_timing": beat_timing_plan,
                 "beat_timing_path": package.get("beat_timing_path", ""),
                 "viral_timing_plan": viral_timing_plan,
