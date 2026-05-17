@@ -155,6 +155,7 @@ def build_scene_prompt(
         f"vertical 9:16 composition, TikTok-ready framing, subtitle-safe lower third, "
         "same character, same wardrobe, same emotional environment, same cinematic color palette, "
         "one full-screen scene at a time, no stacked images, no collage, no split-screen layout, "
+        "not a contact sheet, not a storyboard panel page, not a grid montage, not tiled frames, "
         "consistent visual story across scenes but clearly different framing, "
         f"{style_config['palette']} color palette, realistic depth, high quality, no watermark, no random text"
     )

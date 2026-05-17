@@ -242,7 +242,8 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
     base = (
         f"{prompt}, {camera}, {lighting}{style_suffix}, high quality composition, "
         "single full-screen 9:16 cinematic frame, one scene at a time, no collage, no split screen, "
-        "no stacked panels, same character continuity, same environment continuity, same emotional lighting palette, "
+        "no stacked panels, no tiled frames, not a contact sheet, not a storyboard page, not a grid montage, "
+        "same character continuity, same environment continuity, same emotional lighting palette, "
         "clear subject, no watermark, no random text"
     )
     return apply_character_consistency(base, character_profile, consistency_strength)

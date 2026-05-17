@@ -1104,6 +1104,8 @@ def main():
         quick_validation = quick_data["render"].get("validation") or {}
         assert_true(quick_validation.get("width") in {720, 1080} and quick_validation.get("height") in {1280, 1920} and quick_validation.get("height", 0) > quick_validation.get("width", 0), "quick hook final MP4 is not fullscreen 9:16")
         assert_true((quick_data["render"].get("render_stage") or {}).get("uploaded_audio_attached") is True, "quick hook uploaded audio was not attached")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("visual_composition_mode") == "single_fullscreen_sequential", "fullscreen sequential render mode missing")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("forbidden_visual_filters_found") is False, "forbidden visual stack/tile filter detected")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
         assert_true((quick_data.get("clip_version") or {}).get("version_id") == "v1" and Path((quick_data.get("clip_version") or {}).get("path", "")).exists(), "clip version v1 missing")
         assert_true((quick_data.get("render_cache") or {}).get("cache_key"), "render cache key missing")
@@ -1129,8 +1131,10 @@ def main():
         assert_true((thumbnail_score.get("quality") or {}).get("thumbnail_quality", 0) > 0, "thumbnail quality scoring failed")
         assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
         assert_true(any("different framing" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing variety/continuity guidance")
-        assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "same character" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
-        assert_true(all("collage" not in str(job.get("render_mode_used", "")).lower() and "stack" not in str(job.get("render_mode_used", "")).lower() for job in quick_data["render"].get("scene_jobs", [])), "stacked/collage render mode detected")
+        assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "not a grid montage" in item.get("cinematic_prompt", "").lower() and "same character" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
+        forbidden_filters = ["hstack", "vstack", "xstack", "tile", "grid", "collage"]
+        assert_true(all(job.get("visual_composition_mode") == "single_fullscreen_scene" for job in quick_data["render"].get("scene_jobs", [])), "scene job is not single fullscreen")
+        assert_true(all(not any(token in " ".join(str(part).lower() for part in (job.get("ffmpeg_command") or [])) for token in forbidden_filters) for job in quick_data["render"].get("scene_jobs", [])), "stacked/collage ffmpeg filter detected")
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")

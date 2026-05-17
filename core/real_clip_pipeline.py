@@ -17,6 +17,7 @@ from core.subtitle_engine import THAI_SUBTITLE_FONT, generate_styled_subtitles, 
 ASPECT_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080), "1:1": (1080, 1080)}
 STATIC_SAFE_SIZES = {"9:16": (720, 1280), "16:9": (1280, 720), "1:1": (1080, 1080)}
 STATIC_SAFE_SCENE_DURATION = 5.0
+FORBIDDEN_VISUAL_FILTERS = ("hstack", "vstack", "xstack", "tile", "untile", "thumbnail", "tile=", "layout=")
 
 
 def ensure_parent_dir(path: str | Path) -> Path:
@@ -46,6 +47,12 @@ def _clean_ffmpeg_error(output: str, fallback: str = "ffmpeg_render_failed") -> 
     if not lines:
         return fallback
     return lines[-1][:280]
+
+
+def _contains_forbidden_visual_filter(value: Any) -> bool:
+    text = " ".join(str(item) for item in value) if isinstance(value, list) else str(value or "")
+    lowered = text.lower()
+    return any(token in lowered for token in FORBIDDEN_VISUAL_FILTERS)
 
 
 def find_ffmpeg() -> str:
@@ -402,7 +409,7 @@ def _safe_static_image_scene(
         "-r",
         "30",
         "-vf",
-        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}",
+        f"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height},fade=t=in:st=0:d=0.18,fade=t=out:st={max(0.1, duration - 0.25):.2f}:d=0.25,setsar=1,format=yuv420p",
         "-an",
         "-c:v",
         "libx264",
@@ -441,6 +448,7 @@ def _safe_static_image_scene(
             "path": str(output_path),
             "log_path": str(log_path),
             "render_mode_used": "static_safe",
+            "visual_composition_mode": "single_fullscreen_scene",
             "ffmpeg_command": result.get("command", args),
             "ffmpeg_return_code": result.get("returncode", -1),
             "scene_validation_ok": bool(validation.get("valid_mp4")),
@@ -530,6 +538,11 @@ def render_image_motion_scene(
     duration = max(1.2, float(scene.get("duration", 2.5) or 2.5))
     motion = str(scene.get("motion_effect") or scene.get("motion") or "slow_zoom")
     vf = _image_motion_filter(motion, width, height, duration)
+    if _contains_forbidden_visual_filter(vf):
+        fallback_width, fallback_height = STATIC_SAFE_SIZES.get(aspect_ratio, STATIC_SAFE_SIZES["9:16"])
+        fallback = _safe_static_image_scene(image_path, output, ffmpeg=ffmpeg, width=fallback_width, height=fallback_height, duration=STATIC_SAFE_SCENE_DURATION, log_path=log)
+        fallback.setdefault("data", {})["image_motion_error"] = "forbidden_visual_filter_disabled"
+        return fallback
     temp_output = output.with_name(f"{output.stem}_motion_tmp.mp4")
     temp_output.unlink(missing_ok=True)
     args = [
@@ -574,6 +587,7 @@ def render_image_motion_scene(
                 "source_image_path": str(image_path),
                 "motion_effect": motion,
                 "render_mode_used": "motion",
+                "visual_composition_mode": "single_fullscreen_scene",
                 "ffmpeg_command": result.get("command", args),
                 "ffmpeg_return_code": result.get("returncode", -1),
                 "scene_validation_ok": True,
@@ -692,6 +706,8 @@ def combine_scene_clips_to_mp4(
             "uploaded_audio_attached": bool(has_background_audio and validation.get("has_audio", False)),
             "audio_source": audio_source,
             "audio_sync_status": "matched_hook_audio" if hook_audio_duration else ("silent_audio" if audio_source == "silent" else "matched_video"),
+            "visual_composition_mode": "single_fullscreen_sequential",
+            "scene_transition_mode": "sequential_cut_with_scene_fades",
             "target_duration": target_duration,
             "hook_audio_duration": hook_audio_duration,
             "source_video_duration": concat_duration,
@@ -754,6 +770,8 @@ def render_real_hook_clip(
             "target_duration": final_target_duration,
             "hook_audio_duration": hook_audio_duration,
             "scene_count": len(scenes),
+            "visual_composition_mode": "single_fullscreen_sequential",
+            "forbidden_visual_filters_found": False,
             "completed_scene_count": 0,
             "ffmpeg_return_code": -1,
             "scene_jobs": [],
@@ -772,8 +790,10 @@ def render_real_hook_clip(
                     job["validation"] = scene_validation
                     job["scene_validation_ok"] = True
                     job["render_mode_used"] = "existing_valid_scene"
+                    job["visual_composition_mode"] = "single_fullscreen_scene"
                     job["ffmpeg_command"] = ["existing_valid_scene", str(clip_path)]
                     job["ffmpeg_return_code"] = 0
+                    job["forbidden_visual_filters_found"] = False
                     scene_jobs.append(job)
                     scene_paths.append(clip_path)
                     continue
@@ -785,8 +805,10 @@ def render_real_hook_clip(
             job["motion_effect"] = scene.get("motion_effect") or scene.get("motion", "")
             job["source_image_path"] = scene.get("source_image_path", "")
             job["render_mode_used"] = (result.get("data") or {}).get("render_mode_used", "")
+            job["visual_composition_mode"] = (result.get("data") or {}).get("visual_composition_mode", "single_fullscreen_scene")
             job["ffmpeg_command"] = (result.get("data") or {}).get("ffmpeg_command", [])
             job["ffmpeg_return_code"] = (result.get("data") or {}).get("ffmpeg_return_code", -1)
+            job["forbidden_visual_filters_found"] = _contains_forbidden_visual_filter(job["ffmpeg_command"])
             job["scene_validation_ok"] = bool(scene_validation.get("valid_mp4"))
             job["validation"] = scene_validation
             scene_jobs.append(job)
@@ -795,6 +817,7 @@ def render_real_hook_clip(
         render_stage["completed_scene_count"] = len(scene_paths)
         render_stage["scene_render_ok"] = bool(scene_paths) and len(scene_paths) == len(scenes)
         render_stage["scene_jobs"] = scene_jobs
+        render_stage["forbidden_visual_filters_found"] = any(bool(job.get("forbidden_visual_filters_found")) for job in scene_jobs)
         render_stage["render_mode_used"] = "cinematic_motion" if any(str(job.get("render_mode_used")) == "motion" for job in scene_jobs) else "static_safe"
         render_stage["ffmpeg_return_code"] = next((int(job.get("ffmpeg_return_code", -1)) for job in reversed(scene_jobs) if "ffmpeg_return_code" in job), -1)
         final_name = {
@@ -877,6 +900,8 @@ def render_real_hook_clip(
                 "subtitle_burned": bool(combine_data.get("subtitle_burned")),
                 "subtitle_status": combine_data.get("subtitle_status", "exported_only"),
                 "audio_sync_status": combine_data.get("audio_sync_status", ""),
+                "visual_composition_mode": combine_data.get("visual_composition_mode", "single_fullscreen_sequential"),
+                "scene_transition_mode": combine_data.get("scene_transition_mode", "sequential_cut_with_scene_fades"),
                 "target_duration": combine_data.get("target_duration", final_target_duration),
                 "hook_audio_duration": combine_data.get("hook_audio_duration", hook_audio_duration),
                 "uploaded_audio_required": bool(background_audio_path),
