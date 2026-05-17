@@ -106,12 +106,15 @@ from core.song_structure_intelligence import (
 from core.suno_export import build_release_package_data, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.project_io import load_project, new_project, save_project, save_project_folder
 from core.project_manager import (
+    autosave_project_state,
     archive_project,
     create_project as create_managed_project,
     delete_project,
     list_archived_projects,
     list_projects as list_managed_projects,
+    load_autosave_project_state,
     load_user_preferences,
+    project_health_summary,
     project_exists,
     save_user_preferences,
     session_label_for_mode,
@@ -135,6 +138,9 @@ from core.render_connector import (
 )
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_image_motion_scene, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, validate_mp4, write_subtitles
 from core.render_cache import load_render_cache
+from core.render_queue import active_render_job, complete_render_job, load_creator_render_queue, release_stale_render_jobs, start_render_job
+from core.error_recovery import build_recovery_plan, friendly_error_message, recover_partial_render
+from core.storage_cleanup import cleanup_project_storage, project_storage_summary
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, scene_output_path, submit_veo_scene_job
 from core.versioning import list_clip_versions
 from core.rendering_presets import get_render_preset_bundle, get_rendering_provider_preset, list_render_preset_bundles, list_rendering_providers
@@ -1102,6 +1108,36 @@ def main():
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
         cache_key = (quick_data.get("render_cache") or {}).get("cache_key")
         assert_true(load_render_cache("Smoke Quick Hook Clip", "clips", cache_key)["ok"], "render cache was not saved")
+        queue_start = start_render_job("Smoke Queue Clip", "clips", stage="smoke_render")
+        assert_true(queue_start["ok"] and active_render_job("Smoke Queue Clip", "clips"), "creator render queue start failed")
+        queue_duplicate = start_render_job("Smoke Queue Clip", "clips", stage="smoke_render")
+        assert_true(not queue_duplicate["ok"] and queue_duplicate["error"] == "active_render_job", "creator render queue duplicate lock failed")
+        queue_job_id = queue_start["data"]["job"]["job_id"]
+        queue_done = complete_render_job("Smoke Queue Clip", "clips", queue_job_id, status="completed", result={"final_mp4": quick_data["final_mp4"]})
+        assert_true(queue_done["ok"] and not active_render_job("Smoke Queue Clip", "clips"), "creator render queue completion failed")
+        assert_true(load_creator_render_queue("Smoke Queue Clip", "clips")["data"]["jobs"], "creator render queue persisted jobs missing")
+        assert_true(release_stale_render_jobs("Smoke Queue Clip", "clips", timeout_seconds=60)["ok"], "stale render release failed")
+        recovery = recover_partial_render("Smoke Quick Hook Clip", "clips")
+        assert_true(recovery["ok"] and recovery["data"]["latest_successful_render"], "partial render recovery failed")
+        recovery_plan = build_recovery_plan("Smoke Quick Hook Clip", "clips", last_error="missing_scene_clips")
+        assert_true("Scene videos could not be created" in recovery_plan["data"]["safe_error_message"], "friendly recovery message failed")
+        assert_true("already rendering" in friendly_error_message("active_render_job").lower(), "friendly duplicate render message failed")
+        storage = project_storage_summary("Smoke Quick Hook Clip", "clips")
+        assert_true(storage["ok"] and storage["data"]["storage_bytes"] > 0 and storage["data"]["latest_successful_render"], "project storage summary failed")
+        broken_scene = workflow_project_root("clips") / "Smoke_Quick_Hook_Clip" / "scenes" / "scene_99.mp4"
+        broken_scene.parent.mkdir(parents=True, exist_ok=True)
+        broken_scene.write_bytes(b"broken")
+        temp_file = workflow_project_root("clips") / "Smoke_Quick_Hook_Clip" / "exports" / "scratch_tmp.mp4"
+        temp_file.parent.mkdir(parents=True, exist_ok=True)
+        temp_file.write_bytes(b"temp")
+        cleanup = cleanup_project_storage("Smoke Quick Hook Clip", "clips", keep_versions=3, dry_run=False)
+        assert_true(cleanup["ok"] and not broken_scene.exists() and not temp_file.exists(), "safe storage cleanup failed")
+        autosave = autosave_project_state("Smoke Quick Hook Clip", "clips", {"title": "Smoke Quick Hook Clip", "song": {"short_clip": True}})
+        assert_true(autosave["ok"] and Path(autosave["data"]["path"]).exists(), "project autosave failed")
+        restored_autosave = load_autosave_project_state("Smoke Quick Hook Clip", "clips")
+        assert_true(restored_autosave["ok"] and restored_autosave["data"]["snapshot"]["payload"]["title"] == "Smoke Quick Hook Clip", "project autosave restore failed")
+        health = project_health_summary("Smoke Quick Hook Clip", "clips")
+        assert_true(health["ok"] and health["data"]["render_status"] and health["data"]["storage_usage"], "project health summary failed")
         quick_clip_cached = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
             "เธ—เธ”เธชเธญเธเธเธฅเธดเธเธชเธฑเนเธเนเธเธงเธ•เธฑเนเธเธชเธณเธซเธฃเธฑเธ VelaFlow",

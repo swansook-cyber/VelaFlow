@@ -86,7 +86,9 @@ def _read_json(path: Path, default: Any) -> Any:
 
 def _write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
 
 
 def sanitize_project_name(name: str) -> str:
@@ -191,6 +193,60 @@ def _project_summary_from_folder(folder: Path) -> Dict[str, Any]:
 
 def get_project_summary(project_name: str) -> Dict[str, Any]:
     return _project_summary_from_folder(_active_path(project_name))
+
+
+def autosave_project_state(project_name: str, workflow_type: str | None, payload: Dict[str, Any], label: str = "autosave") -> Dict[str, Any]:
+    try:
+        folder = resolve_project_folder(project_name, workflow_type)
+        autosave_path = folder / "runtime" / f"{safe_name(label or 'autosave')}.json"
+        snapshot = {
+            "saved_at": datetime.now().isoformat(timespec="seconds"),
+            "project_name": project_name,
+            "workflow_type": workflow_type or infer_project_type(payload if isinstance(payload, dict) else {}),
+            "payload": payload or {},
+        }
+        _write_json(autosave_path, snapshot)
+        return {"ok": True, "message": "Autosave complete", "data": {"path": str(autosave_path), "snapshot": snapshot}, "error": ""}
+    except Exception as exc:
+        return {"ok": False, "message": "Autosave failed", "data": {}, "error": str(exc)}
+
+
+def load_autosave_project_state(project_name: str, workflow_type: str | None, label: str = "autosave") -> Dict[str, Any]:
+    try:
+        folder = resolve_project_folder(project_name, workflow_type)
+        autosave_path = folder / "runtime" / f"{safe_name(label or 'autosave')}.json"
+        snapshot = _read_json(autosave_path, {})
+        return {"ok": bool(snapshot), "message": "Autosave loaded" if snapshot else "No autosave found", "data": {"path": str(autosave_path), "snapshot": snapshot}, "error": "" if snapshot else "missing_autosave"}
+    except Exception as exc:
+        return {"ok": False, "message": "Load autosave failed", "data": {}, "error": str(exc)}
+
+
+def project_health_summary(project_name: str, workflow_type: str | None = "song") -> Dict[str, Any]:
+    try:
+        from core.error_recovery import recover_partial_render
+        from core.render_queue import render_queue_summary
+        from core.storage_cleanup import project_storage_summary
+
+        storage = project_storage_summary(project_name, workflow_type or "song").get("data", {})
+        queue = render_queue_summary(project_name, workflow_type or "song").get("data", {})
+        recovery = recover_partial_render(project_name, workflow_type or "song").get("data", {})
+        return {
+            "ok": True,
+            "message": "Project health ready",
+            "data": {
+                "render_status": (queue.get("active") or queue.get("latest") or {}).get("status", "idle"),
+                "cache_health": storage.get("cache_health", "ok"),
+                "storage_usage": storage.get("storage_label", "0 B"),
+                "latest_successful_render": recovery.get("latest_successful_render") or storage.get("latest_successful_render", ""),
+                "failed_stages": recovery.get("failed_stages", []),
+                "queue": queue,
+                "storage": storage,
+                "recovery": recovery,
+            },
+            "error": "",
+        }
+    except Exception as exc:
+        return {"ok": False, "message": "Project health unavailable", "data": {}, "error": str(exc)}
 
 
 def list_projects(workflow_mode: str | None = None, workflow_type: str | None = None) -> List[Dict[str, Any]]:

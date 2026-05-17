@@ -131,18 +131,22 @@ from core.product_link_analyzer import analyze_product_link
 from core.paths import project_folder, resolve_project_folder, workflow_project_root
 from core.project_lock import acquire_project_lock, project_lock_status, release_project_lock
 from core.project_manager import (
+    autosave_project_state,
     archive_project,
     create_project as create_managed_project,
     delete_project,
     get_project_summary,
+    project_health_summary,
     list_archived_projects,
     list_projects as list_managed_projects,
+    load_autosave_project_state,
     load_user_preferences,
     rename_project,
     save_user_preferences,
     session_label_for_mode,
     workflow_type_for_mode,
 )
+from core.error_recovery import build_recovery_plan, friendly_error_message
 from core.provider_runtime import build_provider_runtime_diagnostics
 from core.project_templates import apply_template_to_project, create_project_from_template
 from core.project_workflow import backup_project, build_project_status, clean_safe_temp_files, duplicate_project, export_project_report, list_recent_projects
@@ -157,6 +161,13 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
+from core.render_queue import (
+    complete_render_job as complete_creator_render_job,
+    load_creator_render_queue,
+    release_stale_render_jobs,
+    start_render_job as start_creator_render_job,
+)
+from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, render_image_motion_scene, render_real_hook_clip, trim_audio_clip
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
@@ -1292,6 +1303,39 @@ def _latest_render_dir(project: dict[str, Any]) -> Path:
 def _save_project() -> None:
     project_context = _project()
     save_project_folder(project_context, workflow_project_root(project_context.get("workflow_type") or project_context.get("project_type")))
+    autosave_project_state(
+        project_context.get("title", "project"),
+        project_context.get("workflow_type") or project_context.get("project_type"),
+        project_context,
+    )
+
+
+def _render_project_health_card(project_name: str, workflow_type: str = "song", key_prefix: str = "project_health") -> None:
+    health = project_health_summary(project_name, workflow_type)
+    if not health.get("ok"):
+        return
+    data = health.get("data", {}) or {}
+    with st.expander("Project Health", expanded=False):
+        h1, h2, h3 = st.columns(3)
+        h1.metric("Render", str(data.get("render_status") or "idle").title())
+        h2.metric("Cache", str(data.get("cache_health") or "ok").title())
+        h3.metric("Storage", data.get("storage_usage", "0 B"))
+        latest = data.get("latest_successful_render")
+        if latest:
+            st.caption(f"Latest successful render: {latest}")
+        failed = data.get("failed_stages") or []
+        if failed:
+            st.warning("Recoverable issue: " + ", ".join(str(item) for item in failed))
+        else:
+            st.caption("No failed render stages detected.")
+        if st.button("Clean Safe Runtime Files", key=f"{key_prefix}_cleanup", use_container_width=True):
+            result = cleanup_project_storage(project_name, workflow_type, keep_versions=3, dry_run=False)
+            removed = len((result.get("data") or {}).get("deleted") or [])
+            st.success(f"Cleanup complete. Removed {removed} safe runtime item(s).")
+            st.rerun()
+        if st.session_state.get("developer_mode"):
+            queue = load_creator_render_queue(project_name, workflow_type).get("data", {})
+            st.json({"queue": queue, "health": data}, expanded=False)
 
 
 def _load_managed_project(path: str) -> dict[str, Any]:
@@ -2177,23 +2221,52 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     "Create exactly 3 concise scenes for a 9:16 short-form hook clip.",
                 ]
             )
-            with st.spinner("Generating scene prompts, images/fallback, motion, subtitles, beat timing, thumbnail, MP4, and TikTok package..."):
-                result = quick_generate_hook_clip(
+            release_stale_render_jobs(project_name, "song")
+            queue_result = start_creator_render_job(
+                project_name,
+                "song",
+                stage="quick_generate_hook_clip",
+                metadata={"preset_id": selected_clip_preset.get("preset_id"), "variation": active_variation},
+            )
+            if not queue_result.get("ok"):
+                st.warning(friendly_error_message(queue_result.get("error") or queue_result.get("message")))
+                st.stop()
+            job_id = ((queue_result.get("data") or {}).get("job") or {}).get("job_id", "")
+            result: dict[str, Any] = {"ok": False, "message": "", "data": {}, "error": ""}
+            try:
+                with st.spinner("Rendering scenes... combining clip... preparing TikTok package..."):
+                    result = quick_generate_hook_clip(
+                        project_name,
+                        idea_payload,
+                        source_workflow="music",
+                        clip_mode="Fast Hook",
+                        duration_seconds=15,
+                        image_provider=image_provider,
+                        image_settings=image_settings,
+                        preset_id=str(selected_clip_preset.get("preset_id") or "emotional_story"),
+                        voiceover_style="emotional storyteller",
+                        voiceover_api_key=_user_api_key("openai"),
+                        subtitle_preset="Thai Emotional MV" if str(selected_clip_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
+                        hook_audio_path=hook_audio_path,
+                        force_cache_refresh=bool(st.session_state.pop("song_short_force_cache_refresh", False)),
+                        force_final_render=bool(st.session_state.pop("song_short_force_render", True)),
+                        variation=str(active_variation or "default"),
+                    )
+            except Exception as exc:
+                result = {"ok": False, "message": "Render failed", "data": {}, "error": str(exc)}
+            finally:
+                safe_message = "" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message"))
+                complete_creator_render_job(
                     project_name,
-                    idea_payload,
-                    source_workflow="music",
-                    clip_mode="Fast Hook",
-                    duration_seconds=15,
-                    image_provider=image_provider,
-                    image_settings=image_settings,
-                    preset_id=str(selected_clip_preset.get("preset_id") or "emotional_story"),
-                    voiceover_style="emotional storyteller",
-                    voiceover_api_key=_user_api_key("openai"),
-                    subtitle_preset="Thai Emotional MV" if str(selected_clip_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
-                    hook_audio_path=hook_audio_path,
-                    force_cache_refresh=bool(st.session_state.pop("song_short_force_cache_refresh", False)),
-                    force_final_render=bool(st.session_state.pop("song_short_force_render", True)),
-                    variation=str(active_variation or "default"),
+                    "song",
+                    job_id,
+                    status="completed" if result.get("ok") else "failed",
+                    result={
+                        "final_mp4": (result.get("data") or {}).get("final_mp4", ""),
+                        "render_stage_path": (result.get("data") or {}).get("render_stage_path", ""),
+                    },
+                    error=str(result.get("error") or ""),
+                    safe_error_message=safe_message,
                 )
             st.session_state["song_short_variation"] = "default"
             song["short_clip"] = {
@@ -2207,6 +2280,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 "hook_audio": (song.get("short_clip") or {}).get("hook_audio", {}),
                 "ok": bool(result.get("ok")),
                 "error": result.get("error", ""),
+                "safe_error_message": friendly_error_message(result.get("error") or result.get("message")) if not result.get("ok") else "",
             }
             project.setdefault("hook_clip_studio", {})["hook_clip"] = song["short_clip"].get("hook_clip_package", {})
             project["hook_clip_studio"]["source"] = "Music"
@@ -2219,10 +2293,12 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             if result.get("ok"):
                 st.success("Hook short clip generated. Download final_hook_clip.mp4 below.")
             else:
-                st.warning(result.get("error") or result.get("message") or "Clip package generated, but MP4 render needs attention.")
+                recovery = build_recovery_plan(project_name, "song", last_error=result.get("error") or result.get("message"))
+                st.warning((recovery.get("data") or {}).get("safe_error_message") or "Clip package generated, but MP4 render needs attention.")
             st.rerun()
 
         st.markdown("## ✅ Preview / Download")
+        _render_project_health_card(project.get("title") or song.get("title") or title, "song", "song_short_project_health")
         quick_data = short_clip.get("quick_generate") or {}
         if real_output:
             _render_final_downloads("song_short_clip", real_output)
