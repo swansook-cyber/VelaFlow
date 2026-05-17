@@ -208,7 +208,7 @@ from core.song_structure_intelligence import (
     structure_plan_prompt,
     validate_structure_plan,
 )
-from core.suno_export import export_suno_files, resolve_export_txt_filename
+from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, save_scene_job, scene_output_path, submit_veo_scene_job
@@ -809,26 +809,72 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
     final_dir = Path(str(package_data.get("final_dir") or ""))
     if not final_dir.exists():
         return
-    st.caption(f"TikTok package: {final_dir}")
+    st.caption(f"Final export package: {final_dir}")
     thumbnail_path = final_dir / "thumbnail.jpg"
     if thumbnail_path.is_file():
         st.image(str(thumbnail_path), caption="Thumbnail preview", use_container_width=True)
+    suno_path = final_dir / "suno_export.txt"
+    if suno_path.is_file():
+        st.download_button(
+            "🎵 Download Suno TXT",
+            data=suno_path.read_bytes(),
+            file_name="suno_export.txt",
+            mime="text/plain",
+            use_container_width=True,
+            key=f"{section_key}_download_suno_export_txt",
+        )
+    cover_files = [
+        ("1:1", final_dir / "cover_prompt_1x1.txt"),
+        ("9:16", final_dir / "cover_prompt_9x16.txt"),
+        ("16:9", final_dir / "cover_prompt_16x9.txt"),
+    ]
+    if any(path.is_file() for _, path in cover_files):
+        with st.expander("🖼 Generate Cover Prompts", expanded=False):
+            for label, path in cover_files:
+                if path.is_file():
+                    st.text_area(f"{label} cover prompt", value=path.read_text(encoding="utf-8-sig"), height=120, key=f"{section_key}_cover_{label}")
+                    st.download_button(
+                        f"Download {path.name}",
+                        data=path.read_bytes(),
+                        file_name=path.name,
+                        mime="text/plain",
+                        use_container_width=True,
+                        key=f"{section_key}_download_{path.name}",
+                    )
+    caption_path = final_dir / "tiktok_caption.txt"
+    youtube_path = final_dir / "youtube_caption.txt"
+    hashtags_path = final_dir / "hashtags.txt"
+    if caption_path.is_file():
+        st.text_area("📱 TikTok Caption", value=caption_path.read_text(encoding="utf-8-sig"), height=110, key=f"{section_key}_tiktok_caption_preview")
+    if youtube_path.is_file():
+        with st.expander("📺 YouTube Caption", expanded=False):
+            st.text_area("YouTube caption", value=youtube_path.read_text(encoding="utf-8-sig"), height=180, key=f"{section_key}_youtube_caption_preview")
+    if hashtags_path.is_file():
+        st.text_area("#️⃣ Hashtags", value=hashtags_path.read_text(encoding="utf-8-sig"), height=90, key=f"{section_key}_hashtags_preview")
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in final_dir.iterdir():
             if path.is_file():
                 archive.write(path, path.name)
     st.download_button(
-        "Download TikTok Package",
+        "🎬 Download Final TikTok Package",
         data=zip_buffer.getvalue(),
         file_name="velaflow_tiktok_package.zip",
         mime="application/zip",
         use_container_width=True,
         key=f"{section_key}_download_tiktok_package_zip",
     )
-    for filename, mime in [
-        ("captions.txt", "text/plain"),
+    creator_downloads = [
+        ("tiktok_caption.txt", "text/plain"),
+        ("youtube_caption.txt", "text/plain"),
         ("hashtags.txt", "text/plain"),
+        ("cover_prompt_1x1.txt", "text/plain"),
+        ("cover_prompt_9x16.txt", "text/plain"),
+        ("cover_prompt_16x9.txt", "text/plain"),
+        ("upload_checklist.txt", "text/plain"),
+    ]
+    developer_downloads = [
+        ("captions.txt", "text/plain"),
         ("title.txt", "text/plain"),
         ("title_ideas.txt", "text/plain"),
         ("thumbnail.jpg", "image/jpeg"),
@@ -843,7 +889,13 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
         ("upload_checklist.txt", "text/plain"),
         ("viral_timing_plan.json", "application/json"),
         ("hook_audio.mp3", "audio/mpeg"),
-    ]:
+    ]
+    download_list = creator_downloads + (developer_downloads if st.session_state.get("developer_mode") else [])
+    seen_downloads: set[str] = set()
+    for filename, mime in download_list:
+        if filename in seen_downloads:
+            continue
+        seen_downloads.add(filename)
         path = final_dir / filename
         if path.is_file():
             st.download_button(
@@ -2827,6 +2879,19 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     safe_error_message=safe_message,
                 )
             st.session_state["song_short_variation"] = "default"
+            if result.get("ok"):
+                final_dir = str(((result.get("data") or {}).get("tiktok_package") or {}).get("final_dir") or "")
+                if final_dir:
+                    creator_assets = export_creator_final_assets(
+                        project_name,
+                        song,
+                        final_dir,
+                        workflow_mode=st.session_state.get("workflow_mode", "Full Pipeline"),
+                    )
+                    if creator_assets.get("ok"):
+                        result.setdefault("data", {}).setdefault("tiktok_package", {})["creator_assets"] = creator_assets.get("data", {})
+                    else:
+                        st.warning("Clip created, but creator export assets could not be refreshed.")
             song["short_clip"] = {
                 "selected_hook": best_hook,
                 "generated_at": datetime.now().isoformat(timespec="seconds"),

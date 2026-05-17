@@ -109,7 +109,7 @@ from core.song_structure_intelligence import (
     save_structure_plan,
     validate_structure_plan,
 )
-from core.suno_export import build_release_package_data, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
+from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import load_project, new_project, save_project, save_project_folder
 from core.project_manager import (
@@ -752,8 +752,9 @@ def main():
     song_only_name = export_txt_filename(song_only_save["data"]["song"], "Smoke Song Only Workflow", "Song Studio Only")
     song_only_text = (Path(song_only_save["data"]["folder"]) / "exports" / song_only_name).read_text(encoding="utf-8")
     assert_true(song_only_name.endswith("_song_only.txt"), "Song Only dynamic filename failed")
-    assert_true("Complete Lyrics with Tags" in song_only_text and "Hook Information" in song_only_text, "Song Only minimal export missing lyrics/hook")
-    assert_true("SEO CAPTION" not in song_only_text and "COVER ART PROMPTS" not in song_only_text and "RELEASE ASSETS" not in song_only_text, "Song Only export included Full Pipeline sections")
+    assert_true("Complete Lyrics with Tags" in song_only_text and "Hook Information" in song_only_text, "Song Only export missing lyrics/hook")
+    assert_true("STYLE PROMPT FOR SUNO" in song_only_text and "OPTIONAL NEGATIVE STYLE" in song_only_text, "Song Only creator Suno format missing style sections")
+    assert_true("CREATOR RELEASE PACKAGE" in song_only_text and "COVER ART PROMPTS" in song_only_text and "RELEASE ASSETS" in song_only_text, "Song Only creator export missing release-ready sections")
     project["song"].update(saved_song)
     project["song"]["title"] = "Smoke Song Workflow"
     project["song"]["genre"] = "Modern Pop / Pop Rock"
@@ -1123,8 +1124,14 @@ def main():
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
+        creator_assets = export_creator_final_assets("Quick Hook Smoke", workflow_song, tiktok_final_dir, workflow_mode="Song Studio Only")
+        assert_true(creator_assets["ok"], "creator final assets export failed")
         for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
+        for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
+            path = tiktok_final_dir / filename
+            assert_true(path.exists() and path.read_text(encoding="utf-8-sig").strip(), f"creator export package missing {filename}")
+        assert_true("STYLE PROMPT FOR SUNO" in (tiktok_final_dir / "suno_export.txt").read_text(encoding="utf-8-sig"), "creator Suno TXT format missing")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
         affiliate_product = {
             "product_name": "Smoke Pillow",
