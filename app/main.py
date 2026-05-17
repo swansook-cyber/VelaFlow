@@ -814,6 +814,7 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
         ("hashtags.txt", "text/plain"),
         ("title.txt", "text/plain"),
         ("thumbnail.jpg", "image/jpeg"),
+        ("thumbnail_score.json", "application/json"),
         ("thumbnail_prompt.txt", "text/plain"),
         ("styled_subtitles.ass", "text/plain"),
         ("scene_prompts.json", "application/json"),
@@ -2186,6 +2187,18 @@ def _render_song_studio(project: dict[str, Any]) -> None:
 
         st.markdown("## ✅ Preview / Download")
         quick_data = short_clip.get("quick_generate") or {}
+        viral_metrics = quick_data.get("viral_metrics") or ((quick_data.get("package") or {}).get("viral_metrics") or {})
+        thumbnail_quality = ((quick_data.get("thumbnail") or {}).get("score") or ((quick_data.get("tiktok_package") or {}).get("thumbnail_quality") or 0))
+        timing_profile = (quick_data.get("beat_timing") or {}).get("timing_profile") or (quick_data.get("viral_timing_plan") or {}).get("timing_profile", "")
+        if viral_metrics:
+            st.markdown("**TikTok Optimization**")
+            vm1, vm2, vm3, vm4 = st.columns(4)
+            vm1.metric("Hook score", viral_metrics.get("hook_score", 0))
+            vm2.metric("Emotional intensity", viral_metrics.get("emotional_impact", 0))
+            vm3.metric("Viral pacing", viral_metrics.get("viral_pacing", 0))
+            vm4.metric("Thumbnail quality", thumbnail_quality or "-")
+            if timing_profile:
+                st.caption(f"Pacing profile: {timing_profile}")
         image_results = quick_data.get("image_results") or []
         if image_results:
             st.markdown("**Generated Scene Images**")
@@ -3365,6 +3378,18 @@ elif page == "Hook Clip Studio":
             _render_scene_preview_cards(project.get("title") or "hook_clip_project", hook_package, "hook_clip_studio")
             _render_final_downloads("hook_clip_studio", ((project.get("hook_clip_studio", {}) or {}).get("real_output") or {}))
             quick_data = ((project.get("hook_clip_studio", {}) or {}).get("quick_generate") or {})
+            viral_metrics = quick_data.get("viral_metrics") or ((quick_data.get("package") or {}).get("viral_metrics") or {})
+            thumbnail_quality = ((quick_data.get("thumbnail") or {}).get("score") or 0)
+            timing_profile = (quick_data.get("beat_timing") or {}).get("timing_profile") or (quick_data.get("viral_timing_plan") or {}).get("timing_profile", "")
+            if viral_metrics:
+                st.markdown("**TikTok Optimization**")
+                vm1, vm2, vm3, vm4 = st.columns(4)
+                vm1.metric("Hook score", viral_metrics.get("hook_score", 0))
+                vm2.metric("Emotional intensity", viral_metrics.get("emotional_impact", 0))
+                vm3.metric("Viral pacing", viral_metrics.get("viral_pacing", 0))
+                vm4.metric("Thumbnail quality", thumbnail_quality or "-")
+                if timing_profile:
+                    st.caption(f"Pacing profile: {timing_profile}")
             if quick_data.get("manifest_path"):
                 st.caption(f"Quick manifest: {quick_data.get('manifest_path')}")
             _render_tiktok_package_downloads("hook_clip_studio", quick_data.get("tiktok_package") or {})

@@ -1068,6 +1068,7 @@ def main():
         assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
         assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
+        assert_true((quick_data.get("viral_metrics") or {}).get("hook_score", 0) > 0 and (quick_data.get("viral_metrics") or {}).get("tiktok_retention_potential", 0) > 0, "TikTok hook scoring missing")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
         assert_true(all({"provider_used", "fallback_used", "fallback_reason", "error_type", "safe_error_message"}.issubset(set(item.keys())) for item in quick_data["image_results"]), "image diagnostics missing")
@@ -1079,11 +1080,16 @@ def main():
         assert_true(Path(quick_data["scene_prompts_path"]).exists(), "quick hook scene_prompts.json missing")
         assert_true(Path(quick_data["beat_timing_path"]).exists(), "quick hook beat_timing.json missing")
         assert_true(Path(quick_data["thumbnail_path"]).exists(), "quick hook thumbnail.jpg missing")
+        assert_true(Path(quick_data["thumbnail_score_path"]).exists(), "quick hook thumbnail_score.json missing")
+        thumbnail_score = json.loads(Path(quick_data["thumbnail_score_path"]).read_text(encoding="utf-8"))
+        assert_true((thumbnail_score.get("quality") or {}).get("thumbnail_quality", 0) > 0, "thumbnail quality scoring failed")
         assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
+        assert_true(any("different framing" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing variety/continuity guidance")
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
+        assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")
         tiktok_final_dir = Path(quick_data["tiktok_package"]["final_dir"])
-        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
+        for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
         for utf8_bom_file in ["subtitles.srt", "styled_subtitles.ass", "captions.txt"]:
@@ -1093,7 +1099,7 @@ def main():
         prompt_sample = build_scene_prompt("เดินต่อทั้งที่ยังเจ็บ", style="Anime Nostalgia")
         assert_true("visual metaphor" in prompt_sample["cinematic_prompt"] and prompt_sample["prompt_style"] == "Anime Nostalgia", "scene prompt engine failed")
         beat_sample = create_beat_timing_plan(total_duration=15, scene_count=3, pace="fast")
-        assert_true(beat_sample["scene_timing"][0]["motion_sync"] == "beat_zoom", "beat timing engine failed")
+        assert_true(beat_sample["scene_timing"][0]["motion_sync"] == "beat_zoom" and beat_sample.get("timing_profile") and beat_sample.get("hook_peak_moment") > 0, "beat timing engine failed")
         timing_plan = create_viral_timing_plan(quick_data["package"], target_duration=15, preset_id="viral_meme")
         assert_true(timing_plan["first_3_seconds"]["opening_line"] and timing_plan["scene_count"] >= 1, "viral timing engine failed")
         song_short_clip = quick_generate_hook_clip(

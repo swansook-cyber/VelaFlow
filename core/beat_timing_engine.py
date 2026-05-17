@@ -44,14 +44,28 @@ def create_beat_timing_plan(
 ) -> dict[str, Any]:
     scene_count = max(1, min(8, int(scene_count or 3)))
     duration = _duration_from_audio(audio_path, _safe_duration(total_duration or 15))
+    hook_text_value = str(hook_text or "")
+    emotional_words = ["เจ็บ", "เหงา", "รัก", "คิดถึง", "ใจ", "hurt", "lonely", "miss", "heart"]
+    punch_words = ["หยุด", "พอ", "เดี๋ยว", "จริง", "ต้องดู", "โคตร", "stop", "wait", "why"]
+    emotional_intensity = min(100, 40 + sum(10 for word in emotional_words if word.lower() in hook_text_value.lower()) + min(25, len(hook_text_value) // 12))
+    punchline_intensity = min(100, 35 + sum(13 for word in punch_words if word.lower() in hook_text_value.lower()) + (20 if len(hook_text_value) <= 80 else 0))
     if pace == "slow":
-        weights = [0.30, 0.36, 0.34]
+        weights = [0.36, 0.34, 0.30]
+        timing_profile = "emotional_slow_build"
+        emotional_curve = ["soft_open", "deep_feeling", "quiet_release"]
     elif pace == "medium":
         weights = [0.28, 0.34, 0.38]
+        timing_profile = "balanced_story_hook"
+        emotional_curve = ["setup", "turn", "strong_finish"]
     else:
-        weights = [0.22, 0.32, 0.46]
+        weights = [0.18, 0.30, 0.52]
+        timing_profile = "fast_retention_hook"
+        emotional_curve = ["instant_hook", "punchline", "shareable_peak"]
+    if emotional_intensity > punchline_intensity + 15:
+        weights = [0.30, 0.37, 0.33] if pace != "fast" else [0.22, 0.34, 0.44]
+        timing_profile += "_emotional_weighted"
     if scene_count != 3:
-        weights = [1 / scene_count for _ in range(scene_count)]
+        weights = [1 / scene_count for _ in range(scene_count - 1)] + [1 / scene_count]
     beat_interval = 0.75 if pace == "fast" else 1.05 if pace == "medium" else 1.35
     beat_markers = []
     t = 0.35
@@ -61,6 +75,7 @@ def create_beat_timing_plan(
     loudness_peaks = [round(max(0.15, duration * ratio), 2) for ratio in (0.08, 0.36, 0.68, 0.88) if duration * ratio < duration]
     scene_timing = []
     cursor = 0.0
+    hook_peak_moment = round(max(0.8, duration * (0.38 if pace == "fast" else 0.58 if pace == "slow" else 0.48)), 2)
     for index, weight in enumerate(weights[:scene_count], start=1):
         if index == scene_count:
             end = duration
@@ -76,6 +91,9 @@ def create_beat_timing_plan(
                 "motion_sync": effect,
                 "transition_trigger": "peak" if index == 1 else "beat" if index < scene_count else "emotional_release",
                 "subtitle_emphasis_at": round(cursor + max(0.2, (end - cursor) * 0.28), 2),
+                "retention_role": "stop_scroll" if index == 1 else "context_turn" if index < scene_count else "strongest_finish",
+                "emotional_curve": emotional_curve[min(index - 1, len(emotional_curve) - 1)],
+                "hook_peak": cursor <= hook_peak_moment <= end,
             }
         )
         cursor = end
@@ -85,6 +103,14 @@ def create_beat_timing_plan(
         "audio_path": str(audio_path or ""),
         "duration": round(duration, 2),
         "pace": pace,
+        "timing_profile": timing_profile,
+        "emotional_curve": emotional_curve,
+        "hook_peak_moment": hook_peak_moment,
+        "hook_quality_inputs": {
+            "emotional_intensity": emotional_intensity,
+            "punchline_intensity": punchline_intensity,
+            "short_readability": max(0, min(100, 100 - max(0, len(hook_text_value) - 80))),
+        },
         "hook_text": hook_text,
         "beat_markers": beat_markers,
         "loudness_peaks": loudness_peaks,

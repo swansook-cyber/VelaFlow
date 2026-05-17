@@ -77,6 +77,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         thumbnail = Path(str(render_data.get("thumbnail") or package.get("thumbnail_path") or ""))
         if thumbnail.is_file():
             shutil.copy2(thumbnail, ensure_parent_dir(final_dir / "thumbnail.jpg"))
+        thumbnail_score = Path(str(render_data.get("thumbnail_score") or package.get("thumbnail_score_path") or ""))
+        if thumbnail_score.is_file():
+            shutil.copy2(thumbnail_score, ensure_parent_dir(final_dir / "thumbnail_score.json"))
         scene_prompts = Path(str(render_data.get("scene_prompts") or package.get("scene_prompts_path") or ""))
         if scene_prompts.is_file():
             shutil.copy2(scene_prompts, ensure_parent_dir(final_dir / "scene_prompts.json"))
@@ -140,6 +143,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "hook_audio": str(final_dir / "hook_audio.mp3") if (final_dir / "hook_audio.mp3").is_file() else "",
             "styled_subtitles": str(final_dir / "styled_subtitles.ass") if (final_dir / "styled_subtitles.ass").is_file() else "",
             "thumbnail": str(final_dir / "thumbnail.jpg") if (final_dir / "thumbnail.jpg").is_file() else "",
+            "thumbnail_score": str(final_dir / "thumbnail_score.json") if (final_dir / "thumbnail_score.json").is_file() else "",
             "scene_prompts": str(final_dir / "scene_prompts.json") if (final_dir / "scene_prompts.json").is_file() else "",
             "beat_timing": str(final_dir / "beat_timing.json") if (final_dir / "beat_timing.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
@@ -169,6 +173,48 @@ def _idea_content(idea: str, source_workflow: str, preset: dict[str, Any]) -> di
         "viral_hooks": [cleaned],
         "subtitle_lines": [cleaned],
     }
+
+
+def _score_hook_for_retention(text: str, hook_analysis: dict[str, Any], preset: dict[str, Any]) -> dict[str, Any]:
+    value = " ".join(str(text or "").split()).strip()
+    scores = hook_analysis.get("scores") or {}
+    emotional = int(scores.get("emotional_intensity") or 45)
+    curiosity = int(scores.get("curiosity") or 45)
+    pacing = int(scores.get("pacing") or 60)
+    meme = int(scores.get("meme_potential") or 45)
+    readability = max(20, min(100, 110 - max(0, len(value) - 55)))
+    replay = max(20, min(100, int((curiosity * 0.35) + (readability * 0.30) + (pacing * 0.20) + (meme * 0.15))))
+    retention = max(20, min(100, int((emotional * 0.25) + (curiosity * 0.25) + (readability * 0.25) + (pacing * 0.25))))
+    total = max(0, min(100, int((emotional + curiosity + replay + retention + readability) / 5)))
+    if preset.get("pace") in {"fast", "fun"}:
+        total = min(100, total + 5)
+    return {
+        "hook_score": total,
+        "emotional_impact": emotional,
+        "replay_potential": replay,
+        "short_readability": readability,
+        "curiosity_gap": curiosity,
+        "tiktok_retention_potential": retention,
+        "viral_pacing": pacing,
+    }
+
+
+def _strongest_hook_text(idea: str, hook_analysis: dict[str, Any], preset: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    candidates = [
+        str(hook_analysis.get("opening_line") or "").strip(),
+        str(hook_analysis.get("shock_line") or "").strip(),
+        " ".join(str(idea or "").split()).strip(),
+    ]
+    scored = []
+    for candidate in candidates:
+        if not candidate:
+            continue
+        scored.append({"text": candidate, "scores": _score_hook_for_retention(candidate, hook_analysis, preset)})
+    if not scored:
+        fallback = "VelaFlow Hook Clip"
+        return fallback, _score_hook_for_retention(fallback, hook_analysis, preset)
+    best = sorted(scored, key=lambda item: item["scores"]["hook_score"], reverse=True)[0]
+    return best["text"], best["scores"]
 
 
 def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any], character_profile: dict[str, Any] | None = None, consistency_strength: str = "high") -> str:
@@ -320,8 +366,13 @@ def quick_generate_hook_clip(
         hook_analysis["hook_intensity"] = hook_intensity
         hook_analysis["meme_level"] = meme_level
         hook_analysis["chaos_level"] = chaos_level
-        enriched_idea = f"{hook_analysis.get('opening_line', '')}\n{idea}".strip()
+        strongest_hook, viral_metrics = _strongest_hook_text(idea, hook_analysis, preset)
+        hook_analysis["viral_metrics"] = viral_metrics
+        hook_analysis["selected_hook_text"] = strongest_hook
+        enriched_idea = f"{strongest_hook}\n{idea}".strip()
         content = _idea_content(enriched_idea, source_workflow, preset)
+        content["selected_hook_text"] = strongest_hook
+        content["viral_metrics"] = viral_metrics
         package_result = build_hook_render_package(
             project_name,
             source_workflow,
@@ -341,6 +392,8 @@ def quick_generate_hook_clip(
         package["voice_style"] = preset.get("voice_style", "")
         package["character_profile"] = character_profile or {}
         package["hook_analysis"] = hook_analysis
+        package["viral_metrics"] = viral_metrics
+        package["hook_text"] = strongest_hook
         package["hook_audio_path"] = hook_audio_path
         effective_subtitle_style = subtitle_preset or subtitle_animation or package.get("subtitle_style", "")
         package["subtitle_animation"] = effective_subtitle_style
@@ -373,7 +426,7 @@ def quick_generate_hook_clip(
             total_duration=duration_seconds,
             scene_count=len(package.get("scene_sequence", []) or []) or 3,
             pace=str(preset.get("pace") or "fast"),
-            hook_text=str(package.get("hook_text") or idea),
+            hook_text=str(package.get("hook_text") or strongest_hook or idea),
         )
         apply_beat_timing_to_package(package, beat_timing_plan)
         if preset.get("motion_style") == "bounce":
@@ -430,13 +483,21 @@ def quick_generate_hook_clip(
         package["styled_subtitles_path"] = styled_subtitle_path
         thumbnail_result = export_thumbnail(package, image_results, exports_dir / "thumbnail.jpg")
         package["thumbnail_path"] = (thumbnail_result.get("data") or {}).get("path", "")
+        package["thumbnail_score_path"] = (thumbnail_result.get("data") or {}).get("score_path", "")
         viral_timing_plan = create_viral_timing_plan(package, target_duration=duration_seconds, preset_id=str(preset.get("preset_id") or ""))
+        viral_timing_plan["timing_profile"] = beat_timing_plan.get("timing_profile", "")
+        viral_timing_plan["emotional_curve"] = beat_timing_plan.get("emotional_curve", [])
+        viral_timing_plan["hook_peak_moment"] = beat_timing_plan.get("hook_peak_moment", 0)
+        viral_timing_plan["hook_score"] = viral_metrics.get("hook_score", 0)
+        viral_timing_plan["viral_pacing"] = viral_metrics.get("viral_pacing", 0)
+        viral_timing_plan["thumbnail_quality"] = (thumbnail_result.get("data") or {}).get("score", 0)
         timing_result = save_viral_timing_plan(viral_timing_plan, exports_dir / "viral_timing_plan.json")
         package["viral_timing_plan"] = viral_timing_plan
         render_data_for_export = {
             **(render_result.get("data", {}) or {}),
             "styled_subtitles": styled_subtitle_path,
             "thumbnail": package.get("thumbnail_path", ""),
+            "thumbnail_score": package.get("thumbnail_score_path", ""),
             "scene_prompts": package.get("scene_prompts_path", ""),
             "beat_timing": package.get("beat_timing_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
@@ -465,6 +526,7 @@ def quick_generate_hook_clip(
             "beat_timing": beat_timing_plan,
             "beat_timing_path": package.get("beat_timing_path", ""),
             "viral_timing_plan": viral_timing_plan,
+            "viral_metrics": viral_metrics,
             "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
             "tiktok_package": tiktok_package,
             "voiceover": voice_result,
@@ -516,11 +578,13 @@ def quick_generate_hook_clip(
                 "styled_subtitles": subtitle_result.get("data", {}),
                 "thumbnail": thumbnail_result.get("data", {}),
                 "thumbnail_path": package.get("thumbnail_path", ""),
+                "thumbnail_score_path": package.get("thumbnail_score_path", ""),
                 "scene_prompts": scene_prompt_plan,
                 "scene_prompts_path": package.get("scene_prompts_path", ""),
                 "beat_timing": beat_timing_plan,
                 "beat_timing_path": package.get("beat_timing_path", ""),
                 "viral_timing_plan": viral_timing_plan,
+                "viral_metrics": viral_metrics,
                 "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
                 "tiktok_package": tiktok_package.get("data", {}),
                 "voiceover": voice_result.get("data", {}),

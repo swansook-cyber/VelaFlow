@@ -127,11 +127,33 @@ def build_scene_prompt(
     cleaned = _clean_lyric(lyric or hook_text)
     emotion = detect_scene_emotion(" ".join([cleaned, hook_text, mood]))
     metaphor = _metaphor_for_emotion(emotion["primary_emotion"], style_config)
-    focus = "opening hook moment" if scene_index == 1 else "emotional reaction beat" if scene_index == 2 else "shareable final punchline frame"
+    scene_progression = {
+        1: {
+            "focus": "opening stop-scroll hook moment",
+            "camera": "tight vertical close-up with strong foreground subject",
+            "lighting": "clean high-contrast key light, face-safe composition",
+            "composition": "centered subject, empty lower third for subtitles",
+        },
+        2: {
+            "focus": "emotional story turn with new angle",
+            "camera": "medium side angle with cinematic depth and parallax",
+            "lighting": "softer practical light from the opposite side",
+            "composition": "subject placed on one third, different room angle from scene 1",
+        },
+        3: {
+            "focus": "strongest ending frame, replay-worthy emotional peak",
+            "camera": "dramatic push-in frame with clear silhouette or face priority",
+            "lighting": "strong rim light and cinematic contrast for thumbnail quality",
+            "composition": "mobile thumbnail readable, high contrast center subject",
+        },
+    }
+    progression = scene_progression.get(scene_index, scene_progression[3])
     cinematic_prompt = (
-        f"{style_config['aesthetic']}, {focus}, visual metaphor: {metaphor}, "
+        f"{style_config['aesthetic']}, {progression['focus']}, visual metaphor: {metaphor}, "
         f"emotion: {emotion['primary_emotion']} intensity {emotion['intensity']}/100, "
+        f"{progression['camera']}, {progression['lighting']}, {progression['composition']}, "
         f"vertical 9:16 composition, TikTok-ready framing, subtitle-safe lower third, "
+        "consistent visual story across scenes but clearly different framing, "
         f"{style_config['palette']} color palette, realistic depth, high quality, no watermark, no random text"
     )
     return {
@@ -140,6 +162,9 @@ def build_scene_prompt(
         "prompt_style": prompt_style,
         "emotion": emotion,
         "visual_metaphor": metaphor,
+        "camera_language": progression["camera"],
+        "lighting_direction": progression["lighting"],
+        "composition_note": progression["composition"],
         "cinematic_prompt": cinematic_prompt,
         "tiktok_aesthetic": style_config["aesthetic"],
         "subtitle_safe_note": "Keep important faces and objects away from the lower subtitle area.",
