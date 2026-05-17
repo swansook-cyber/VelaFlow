@@ -46,6 +46,15 @@ def _default_payload() -> dict[str, Any]:
         "generate_count": 0,
         "export_count": 0,
         "render_job_count": 0,
+        "render_metrics": {
+            "total_renders": 0,
+            "successful_renders": 0,
+            "failed_renders": 0,
+            "total_render_duration": 0.0,
+            "avg_render_duration": 0.0,
+            "top_mood_presets": {},
+            "most_used_hook_style": {},
+        },
         "active_provider_usage": {},
         "preset_bundle_usage": {},
         "quality_tracking": {
@@ -81,6 +90,9 @@ def load_beta_analytics(base_dir: str | Path | None = None) -> dict[str, Any]:
         payload.setdefault("active_provider_usage", {})
         payload.setdefault("preset_bundle_usage", {})
         payload.setdefault("events", [])
+        render_metrics = _default_payload()["render_metrics"]
+        render_metrics.update(payload.get("render_metrics") or {})
+        payload["render_metrics"] = render_metrics
         quality = _default_payload()["quality_tracking"]
         quality.update(payload.get("quality_tracking") or {})
         payload["quality_tracking"] = quality
@@ -137,10 +149,33 @@ def log_beta_event(
             _increment(payload["quality_tracking"], "render_package_generation_count")
             payload["export_count"] = int(payload.get("export_count", 0) or 0) + 1
 
+        if event_type in {"render", "clip_render", "creator_render"}:
+            metrics = payload.setdefault("render_metrics", _default_payload()["render_metrics"])
+            metrics["total_renders"] = int(metrics.get("total_renders", 0) or 0) + 1
+            status = str((metadata or {}).get("status") or "").lower()
+            if status == "completed" or (metadata or {}).get("ok") is True:
+                metrics["successful_renders"] = int(metrics.get("successful_renders", 0) or 0) + 1
+            elif status == "failed" or (metadata or {}).get("ok") is False:
+                metrics["failed_renders"] = int(metrics.get("failed_renders", 0) or 0) + 1
+            try:
+                duration = float((metadata or {}).get("render_duration") or 0)
+            except Exception:
+                duration = 0.0
+            if duration > 0:
+                metrics["total_render_duration"] = float(metrics.get("total_render_duration", 0.0) or 0.0) + duration
+                counted = max(1, int(metrics.get("successful_renders", 0) or 0) + int(metrics.get("failed_renders", 0) or 0))
+                metrics["avg_render_duration"] = round(float(metrics["total_render_duration"]) / counted, 2)
+            mood = _safe_key((metadata or {}).get("mood_preset"), "")
+            hook_style = _safe_key((metadata or {}).get("hook_style"), "")
+            if mood:
+                _increment(metrics.setdefault("top_mood_presets", {}), mood)
+            if hook_style:
+                _increment(metrics.setdefault("most_used_hook_style", {}), hook_style)
+
         safe_metadata = {
             str(key): value
             for key, value in (metadata or {}).items()
-            if key in {"status", "workflow_mode", "page", "format", "ok", "provider_mode"}
+            if key in {"status", "workflow_mode", "page", "format", "ok", "provider_mode", "mood_preset", "hook_style"}
         }
         payload["events"] = (payload.get("events") or [])[-EVENT_LOG_LIMIT + 1 :] + [
             {
@@ -155,6 +190,30 @@ def log_beta_event(
         return save_beta_analytics(payload, base_dir)
     except Exception as exc:
         return {"ok": False, "message": "Beta analytics log failed", "data": {}, "error": str(exc)}
+
+
+def beta_analytics_summary(base_dir: str | Path | None = None) -> dict[str, Any]:
+    payload = load_beta_analytics(base_dir)
+    metrics = payload.get("render_metrics") or {}
+    total = int(metrics.get("total_renders", 0) or 0)
+    successful = int(metrics.get("successful_renders", 0) or 0)
+    success_rate = round((successful / total) * 100, 1) if total else 0.0
+    top_moods = sorted((metrics.get("top_mood_presets") or {}).items(), key=lambda item: item[1], reverse=True)
+    top_hooks = sorted((metrics.get("most_used_hook_style") or {}).items(), key=lambda item: item[1], reverse=True)
+    return {
+        "ok": True,
+        "message": "Beta analytics summary",
+        "data": {
+            "total_renders": total,
+            "successful_renders": successful,
+            "failed_renders": int(metrics.get("failed_renders", 0) or 0),
+            "render_success_rate": success_rate,
+            "avg_render_duration": float(metrics.get("avg_render_duration", 0.0) or 0.0),
+            "top_mood_preset": top_moods[0][0] if top_moods else "",
+            "most_used_hook_style": top_hooks[0][0] if top_hooks else "",
+        },
+        "error": "",
+    }
 
 
 def ensure_beta_runtime_dirs(base_dir: str | Path | None = None) -> dict[str, Any]:

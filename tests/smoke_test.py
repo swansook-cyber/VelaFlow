@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
-from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
+from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
+from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
 from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
@@ -343,6 +344,7 @@ def main():
     assert_true(LOCAL_STORAGE_KEYS["gemini"] == "velaflow_gemini_key" and LOCAL_STORAGE_KEYS["openai"] == "velaflow_openai_key" and LOCAL_STORAGE_KEYS["xai"] == "velaflow_xai_key", "localStorage key names failed")
     assert_true(mask_api_key("abcd1234") == "Provided: ****1234" and mask_api_key("") == "Missing", "API key masking failed")
     analytics_root = out / "analytics_case"
+    shutil.rmtree(analytics_root, ignore_errors=True)
     runtime_dirs = ensure_beta_runtime_dirs(analytics_root)
     assert_true(runtime_dirs["ok"] and (analytics_root / "analytics" / "analytics.json").exists(), "beta analytics runtime prep failed")
     log_beta_event("generate", workflow="seller", provider="xai", preset_bundle="Luxury Product", base_dir=analytics_root)
@@ -350,9 +352,18 @@ def main():
     log_beta_event("render_job", workflow="seller", provider="xai", base_dir=analytics_root)
     log_beta_event("mv_storyboard_generated", workflow="music_mv", provider="gemini", base_dir=analytics_root)
     log_beta_event("render_package_generated", workflow="music_mv", provider="gemini", preset_bundle="Cinematic Sad", base_dir=analytics_root)
+    log_beta_event("creator_render", workflow="music", preset_bundle="Emotional Story", metadata={"status": "completed", "ok": True, "render_duration": 12.5, "mood_preset": "Emotional Story", "hook_style": "emotional"}, base_dir=analytics_root)
+    log_beta_event("creator_render", workflow="music", preset_bundle="Viral Meme", metadata={"status": "failed", "ok": False, "render_duration": 7.5, "mood_preset": "Viral Meme", "hook_style": "aggressive"}, base_dir=analytics_root)
     analytics = load_beta_analytics(analytics_root)
     assert_true(analytics["generate_count"] >= 2 and analytics["export_count"] >= 2 and analytics["render_job_count"] >= 1, "beta analytics counters failed")
     assert_true(analytics["quality_tracking"]["seller_workflow_usage"] >= 3 and analytics["quality_tracking"]["mv_storyboard_generation_count"] >= 1, "workflow quality counters failed")
+    analytics_summary = beta_analytics_summary(analytics_root)
+    assert_true(analytics_summary["data"]["total_renders"] == 2 and analytics_summary["data"]["render_success_rate"] == 50.0 and analytics_summary["data"]["avg_render_duration"] == 10.0, "closed beta render analytics failed")
+    beta_access_path = analytics_root / "config" / "beta_access.json"
+    beta_save = save_beta_access({"creator_name": "Smoke Creator", "creator_id": "smoke_creator"}, beta_access_path)
+    beta_activity = register_beta_activity(2, beta_access_path)
+    beta_profile = load_beta_access(beta_access_path)
+    assert_true(beta_save["ok"] and beta_activity["ok"] and beta_profile["creator_id"] == "smoke_creator" and beta_profile["total_renders"] >= 2, "founding member beta access failed")
     old_temp = analytics_root / "outputs" / "temp" / "old_export.tmp"
     old_temp.parent.mkdir(parents=True, exist_ok=True)
     old_temp.write_text("old", encoding="utf-8")
@@ -1535,7 +1546,7 @@ def main():
         or name.endswith(".pyc")
     ]
     assert_true(not beta_forbidden, f"beta package included forbidden files: {beta_forbidden[:5]}")
-    assert_true(".env.example" in beta_names and "run_velaflow.bat" in beta_names and "docs/BETA_RELEASE_CHECKLIST.md" in beta_names and "docs/BETA_NOTES.md" in beta_names, "beta package expected files missing")
+    assert_true(".env.example" in beta_names and "run_velaflow.bat" in beta_names and "docs/BETA_RELEASE_CHECKLIST.md" in beta_names and "docs/BETA_NOTES.md" in beta_names and "docs/QUICK_START.md" in beta_names and "docs/KNOWN_LIMITATIONS.md" in beta_names and "docs/BETA_FEEDBACK.md" in beta_names, "beta package expected files missing")
 
     scores = score_project_scenes(project)
     assert_true(scores and scores[0]["teaser_score"] > 0 and scores[0]["status"], "scene scoring failed")

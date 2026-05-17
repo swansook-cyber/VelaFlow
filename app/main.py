@@ -4,6 +4,7 @@ import io
 import json
 import shutil
 import sys
+import time
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -39,7 +40,7 @@ from core.artist_presets import (
     save_artist_preset,
     set_default_artist_preset,
 )
-from core.analytics import cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
+from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.automatic_hook_clip import export_tiktok_package, quick_generate_hook_clip
 from core.character_engine import CHARACTER_TYPES, PERSONALITY_PROMPTS, STYLE_PROMPTS, random_viral_character_idea
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_provider_credentials
@@ -57,6 +58,7 @@ from core.beta_testing import (
     update_beta_ratings,
 )
 from core.branding import APP_TITLE, BRAND_NAME, DEFAULT_ARTIST, PRODUCT_TAGLINE, WINDOW_TITLE
+from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.character_consistency import apply_character_to_storyboard, build_character_prompt, normalize_character
 from core.clip_factory import CLIP_TYPES, generate_clip, generate_clip_set
 from core.common_fixes import fix_common_issues
@@ -912,6 +914,7 @@ def _creator_image_settings() -> tuple[str, dict[str, Any]]:
 def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_preset: dict[str, Any], variation: str, *, force_cache_refresh: bool, force_final_render: bool) -> dict[str, Any]:
     project_name = project.get("title") or "My Viral Clip"
     image_provider, image_settings = _creator_image_settings()
+    cleanup_project_storage(project_name, "song", keep_versions=3, dry_run=False)
     release_stale_render_jobs(project_name, "song")
     queue_result = start_creator_render_job(
         project_name,
@@ -923,6 +926,7 @@ def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_pre
         return {"ok": False, "message": queue_result.get("message", ""), "data": {}, "error": queue_result.get("error", "active_render_job")}
     job_id = ((queue_result.get("data") or {}).get("job") or {}).get("job_id", "")
     result: dict[str, Any] = {"ok": False, "message": "", "data": {}, "error": ""}
+    started_at = time.time()
     try:
         result = quick_generate_hook_clip(
             project_name,
@@ -940,9 +944,28 @@ def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_pre
             force_final_render=force_final_render,
             variation=variation,
         )
+        if not result.get("ok"):
+            result = quick_generate_hook_clip(
+                project_name,
+                idea,
+                source_workflow="music",
+                clip_mode="Fast Hook",
+                duration_seconds=int(selected_preset.get("default_duration") or 15),
+                image_provider=image_provider,
+                image_settings=image_settings,
+                preset_id=str(selected_preset.get("preset_id") or "emotional_story"),
+                voiceover_style="emotional storyteller",
+                voiceover_api_key=_user_api_key("openai"),
+                subtitle_preset="Thai Emotional MV" if str(selected_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
+                force_cache_refresh=False,
+                force_final_render=True,
+                variation=f"{variation}_auto_retry",
+            )
     except Exception as exc:
         result = {"ok": False, "message": "Render failed", "data": {}, "error": str(exc)}
     finally:
+        render_duration = round(time.time() - started_at, 2)
+        (result.setdefault("data", {}) if isinstance(result.get("data"), dict) else {}).setdefault("render_duration", render_duration)
         complete_creator_render_job(
             project_name,
             "song",
@@ -955,7 +978,59 @@ def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_pre
             error=str(result.get("error") or ""),
             safe_error_message="" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")),
         )
+        register_beta_activity(1)
+        log_beta_event(
+            "creator_render",
+            workflow="music",
+            preset_bundle=str(selected_preset.get("label") or selected_preset.get("preset_id") or ""),
+            metadata={
+                "status": "completed" if result.get("ok") else "failed",
+                "ok": bool(result.get("ok")),
+                "mood_preset": str(selected_preset.get("label") or ""),
+                "hook_style": str(selected_preset.get("hook_style") or ""),
+                "render_duration": render_duration,
+                "page": "Song Studio",
+            },
+        )
     return result
+
+
+def _export_beta_feedback(project: dict[str, Any], message: str = "") -> dict[str, Any]:
+    try:
+        feedback_dir = ROOT / "project_data" / "feedback"
+        feedback_dir.mkdir(parents=True, exist_ok=True)
+        project_name = project.get("title") or "project"
+        song = project.get("song", {}) or {}
+        clip = song.get("creator_clip") or song.get("short_clip") or {}
+        render_data = clip.get("real_output") or {}
+        health = project_health_summary(project_name, "song").get("data", {})
+        profile = load_beta_access()
+        payload = {
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "app_version": APP_VERSION,
+            "build_version": BUILD_VERSION,
+            "beta_status": profile.get("beta_status", "active"),
+            "creator_id": profile.get("creator_id", ""),
+            "creator_name": profile.get("creator_name", ""),
+            "message": message,
+            "project": {
+                "title": project_name,
+                "workflow_type": project.get("workflow_type") or project.get("project_type") or "song",
+            },
+            "render_stage": render_data.get("render_stage", {}),
+            "diagnostics_summary": {
+                "render_status": health.get("render_status", ""),
+                "cache_health": health.get("cache_health", ""),
+                "storage_usage": health.get("storage_usage", ""),
+                "failed_stages": health.get("failed_stages", []),
+            },
+            "api_keys_exported": False,
+        }
+        path = feedback_dir / f"feedback_{safe_name(project_name)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return {"ok": True, "message": "Feedback saved", "data": {"path": str(path), "payload": payload}, "error": ""}
+    except Exception as exc:
+        return {"ok": False, "message": "Feedback export failed", "data": {}, "error": str(exc)}
 
 
 def _render_creator_music_flow(project: dict[str, Any]) -> None:
@@ -1054,9 +1129,20 @@ def _render_creator_music_flow(project: dict[str, Any]) -> None:
     health = project_health_summary(project.get("title") or "My Viral Clip", "song")
     if health.get("ok"):
         data = health.get("data", {})
-        h1, h2 = st.columns(2)
+        analytics = beta_analytics_summary().get("data", {})
+        h1, h2, h3 = st.columns(3)
         h1.caption(f"Render success rate: {data.get('render_success_rate', 0)}%")
-        h2.caption(f"Storage: {data.get('storage_usage', '0 B')}")
+        h2.caption(f"Avg render time: {analytics.get('avg_render_duration', 0)}s")
+        h3.caption(f"Storage: {data.get('storage_usage', '0 B')}")
+    with st.expander("Send Feedback", expanded=False):
+        feedback_text = st.text_area("Feedback note", value="", height=90, key="creator_feedback_note", placeholder="บอกเราว่าคลิปนี้ใช้ได้ไหม มีอะไรที่อยากให้ปรับ")
+        if st.button("Send Feedback", use_container_width=True, key="creator_send_feedback"):
+            feedback = _export_beta_feedback(project, feedback_text)
+            if feedback.get("ok"):
+                st.success("Feedback saved for beta review.")
+                st.caption((feedback.get("data") or {}).get("path", ""))
+            else:
+                st.warning(friendly_error_message(feedback.get("error") or feedback.get("message")))
     with st.expander("Advanced / Developer Tools", expanded=False):
         st.caption("เปิด Developer Mode จาก sidebar เพื่อใช้ Song Studio แบบเต็ม, provider diagnostics, queue metadata และ workflow tools ทั้งหมด")
 
@@ -2796,6 +2882,21 @@ _sync_navigation_state()
 
 with st.sidebar:
     st.header("Music Flow")
+    beta_profile = load_beta_access()
+    st.info(
+        f"VelaFlow Closed Beta\n\nFounding Creator Build\n\nVersion {APP_VERSION} · Build {BUILD_VERSION}\n\nStatus: {str(beta_profile.get('beta_status', 'active')).title()}",
+        icon="✨",
+    )
+    with st.expander("Founding Member", expanded=False):
+        creator_name = st.text_input("Creator Name", value=str(beta_profile.get("creator_name") or "Founding Creator"), key="beta_creator_name")
+        creator_id = st.text_input("Creator ID", value=str(beta_profile.get("creator_id") or ""), key="beta_creator_id")
+        st.caption(f"Joined: {beta_profile.get('joined_at', '-')}")
+        st.caption(f"Total renders: {beta_profile.get('total_renders', 0)}")
+        st.caption(f"Last active: {beta_profile.get('last_active', '-')}")
+        if st.button("Save Founding Member", use_container_width=True, key="save_founding_member"):
+            save_beta_access({"creator_name": creator_name, "creator_id": creator_id or safe_name(creator_name)})
+            st.success("Founding member profile saved")
+            st.rerun()
     developer_mode = st.checkbox(
         "Advanced / Developer Mode",
         value=bool(st.session_state.get("developer_mode", False)),
