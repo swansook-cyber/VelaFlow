@@ -2005,9 +2005,15 @@ def _render_suno_downloads(project_name: str, song: dict[str, Any]) -> None:
     )
     if d3.button("Copy Lyrics for Suno", use_container_width=True, key="show_copy_lyrics_for_suno_btn", help="เปิดกล่องเนื้อเพลงเพื่อคัดลอกไปวางใน Suno ได้ง่ายขึ้น"):
         st.session_state.show_copy_lyrics_for_suno_open = True
+    creator_mode = not st.session_state.get("developer_mode", False)
+    continue_label = "Continue to Clip Studio" if creator_mode else "Continue to MV Director"
+    continue_help = "ไปต่อขั้นตอนอัปโหลดเพลงและสร้าง cinematic hook clip" if creator_mode else "ไปต่อขั้นตอนวางแผน MV จากเนื้อเพลงที่บันทึกแล้ว"
     with d4:
-        if st.button("Continue to MV Director", use_container_width=True, key="suno_continue_mv", help="ไปต่อขั้นตอนวางแผน MV จากเนื้อเพลงที่บันทึกแล้ว"):
-            _continue_to_mv_director()
+        if st.button(continue_label, use_container_width=True, key="suno_continue_mv", help=continue_help):
+            if creator_mode:
+                go_to_page("MUSIC", "Hook Clip Studio")
+            else:
+                _continue_to_mv_director()
     with st.expander("Copy Lyrics for Suno", expanded=st.session_state.get("show_copy_lyrics_for_suno_open", True)):
         st.caption("คัดลอกเนื้อเพลงส่วนนี้ไปใช้กับ Suno ได้ทันที")
         st.text_area("Copy-ready lyrics", value=data.get("lyrics_only_text", lyrics), height=260, key="copy_lyrics_for_suno", help="เนื้อเพลงที่ผ่านการจัดรูปแบบและแก้แท็กเครื่องดนตรีแล้ว")
@@ -2313,11 +2319,14 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     song = normalize_song_metadata(raw_song, get_artist_preset(raw_artist_id or default_artist_id))
     project["song"] = song
     current_artist_id = raw_artist_id or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
-    if not st.session_state.get("developer_mode", False):
-        _render_creator_music_flow(project)
-        return
+    creator_mode = not st.session_state.get("developer_mode", False)
+    if creator_mode:
+        st.info(
+            "Creator Mode: สร้าง hook, เขียนเนื้อเพลง, export ไป Suno, อัปโหลดเพลงที่ทำเสร็จ แล้วสร้าง cinematic hook clip ได้ในหน้านี้",
+            icon="🎵",
+        )
 
-    if creative_direction:
+    if creative_direction and not creator_mode:
         with st.container(border=True):
             st.markdown("**Creative Direction Loaded**")
             dc1, dc2, dc3, dc4 = st.columns(4)
@@ -2333,41 +2342,43 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 _save_project()
                 st.rerun()
 
-    with st.expander("Song Structure Intelligence", expanded=False):
-        structure_presets = list_structure_presets()
-        structure_labels = [item.get("name", item.get("preset_id", "")) for item in structure_presets] or ["Vela Moon Pop Rock"]
-        current_structure_id = structure_plan.get("preset_id") or "vela_moon_pop_rock"
-        current_structure_index = next((idx for idx, item in enumerate(structure_presets) if item.get("preset_id") == current_structure_id), 0)
-        selected_structure_label = st.selectbox("Structure Preset", structure_labels, index=current_structure_index, key="song_structure_preset", help="เลือกโครงสร้างเพลงคร่าว ๆ เพื่อช่วยวางท่อนและพลังของเพลง")
-        selected_structure = structure_presets[structure_labels.index(selected_structure_label)] if structure_presets else get_structure_preset("vela_moon_pop_rock")
-        use_structure_plan = st.checkbox("Use Structure Plan for Lyrics", value=st.session_state.get("use_structure_plan_for_lyrics", True), key="use_structure_plan_for_lyrics")
-        if st.button("Generate / Refresh Structure Plan", key="song_generate_structure_plan", help="สร้างหรืออัปเดตแผนโครงสร้างเพลงจากไอเดียและพรีเซ็ตปัจจุบัน"):
-            context = {
-                **creative_direction,
-                "topic": creative_direction.get("topic") or project.get("title", ""),
-                "mood": creative_direction.get("mood", ""),
-                "genre": creative_direction.get("music_direction", ""),
-                "artist_preset": current_artist_id,
-                "target_platform": creative_direction.get("target_platform", "Full Pipeline"),
-                "selected_hook": song.get("selected_hook", {}),
-            }
-            structure_plan = create_structure_plan(context, selected_structure.get("preset_id"), get_artist_preset(current_artist_id))
-            project["song_structure_plan"] = structure_plan
-            project.setdefault("song", {})["song_structure_plan"] = structure_plan
-            st.session_state.song_structure_plan = structure_plan
-            save_structure_plan(project.get("title", "project"), structure_plan)
-            _save_project()
-            st.success("Song structure plan generated")
-            st.rerun()
-        if structure_plan:
-            st.write(f"Selected structure preset: {structure_plan.get('preset_name', '')}")
-            st.caption(f"Hook placement: {structure_plan.get('recommended_hook_placement', '')}")
-            st.caption(f"Emotional arc: {structure_plan.get('emotional_arc', '')}")
-            st.dataframe(pd.DataFrame(_structure_energy_rows(structure_plan)), use_container_width=True, height=260)
-            with st.container(border=True):
-                st.markdown("**Notes for lyrics / MV Director**")
-                st.caption(structure_plan.get("notes_for_lyrics_generation", ""))
-                st.caption(structure_plan.get("notes_for_mv_director", ""))
+    use_structure_plan = st.session_state.get("use_structure_plan_for_lyrics", True)
+    if not creator_mode:
+        with st.expander("Song Structure Intelligence", expanded=False):
+            structure_presets = list_structure_presets()
+            structure_labels = [item.get("name", item.get("preset_id", "")) for item in structure_presets] or ["Vela Moon Pop Rock"]
+            current_structure_id = structure_plan.get("preset_id") or "vela_moon_pop_rock"
+            current_structure_index = next((idx for idx, item in enumerate(structure_presets) if item.get("preset_id") == current_structure_id), 0)
+            selected_structure_label = st.selectbox("Structure Preset", structure_labels, index=current_structure_index, key="song_structure_preset", help="เลือกโครงสร้างเพลงคร่าว ๆ เพื่อช่วยวางท่อนและพลังของเพลง")
+            selected_structure = structure_presets[structure_labels.index(selected_structure_label)] if structure_presets else get_structure_preset("vela_moon_pop_rock")
+            use_structure_plan = st.checkbox("Use Structure Plan for Lyrics", value=st.session_state.get("use_structure_plan_for_lyrics", True), key="use_structure_plan_for_lyrics")
+            if st.button("Generate / Refresh Structure Plan", key="song_generate_structure_plan", help="สร้างหรืออัปเดตแผนโครงสร้างเพลงจากไอเดียและพรีเซ็ตปัจจุบัน"):
+                context = {
+                    **creative_direction,
+                    "topic": creative_direction.get("topic") or project.get("title", ""),
+                    "mood": creative_direction.get("mood", ""),
+                    "genre": creative_direction.get("music_direction", ""),
+                    "artist_preset": current_artist_id,
+                    "target_platform": creative_direction.get("target_platform", "Full Pipeline"),
+                    "selected_hook": song.get("selected_hook", {}),
+                }
+                structure_plan = create_structure_plan(context, selected_structure.get("preset_id"), get_artist_preset(current_artist_id))
+                project["song_structure_plan"] = structure_plan
+                project.setdefault("song", {})["song_structure_plan"] = structure_plan
+                st.session_state.song_structure_plan = structure_plan
+                save_structure_plan(project.get("title", "project"), structure_plan)
+                _save_project()
+                st.success("Song structure plan generated")
+                st.rerun()
+            if structure_plan:
+                st.write(f"Selected structure preset: {structure_plan.get('preset_name', '')}")
+                st.caption(f"Hook placement: {structure_plan.get('recommended_hook_placement', '')}")
+                st.caption(f"Emotional arc: {structure_plan.get('emotional_arc', '')}")
+                st.dataframe(pd.DataFrame(_structure_energy_rows(structure_plan)), use_container_width=True, height=260)
+                with st.container(border=True):
+                    st.markdown("**Notes for lyrics / MV Director**")
+                    st.caption(structure_plan.get("notes_for_lyrics_generation", ""))
+                    st.caption(structure_plan.get("notes_for_mv_director", ""))
 
     left, right = st.columns([1.1, 0.9])
     with left:
@@ -2406,13 +2417,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         }
         st.caption(f"AI controls range: Weirdness {current_ranges['Weirdness']} / Style Influence {current_ranges['Style Influence']}")
         style_override = st.text_area("Music Style Prompt Override", value=preset.get("default_music_style_prompt", ""), height=120, help="แก้รายละเอียดดนตรีเพิ่มเติม ถ้าอยากระบุเครื่องดนตรีหรือโทนเพลงเอง")
-        with st.expander("Preset Summary", expanded=True):
+        with st.expander("Preset Summary", expanded=not creator_mode):
             st.write(f"Genre: {preset.get('genre', '')}")
             st.write(f"Vocal: {preset.get('vocal_style', '')}")
             st.write(", ".join(preset.get("main_instruments", []) or []))
-            st.json(preset.get("suno_advanced_settings", {}), expanded=False)
-        with st.expander("Music Preset Details", expanded=False):
-            st.json(selected_music_preset, expanded=False)
+            if not creator_mode:
+                st.json(preset.get("suno_advanced_settings", {}), expanded=False)
+        if not creator_mode:
+            with st.expander("Music Preset Details", expanded=False):
+                st.json(selected_music_preset, expanded=False)
 
     hook_candidates = normalize_hook_candidates(song.get("hook_candidates") or song.get("candidate_hooks") or st.session_state.get("hook_candidates", []))
     selected_hook = song.get("selected_hook") if isinstance(song.get("selected_hook"), dict) else st.session_state.get("selected_hook", {})
@@ -2843,7 +2856,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.rerun()
 
         st.markdown("## ✅ Preview / Download")
-        _render_project_health_card(project.get("title") or song.get("title") or title, "song", "song_short_project_health")
+        if st.session_state.get("developer_mode"):
+            _render_project_health_card(project.get("title") or song.get("title") or title, "song", "song_short_project_health")
         quick_data = short_clip.get("quick_generate") or {}
         if real_output:
             _render_final_downloads("song_short_clip", real_output)
@@ -3007,14 +3021,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 else:
                     st.warning(result.get("message", "No saved song found"))
             saved_folder = resolve_project_folder(project.get("title", title), project.get("workflow_type") or project.get("project_type"))
-            with st.expander("Advanced saved paths", expanded=False):
-                st.json({
-                    "song_json": str(saved_folder / "song.json"),
-                    "lyrics_txt": str(saved_folder / "lyrics.txt"),
-                    "suno_full_package": str(saved_folder / "exports"),
-                    "lyrics_only": str(saved_folder / "exports" / "lyrics_only.txt"),
-                    "ready_for_hook_short_clip": bool(song.get("normalized_song_output") or song.get("complete_lyrics")),
-                }, expanded=False)
+            if st.session_state.get("developer_mode"):
+                with st.expander("Advanced saved paths", expanded=False):
+                    st.json({
+                        "song_json": str(saved_folder / "song.json"),
+                        "lyrics_txt": str(saved_folder / "lyrics.txt"),
+                        "suno_full_package": str(saved_folder / "exports"),
+                        "lyrics_only": str(saved_folder / "exports" / "lyrics_only.txt"),
+                        "ready_for_hook_short_clip": bool(song.get("normalized_song_output") or song.get("complete_lyrics")),
+                    }, expanded=False)
             _render_suno_downloads(project.get("title", title), song)
         with t6:
             drafts = list_song_drafts(project.get("title", title))
@@ -3041,8 +3056,9 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 st.dataframe(pd.DataFrame(drafts), use_container_width=True)
             else:
                 st.info("ยังไม่มี draft history")
-        with st.expander("TikTok Cut Recommendation", expanded=False):
-            st.json(song.get("tiktok_clip_cut_recommendation", []), expanded=False)
+        if st.session_state.get("developer_mode"):
+            with st.expander("TikTok Cut Recommendation", expanded=False):
+                st.json(song.get("tiktok_clip_cut_recommendation", []), expanded=False)
 
 
 _ensure_state()
