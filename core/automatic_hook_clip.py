@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -60,6 +61,45 @@ VOICE_STYLE_MAP = {
     "music": "emotional storyteller",
 }
 
+CINEMATIC_SHOT_VARIATIONS = [
+    {
+        "shot_type": "wide negative-space composition",
+        "framing_variation": "wide shot with the character small in frame, empty room space carrying the emotion",
+        "camera_distance_variation": "wide shot",
+        "emotional_angle_variation": "lonely atmosphere before the lyric lands",
+        "lighting_evolution": "soft natural intro light with gentle shadows",
+        "pose_evolution": "still body language, slight head tilt toward window light",
+        "motion_variation": "slow breathing push-in",
+    },
+    {
+        "shot_type": "medium profile / over-shoulder shot",
+        "framing_variation": "medium emotional side profile, shoulder and phone/reflection visible, same room",
+        "camera_distance_variation": "medium shot",
+        "emotional_angle_variation": "private memory moment, stronger isolation",
+        "lighting_evolution": "mood isolation with practical room light and deeper side shadow",
+        "pose_evolution": "subtle head turn or hand tightening around phone",
+        "motion_variation": "subtle handheld drift",
+    },
+    {
+        "shot_type": "close-up eyes / emotional push-in",
+        "framing_variation": "close-up eyes near upper third, face fills frame without covering subtitle area",
+        "camera_distance_variation": "close-up",
+        "emotional_angle_variation": "strongest hook lyric, eye contact and emotional impact",
+        "lighting_evolution": "stronger contrast, catchlight in eyes, emotional shadow depth",
+        "pose_evolution": "small breath, almost crying but controlled",
+        "motion_variation": "emotional push-in",
+    },
+    {
+        "shot_type": "reflection release shot",
+        "framing_variation": "medium close-up reflection or silhouette, same clothes and room palette",
+        "camera_distance_variation": "medium close-up",
+        "emotional_angle_variation": "soft release after the hook peak",
+        "lighting_evolution": "softer release light, quiet ending falloff",
+        "pose_evolution": "turning away slowly or lowering gaze",
+        "motion_variation": "slow pull out",
+    },
+]
+
 
 def export_tiktok_package(project_name: str, package: dict[str, Any], render_data: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
@@ -115,6 +155,11 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             debug_dir = final_dir / "debug"
             debug_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(scene_generation_report, ensure_parent_dir(debug_dir / "scene_generation_report.json"))
+        shot_variation_report = Path(str(render_data.get("shot_variation_report") or package.get("shot_variation_report_path") or ""))
+        if shot_variation_report.is_file():
+            debug_dir = final_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(shot_variation_report, ensure_parent_dir(debug_dir / "shot_variation_report.json"))
         hook_analysis_file = Path(str(render_data.get("hook_analysis") or package.get("hook_analysis_path") or ""))
         if hook_analysis_file.is_file():
             shutil.copy2(hook_analysis_file, ensure_parent_dir(final_dir / "hook_analysis.json"))
@@ -177,6 +222,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "render_pipeline_report": str(final_dir / "debug" / "render_pipeline_report.json") if (final_dir / "debug" / "render_pipeline_report.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
             "scene_generation_report": str(final_dir / "debug" / "scene_generation_report.json") if (final_dir / "debug" / "scene_generation_report.json").is_file() else "",
+            "shot_variation_report": str(final_dir / "debug" / "shot_variation_report.json") if (final_dir / "debug" / "shot_variation_report.json").is_file() else "",
             "hook_analysis": str(final_dir / "hook_analysis.json") if (final_dir / "hook_analysis.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
             "files": written,
@@ -250,6 +296,7 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
     prompt = str(scene.get("visual_prompt") or "").strip()
     lighting = str(scene.get("lighting") or "natural cinematic lighting").strip()
     camera = str(scene.get("camera_direction") or "vertical creator shot").strip()
+    shot_variation = scene.get("shot_variation") or {}
     if not prompt:
         prompt = f"short-form scene about {idea}"
     style_suffix = ""
@@ -263,12 +310,49 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
         style_suffix = ", music video cinematic frame, dramatic film look"
     base = (
         f"{prompt}, {camera}, {lighting}{style_suffix}, high quality composition, "
+        f"shot variation: {shot_variation.get('framing_variation', scene.get('shot_type', 'cinematic shot'))}, "
+        f"camera distance: {shot_variation.get('camera_distance_variation', scene.get('camera_distance', 'cinematic'))}, "
+        f"emotional angle: {shot_variation.get('emotional_angle_variation', scene.get('emotional_intent', 'emotional'))}, "
+        f"lighting evolution: {shot_variation.get('lighting_evolution', scene.get('lighting_direction', lighting))}, "
+        f"subtle pose evolution: {shot_variation.get('pose_evolution', scene.get('subject_action', 'natural emotional pose'))}, "
         "single full-screen 9:16 cinematic frame, one scene at a time, no collage, no split screen, "
         "no stacked panels, no tiled frames, not a contact sheet, not a storyboard page, not a grid montage, "
         "same character continuity, same environment continuity, same emotional lighting palette, "
-        "clear subject, no watermark, no random text"
+        "unique framing compared with every other scene, no copy-paste composition, clear subject, no watermark, no random text"
     )
     return apply_character_consistency(base, character_profile, consistency_strength)
+
+
+def _apply_cinematic_shot_variations(package: dict[str, Any], director_plan: dict[str, Any]) -> dict[str, Any]:
+    director_scenes = director_plan.get("scenes") or []
+    scenes = package.get("scene_sequence") or []
+    for index, scene in enumerate(scenes, start=1):
+        variation = CINEMATIC_SHOT_VARIATIONS[min(index - 1, len(CINEMATIC_SHOT_VARIATIONS) - 1)]
+        scene["shot_variation"] = variation
+        scene["shot_type"] = variation["shot_type"] if scene.get("hook_peak_scene") else scene.get("shot_type") or variation["shot_type"]
+        scene["framing_variation"] = variation["framing_variation"]
+        scene["camera_distance_variation"] = variation["camera_distance_variation"]
+        scene["emotional_angle_variation"] = variation["emotional_angle_variation"]
+        scene["lighting_evolution"] = variation["lighting_evolution"]
+        scene["pose_evolution"] = variation["pose_evolution"]
+        if variation["motion_variation"] == "emotional push-in":
+            scene["motion_effect"] = "hook_energy_zoom" if scene.get("hook_peak_scene") else "emotional_push_in"
+        elif variation["motion_variation"] == "subtle handheld drift":
+            scene["motion_effect"] = "cinematic_drift"
+        elif variation["motion_variation"] == "slow pull out":
+            scene["motion_effect"] = "slow_cinematic"
+    for index, directed in enumerate(director_scenes, start=1):
+        variation = CINEMATIC_SHOT_VARIATIONS[min(index - 1, len(CINEMATIC_SHOT_VARIATIONS) - 1)]
+        directed["shot_variation"] = variation
+        directed["framing_variation"] = variation["framing_variation"]
+        directed["camera_distance_variation"] = variation["camera_distance_variation"]
+        directed["emotional_angle_variation"] = variation["emotional_angle_variation"]
+        directed["lighting_evolution"] = variation["lighting_evolution"]
+        directed["pose_evolution"] = variation["pose_evolution"]
+        directed["motion_variation"] = variation["motion_variation"]
+    director_plan["shot_variation_engine"] = "cinematic_shot_variation_engine_v1"
+    director_plan["shot_types_used"] = [scene.get("shot_variation", {}).get("shot_type", scene.get("shot_type", "")) for scene in scenes]
+    return package
 
 
 def _divider_strength(values: list[int]) -> float:
@@ -338,6 +422,24 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
     return result
 
 
+def _image_average_hash(path: str | Path, *, size: int = 8) -> str:
+    try:
+        with Image.open(path) as image:
+            gray = image.convert("L").resize((size, size))
+            pixels = list(gray.getdata())
+    except Exception:
+        return ""
+    avg = sum(pixels) / max(1, len(pixels))
+    return "".join("1" if pixel >= avg else "0" for pixel in pixels)
+
+
+def _hash_similarity(hash_a: str, hash_b: str) -> float:
+    if not hash_a or not hash_b or len(hash_a) != len(hash_b):
+        return 0.0
+    matches = sum(1 for left, right in zip(hash_a, hash_b) if left == right)
+    return round(matches / len(hash_a), 4)
+
+
 def _write_scene_generation_report(project_name: str, image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
     validations = []
     for item in image_results or []:
@@ -382,6 +484,66 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
     path = ensure_parent_dir(output_path)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": not forbidden and report["fullscreen_validation"]["all_vertical_9x16"], "message": "Scene generation report exported", "data": {"path": str(path), "report": report}, "error": "scene_image_contact_sheet_detected" if forbidden else ""}
+
+
+def _write_shot_variation_report(package: dict[str, Any], image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
+    scenes = package.get("scene_sequence") or []
+    shot_types = [str(scene.get("shot_variation", {}).get("shot_type") or scene.get("shot_type") or "") for scene in scenes]
+    framing = [str(scene.get("framing_variation") or scene.get("camera_distance_variation") or "") for scene in scenes]
+    motion = [str(scene.get("motion_effect") or "") for scene in scenes]
+    hashes = []
+    digests = []
+    for item in image_results or []:
+        image_path = Path(str(item.get("path") or ""))
+        hashes.append({"scene_id": item.get("scene_id", ""), "hash": _image_average_hash(image_path)})
+        digests.append({"scene_id": item.get("scene_id", ""), "digest": hashlib.sha256(image_path.read_bytes()).hexdigest() if image_path.is_file() else ""})
+    pair_scores = []
+    exact_duplicate = False
+    for left_index in range(len(hashes)):
+        for right_index in range(left_index + 1, len(hashes)):
+            similarity = _hash_similarity(hashes[left_index]["hash"], hashes[right_index]["hash"])
+            same_digest = bool(digests[left_index]["digest"] and digests[left_index]["digest"] == digests[right_index]["digest"])
+            exact_duplicate = exact_duplicate or same_digest
+            pair_scores.append(
+                {
+                    "left_scene": hashes[left_index]["scene_id"],
+                    "right_scene": hashes[right_index]["scene_id"],
+                    "perceptual_similarity": similarity,
+                    "exact_duplicate": same_digest,
+                }
+            )
+    raw_duplicate_score = max([float(item["perceptual_similarity"]) for item in pair_scores] or [0.0])
+    duplicate_frame_score = 1.0 if exact_duplicate else min(0.99, raw_duplicate_score)
+    framing_diversity_score = round((len(set(shot_types)) + len(set(framing))) / max(1, len(shot_types) + len(framing)), 3)
+    motion_evolution_score = round(len(set(motion)) / max(1, len(motion)), 3)
+    repeated_shot_failure = framing_diversity_score < 0.5 or motion_evolution_score < 0.5
+    duplicate_failure = exact_duplicate
+    report = {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "engine": "cinematic_shot_variation_engine_v1",
+        "shot_types_used": shot_types,
+        "framing_variations": framing,
+        "motion_effects": motion,
+        "framing_diversity_score": framing_diversity_score,
+        "duplicate_frame_score": duplicate_frame_score,
+        "raw_perceptual_similarity_score": raw_duplicate_score,
+        "motion_evolution_score": motion_evolution_score,
+        "duplicate_frame_pairs": pair_scores,
+        "exact_duplicate_detected": exact_duplicate,
+        "no_identical_scene_reuse": not duplicate_failure,
+        "framing_evolution_exists": not repeated_shot_failure,
+        "motion_evolution_exists": motion_evolution_score >= 0.5,
+        "validation": {
+            "ok": not duplicate_failure and not repeated_shot_failure,
+            "duplicate_failure": duplicate_failure,
+            "repeated_shot_failure": repeated_shot_failure,
+        },
+    }
+    path = ensure_parent_dir(output_path)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    error = "duplicate_scene_frame_detected" if duplicate_failure else "weak_shot_variation_detected" if repeated_shot_failure else ""
+    return {"ok": report["validation"]["ok"], "message": "Shot variation report exported", "data": {"path": str(path), "report": report}, "error": error}
 
 
 def _apply_preset_to_scenes(package: dict[str, Any], preset: dict[str, Any]) -> None:
@@ -632,6 +794,7 @@ def quick_generate_hook_clip(
             audio_duration=float(beat_timing_plan.get("duration") or duration_seconds),
         )
         apply_scene_director_to_package(package, director_plan)
+        _apply_cinematic_shot_variations(package, director_plan)
         director_result = save_scene_director_plan(director_plan, exports_dir / "scene_director_plan.json")
         package["scene_director_plan_path"] = (director_result.get("data") or {}).get("path", "")
         scene_prompt_style = "Cute Character" if preset.get("preset_id") == "cute_character" else "TikTok Meme" if preset.get("preset_id") == "viral_meme" else "Emotional"
@@ -687,6 +850,23 @@ def quick_generate_hook_clip(
                 },
                 "error": scene_generation_result.get("error") or "scene_image_fullscreen_validation_failed",
             }
+        shot_variation_result = _write_shot_variation_report(package, image_results, exports_dir / "debug" / "shot_variation_report.json")
+        package["shot_variation_report_path"] = (shot_variation_result.get("data") or {}).get("path", "")
+        if not shot_variation_result.get("ok"):
+            mark_stage("generating_scenes", "failed")
+            return {
+                "ok": False,
+                "message": "Scene image generation failed shot variation validation",
+                "data": {
+                    "package": package,
+                    "image_results": image_results,
+                    "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                    "shot_variation_report": (shot_variation_result.get("data") or {}).get("report", {}),
+                    "shot_variation_report_path": package.get("shot_variation_report_path", ""),
+                    "progress_stages": progress_stages,
+                },
+                "error": shot_variation_result.get("error") or "shot_variation_validation_failed",
+            }
         image_manifest_path = ensure_parent_dir(exports_dir / "image_generation_manifest.json")
         image_manifest = {
             "generated_by": "VelaFlow",
@@ -696,6 +876,7 @@ def quick_generate_hook_clip(
             "fallback_count": sum(1 for item in image_results if item.get("fallback_used")),
             "images": image_results,
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+            "shot_variation_report_path": package.get("shot_variation_report_path", ""),
             "api_keys_exported": False,
         }
         image_manifest_path.write_text(json.dumps(image_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -768,6 +949,7 @@ def quick_generate_hook_clip(
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
             "scene_generation_report": package.get("scene_generation_report_path", ""),
+            "shot_variation_report": package.get("shot_variation_report_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
             "render_pipeline_report_path": (render_result.get("data") or {}).get("render_pipeline_report_path", ""),
         }
@@ -795,6 +977,7 @@ def quick_generate_hook_clip(
             "image_generation_manifest": image_manifest,
             "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+            "shot_variation_report_path": package.get("shot_variation_report_path", ""),
             "character_profile": character_profile or {},
             "character_profile_path": (character_save.get("data") or {}).get("path", ""),
             "hook_analysis": hook_analysis,
@@ -830,6 +1013,7 @@ def quick_generate_hook_clip(
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
         render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
+        render_manifest_payload["shot_variation_report_path"] = package.get("shot_variation_report_path", "")
         render_manifest_payload["render_stage_path"] = (render_result.get("data") or {}).get("render_stage_path", "")
         render_manifest_payload["render_pipeline_report_path"] = (render_result.get("data") or {}).get("render_pipeline_report_path", "")
         render_manifest_payload["progress_stages"] = progress_stages
@@ -851,6 +1035,7 @@ def quick_generate_hook_clip(
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                    "shot_variation_report_path": package.get("shot_variation_report_path", ""),
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -868,6 +1053,7 @@ def quick_generate_hook_clip(
                 "image_results": image_results,
                 "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                 "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                "shot_variation_report_path": package.get("shot_variation_report_path", ""),
                 "character_profile": character_profile or {},
                 "character_profile_path": (character_save.get("data") or {}).get("path", ""),
                 "hook_analysis": hook_analysis,

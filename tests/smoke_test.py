@@ -1127,6 +1127,14 @@ def main():
         assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("all_vertical_9x16"), "scene image report did not enforce vertical 9:16")
         assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("all_single_composition"), "scene image report detected multi-frame composition")
         assert_true(scene_generation_report.get("forbidden_scene_image_layout_found") is False, "scene generation report found contact-sheet/grid layout")
+        shot_variation_report_path = Path(quick_data.get("shot_variation_report_path", ""))
+        assert_true(shot_variation_report_path.exists(), "shot_variation_report.json missing")
+        shot_variation_report = json.loads(shot_variation_report_path.read_text(encoding="utf-8"))
+        assert_true(shot_variation_report.get("engine") == "cinematic_shot_variation_engine_v1", "shot variation engine missing")
+        assert_true(len(set(shot_variation_report.get("shot_types_used") or [])) >= 3, "shot variation did not create varied shot types")
+        assert_true(float(shot_variation_report.get("framing_diversity_score") or 0) >= 0.5, "framing diversity too weak")
+        assert_true(float(shot_variation_report.get("motion_evolution_score") or 0) >= 0.5, "motion evolution too weak")
+        assert_true(float(shot_variation_report.get("duplicate_frame_score") or 0) < 0.995 and shot_variation_report.get("exact_duplicate_detected") is False, "duplicate scene frame detected")
         assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
         subtitle_text = Path(quick_data["render"]["subtitles"]).read_text(encoding="utf-8-sig")
         styled_text = Path((quick_data.get("styled_subtitles") or {}).get("ass", "")).read_text(encoding="utf-8-sig")
@@ -1184,6 +1192,7 @@ def main():
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true((tiktok_final_dir / "debug" / "render_pipeline_report.json").exists(), "TikTok package missing debug/render_pipeline_report.json")
         assert_true((tiktok_final_dir / "debug" / "scene_generation_report.json").exists(), "TikTok package missing debug/scene_generation_report.json")
+        assert_true((tiktok_final_dir / "debug" / "shot_variation_report.json").exists(), "TikTok package missing debug/shot_variation_report.json")
         for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
             path = tiktok_final_dir / filename
             assert_true(path.exists() and path.read_text(encoding="utf-8-sig").strip(), f"creator export package missing {filename}")
