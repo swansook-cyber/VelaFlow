@@ -851,6 +851,216 @@ def _render_tiktok_package_downloads(section_key: str, package_data: dict[str, A
             )
 
 
+def _render_creator_package_downloads(section_key: str, package_data: dict[str, Any]) -> None:
+    final_dir = Path(str((package_data or {}).get("final_dir") or ""))
+    if not final_dir.exists():
+        return
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for filename in [
+            "final_hook_clip.mp4",
+            "thumbnail.jpg",
+            "captions.txt",
+            "hashtags.txt",
+            "title.txt",
+            "title_ideas.txt",
+            "upload_checklist.txt",
+            "subtitles.srt",
+        ]:
+            path = final_dir / filename
+            if path.is_file():
+                archive.write(path, path.name)
+    st.download_button(
+        "Download TikTok Package ZIP",
+        data=zip_buffer.getvalue(),
+        file_name="velaflow_tiktok_package.zip",
+        mime="application/zip",
+        use_container_width=True,
+        key=f"{section_key}_download_creator_package_zip",
+    )
+
+
+def _render_creator_metrics(quick_data: dict[str, Any]) -> None:
+    viral_metrics = quick_data.get("viral_metrics") or ((quick_data.get("package") or {}).get("viral_metrics") or {})
+    if not viral_metrics:
+        return
+    thumbnail_quality = ((quick_data.get("thumbnail") or {}).get("score") or ((quick_data.get("tiktok_package") or {}).get("thumbnail_quality") or 0))
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Hook", viral_metrics.get("hook_score", 0))
+    m2.metric("Emotion", viral_metrics.get("emotional_impact", viral_metrics.get("emotional_score", 0)))
+    m3.metric("Pacing", viral_metrics.get("viral_pacing", 0))
+    m4.metric("Thumbnail", thumbnail_quality or "-")
+    m5.metric("Retention", viral_metrics.get("tiktok_retention_potential", viral_metrics.get("replay_potential", 0)))
+
+
+def _creator_image_settings() -> tuple[str, dict[str, Any]]:
+    image_settings = {
+        "size": "1024x1536",
+        "quality": "medium",
+        "cache_enabled": False,
+        "openai_api_key": _user_api_key("openai"),
+        "gemini_api_key": _user_api_key("gemini"),
+        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+    }
+    if image_settings["gemini_api_key"]:
+        return "gemini_image", image_settings
+    if image_settings["openai_api_key"]:
+        return "openai_images", image_settings
+    return "offline", image_settings
+
+
+def _run_creator_one_click_clip(project: dict[str, Any], idea: str, selected_preset: dict[str, Any], variation: str, *, force_cache_refresh: bool, force_final_render: bool) -> dict[str, Any]:
+    project_name = project.get("title") or "My Viral Clip"
+    image_provider, image_settings = _creator_image_settings()
+    release_stale_render_jobs(project_name, "song")
+    queue_result = start_creator_render_job(
+        project_name,
+        "song",
+        stage="creator_one_click",
+        metadata={"preset_id": selected_preset.get("preset_id"), "variation": variation},
+    )
+    if not queue_result.get("ok"):
+        return {"ok": False, "message": queue_result.get("message", ""), "data": {}, "error": queue_result.get("error", "active_render_job")}
+    job_id = ((queue_result.get("data") or {}).get("job") or {}).get("job_id", "")
+    result: dict[str, Any] = {"ok": False, "message": "", "data": {}, "error": ""}
+    try:
+        result = quick_generate_hook_clip(
+            project_name,
+            idea,
+            source_workflow="music",
+            clip_mode="Fast Hook",
+            duration_seconds=int(selected_preset.get("default_duration") or 15),
+            image_provider=image_provider,
+            image_settings=image_settings,
+            preset_id=str(selected_preset.get("preset_id") or "emotional_story"),
+            voiceover_style="emotional storyteller",
+            voiceover_api_key=_user_api_key("openai"),
+            subtitle_preset="Thai Emotional MV" if str(selected_preset.get("preset_id")) == "emotional_story" else "TikTok Meme",
+            force_cache_refresh=force_cache_refresh,
+            force_final_render=force_final_render,
+            variation=variation,
+        )
+    except Exception as exc:
+        result = {"ok": False, "message": "Render failed", "data": {}, "error": str(exc)}
+    finally:
+        complete_creator_render_job(
+            project_name,
+            "song",
+            job_id,
+            status="completed" if result.get("ok") else "failed",
+            result={
+                "final_mp4": (result.get("data") or {}).get("final_mp4", ""),
+                "render_stage_path": (result.get("data") or {}).get("render_stage_path", ""),
+            },
+            error=str(result.get("error") or ""),
+            safe_error_message="" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")),
+        )
+    return result
+
+
+def _render_creator_music_flow(project: dict[str, Any]) -> None:
+    st.markdown("## Create a Viral TikTok Clip")
+    st.caption(f"VelaFlow Beta {APP_VERSION} · Creator Mode · One-click music clip workflow")
+    song = project.setdefault("song", {})
+    creator_state = song.get("creator_clip") or song.get("short_clip") or {}
+    content_presets = list_presets()
+    preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
+    default_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
+    with st.container(border=True):
+        idea = st.text_area(
+            "Song Idea",
+            value=st.session_state.get("creator_song_idea", ""),
+            height=140,
+            key="creator_song_idea",
+            placeholder="เช่น เพลงคิดถึงคนเก่าในคืนฝนตก อยากได้คลิปเศร้า ๆ แบบ TikTok",
+            help="ใส่ไอเดียสั้น ๆ หรือวางท่อนเพลงที่อยากทำเป็นคลิป",
+        )
+        selected_label = st.selectbox(
+            "Mood Preset",
+            preset_labels,
+            index=default_index,
+            key="creator_mood_preset",
+            help="เลือกอารมณ์ผลลัพธ์ ระบบจะตั้งค่าภาพ จังหวะ subtitle และ pacing ให้เอง",
+        )
+        selected_preset = content_presets[preset_labels.index(selected_label)] if content_presets else get_preset("emotional_story")
+        st.caption(str(selected_preset.get("description") or "Designed for one-click creator output."))
+        generate_clicked = st.button(
+            "Generate Viral TikTok Clip",
+            type="primary",
+            use_container_width=True,
+            disabled=not bool(idea.strip()),
+            key="creator_generate_viral_tiktok_clip",
+            help="สร้าง hook, scene images, subtitles, MP4 และ TikTok package ในปุ่มเดียว",
+        )
+    retry_variation = st.session_state.pop("creator_retry_variation", "")
+    if retry_variation:
+        generate_clicked = True
+    if generate_clicked:
+        active_variation = retry_variation or "default"
+        force_cache_refresh = active_variation in {"stronger_emotion", "faster_tiktok", "alternate_scene_style"}
+        force_final_render = True
+        status_box = st.status("Creating your TikTok clip...", expanded=True)
+        with status_box:
+            for label in ["Analyzing hook", "Generating scenes", "Rendering video", "Syncing audio", "Exporting package"]:
+                st.write(label)
+            result = _run_creator_one_click_clip(project, idea, selected_preset, active_variation, force_cache_refresh=force_cache_refresh, force_final_render=force_final_render)
+            if result.get("ok"):
+                status_box.update(label="Clip ready", state="complete", expanded=False)
+            else:
+                status_box.update(label=friendly_error_message(result.get("error") or result.get("message")), state="error", expanded=False)
+        data = result.get("data", {}) or {}
+        song["creator_clip"] = {
+            "idea": idea,
+            "preset": selected_preset,
+            "variation": active_variation,
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "quick_generate": data,
+            "real_output": data.get("render", {}),
+            "final_mp4": data.get("final_mp4", ""),
+            "tiktok_package": data.get("tiktok_package", {}),
+            "ok": bool(result.get("ok")),
+            "safe_error_message": "" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")),
+        }
+        song["short_clip"] = song["creator_clip"]
+        project["song"] = song
+        _save_project()
+        _log_beta_event("generate", workflow="music", preset_bundle=str(selected_preset.get("label", "Creator Mode")), metadata={"page": "Song Studio", "mode": "creator"})
+        st.rerun()
+
+    creator_state = (project.get("song", {}) or {}).get("creator_clip") or {}
+    quick_data = creator_state.get("quick_generate") or {}
+    real_output = creator_state.get("real_output") or {}
+    st.markdown("## Final Export Package")
+    if real_output and Path(str(real_output.get("final_mp4") or "")).is_file():
+        _render_final_downloads("creator_music_flow", real_output)
+        _render_creator_metrics(quick_data)
+        _render_creator_package_downloads("creator_music_flow", creator_state.get("tiktok_package") or quick_data.get("tiktok_package") or {})
+        r1, r2, r3, r4 = st.columns(4)
+        if r1.button("Retry Render", use_container_width=True, key="creator_retry_render"):
+            st.session_state["creator_retry_variation"] = "retry_render"
+            st.rerun()
+        if r2.button("Stronger Emotion", use_container_width=True, key="creator_stronger_emotion"):
+            st.session_state["creator_retry_variation"] = "stronger_emotion"
+            st.rerun()
+        if r3.button("Faster TikTok Pace", use_container_width=True, key="creator_faster_tiktok"):
+            st.session_state["creator_retry_variation"] = "faster_tiktok"
+            st.rerun()
+        if r4.button("Alternate Scene Style", use_container_width=True, key="creator_alternate_style"):
+            st.session_state["creator_retry_variation"] = "alternate_scene_style"
+            st.rerun()
+    else:
+        message = creator_state.get("safe_error_message") or "No clip yet. Add a song idea and tap Generate Viral TikTok Clip."
+        st.info(message)
+    health = project_health_summary(project.get("title") or "My Viral Clip", "song")
+    if health.get("ok"):
+        data = health.get("data", {})
+        h1, h2 = st.columns(2)
+        h1.caption(f"Render success rate: {data.get('render_success_rate', 0)}%")
+        h2.caption(f"Storage: {data.get('storage_usage', '0 B')}")
+    with st.expander("Advanced / Developer Tools", expanded=False):
+        st.caption("เปิด Developer Mode จาก sidebar เพื่อใช้ Song Studio แบบเต็ม, provider diagnostics, queue metadata และ workflow tools ทั้งหมด")
+
+
 def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = "song") -> dict[str, Any]:
     if not uploaded:
         return {"ok": False, "message": "No audio uploaded", "data": {}, "error": "missing_upload"}
@@ -1771,6 +1981,9 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     song = normalize_song_metadata(raw_song, get_artist_preset(raw_artist_id or default_artist_id))
     project["song"] = song
     current_artist_id = raw_artist_id or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
+    if not st.session_state.get("developer_mode", False):
+        _render_creator_music_flow(project)
+        return
 
     if creative_direction:
         with st.container(border=True):

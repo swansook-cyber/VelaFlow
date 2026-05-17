@@ -175,6 +175,10 @@ def render_queue_summary(project_name: str, workflow_type: str = "song") -> dict
     jobs = load_creator_render_queue(project_name, workflow_type)["data"]["jobs"]
     active = next((job for job in reversed(jobs) if str(job.get("status", "")).lower() in ACTIVE_STATUSES), None)
     latest = jobs[-1] if jobs else {}
+    completed_count = len([job for job in jobs if str(job.get("status", "")).lower() == "completed"])
+    failed_count = len([job for job in jobs if str(job.get("status", "")).lower() == "failed"])
+    finished_count = completed_count + failed_count
+    success_rate = round((completed_count / finished_count) * 100, 1) if finished_count else 0.0
     return {
         "ok": True,
         "message": "Render queue summary",
@@ -182,7 +186,9 @@ def render_queue_summary(project_name: str, workflow_type: str = "song") -> dict
             "active": active,
             "latest": latest,
             "job_count": len(jobs),
-            "failed_count": len([job for job in jobs if str(job.get("status", "")).lower() == "failed"]),
+            "completed_count": completed_count,
+            "failed_count": failed_count,
+            "success_rate": success_rate,
         },
         "error": "",
     }

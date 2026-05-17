@@ -1077,6 +1077,8 @@ def main():
         assert_true((quick_data["render"].get("render_stage") or {}).get("completed_scene_count") == 3, "quick hook scene render count failed")
         assert_true((quick_data["render"].get("render_stage") or {}).get("subtitle_status") in {"burned", "exported_only"}, "quick hook subtitle status missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("audio_sync_status") in {"matched_hook_audio", "matched_video", "silent_audio"}, "quick hook audio sync status missing")
+        assert_true([item.get("stage") for item in quick_data.get("progress_stages", [])] == ["analyzing_hook", "generating_scenes", "rendering_video", "syncing_audio", "exporting_package", "completed"], "creator progress stages missing")
+        assert_true(quick_data["progress_stages"][-1]["status"] == "completed", "creator progress did not complete")
         assert_true((quick_data["render"].get("validation") or {}).get("valid_mp4") and (quick_data["render"].get("validation") or {}).get("has_video"), "quick hook render validation missing")
         assert_true((quick_data["render"].get("validation") or {}).get("has_audio"), "quick hook final MP4 audio stream missing")
         assert_true("subtitle_burned" in quick_data["render"], "subtitle overlay status missing")
@@ -1137,7 +1139,7 @@ def main():
         restored_autosave = load_autosave_project_state("Smoke Quick Hook Clip", "clips")
         assert_true(restored_autosave["ok"] and restored_autosave["data"]["snapshot"]["payload"]["title"] == "Smoke Quick Hook Clip", "project autosave restore failed")
         health = project_health_summary("Smoke Quick Hook Clip", "clips")
-        assert_true(health["ok"] and health["data"]["render_status"] and health["data"]["storage_usage"], "project health summary failed")
+        assert_true(health["ok"] and health["data"]["render_status"] and health["data"]["storage_usage"] and "render_success_rate" in health["data"], "project health summary failed")
         quick_clip_cached = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
             "เธ—เธ”เธชเธญเธเธเธฅเธดเธเธชเธฑเนเธเนเธเธงเธ•เธฑเนเธเธชเธณเธซเธฃเธฑเธ VelaFlow",

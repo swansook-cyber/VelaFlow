@@ -350,6 +350,22 @@ def quick_generate_hook_clip(
     variation: str = "default",
 ) -> dict[str, Any]:
     try:
+        progress_stages = [
+            {"stage": "analyzing_hook", "label": "Analyzing hook", "status": "pending"},
+            {"stage": "generating_scenes", "label": "Generating scenes", "status": "pending"},
+            {"stage": "rendering_video", "label": "Rendering video", "status": "pending"},
+            {"stage": "syncing_audio", "label": "Syncing audio", "status": "pending"},
+            {"stage": "exporting_package", "label": "Exporting package", "status": "pending"},
+            {"stage": "completed", "label": "Completed", "status": "pending"},
+        ]
+
+        def mark_stage(stage: str, status: str = "completed") -> None:
+            for item in progress_stages:
+                if item.get("stage") == stage:
+                    item["status"] = status
+                    item["updated_at"] = datetime.now().isoformat(timespec="seconds")
+                    break
+
         project_name = project_name or "Quick Hook Clip"
         preset = get_preset(preset_id)
         if character_profile is None and preset.get("preset_id") == "cute_character":
@@ -379,6 +395,7 @@ def quick_generate_hook_clip(
         strongest_hook, viral_metrics = _strongest_hook_text(idea, hook_analysis, preset)
         hook_analysis["viral_metrics"] = viral_metrics
         hook_analysis["selected_hook_text"] = strongest_hook
+        mark_stage("analyzing_hook")
         enriched_idea = f"{strongest_hook}\n{idea}".strip()
         content = _idea_content(enriched_idea, source_workflow, preset)
         content["selected_hook_text"] = strongest_hook
@@ -416,6 +433,7 @@ def quick_generate_hook_clip(
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
         _apply_preset_to_scenes(package, preset)
+        mark_stage("generating_scenes")
         storage_workflow_type = "song" if source_workflow in {"music", "music_mv", "song"} else "clips"
         project_dir = workflow_project_root(storage_workflow_type) / safe_name(project_name or "hook_clip")
         exports_dir = project_dir / "exports"
@@ -522,6 +540,9 @@ def quick_generate_hook_clip(
         )
         voiceover_path = str((voice_result.get("data") or {}).get("audio_path") or "")
         render_result = render_real_hook_clip(project_name, package, workflow_type="hook", voiceover_path=voiceover_path, background_audio_path=hook_audio_path, storage_workflow_type=storage_workflow_type, force=force_final_render)
+        mark_stage("rendering_video", "completed" if render_result.get("ok") else "failed")
+        render_stage = (render_result.get("data") or {}).get("render_stage", {}) or {}
+        mark_stage("syncing_audio", "completed" if render_stage.get("audio_attach_ok", True) or (render_result.get("data") or {}).get("audio_sync_status") else "failed")
         export_result = export_hook_clip_package(project_name, package)
         character_save = save_character_profile(project_name, character_profile, "clips") if character_profile else {"ok": False, "data": {}, "error": "no_character_profile"}
         hook_save = save_hook_analysis(project_name, hook_analysis, exports_dir)
@@ -557,6 +578,7 @@ def quick_generate_hook_clip(
             "hook_analysis": package.get("hook_analysis_path", ""),
         }
         tiktok_package = export_tiktok_package(project_name, package, render_data_for_export)
+        mark_stage("exporting_package", "completed" if tiktok_package.get("ok") else "failed")
         clip_version = save_clip_version(
             project_name,
             storage_workflow_type,
@@ -594,6 +616,7 @@ def quick_generate_hook_clip(
             "tiktok_package": tiktok_package,
             "clip_version": clip_version,
             "render_cache": {"cache_key": cache_key, "cache_status": cache_status, "cache_save": cache_save},
+            "progress_stages": progress_stages,
             "voiceover": voice_result,
             "hook_audio_path": hook_audio_path,
             "render": render_result,
@@ -608,6 +631,7 @@ def quick_generate_hook_clip(
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
         render_manifest_payload["render_stage_path"] = (render_result.get("data") or {}).get("render_stage_path", "")
+        render_manifest_payload["progress_stages"] = progress_stages
         render_manifest_path.write_text(json.dumps(render_manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
         scene_manifest_path.write_text(
             json.dumps(
@@ -628,6 +652,7 @@ def quick_generate_hook_clip(
             encoding="utf-8",
         )
         package["quick_generate"]["manifest_path"] = str(quick_manifest_path)
+        mark_stage("completed", "completed" if render_result.get("ok") else "failed")
         return {
             "ok": bool(render_result.get("ok")),
             "message": "Quick hook clip generated" if render_result.get("ok") else "Quick hook package generated, but MP4 render needs attention",
@@ -650,6 +675,7 @@ def quick_generate_hook_clip(
                 "beat_timing_path": package.get("beat_timing_path", ""),
                 "viral_timing_plan": viral_timing_plan,
                 "viral_metrics": viral_metrics,
+                "progress_stages": progress_stages,
                 "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
                 "tiktok_package": tiktok_package.get("data", {}),
                 "clip_version": clip_version.get("data", {}),

@@ -239,6 +239,7 @@ def project_health_summary(project_name: str, workflow_type: str | None = "song"
                 "storage_usage": storage.get("storage_label", "0 B"),
                 "latest_successful_render": recovery.get("latest_successful_render") or storage.get("latest_successful_render", ""),
                 "failed_stages": recovery.get("failed_stages", []),
+                "render_success_rate": queue.get("success_rate", 0),
                 "queue": queue,
                 "storage": storage,
                 "recovery": recovery,
