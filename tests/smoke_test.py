@@ -1105,6 +1105,7 @@ def main():
         assert_true(quick_validation.get("width") in {720, 1080} and quick_validation.get("height") in {1280, 1920} and quick_validation.get("height", 0) > quick_validation.get("width", 0), "quick hook final MP4 is not fullscreen 9:16")
         assert_true((quick_data["render"].get("render_stage") or {}).get("uploaded_audio_attached") is True, "quick hook uploaded audio was not attached")
         assert_true((quick_data["render"].get("render_stage") or {}).get("visual_composition_mode") == "single_fullscreen_sequential", "fullscreen sequential render mode missing")
+        assert_true((quick_data["render"].get("render_stage") or {}).get("timeline_playback_model") == "concat_demuxer_scene_timeline", "timeline concat playback model missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("forbidden_visual_filters_found") is False, "forbidden visual stack/tile filter detected")
         assert_true((quick_data["render"].get("render_stage") or {}).get("motion_quality_layer") == "cinematic_motion_v1", "cinematic motion quality layer missing")
         assert_true((quick_data["render"].get("render_stage") or {}).get("static_only_chain") is False, "static-only render chain detected")
@@ -1150,9 +1151,20 @@ def main():
         assert_true(all("realistic skin texture" in item.get("cinematic_prompt", "").lower() and "natural facial proportions" in item.get("cinematic_prompt", "").lower() and "avoid plastic ai faces" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing cinematic realism layer")
         forbidden_filters = ["hstack", "vstack", "xstack", "tile", "grid", "collage"]
         assert_true(all(job.get("visual_composition_mode") == "single_fullscreen_scene" for job in quick_data["render"].get("scene_jobs", [])), "scene job is not single fullscreen")
+        assert_true(all(job.get("timeline_playback_model") == "one_scene_one_fullscreen_clip" for job in quick_data["render"].get("scene_jobs", [])), "scene job is not isolated fullscreen timeline clip")
+        assert_true(all(job.get("render_pipeline_version") == "timeline_fullscreen_v2" for job in quick_data["render"].get("scene_jobs", [])), "scene job used stale render pipeline")
         assert_true(any(job.get("cinematic_motion") for job in quick_data["render"].get("scene_jobs", [])), "motion metadata missing")
         assert_true(any(job.get("motion_effect") in {"emotional_push_in", "cinematic_drift", "slow_cinematic", "hook_energy_zoom"} for job in quick_data["render"].get("scene_jobs", [])), "cinematic motion effects missing")
         assert_true(all(not any(token in " ".join(str(part).lower() for part in (job.get("ffmpeg_command") or [])) for token in forbidden_filters) for job in quick_data["render"].get("scene_jobs", [])), "stacked/collage ffmpeg filter detected")
+        pipeline_report_path = Path(quick_data["render"].get("render_pipeline_report_path", ""))
+        assert_true(pipeline_report_path.exists(), "render_pipeline_report.json missing")
+        pipeline_report = json.loads(pipeline_report_path.read_text(encoding="utf-8"))
+        assert_true(pipeline_report.get("pipeline_model") == "one_scene_one_fullscreen_clip_then_timeline_concat", "render pipeline model incorrect")
+        assert_true(pipeline_report.get("scene_clip_count") == len(quick_data["render"].get("scene_jobs", [])), "render pipeline scene count mismatch")
+        assert_true(pipeline_report.get("forbidden_filters_found") is False, "render pipeline report found forbidden filters")
+        assert_true((pipeline_report.get("fullscreen_validation") or {}).get("one_scene_per_clip") and (pipeline_report.get("fullscreen_validation") or {}).get("timeline_concat_only"), "fullscreen timeline validation failed")
+        all_report_filters = json.dumps(pipeline_report.get("ffmpeg_filters_used", {})).lower()
+        assert_true(not any(token in all_report_filters for token in forbidden_filters), "forbidden stack/tile filter in render pipeline report")
         scene_durations = [scene.get("duration") for scene in quick_data["package"].get("scene_sequence", [])]
         assert_true(len(set(scene_durations)) > 1 and any(scene.get("beat_timing") for scene in quick_data["package"].get("scene_sequence", [])), "beat timing did not affect scene pacing")
         assert_true(quick_data["beat_timing"].get("timing_profile") and quick_data["beat_timing"].get("hook_peak_moment") > 0 and quick_data["beat_timing"].get("emotional_curve"), "dynamic timing profile missing")
@@ -1161,6 +1173,7 @@ def main():
         assert_true(creator_assets["ok"], "creator final assets export failed")
         for filename in ["final_hook_clip.mp4", "hook_audio.mp3", "subtitles.srt", "styled_subtitles.ass", "captions.txt", "hashtags.txt", "title.txt", "title_ideas.txt", "thumbnail.jpg", "thumbnail_score.json", "thumbnail_prompt.txt", "hook_analysis.json", "scene_director_plan.json", "cinematic_quality_report.json", "scene_prompts.json", "beat_timing.json", "render_manifest.json", "render_stage.json", "image_generation_manifest.json", "scene_01.jpg", "scene_02.jpg", "scene_03.jpg", "upload_checklist.txt", "viral_timing_plan.json"]:
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
+        assert_true((tiktok_final_dir / "debug" / "render_pipeline_report.json").exists(), "TikTok package missing debug/render_pipeline_report.json")
         for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
             path = tiktok_final_dir / filename
             assert_true(path.exists() and path.read_text(encoding="utf-8-sig").strip(), f"creator export package missing {filename}")

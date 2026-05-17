@@ -100,6 +100,11 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         render_stage = Path(str(render_data.get("render_stage_path") or package.get("render_stage_path") or ""))
         if render_stage.is_file():
             shutil.copy2(render_stage, ensure_parent_dir(final_dir / "render_stage.json"))
+        render_pipeline_report = Path(str(render_data.get("render_pipeline_report_path") or package.get("render_pipeline_report_path") or ""))
+        if render_pipeline_report.is_file():
+            debug_dir = final_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(render_pipeline_report, ensure_parent_dir(debug_dir / "render_pipeline_report.json"))
         image_manifest = Path(str(render_data.get("image_generation_manifest") or package.get("image_generation_manifest_path") or ""))
         if image_manifest.is_file():
             shutil.copy2(image_manifest, ensure_parent_dir(final_dir / "image_generation_manifest.json"))
@@ -162,6 +167,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "cinematic_quality_report": str(final_dir / "cinematic_quality_report.json") if (final_dir / "cinematic_quality_report.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
             "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
+            "render_pipeline_report": str(final_dir / "debug" / "render_pipeline_report.json") if (final_dir / "debug" / "render_pipeline_report.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
             "hook_analysis": str(final_dir / "hook_analysis.json") if (final_dir / "hook_analysis.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
@@ -624,6 +630,7 @@ def quick_generate_hook_clip(
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
+            "render_pipeline_report_path": (render_result.get("data") or {}).get("render_pipeline_report_path", ""),
         }
         tiktok_package = export_tiktok_package(project_name, package, render_data_for_export)
         mark_stage("exporting_package", "completed" if tiktok_package.get("ok") else "failed")
@@ -683,6 +690,7 @@ def quick_generate_hook_clip(
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
         render_manifest_payload["render_stage_path"] = (render_result.get("data") or {}).get("render_stage_path", "")
+        render_manifest_payload["render_pipeline_report_path"] = (render_result.get("data") or {}).get("render_pipeline_report_path", "")
         render_manifest_payload["progress_stages"] = progress_stages
         render_manifest_path.write_text(json.dumps(render_manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
         scene_manifest_path.write_text(
@@ -746,6 +754,7 @@ def quick_generate_hook_clip(
                 "manifest_path": str(quick_manifest_path),
                 "render_manifest_path": str(render_manifest_path),
                 "render_stage_path": (render_result.get("data") or {}).get("render_stage_path", ""),
+                "render_pipeline_report_path": (render_result.get("data") or {}).get("render_pipeline_report_path", ""),
                 "scene_manifest_path": str(scene_manifest_path),
                 "final_mp4": (render_result.get("data") or {}).get("final_mp4", ""),
             },

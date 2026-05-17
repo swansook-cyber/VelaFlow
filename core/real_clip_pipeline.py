@@ -20,6 +20,7 @@ STATIC_SAFE_SCENE_DURATION = 5.0
 CINEMATIC_MIN_SCENE_DURATION = 1.5
 CINEMATIC_MAX_SCENE_DURATION = 3.0
 FORBIDDEN_VISUAL_FILTERS = ("hstack", "vstack", "xstack", "tile", "untile", "thumbnail", "tile=", "layout=")
+RENDER_PIPELINE_VERSION = "timeline_fullscreen_v2"
 
 
 def ensure_parent_dir(path: str | Path) -> Path:
@@ -53,8 +54,44 @@ def _clean_ffmpeg_error(output: str, fallback: str = "ffmpeg_render_failed") -> 
 
 def _contains_forbidden_visual_filter(value: Any) -> bool:
     text = " ".join(str(item) for item in value) if isinstance(value, list) else str(value or "")
-    lowered = text.lower()
+    lowered = text.lower().replace("channel_layout=", "channel_audio_layout=")
     return any(token in lowered for token in FORBIDDEN_VISUAL_FILTERS)
+
+
+def _extract_ffmpeg_filters(command: Any) -> list[str]:
+    parts = [str(item) for item in command] if isinstance(command, list) else str(command or "").split()
+    filters: list[str] = []
+    for index, part in enumerate(parts):
+        if part in {"-vf", "-filter:v", "-filter_complex"} and index + 1 < len(parts):
+            filters.append(parts[index + 1])
+    return filters
+
+
+def _scene_metadata_path(scene_clip_path: str | Path) -> Path:
+    clip = Path(scene_clip_path)
+    return clip.with_suffix(".render.json")
+
+
+def _write_scene_render_metadata(scene_clip_path: str | Path, payload: dict[str, Any]) -> None:
+    meta_path = _scene_metadata_path(scene_clip_path)
+    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _is_current_fullscreen_scene_clip(scene_clip_path: str | Path) -> bool:
+    meta_path = _scene_metadata_path(scene_clip_path)
+    if not meta_path.is_file():
+        return False
+    try:
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    command = data.get("ffmpeg_command") or []
+    return (
+        data.get("render_pipeline_version") == RENDER_PIPELINE_VERSION
+        and data.get("visual_composition_mode") == "single_fullscreen_scene"
+        and data.get("timeline_playback_model") == "one_scene_one_fullscreen_clip"
+        and not _contains_forbidden_visual_filter(command)
+    )
 
 
 def _cinematic_scene_duration(value: Any, fallback: float = 2.2) -> float:
@@ -246,17 +283,17 @@ def _subtitle_burn_filter(subtitle_path: str | Path) -> str:
     safe_subtitle = _ffmpeg_subtitle_path(subtitle_path)
     force_style = (
         f"Fontname={THAI_SUBTITLE_FONT},"
-        "Fontsize=52,"
+        "Fontsize=40,"
         "PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,"
         "BackColour=&H66000000,"
         "BorderStyle=1,"
-        "Outline=3,"
+        "Outline=2,"
         "Shadow=1,"
         "Alignment=2,"
-        "MarginL=80,"
-        "MarginR=80,"
-        "MarginV=145"
+        "MarginL=130,"
+        "MarginR=130,"
+        "MarginV=175"
     )
     return f"subtitles='{safe_subtitle}':charenc=UTF-8:force_style='{force_style}'"
 
@@ -457,6 +494,8 @@ def _safe_static_image_scene(
         "data": {
             "path": str(output_path),
             "log_path": str(log_path),
+            "render_pipeline_version": RENDER_PIPELINE_VERSION,
+            "timeline_playback_model": "one_scene_one_fullscreen_clip",
             "render_mode_used": "static_safe",
             "visual_composition_mode": "single_fullscreen_scene",
             "ffmpeg_command": result.get("command", args),
@@ -595,6 +634,8 @@ def render_image_motion_scene(
                 "path": str(output),
                 "log_path": str(log),
                 "source_image_path": str(image_path),
+                "render_pipeline_version": RENDER_PIPELINE_VERSION,
+                "timeline_playback_model": "one_scene_one_fullscreen_clip",
                 "motion_effect": motion,
                 "render_mode_used": "motion",
                 "visual_composition_mode": "single_fullscreen_scene",
@@ -698,6 +739,7 @@ def combine_scene_clips_to_mp4(
         fallback_args = input_args + complex_args + maps + ["-t", f"{target_duration:.3f}", "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart"] + [str(output)]
         final_result = _run_ffmpeg(fallback_args, log)
         subtitle_burned = False
+        final_args = fallback_args
     clean_error = _clean_ffmpeg_error(final_result.get("output", ""), "final_mp4_export_failed")
     validation = validate_mp4(output, min_duration=1.0, require_audio=True, ffmpeg_path=ffmpeg)
     uploaded_audio_missing = bool(has_background_audio and not validation.get("has_audio", False))
@@ -720,7 +762,23 @@ def combine_scene_clips_to_mp4(
             "audio_source": audio_source,
             "audio_sync_status": "matched_hook_audio" if hook_audio_duration else ("silent_audio" if audio_source == "silent" else "matched_video"),
             "visual_composition_mode": "single_fullscreen_sequential",
+            "render_pipeline_version": RENDER_PIPELINE_VERSION,
+            "timeline_playback_model": "concat_demuxer_scene_timeline",
             "scene_transition_mode": "sequential_cut_with_scene_fades",
+            "scene_clip_count": len(clips),
+            "concat_command": concat_result.get("command", concat_args),
+            "final_command": final_result.get("command", final_args),
+            "ffmpeg_filters_used": {
+                "concat": _extract_ffmpeg_filters(concat_result.get("command", concat_args)),
+                "final": _extract_ffmpeg_filters(final_result.get("command", final_args)),
+                "filter_complex": list(filter_complex),
+            },
+            "forbidden_visual_filters_found": _contains_forbidden_visual_filter(concat_result.get("command", concat_args)) or _contains_forbidden_visual_filter(final_result.get("command", final_args)),
+            "fullscreen_validation": {
+                "one_scene_per_clip": True,
+                "timeline_concat_only": True,
+                "no_stack_tile_filters": not (_contains_forbidden_visual_filter(concat_result.get("command", concat_args)) or _contains_forbidden_visual_filter(final_result.get("command", final_args))),
+            },
             "target_duration": target_duration,
             "hook_audio_duration": hook_audio_duration,
             "source_video_duration": concat_duration,
@@ -730,6 +788,71 @@ def combine_scene_clips_to_mp4(
         },
         "error": "" if final_result["ok"] and validation.get("valid_mp4", False) and not uploaded_audio_missing else (clean_error or validation.get("error") or "final_mp4_export_failed"),
     }
+
+
+def _write_render_pipeline_report(
+    exports_dir: Path,
+    *,
+    scenes: list[dict[str, Any]],
+    scene_jobs: list[dict[str, Any]],
+    render_stage: dict[str, Any],
+    combine_data: dict[str, Any] | None = None,
+) -> Path:
+    combine_data = combine_data or {}
+    debug_dir = exports_dir / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    scene_timeline = []
+    for index, (scene, job) in enumerate(zip(scenes, scene_jobs), start=1):
+        validation = job.get("validation") or {}
+        scene_timeline.append(
+            {
+                "index": index,
+                "scene_id": job.get("scene_id") or scene.get("scene_id") or f"scene_{index:02d}",
+                "clip_path": job.get("path", ""),
+                "duration": validation.get("duration") or scene.get("duration", 0),
+                "motion_effect": job.get("motion_effect") or scene.get("motion_effect") or "",
+                "visual_composition_mode": job.get("visual_composition_mode", ""),
+                "timeline_role": "fullscreen_scene_clip",
+            }
+        )
+    scene_filters = []
+    for job in scene_jobs:
+        scene_filters.extend(_extract_ffmpeg_filters(job.get("ffmpeg_command") or []))
+        scene_filters.extend(_extract_ffmpeg_filters(job.get("motion_ffmpeg_command") or []))
+    ffmpeg_filters_used = {
+        "scene_filters": scene_filters,
+        "concat_filters": (combine_data.get("ffmpeg_filters_used") or {}).get("concat", []),
+        "final_filters": (combine_data.get("ffmpeg_filters_used") or {}).get("final", []),
+        "filter_complex": (combine_data.get("ffmpeg_filters_used") or {}).get("filter_complex", []),
+    }
+    forbidden_found = (
+        any(_contains_forbidden_visual_filter(job.get("ffmpeg_command") or []) for job in scene_jobs)
+        or any(_contains_forbidden_visual_filter(item) for values in ffmpeg_filters_used.values() for item in values)
+        or bool(combine_data.get("forbidden_visual_filters_found"))
+        or bool(render_stage.get("forbidden_visual_filters_found"))
+    )
+    report = {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "render_pipeline_version": RENDER_PIPELINE_VERSION,
+        "pipeline_model": "one_scene_one_fullscreen_clip_then_timeline_concat",
+        "ffmpeg_pipeline": "scene image -> independent fullscreen scene mp4 -> concat demuxer timeline -> audio/subtitle mux",
+        "ffmpeg_filters_used": ffmpeg_filters_used,
+        "scene_timeline": scene_timeline,
+        "scene_clip_count": len(scene_jobs),
+        "forbidden_filters_found": forbidden_found,
+        "forbidden_filters": list(FORBIDDEN_VISUAL_FILTERS),
+        "fullscreen_validation": {
+            "one_scene_per_clip": all(job.get("visual_composition_mode") == "single_fullscreen_scene" for job in scene_jobs),
+            "final_mode": render_stage.get("visual_composition_mode", ""),
+            "timeline_concat_only": render_stage.get("timeline_playback_model") == "concat_demuxer_scene_timeline",
+            "no_stack_tile_filters": not forbidden_found,
+            "no_storyboard_layout": not forbidden_found,
+        },
+    }
+    path = debug_dir / "render_pipeline_report.json"
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return path
 
 
 def render_real_hook_clip(
@@ -784,6 +907,8 @@ def render_real_hook_clip(
             "hook_audio_duration": hook_audio_duration,
             "scene_count": len(scenes),
             "visual_composition_mode": "single_fullscreen_sequential",
+            "render_pipeline_version": RENDER_PIPELINE_VERSION,
+            "timeline_playback_model": "concat_demuxer_scene_timeline",
             "motion_quality_layer": "cinematic_motion_v1",
             "realism_mode": "cinematic_realism_v1",
             "realistic_prompt_mode": True,
@@ -821,12 +946,14 @@ def render_real_hook_clip(
             job = {"scene_id": scene_id, "status": "pending", "path": str(clip_path), "error": ""}
             if clip_path.is_file() and not force:
                 scene_validation = validate_mp4(clip_path, min_duration=1.0, min_file_size=100 * 1024, ffmpeg_path=ffmpeg_path or "ffmpeg")
-                if scene_validation.get("valid_mp4", False):
+                if scene_validation.get("valid_mp4", False) and _is_current_fullscreen_scene_clip(clip_path):
                     job["status"] = "completed_existing"
                     job["validation"] = scene_validation
                     job["scene_validation_ok"] = True
                     job["render_mode_used"] = "existing_valid_scene"
                     job["visual_composition_mode"] = "single_fullscreen_scene"
+                    job["render_pipeline_version"] = RENDER_PIPELINE_VERSION
+                    job["timeline_playback_model"] = "one_scene_one_fullscreen_clip"
                     job["cinematic_motion"] = True
                     job["transition_style"] = "existing_valid_scene"
                     job["motion_quality"] = "cached_fullscreen_scene"
@@ -837,6 +964,7 @@ def render_real_hook_clip(
                     scene_paths.append(clip_path)
                     continue
                 clip_path.unlink(missing_ok=True)
+                _scene_metadata_path(clip_path).unlink(missing_ok=True)
             result = render_image_motion_scene(scene, clip_path, ffmpeg_path=ffmpeg_path, aspect_ratio=aspect_ratio, log_path=log_path)
             scene_validation = validate_mp4(clip_path, min_duration=1.0, min_file_size=100 * 1024, ffmpeg_path=ffmpeg_path or "ffmpeg")
             job["status"] = "completed" if result.get("ok") else "failed"
@@ -844,6 +972,8 @@ def render_real_hook_clip(
             job["motion_effect"] = scene.get("motion_effect") or scene.get("motion", "")
             job["source_image_path"] = scene.get("source_image_path", "")
             job["render_mode_used"] = (result.get("data") or {}).get("render_mode_used", "")
+            job["render_pipeline_version"] = (result.get("data") or {}).get("render_pipeline_version", RENDER_PIPELINE_VERSION)
+            job["timeline_playback_model"] = (result.get("data") or {}).get("timeline_playback_model", "one_scene_one_fullscreen_clip")
             job["visual_composition_mode"] = (result.get("data") or {}).get("visual_composition_mode", "single_fullscreen_scene")
             job["cinematic_motion"] = bool((result.get("data") or {}).get("cinematic_motion") or job["render_mode_used"] == "motion")
             job["transition_style"] = (result.get("data") or {}).get("transition_style", scene.get("transition", "cinematic_cross_dissolve"))
@@ -855,6 +985,20 @@ def render_real_hook_clip(
             job["validation"] = scene_validation
             scene_jobs.append(job)
             if result.get("ok") and scene_validation.get("valid_mp4", False):
+                _write_scene_render_metadata(
+                    clip_path,
+                    {
+                        "scene_id": scene_id,
+                        "render_pipeline_version": job["render_pipeline_version"],
+                        "timeline_playback_model": job["timeline_playback_model"],
+                        "visual_composition_mode": job["visual_composition_mode"],
+                        "render_mode_used": job["render_mode_used"],
+                        "motion_effect": job["motion_effect"],
+                        "ffmpeg_command": job["ffmpeg_command"],
+                        "validation": scene_validation,
+                        "created_at": datetime.now().isoformat(timespec="seconds"),
+                    },
+                )
                 scene_paths.append(clip_path)
         render_stage["completed_scene_count"] = len(scene_paths)
         render_stage["scene_render_ok"] = bool(scene_paths) and len(scene_paths) == len(scenes)
@@ -885,6 +1029,7 @@ def render_real_hook_clip(
                 }
             )
             render_stage_path = _write_render_stage(exports_dir, render_stage)
+            pipeline_report_path = _write_render_pipeline_report(exports_dir, scenes=scenes, scene_jobs=scene_jobs, render_stage=render_stage)
             manifest = {
                 "generated_by": "VelaFlow",
                 "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -901,6 +1046,7 @@ def render_real_hook_clip(
                 "validation": {},
                 "subtitle_burned": False,
                 "render_stage_path": str(render_stage_path),
+                "render_pipeline_report_path": str(pipeline_report_path),
                 "render_stage": render_stage,
             }
             manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
@@ -912,6 +1058,7 @@ def render_real_hook_clip(
                     "manifest": manifest,
                     "manifest_path": str(manifest_path),
                     "render_stage_path": str(render_stage_path),
+                    "render_pipeline_report_path": str(pipeline_report_path),
                     "render_stage": render_stage,
                     "final_mp4": "",
                     "subtitles": str(srt_path),
@@ -946,7 +1093,12 @@ def render_real_hook_clip(
                 "subtitle_status": combine_data.get("subtitle_status", "exported_only"),
                 "audio_sync_status": combine_data.get("audio_sync_status", ""),
                 "visual_composition_mode": combine_data.get("visual_composition_mode", "single_fullscreen_sequential"),
+                "timeline_playback_model": combine_data.get("timeline_playback_model", "concat_demuxer_scene_timeline"),
+                "render_pipeline_version": combine_data.get("render_pipeline_version", RENDER_PIPELINE_VERSION),
                 "scene_transition_mode": combine_data.get("scene_transition_mode", "sequential_cut_with_scene_fades"),
+                "scene_clip_count": combine_data.get("scene_clip_count", len(scene_paths)),
+                "ffmpeg_filters_used": combine_data.get("ffmpeg_filters_used", {}),
+                "fullscreen_validation": combine_data.get("fullscreen_validation", {}),
                 "target_duration": combine_data.get("target_duration", final_target_duration),
                 "hook_audio_duration": combine_data.get("hook_audio_duration", hook_audio_duration),
                 "uploaded_audio_required": bool(background_audio_path),
@@ -959,6 +1111,7 @@ def render_real_hook_clip(
             }
         )
         render_stage_path = _write_render_stage(exports_dir, render_stage)
+        pipeline_report_path = _write_render_pipeline_report(exports_dir, scenes=scenes, scene_jobs=scene_jobs, render_stage=render_stage, combine_data=combine_data)
         manifest = {
             "generated_by": "VelaFlow",
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -978,10 +1131,11 @@ def render_real_hook_clip(
             "subtitle_status": (combine.get("data") or {}).get("subtitle_status", "exported_only"),
             "audio_sync_status": (combine.get("data") or {}).get("audio_sync_status", ""),
             "render_stage_path": str(render_stage_path),
+            "render_pipeline_report_path": str(pipeline_report_path),
             "render_stage": render_stage,
         }
         manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "render_stage_path": str(render_stage_path), "render_stage": render_stage, "final_mp4": str(final_path), "subtitles": str(srt_path), "styled_subtitles": str(ass_path) if ass_path.is_file() else "", "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False), "subtitle_status": (combine.get("data") or {}).get("subtitle_status", "exported_only"), "audio_sync_status": (combine.get("data") or {}).get("audio_sync_status", ""), "audio_attached": (combine.get("data") or {}).get("audio_attached", False), "uploaded_audio_attached": (combine.get("data") or {}).get("uploaded_audio_attached", False)}, "error": combine.get("error", "")}
+        return {"ok": bool(combine.get("ok")), "message": combine.get("message", ""), "data": {"manifest": manifest, "manifest_path": str(manifest_path), "render_stage_path": str(render_stage_path), "render_pipeline_report_path": str(pipeline_report_path), "render_stage": render_stage, "final_mp4": str(final_path), "subtitles": str(srt_path), "styled_subtitles": str(ass_path) if ass_path.is_file() else "", "scene_jobs": scene_jobs, "log_path": str(log_path), "background_audio_path": str(background_audio_path or ""), "voiceover_path": str(voiceover_path or ""), "duration": (combine.get("data") or {}).get("duration", 0), "validation": (combine.get("data") or {}).get("validation", {}), "subtitle_burned": (combine.get("data") or {}).get("subtitle_burned", False), "subtitle_status": (combine.get("data") or {}).get("subtitle_status", "exported_only"), "audio_sync_status": (combine.get("data") or {}).get("audio_sync_status", ""), "audio_attached": (combine.get("data") or {}).get("audio_attached", False), "uploaded_audio_attached": (combine.get("data") or {}).get("uploaded_audio_attached", False)}, "error": combine.get("error", "")}
     except Exception as exc:
         return {"ok": False, "message": "Real hook clip render failed", "data": {}, "error": str(exc)}
