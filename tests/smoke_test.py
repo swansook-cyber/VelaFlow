@@ -110,6 +110,7 @@ from core.song_structure_intelligence import (
     validate_structure_plan,
 )
 from core.suno_export import build_release_package_data, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
+from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import load_project, new_project, save_project, save_project_folder
 from core.project_manager import (
     autosave_project_state,
@@ -469,7 +470,7 @@ def main():
     assert_true(normalize_navigation_state(FULL_MENU_GROUPS, "PRODUCTION", "Dashboard") == ("PRODUCTION", "Hook Clip Studio"), "Full Pipeline cannot select PRODUCTION")
     assert_true("VISUAL" not in SONG_ONLY_MENU_GROUPS and "PRODUCTION" not in SONG_ONLY_MENU_GROUPS, "Song Studio Only did not hide VISUAL/PRODUCTION groups")
     seller_pages = flatten_pages(SELLER_STUDIO_MENU_GROUPS)
-    assert_true(menu_groups_for_mode("Seller Studio (Beta)") == SELLER_STUDIO_MENU_GROUPS and "Affiliate Studio" in SELLER_STUDIO_ALLOWED_PAGES, "Seller Studio workflow mode failed")
+    assert_true(menu_groups_for_mode("Seller Studio (Beta)") == SELLER_STUDIO_MENU_GROUPS and "Affiliate Studio" in SELLER_STUDIO_ALLOWED_PAGES and "Shorts Factory" in SELLER_STUDIO_ALLOWED_PAGES, "Seller Studio workflow mode failed")
     assert_true(set(seller_pages) == SELLER_STUDIO_ALLOWED_PAGES, "Seller Studio allowed page set mismatch")
     assert_true("Seller Studio" in seller_pages and "Render Lab" not in seller_pages and "Song Studio" not in seller_pages, "Seller Studio navigation filtering failed")
     assert_true(normalize_navigation_state(SELLER_STUDIO_MENU_GROUPS, "SELLER", "Dashboard") == ("SELLER", "Affiliate Studio"), "Seller Studio section selection failed")
@@ -1159,6 +1160,28 @@ def main():
         affiliate_export = export_affiliate_package("Smoke Affiliate Clip", affiliate_brief, affiliate_data)
         affiliate_dir = Path((affiliate_export.get("data") or {}).get("final_dir", ""))
         assert_true(affiliate_export["ok"] and (affiliate_dir / "final_hook_clip.mp4").exists() and (affiliate_dir / "cta_text.txt").exists() and (affiliate_dir / "cta_variants.json").exists() and (affiliate_dir / "affiliate_thumbnail_analysis.json").exists() and (affiliate_dir / "viral_score_report.json").exists() and (affiliate_dir / "affiliate_scene_prompts.json").exists(), "affiliate export package failed")
+        assert_true(len(list_shorts_variations()) == 5 and list_shorts_variations()[0]["variation_id"] == "v1_emotional", "shorts variation list failed")
+        shorts_result = generate_shorts_factory(
+            "Smoke Shorts Factory",
+            affiliate_brief["prompt"],
+            source_workflow="seller",
+            workflow_type="clips",
+            image_provider="offline",
+            max_variations=5,
+        )
+        shorts_data = shorts_result.get("data", {})
+        shorts_comparison = shorts_data.get("comparison", {})
+        shorts_export = shorts_data.get("export", {})
+        assert_true(shorts_result["ok"] and shorts_comparison.get("successful_count") == 5 and len(shorts_comparison.get("scores", [])) == 5, "shorts factory generation failed")
+        assert_true(shorts_comparison.get("best_variation_type") and shorts_comparison.get("top_hook_category") is not None, "shorts factory comparison failed")
+        shorts_dir = Path(shorts_export.get("final_dir", ""))
+        for variation in list_shorts_variations():
+            mp4_path = shorts_dir / f"{variation['variation_id']}.mp4"
+            assert_true(mp4_path.exists() and validate_mp4(mp4_path)["valid_mp4"], f"shorts factory MP4 failed for {variation['variation_id']}")
+        for filename in ["shorts_factory_comparison.json", "hook_reports.json", "cta_reports.json", "viral_score_comparison.json", "shorts_factory_manifest.json"]:
+            assert_true((shorts_dir / filename).exists(), f"shorts factory export missing {filename}")
+        comparison_sample = build_shorts_comparison(shorts_data.get("results", []))
+        assert_true(comparison_sample.get("best_overall") and comparison_sample.get("most_successful_pacing_profile") is not None, "shorts comparison helper failed")
         cache_key = (quick_data.get("render_cache") or {}).get("cache_key")
         assert_true(load_render_cache("Smoke Quick Hook Clip", "clips", cache_key)["ok"], "render cache was not saved")
         queue_start = start_render_job("Smoke Queue Clip", "clips", stage="smoke_render")

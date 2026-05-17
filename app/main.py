@@ -182,6 +182,7 @@ from core.scene_story_engine import build_subtitle_timing
 from core.subtitle_engine import list_viral_subtitle_presets
 from core.thumbnail_selector import score_affiliate_thumbnail_candidates
 from core.seller_content import HOOK_STYLES, TONE_GUIDES, build_seller_dashboard_status, export_seller_content, generate_seller_content, seller_content_to_text
+from core.shorts_factory import generate_shorts_factory, list_shorts_variations
 from core.voiceover_engine import VOICEOVER_STYLES, build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
 from core.settings import get_settings
 from core.stable_build import STABLE_FREEZE_NAME, create_stable_candidate_snapshot
@@ -1155,6 +1156,82 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         st.warning(state.get("safe_error_message"))
     else:
         st.info("Enter a product idea and click Generate Viral Affiliate Clip.")
+
+
+def _render_shorts_factory(project: dict[str, Any]) -> None:
+    _page_header("Shorts Factory", "Generate 5 TikTok-ready variations for A/B testing.", project)
+    st.caption("One button creates emotional, aggressive hook, fast pacing, stronger CTA, and alternate thumbnail versions.")
+    state = project.setdefault("shorts_factory", {})
+    affiliate_state = project.get("affiliate_studio", {}) or {}
+    default_prompt = ((affiliate_state.get("brief") or {}).get("prompt") or state.get("base_prompt") or "")
+    with st.container(border=True):
+        source_type = st.selectbox("Source Type", ["Affiliate Product", "Music Hook", "General Idea"], index=0, key="shorts_factory_source_type")
+        base_prompt = st.text_area(
+            "Base Idea / Product Brief",
+            value=default_prompt,
+            height=160,
+            key="shorts_factory_base_prompt",
+            placeholder="วาง product brief, hook, หรือไอเดียหลักที่อยากทำหลายเวอร์ชัน",
+        )
+        st.caption("Variations: " + ", ".join(item["label"] for item in list_shorts_variations()))
+        generate = st.button("Generate 5 Viral Variations", type="primary", use_container_width=True, disabled=not bool(base_prompt.strip()), key="shorts_factory_generate")
+    if generate:
+        project_name = project.get("title") or "Shorts Factory"
+        image_provider, image_settings = _creator_image_settings()
+        with st.status("Generating 5 variations sequentially...", expanded=True) as status:
+            st.write("Queueing batch safely")
+            st.write("Rendering variations one by one")
+            st.write("Exporting comparison package")
+            result = generate_shorts_factory(
+                project_name,
+                base_prompt,
+                source_workflow="seller" if source_type == "Affiliate Product" else "music" if source_type == "Music Hook" else "hook_clip",
+                workflow_type="clips",
+                image_provider=image_provider,
+                image_settings=image_settings,
+                max_variations=5,
+            )
+            status.update(label="Shorts Factory ready" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")), state="complete" if result.get("ok") else "error", expanded=False)
+        state["base_prompt"] = base_prompt
+        state["source_type"] = source_type
+        state["result"] = result.get("data", {})
+        state["ok"] = bool(result.get("ok"))
+        state["safe_error_message"] = "" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message"))
+        project["shorts_factory"] = state
+        _save_project()
+        _log_beta_event("creator_render", workflow="seller", preset_bundle="Shorts Factory", metadata={"status": "completed" if result.get("ok") else "failed", "ok": bool(result.get("ok")), "page": "Shorts Factory"})
+        st.rerun()
+
+    result_data = state.get("result") or {}
+    comparison = result_data.get("comparison") or {}
+    export = result_data.get("export") or {}
+    if comparison:
+        st.markdown("## Variation Comparison")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Best Retention", (comparison.get("best_retention_estimate") or {}).get("label", "-"))
+        c2.metric("Strongest Hook", (comparison.get("strongest_hook") or {}).get("label", "-"))
+        c3.metric("Best Thumbnail", (comparison.get("best_thumbnail") or {}).get("label", "-"))
+        c4.metric("Best CTA", (comparison.get("best_cta") or {}).get("label", "-"))
+        c5.metric("Most Emotional", (comparison.get("most_emotional_version") or {}).get("label", "-"))
+        for row in comparison.get("scores", []) or []:
+            with st.expander(f"{row.get('label')} · Score {row.get('overall_score', 0)}", expanded=False):
+                mp4 = Path(str(row.get("final_mp4") or ""))
+                if mp4.is_file():
+                    st.video(str(mp4))
+                    st.download_button(f"Download {row.get('label')} MP4", data=mp4.read_bytes(), file_name=mp4.name, mime="video/mp4", use_container_width=True, key=f"shorts_factory_download_{row.get('variation_id')}")
+                st.caption(f"Hook {row.get('hook_score', 0)} · Retention {row.get('retention_estimate', 0)} · CTA {row.get('cta_score', 0)} · Thumbnail {row.get('thumbnail_score', 0)}")
+        final_dir = Path(str(export.get("final_dir") or ""))
+        if final_dir.exists():
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+                for path in final_dir.iterdir():
+                    if path.is_file():
+                        archive.write(path, path.name)
+            st.download_button("Download Viral Experiment Package", data=zip_buffer.getvalue(), file_name="velaflow_shorts_factory.zip", mime="application/zip", use_container_width=True, key="shorts_factory_zip")
+    elif state.get("safe_error_message"):
+        st.warning(state.get("safe_error_message"))
+    else:
+        st.info("Paste a product brief or hook, then generate 5 viral variations.")
 
 
 def _export_beta_feedback(project: dict[str, Any], message: str = "") -> dict[str, Any]:
@@ -3323,7 +3400,7 @@ if page == "Dashboard":
     st.dataframe(pd.DataFrame(status_data.get("stages", []) or []), use_container_width=True, height=220)
     cols = st.columns(6)
     if is_seller_mode:
-        navs = [("Affiliate Studio", "Affiliate Studio"), ("Seller Studio", "Seller Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
+        navs = [("Affiliate Studio", "Affiliate Studio"), ("Shorts Factory", "Shorts Factory"), ("Seller Studio", "Seller Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
     elif is_podcast_mode:
         navs = [("Podcast Studio", "Podcast Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
     elif is_clips_mode:
@@ -3376,6 +3453,9 @@ if page == "Dashboard":
 
 elif page == "Affiliate Studio":
     _render_affiliate_studio(project)
+
+elif page == "Shorts Factory":
+    _render_shorts_factory(project)
 
 elif page == "Seller Studio":
     _page_header("Seller Studio", "Generate short-form TikTok, Reels, and affiliate seller content from product details.", project)
