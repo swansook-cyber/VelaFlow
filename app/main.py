@@ -2955,8 +2955,12 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.info("Quick Generate TikTok Hook แล้ว preview และ download จะขึ้นตรงนี้ทันที")
         video_generation = quick_data.get("video_generation") or {}
         if video_generation:
+            manifest = video_generation.get("manifest") or {}
+            provider_used = manifest.get("provider_used") or manifest.get("provider") or "-"
+            status = "complete" if manifest.get("real_ai_video_used") else "fallback" if manifest.get("fallback_used") else "ready"
+            st.caption(f"AI Video provider: {provider_used} · status: {status}")
             if video_generation.get("fallback_used"):
-                st.warning("AI Video provider ยังไม่พร้อม ระบบใช้ Image Motion fallback ให้เรียบร้อย")
+                st.warning(f"AI Video provider failed: {video_generation.get('fallback_reason') or 'provider unavailable'}. Used fallback.")
             elif video_generation.get("manifest_path"):
                 st.success("AI Video shot manifest ready")
         thumbnail_path = Path(str((quick_data.get("thumbnail") or {}).get("path") or quick_data.get("thumbnail_path") or ""))

@@ -1125,7 +1125,7 @@ def main():
         assert_true(len(video_prompt_probe) >= 6 and all(item.get("full_hook_section_used") for item in video_prompt_probe), "video shot prompt director did not use full hook section")
         assert_true(all(validate_video_prompt(item["prompt"])["ok"] for item in video_prompt_probe), "AI video prompts contain forbidden text/collage terms")
         missing_video_key = generate_video_shot(video_prompt_probe[0]["prompt"], 2.5, ROOT / "outputs" / "smoke_tests" / "missing_video_key.mp4", settings={})
-        assert_true(not missing_video_key["ok"] and missing_video_key["error"] in {"missing_api_key", "provider_placeholder_not_connected"}, "video_ai provider missing-key fallback failed")
+        assert_true(not missing_video_key["ok"] and missing_video_key.get("error"), "video_ai provider failure was not explicit")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
         assert_true(all({"provider_used", "fallback_used", "fallback_reason", "error_type", "safe_error_message"}.issubset(set(item.keys())) for item in quick_data["image_results"]), "image diagnostics missing")

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from providers.veo_provider import DEFAULT_VEO_MODEL, build_veo_payload, download_render_result, poll_render_status, submit_render_job
 
 
 VIDEO_VISUAL_MODE = "cinematic_live_action_video_v1"
@@ -131,7 +135,14 @@ def generate_video_shot(
             "data": {"path": str(output), "provider": provider, "prompt_validation": validation},
             "error": "video_prompt_validation_failed",
         }
-    api_key = str(settings.get("gemini_api_key") or settings.get("veo_api_key") or "").strip()
+    api_key = str(
+        settings.get("gemini_api_key")
+        or settings.get("google_api_key")
+        or settings.get("veo_api_key")
+        or os.getenv("GEMINI_API_KEY", "")
+        or os.getenv("GOOGLE_API_KEY", "")
+        or os.getenv("VEO_API_KEY", "")
+    ).strip()
     if provider in {"gemini_veo", "google_veo", "veo"} and not api_key:
         return {
             "ok": False,
@@ -148,20 +159,137 @@ def generate_video_shot(
             },
             "error": "missing_api_key",
         }
+    if provider not in {"gemini_veo", "google_veo", "veo"}:
+        return {
+            "ok": False,
+            "message": "AI video provider unsupported",
+            "data": {"path": str(output), "provider": provider, "fallback_reason": "unsupported_provider", "prompt_validation": validation},
+            "error": "unsupported_provider",
+        }
+    model = str(settings.get("model") or settings.get("veo_model") or os.getenv("VEO_MODEL", "") or DEFAULT_VEO_MODEL)
+    timeout_seconds = int(settings.get("timeout_seconds") or settings.get("timeout") or os.getenv("VEO_TIMEOUT_SECONDS", "900"))
+    poll_interval = max(2, int(settings.get("poll_interval_seconds") or os.getenv("VEO_POLL_INTERVAL_SECONDS", "10")))
+    payload = build_veo_payload(
+        prompt=prompt,
+        aspect_ratio=aspect_ratio,
+        duration_seconds=max(3, min(8, int(round(float(duration_seconds or 5))))),
+        model=model,
+    )
+    submit = submit_render_job(payload, api_key=api_key, timeout_seconds=timeout_seconds)
+    if not submit.get("ok"):
+        return {
+            "ok": False,
+            "message": f"AI Video provider failed: {submit.get('error') or submit.get('message')}",
+            "data": {
+                "path": str(output),
+                "provider": provider,
+                "provider_used": "google_veo",
+                "provider_available": True,
+                "fallback_reason": submit.get("error") or "submit_failed",
+                "provider_status": "submit_failed",
+                "submit": submit.get("data", {}),
+                "payload": {**payload, "prompt": prompt},
+                "prompt_validation": validation,
+            },
+            "error": submit.get("error") or "submit_failed",
+        }
+    job_id = ((submit.get("data") or {}).get("job_id") or "")
+    started = time.time()
+    status_history: list[dict[str, Any]] = [{"status": "submitted", "job_id": job_id, "at": datetime.now().isoformat(timespec="seconds")}]
+    last_status: dict[str, Any] = submit
+    while time.time() - started <= timeout_seconds:
+        polled = poll_render_status(job_id, api_key=api_key, timeout_seconds=poll_interval)
+        last_status = polled
+        status = str(((polled.get("data") or {}).get("status") or "")).lower()
+        status_history.append({"status": status or polled.get("error", ""), "job_id": job_id, "at": datetime.now().isoformat(timespec="seconds")})
+        if polled.get("ok") and status == "completed":
+            download = download_render_result(job_id, output, api_key=api_key)
+            if not download.get("ok"):
+                return {
+                    "ok": False,
+                    "message": f"AI Video provider failed: {download.get('error') or download.get('message')}",
+                    "data": {
+                        "path": str(output),
+                        "provider": provider,
+                        "provider_used": "google_veo",
+                        "provider_available": True,
+                        "fallback_reason": download.get("error") or "download_failed",
+                        "provider_status": "download_failed",
+                        "job_id": job_id,
+                        "status_history": status_history,
+                        "download": download.get("data", {}),
+                        "payload": {**payload, "prompt": prompt},
+                        "prompt_validation": validation,
+                    },
+                    "error": download.get("error") or "download_failed",
+                }
+            try:
+                from core.real_clip_pipeline import validate_mp4
+
+                media_validation = validate_mp4(output, min_duration=1.0, min_file_size=100 * 1024)
+            except Exception as exc:
+                media_validation = {"valid_mp4": output.is_file() and output.stat().st_size > 100 * 1024, "error": type(exc).__name__}
+            if not media_validation.get("valid_mp4") or not media_validation.get("has_video", True):
+                return {
+                    "ok": False,
+                    "message": "AI Video provider returned invalid MP4",
+                    "data": {
+                        "path": str(output),
+                        "provider": provider,
+                        "provider_used": "google_veo",
+                        "fallback_reason": "invalid_provider_video",
+                        "provider_status": "validation_failed",
+                        "job_id": job_id,
+                        "status_history": status_history,
+                        "validation": media_validation,
+                        "payload": {**payload, "prompt": prompt},
+                        "prompt_validation": validation,
+                    },
+                    "error": "invalid_provider_video",
+                }
+            return {
+                "ok": True,
+                "message": "AI video shot generated",
+                "data": {
+                    "path": str(output),
+                    "provider": provider,
+                    "provider_used": "google_veo",
+                    "provider_available": True,
+                    "real_ai_video_used": True,
+                    "fallback_reason": "",
+                    "provider_status": "complete",
+                    "job_id": job_id,
+                    "status_history": status_history,
+                    "duration_seconds": duration_seconds,
+                    "aspect_ratio": aspect_ratio,
+                    "motion_style": motion_style,
+                    "validation": media_validation,
+                    "payload": {**payload, "prompt": prompt},
+                    "prompt_validation": validation,
+                },
+                "error": "",
+            }
+        if not polled.get("ok") or status in {"failed", "error"}:
+            break
+        time.sleep(poll_interval)
+    reason = last_status.get("error") or "provider_timeout"
     return {
         "ok": False,
-        "message": "AI video provider placeholder is not connected yet",
+        "message": f"AI Video provider failed: {reason}",
         "data": {
             "path": str(output),
             "provider": provider,
-            "provider_available": bool(api_key),
-            "fallback_reason": "provider_placeholder_not_connected",
-            "duration_seconds": duration_seconds,
-            "aspect_ratio": aspect_ratio,
-            "motion_style": motion_style,
+            "provider_used": "google_veo",
+            "provider_available": True,
+            "fallback_reason": reason,
+            "provider_status": "failed_or_timeout",
+            "job_id": job_id,
+            "status_history": status_history,
+            "last_status": last_status.get("data", {}),
+            "payload": {**payload, "prompt": prompt},
             "prompt_validation": validation,
         },
-        "error": "provider_placeholder_not_connected",
+        "error": reason,
     }
 
 

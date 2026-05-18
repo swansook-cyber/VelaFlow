@@ -16,7 +16,7 @@ from core.hook_intelligence import analyze_opening_hook, save_hook_analysis
 from core.paths import workflow_project_root
 from core.preset_engine import get_preset, preset_to_render_settings, preset_to_visual_settings
 from core.project_io import safe_name
-from core.real_clip_pipeline import ensure_parent_dir, render_real_hook_clip
+from core.real_clip_pipeline import combine_scene_clips_to_mp4, ensure_parent_dir, render_real_hook_clip, validate_mp4, write_subtitles
 from core.render_cache import CACHE_VERSION as RENDER_CACHE_VERSION, cache_fingerprint, copy_cached_assets_to_project, load_render_cache, save_render_cache
 from core.scene_prompt_engine import apply_scene_director_to_package, apply_scene_prompts_to_package, build_cinematic_quality_report, build_scene_director_plan, build_scene_prompts, save_cinematic_quality_report, save_scene_director_plan, save_scene_prompts
 from core.subtitle_engine import generate_styled_subtitles
@@ -1153,15 +1153,17 @@ def _try_ai_video_generation(
         scene_director_plan=scene_director_plan or {},
         emotional_arc=emotional_arc or {},
         target_duration=target_duration,
-        shot_count=int(video_settings.get("shot_count") or 6),
+        shot_count=max(6, int(video_settings.get("prompt_count") or video_settings.get("shot_prompt_count") or 6)),
     )
-    shots_dir = scenes_dir / "ai_video_shots"
+    shots_dir = exports_dir / "final" / "video_shots"
     shots_dir.mkdir(parents=True, exist_ok=True)
     shot_results: list[dict[str, Any]] = []
+    shot_paths: list[str] = []
     fallback_used = mode != "ai_video_provider"
     fallback_reason = "image_motion_mode_selected" if fallback_used else ""
     if mode == "ai_video_provider":
-        for shot in shot_prompts:
+        max_real_shots = max(1, min(10, int(video_settings.get("max_real_shots") or 3)))
+        for shot in shot_prompts[:max_real_shots]:
             output_path = shots_dir / f"{shot['shot_id']}.mp4"
             result = generate_video_shot(
                 shot["prompt"],
@@ -1177,21 +1179,27 @@ def _try_ai_video_generation(
                 fallback_used = True
                 fallback_reason = result.get("error") or "ai_video_provider_failed"
                 break
+            shot_paths.append(str(output_path))
     manifest_result = save_video_generation_manifest(
         exports_dir / "video_generation_manifest.json",
         {
             "project_name": project_name,
+            "mode_requested": mode,
             "mode": mode,
+            "provider_used": provider,
             "provider": provider,
+            "real_ai_video_used": bool(mode == "ai_video_provider" and shot_paths and not fallback_used),
             "visual_mode": "cinematic_live_action_video_v1",
             "full_hook_section_used": bool(full_hook_lyrics and len(full_hook_lyrics.strip()) >= len(str(package.get("hook_text") or "").strip())),
             "shot_prompts": shot_prompts,
             "shot_durations": [shot.get("duration_seconds") for shot in shot_prompts],
+            "shot_paths": shot_paths,
             "shot_results": shot_results,
             "fallback_used": fallback_used,
             "fallback_reason": fallback_reason,
             "fallback_mode": "image_motion_fallback" if fallback_used else "",
             "final_video_path": "",
+            "validation_result": {},
             "api_keys_exported": False,
         },
     )
@@ -1203,6 +1211,7 @@ def _try_ai_video_generation(
             "manifest": (manifest_result.get("data") or {}).get("manifest", {}),
             "shot_prompts": shot_prompts,
             "shot_results": shot_results,
+            "shot_paths": shot_paths,
             "fallback_used": fallback_used,
             "fallback_reason": fallback_reason,
         },
@@ -1539,9 +1548,103 @@ def quick_generate_hook_clip(
             output_name="voiceover.mp3",
         )
         voiceover_path = str((voice_result.get("data") or {}).get("audio_path") or "")
-        render_result = render_real_hook_clip(project_name, package, workflow_type="hook", voiceover_path=voiceover_path, background_audio_path=hook_audio_path, storage_workflow_type=storage_workflow_type, force=force_final_render)
+        video_generation_data = video_generation.get("data") or {}
+        video_shot_paths = [path for path in video_generation_data.get("shot_paths", []) if Path(str(path)).is_file()]
+        if video_generation.get("ok") and video_shot_paths:
+            srt_path = exports_dir / "subtitles.srt"
+            write_subtitles(package.get("subtitle_timing", []), srt_path, total_duration=float(beat_timing_plan.get("duration") or duration_seconds))
+            ai_subtitle_result = generate_styled_subtitles(
+                package.get("subtitle_timing", []),
+                exports_dir,
+                preset_id=str(preset.get("preset_id") or ""),
+                subtitle_style=effective_subtitle_style or str(preset.get("subtitle_style") or ""),
+            )
+            ai_ass_path = Path(str((ai_subtitle_result.get("data") or {}).get("ass") or ""))
+            final_path = ensure_parent_dir(exports_dir / "final_hook_clip.mp4")
+            combine_result = combine_scene_clips_to_mp4(
+                video_shot_paths,
+                final_path,
+                subtitle_path=ai_ass_path if ai_ass_path.is_file() else srt_path,
+                voiceover_path=voiceover_path,
+                background_audio_path=hook_audio_path,
+            )
+            validation = (combine_result.get("data") or {}).get("validation") or validate_mp4(final_path, require_audio=bool(hook_audio_path))
+            render_stage = {
+                "render_mode_used": "ai_video_provider",
+                "real_ai_video_used": bool(combine_result.get("ok")),
+                "fallback_used": False,
+                "scene_render_ok": bool(video_shot_paths),
+                "completed_scene_count": len(video_shot_paths),
+                "combine_ok": bool(combine_result.get("ok")),
+                "audio_attach_ok": bool(validation.get("has_audio")),
+                "subtitle_ok": srt_path.is_file(),
+                "final_mp4_ok": bool(validation.get("valid_mp4")),
+                "final_mp4_path": str(final_path) if final_path.is_file() else "",
+                "safe_error_message": "" if combine_result.get("ok") else (combine_result.get("error") or "AI video combine failed"),
+                "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+                "video_shot_paths": video_shot_paths,
+                "validation": validation,
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+            }
+            render_stage_path = ensure_parent_dir(exports_dir / "render_stage.json")
+            render_stage_path.write_text(json.dumps(render_stage, ensure_ascii=False, indent=2), encoding="utf-8")
+            manifest_payload = {
+                "generated_by": "VelaFlow",
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "project_name": project_name,
+                "workflow_type": "hook",
+                "status": "completed" if combine_result.get("ok") else "failed",
+                "final_mp4": str(final_path) if combine_result.get("ok") else "",
+                "subtitle_path": str(srt_path),
+                "styled_subtitle_path": str(ai_ass_path) if ai_ass_path.is_file() else "",
+                "background_audio_path": str(hook_audio_path or ""),
+                "voiceover_path": str(voiceover_path or ""),
+                "scene_jobs": [{"scene_id": Path(path).stem, "path": path, "status": "completed", "render_mode_used": "ai_video_provider"} for path in video_shot_paths],
+                "validation": validation,
+                "render_stage": render_stage,
+                "render_stage_path": str(render_stage_path),
+            }
+            manifest_path = ensure_parent_dir(exports_dir / "real_clip_manifest.json")
+            manifest_path.write_text(json.dumps(manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            render_result = {
+                "ok": bool(combine_result.get("ok") and validation.get("valid_mp4")),
+                "message": "AI video hook clip generated" if combine_result.get("ok") else "AI video combine failed",
+                "data": {
+                    "manifest": manifest_payload,
+                    "manifest_path": str(manifest_path),
+                    "render_stage": render_stage,
+                    "render_stage_path": str(render_stage_path),
+                    "final_mp4": str(final_path) if final_path.is_file() else "",
+                    "subtitles": str(srt_path),
+                    "styled_subtitles": str(ai_ass_path) if ai_ass_path.is_file() else "",
+                    "scene_jobs": manifest_payload["scene_jobs"],
+                    "background_audio_path": str(hook_audio_path or ""),
+                    "voiceover_path": str(voiceover_path or ""),
+                    "duration": validation.get("duration", 0),
+                    "validation": validation,
+                    "subtitle_burned": (combine_result.get("data") or {}).get("subtitle_burned", False),
+                    "subtitle_status": (combine_result.get("data") or {}).get("subtitle_status", "exported_only"),
+                    "audio_sync_status": (combine_result.get("data") or {}).get("audio_sync_status", ""),
+                    "audio_attached": (combine_result.get("data") or {}).get("audio_attached", False),
+                    "uploaded_audio_attached": bool(validation.get("has_audio")),
+                    "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+                },
+                "error": "" if combine_result.get("ok") else combine_result.get("error", "ai_video_combine_failed"),
+            }
+        else:
+            render_result = render_real_hook_clip(project_name, package, workflow_type="hook", voiceover_path=voiceover_path, background_audio_path=hook_audio_path, storage_workflow_type=storage_workflow_type, force=force_final_render)
         mark_stage("rendering_video", "completed" if render_result.get("ok") else "failed")
         render_stage = (render_result.get("data") or {}).get("render_stage", {}) or {}
+        video_manifest_path = Path(str(package.get("video_generation_manifest_path") or ""))
+        if video_manifest_path.is_file():
+            try:
+                video_manifest_payload = json.loads(video_manifest_path.read_text(encoding="utf-8"))
+                video_manifest_payload["final_video_path"] = (render_result.get("data") or {}).get("final_mp4", "")
+                video_manifest_payload["validation_result"] = (render_result.get("data") or {}).get("validation", {})
+                video_manifest_payload["real_ai_video_used"] = bool(video_manifest_payload.get("real_ai_video_used") and render_result.get("ok"))
+                video_manifest_path.write_text(json.dumps(video_manifest_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            except Exception:
+                pass
         mark_stage("syncing_audio", "completed" if render_stage.get("audio_attach_ok", True) or (render_result.get("data") or {}).get("audio_sync_status") else "failed")
         export_result = export_hook_clip_package(project_name, package)
         character_save = save_character_profile(project_name, character_profile, "clips") if character_profile else {"ok": False, "data": {}, "error": "no_character_profile"}
