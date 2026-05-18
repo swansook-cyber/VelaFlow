@@ -86,6 +86,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.licensing import get_license_service
 from core.marketing_package import build_marketing_package, export_marketing_package
+from core.music_video_v2 import generate_music_video_v2
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard
 from core.navigation_config import (
     FULL_MENU_GROUPS,
@@ -2833,6 +2834,45 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             else:
                 image_provider = "offline"
         hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
+        song_audio_path = str(((song.get("short_clip") or {}).get("song_audio") or {}).get("path") or "")
+        st.markdown("### Clip Studio V2")
+        st.caption("Real AI Video only. If Veo/Gemini video is unavailable, VelaFlow stops instead of using image-motion fallback.")
+        if st.button(
+            "Generate Real AI Video Clip",
+            type="primary",
+            use_container_width=True,
+            key="song_generate_music_video_v2",
+            disabled=not bool(song_audio_path),
+        ):
+            project_name = project.get("title") or song.get("title") or title
+            full_hook_lyrics = str(best_hook.get("section_text") or best_hook.get("hook_text") or song.get("complete_lyrics") or song.get("lyrics") or "")
+            with st.spinner("Generating real AI video shots..."):
+                v2_result = generate_music_video_v2(
+                    project_name=project_name,
+                    song=song,
+                    uploaded_audio_path=song_audio_path,
+                    hook_start_time=float((song.get("short_clip") or {}).get("hook_start_time", 15.0)),
+                    hook_end_time=float((song.get("short_clip") or {}).get("hook_end_time", 30.0)),
+                    full_hook_lyrics=full_hook_lyrics,
+                    provider="gemini_veo",
+                    video_settings={"gemini_api_key": _user_api_key("gemini")},
+                )
+            song.setdefault("short_clip", {})["music_video_v2"] = v2_result.get("data", {})
+            song["short_clip"]["music_video_v2_ok"] = bool(v2_result.get("ok"))
+            song["short_clip"]["music_video_v2_error"] = v2_result.get("error", "")
+            project["song"] = song
+            _save_project()
+            if v2_result.get("ok"):
+                st.success("Music Video V2 ready.")
+            else:
+                st.error(v2_result.get("message") or "Real AI Video provider unavailable. Please add a valid Veo/Gemini video key.")
+            st.rerun()
+        v2_data = ((song.get("short_clip") or {}).get("music_video_v2") or {})
+        if v2_data.get("final_mp4") and Path(str(v2_data.get("final_mp4"))).is_file():
+            st.video(str(v2_data["final_mp4"]))
+            st.download_button("Download Music Video V2 MP4", data=Path(v2_data["final_mp4"]).read_bytes(), file_name="final_hook_clip.mp4", mime="video/mp4", use_container_width=True, key="song_v2_download_final_mp4")
+        elif (song.get("short_clip") or {}).get("music_video_v2_error"):
+            st.warning(f"Real AI Video provider failed: {(song.get('short_clip') or {}).get('music_video_v2_error')}")
         r1, r2, r3 = st.columns(3)
         if r1.button("Retry Scene Images", use_container_width=True, key="song_retry_scene_images"):
             st.session_state["song_short_force_cache_refresh"] = True

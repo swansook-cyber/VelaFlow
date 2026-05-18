@@ -24,6 +24,7 @@ from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
+from core.music_video_v2 import build_music_video_v2_shot_plan, generate_music_video_v2
 from core.navigation_config import (
     FULL_MENU_GROUPS,
     HOOK_CLIP_ALLOWED_PAGES,
@@ -1285,6 +1286,51 @@ def main():
         assert_true(ai_video_manifest.get("real_ai_video_used") is False and ai_video_manifest.get("provider_confirmed_live") is False, "AI Video strict mode fake-confirmed provider")
         assert_true(ai_video_manifest.get("fallback_used") is False and not ai_video_manifest.get("fallback_mode"), "AI Video strict mode allowed fallback")
         assert_true(Path(ai_video_data["provider_debug_path"]).exists(), "AI Video provider_debug.json missing")
+        v2_plan = build_music_video_v2_shot_plan(full_hook_lyrics="hook line one\nhook line two\nhook line three", duration_seconds=8, mood="emotional")
+        assert_true(4 <= len(v2_plan) <= 8 and all("single continuous cinematic video shot" in shot["prompt"].lower() for shot in v2_plan), "Music Video V2 shot plan failed")
+
+        def fake_real_video_provider(prompt, duration_seconds, output_path, **kwargs):
+            scene = {"scene_id": Path(output_path).stem, "duration": float(duration_seconds), "render_mode": "placeholder"}
+            rendered = render_placeholder_scene(scene, output_path, aspect_ratio="9:16")
+            validation = validate_mp4(output_path, min_duration=1.0, min_file_size=1)
+            return {
+                "ok": bool(rendered.get("ok") and validation.get("valid_mp4")),
+                "message": "fake live provider generated MP4",
+                "data": {"path": str(output_path), "provider_status": "complete", "real_ai_video_used": True, "validation": validation},
+                "error": "" if rendered.get("ok") else rendered.get("error", "fake_provider_failed"),
+            }
+
+        v2_result = generate_music_video_v2(
+            project_name="Smoke Music Video V2",
+            song={"title": "Smoke V2", "artist_name": "VelaFlow", "mood": "emotional"},
+            uploaded_audio_path=hook_audio_trim["data"]["path"],
+            hook_start_time=0,
+            hook_end_time=2,
+            full_hook_lyrics="hook line one\nhook line two\nhook line three\nhook line four",
+            provider="test_live_provider",
+            video_settings={"gemini_api_key": "test-key"},
+            video_provider_fn=fake_real_video_provider,
+        )
+        v2_data = v2_result.get("data", {})
+        assert_true(v2_result["ok"] and validate_mp4(v2_data["final_mp4"], require_audio=True)["valid_mp4"], "Music Video V2 final MP4 failed")
+        v2_validation = validate_mp4(v2_data["final_mp4"], require_audio=True)
+        assert_true(v2_validation.get("has_video") and v2_validation.get("has_audio"), "Music Video V2 final streams missing")
+        assert_true(abs(float(v2_validation.get("duration") or 0) - 2.0) < 0.8, "Music Video V2 duration did not match hook range")
+        v2_manifest = json.loads(Path(v2_data["manifest_path"]).read_text(encoding="utf-8"))
+        assert_true(v2_manifest.get("real_ai_video_used") is True and v2_manifest.get("provider_confirmed_live") is True and v2_manifest.get("fallback_used") is False, "Music Video V2 manifest did not enforce real provider")
+        assert_true((Path(v2_data["final_dir"]) / "tiktok_caption.txt").exists() and (Path(v2_data["final_dir"]) / "hashtags.txt").exists(), "Music Video V2 creator assets missing")
+        v2_fail = generate_music_video_v2(
+            project_name="Smoke Music Video V2 Missing Provider",
+            song={"title": "Smoke V2"},
+            uploaded_audio_path=hook_audio_trim["data"]["path"],
+            hook_start_time=0,
+            hook_end_time=2,
+            full_hook_lyrics="hook line one\nhook line two",
+            provider="gemini_veo",
+            video_settings={"gemini_api_key": ""},
+        )
+        v2_fail_manifest = json.loads(Path((v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
+        assert_true(not v2_fail["ok"] and v2_fail_manifest.get("fallback_used") is False and v2_fail_manifest.get("real_ai_video_used") is False, "Music Video V2 allowed fallback success")
         affiliate_product = {
             "product_name": "Smoke Pillow",
             "product_type": "home item",
