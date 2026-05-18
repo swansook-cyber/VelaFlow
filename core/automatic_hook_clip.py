@@ -100,6 +100,26 @@ CINEMATIC_SHOT_VARIATIONS = [
     },
 ]
 
+CINEMATIC_CAMERA_STYLES = [
+    "wide isolation framing",
+    "cinematic drift",
+    "slow push-in",
+    "handheld emotional sway",
+    "parallax depth",
+    "rack focus simulation",
+    "emotional close-up",
+    "slow orbit",
+]
+
+CINEMATIC_TRANSITIONS = [
+    "cinematic fade",
+    "emotional dissolve",
+    "soft blur transition",
+    "beat cut",
+    "light flash",
+    "directional motion blend",
+]
+
 
 def export_tiktok_package(project_name: str, package: dict[str, Any], render_data: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
@@ -130,6 +150,15 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         beat_timing = Path(str(render_data.get("beat_timing") or package.get("beat_timing_path") or ""))
         if beat_timing.is_file():
             shutil.copy2(beat_timing, ensure_parent_dir(final_dir / "beat_timing.json"))
+        for source_key, filename in [
+            ("timeline_director", "timeline_director.json"),
+            ("scene_motion_map", "scene_motion_map.json"),
+            ("emotional_curve", "emotional_curve.json"),
+            ("shot_progression", "shot_progression.json"),
+        ]:
+            source_path = Path(str(render_data.get(source_key) or package.get(f"{source_key}_path") or ""))
+            if source_path.is_file():
+                shutil.copy2(source_path, ensure_parent_dir(final_dir / filename))
         scene_director_plan = Path(str(render_data.get("scene_director_plan") or package.get("scene_director_plan_path") or ""))
         if scene_director_plan.is_file():
             shutil.copy2(scene_director_plan, ensure_parent_dir(final_dir / "scene_director_plan.json"))
@@ -215,6 +244,10 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "thumbnail_score": str(final_dir / "thumbnail_score.json") if (final_dir / "thumbnail_score.json").is_file() else "",
             "scene_prompts": str(final_dir / "scene_prompts.json") if (final_dir / "scene_prompts.json").is_file() else "",
             "beat_timing": str(final_dir / "beat_timing.json") if (final_dir / "beat_timing.json").is_file() else "",
+            "timeline_director": str(final_dir / "timeline_director.json") if (final_dir / "timeline_director.json").is_file() else "",
+            "scene_motion_map": str(final_dir / "scene_motion_map.json") if (final_dir / "scene_motion_map.json").is_file() else "",
+            "emotional_curve": str(final_dir / "emotional_curve.json") if (final_dir / "emotional_curve.json").is_file() else "",
+            "shot_progression": str(final_dir / "shot_progression.json") if (final_dir / "shot_progression.json").is_file() else "",
             "scene_director_plan": str(final_dir / "scene_director_plan.json") if (final_dir / "scene_director_plan.json").is_file() else "",
             "cinematic_quality_report": str(final_dir / "cinematic_quality_report.json") if (final_dir / "cinematic_quality_report.json").is_file() else "",
             "render_manifest": str(final_dir / "render_manifest.json") if (final_dir / "render_manifest.json").is_file() else "",
@@ -546,6 +579,203 @@ def _write_shot_variation_report(package: dict[str, Any], image_results: list[di
     return {"ok": report["validation"]["ok"], "message": "Shot variation report exported", "data": {"path": str(path), "report": report}, "error": error}
 
 
+def _emotion_pacing_profile(hook_analysis: dict[str, Any], preset: dict[str, Any]) -> str:
+    hook_style = str(preset.get("hook_style") or "").lower()
+    scores = hook_analysis.get("scores") or {}
+    emotional = int(scores.get("emotional_intensity") or hook_analysis.get("hook_intensity") or 60)
+    curiosity = int(scores.get("curiosity") or 50)
+    if "conversion" in hook_style or "aggressive" in hook_style or curiosity >= 72:
+        return "aggressive_hook"
+    if emotional >= 70 or "emotional" in hook_style or str(preset.get("preset_id")) == "emotional_story":
+        return "sad_emotional"
+    if "hope" in hook_style or "story" in hook_style:
+        return "hopeful_release"
+    return "cinematic_balanced"
+
+
+def _duration_pattern(scene_count: int, total_duration: float, pacing_profile: str) -> list[float]:
+    if pacing_profile == "aggressive_hook":
+        pattern = [1.55, 1.8, 2.1, 1.75]
+    elif pacing_profile == "sad_emotional":
+        pattern = [1.8, 2.15, 2.45, 2.0]
+    elif pacing_profile == "hopeful_release":
+        pattern = [1.7, 2.0, 2.25, 2.25]
+    else:
+        pattern = [1.65, 1.95, 2.25, 1.9]
+    values = pattern[:scene_count]
+    if total_duration and total_duration < sum(values):
+        scale = max(0.75, total_duration / max(1.0, sum(values)))
+        values = [max(1.45, min(2.6, value * scale)) for value in values]
+    return [round(value, 2) for value in values]
+
+
+def _build_cinematic_timeline_director_v2(package: dict[str, Any], beat_timing_plan: dict[str, Any], hook_analysis: dict[str, Any], preset: dict[str, Any]) -> dict[str, Any]:
+    scenes = package.get("scene_sequence") or []
+    total_duration = float(beat_timing_plan.get("duration") or sum(float(scene.get("duration") or 2.0) for scene in scenes) or 8.0)
+    pacing_profile = _emotion_pacing_profile(hook_analysis, preset)
+    durations = _duration_pattern(len(scenes), total_duration, pacing_profile)
+    energy_map = {
+        "sad_emotional": [28, 52, 86, 58],
+        "aggressive_hook": [70, 88, 100, 78],
+        "hopeful_release": [38, 58, 82, 64],
+        "cinematic_balanced": [45, 62, 88, 60],
+    }.get(pacing_profile, [45, 62, 88, 60])
+    emotional_map = {
+        "sad_emotional": ["lonely setup", "private ache", "hook heartbreak peak", "quiet release"],
+        "aggressive_hook": ["instant tension", "rising pressure", "impact peak", "sharp exit"],
+        "hopeful_release": ["soft doubt", "realization", "release peak", "open ending"],
+        "cinematic_balanced": ["emotional setup", "intimate build", "hook peak", "soft landing"],
+    }.get(pacing_profile, ["emotional setup", "intimate build", "hook peak", "soft landing"])
+    transition_map = {
+        "sad_emotional": ["cinematic fade", "emotional dissolve", "soft blur transition", "cinematic fade"],
+        "aggressive_hook": ["beat cut", "light flash", "directional motion blend", "beat cut"],
+        "hopeful_release": ["emotional dissolve", "soft blur transition", "cinematic fade", "emotional dissolve"],
+        "cinematic_balanced": ["cinematic fade", "soft blur transition", "beat cut", "emotional dissolve"],
+    }.get(pacing_profile, CINEMATIC_TRANSITIONS)
+    scene_timing = beat_timing_plan.get("scene_timing") or []
+    timeline_scenes = []
+    cursor = 0.0
+    for index, scene in enumerate(scenes, start=1):
+        timing = scene_timing[min(index - 1, len(scene_timing) - 1)] if scene_timing else {}
+        camera_style = CINEMATIC_CAMERA_STYLES[min(index - 1, len(CINEMATIC_CAMERA_STYLES) - 1)]
+        if scene.get("hook_peak_scene") or index == min(3, len(scenes)):
+            camera_style = "emotional close-up"
+        duration = durations[min(index - 1, len(durations) - 1)] if durations else 1.8
+        timeline_scenes.append(
+            {
+                "scene_id": scene.get("scene_id") or f"scene_{index:02d}",
+                "start": round(cursor, 2),
+                "end": round(cursor + duration, 2),
+                "duration": duration,
+                "emotional_beat": emotional_map[min(index - 1, len(emotional_map) - 1)],
+                "camera_style": camera_style,
+                "motion_style": scene.get("motion_effect") or "cinematic_drift",
+                "scene_energy": energy_map[min(index - 1, len(energy_map) - 1)],
+                "transition_pacing": transition_map[min(index - 1, len(transition_map) - 1)],
+                "lyric_sync": "hook_peak" if scene.get("hook_peak_scene") else timing.get("transition_trigger", "lyric_beat"),
+                "beat_peak_alignment": bool(scene.get("hook_peak_scene") or timing.get("hook_peak")),
+                "static_scene_allowed": False,
+                "minimum_motion_required": "subtle motion, transition motion, or cinematic zoom",
+            }
+        )
+        cursor += duration
+    return {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "engine": "cinematic_timeline_director_v2",
+        "pacing_profile": pacing_profile,
+        "hook_peak_moment": beat_timing_plan.get("hook_peak_moment", 0),
+        "audio_duration": beat_timing_plan.get("duration", total_duration),
+        "timeline_duration": round(cursor, 2),
+        "hook_pacing_map": {
+            "sad_hook": "slower pacing, emotional push-in, lingering shots",
+            "aggressive_hook": "quicker cuts, stronger movement, impact transitions",
+            "hopeful_hook": "brighter evolution, wider framing, softer movement",
+            "active_profile": pacing_profile,
+        },
+        "rules": {
+            "no_static_scenes_longer_than_2s_without_motion": True,
+            "single_fullscreen_scene_only": True,
+            "scene_must_differ_by_two_or_more_attributes": True,
+        },
+        "scenes": timeline_scenes,
+    }
+
+
+def _apply_timeline_director_to_package(package: dict[str, Any], timeline_director: dict[str, Any]) -> dict[str, Any]:
+    by_id = {item.get("scene_id"): item for item in timeline_director.get("scenes", [])}
+    camera_to_motion = {
+        "wide isolation framing": "emotional_push_in",
+        "cinematic drift": "cinematic_drift",
+        "slow push-in": "emotional_push_in",
+        "handheld emotional sway": "cinematic_drift",
+        "parallax depth": "minimal_pan",
+        "rack focus simulation": "slow_cinematic",
+        "emotional close-up": "hook_energy_zoom",
+        "slow orbit": "slow_cinematic",
+    }
+    preset_id = str((package.get("creator_outcome_preset") or {}).get("preset_id") or "")
+    for scene in package.get("scene_sequence") or []:
+        directed = by_id.get(scene.get("scene_id")) or {}
+        camera_style = directed.get("camera_style", "")
+        scene["duration"] = directed.get("duration", scene.get("duration", 2.0))
+        scene["camera_style"] = camera_style
+        scene["timeline_director"] = directed
+        scene["scene_energy"] = directed.get("scene_energy", 0)
+        scene["emotional_beat"] = directed.get("emotional_beat", "")
+        scene["transition"] = directed.get("transition_pacing", scene.get("transition", "cinematic fade"))
+        if preset_id == "cute_character":
+            scene["motion_effect"] = scene.get("motion_effect") or "bounce"
+        else:
+            scene["motion_effect"] = camera_to_motion.get(camera_style, scene.get("motion_effect", "cinematic_drift"))
+        scene["motion_style"] = directed.get("motion_style", scene.get("motion_effect", "cinematic_drift"))
+    package["timeline_director"] = timeline_director
+    return package
+
+
+def _save_timeline_director_exports(timeline_director: dict[str, Any], package: dict[str, Any], exports_dir: Path) -> dict[str, str]:
+    paths = {
+        "timeline_director_path": exports_dir / "timeline_director.json",
+        "scene_motion_map_path": exports_dir / "scene_motion_map.json",
+        "emotional_curve_path": exports_dir / "emotional_curve.json",
+        "shot_progression_path": exports_dir / "shot_progression.json",
+    }
+    scene_motion_map = {
+        "engine": timeline_director.get("engine"),
+        "scenes": [
+            {
+                "scene_id": scene.get("scene_id"),
+                "camera_style": scene.get("camera_style"),
+                "motion_style": scene.get("motion_style"),
+                "motion_effect": (package.get("scene_sequence") or [{}])[index].get("motion_effect", "") if index < len(package.get("scene_sequence") or []) else "",
+                "duration": scene.get("duration"),
+                "transition_pacing": scene.get("transition_pacing"),
+            }
+            for index, scene in enumerate(timeline_director.get("scenes") or [])
+        ],
+    }
+    emotional_curve = {
+        "engine": timeline_director.get("engine"),
+        "pacing_profile": timeline_director.get("pacing_profile"),
+        "hook_peak_moment": timeline_director.get("hook_peak_moment"),
+        "curve": [
+            {
+                "scene_id": scene.get("scene_id"),
+                "time": scene.get("start"),
+                "energy": scene.get("scene_energy"),
+                "emotional_beat": scene.get("emotional_beat"),
+            }
+            for scene in timeline_director.get("scenes") or []
+        ],
+    }
+    shot_progression = {
+        "engine": timeline_director.get("engine"),
+        "shot_progression": [
+            {
+                "scene_id": scene.get("scene_id"),
+                "shot_type": package_scene.get("shot_type", ""),
+                "camera_style": scene.get("camera_style"),
+                "framing_variation": package_scene.get("framing_variation", ""),
+                "pose_evolution": package_scene.get("pose_evolution", ""),
+                "lighting_evolution": package_scene.get("lighting_evolution", ""),
+            }
+            for scene, package_scene in zip(timeline_director.get("scenes") or [], package.get("scene_sequence") or [])
+        ],
+    }
+    payloads = {
+        "timeline_director_path": timeline_director,
+        "scene_motion_map_path": scene_motion_map,
+        "emotional_curve_path": emotional_curve,
+        "shot_progression_path": shot_progression,
+    }
+    written: dict[str, str] = {}
+    for key, payload in payloads.items():
+        path = ensure_parent_dir(paths[key])
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        written[key] = str(path)
+    return written
+
+
 def _apply_preset_to_scenes(package: dict[str, Any], preset: dict[str, Any]) -> None:
     sequence = PRESET_MOTION_SEQUENCES.get(str(preset.get("motion_style") or ""), MOTION_EFFECTS)
     for index, scene in enumerate(package.get("scene_sequence", []) or [], start=1):
@@ -795,6 +1025,10 @@ def quick_generate_hook_clip(
         )
         apply_scene_director_to_package(package, director_plan)
         _apply_cinematic_shot_variations(package, director_plan)
+        timeline_director = _build_cinematic_timeline_director_v2(package, beat_timing_plan, hook_analysis, preset)
+        _apply_timeline_director_to_package(package, timeline_director)
+        timeline_paths = _save_timeline_director_exports(timeline_director, package, exports_dir)
+        package.update(timeline_paths)
         director_result = save_scene_director_plan(director_plan, exports_dir / "scene_director_plan.json")
         package["scene_director_plan_path"] = (director_result.get("data") or {}).get("path", "")
         scene_prompt_style = "Cute Character" if preset.get("preset_id") == "cute_character" else "TikTok Meme" if preset.get("preset_id") == "viral_meme" else "Emotional"
@@ -945,6 +1179,10 @@ def quick_generate_hook_clip(
             "thumbnail_score": package.get("thumbnail_score_path", ""),
             "scene_prompts": package.get("scene_prompts_path", ""),
             "beat_timing": package.get("beat_timing_path", ""),
+            "timeline_director": package.get("timeline_director_path", ""),
+            "scene_motion_map": package.get("scene_motion_map_path", ""),
+            "emotional_curve": package.get("emotional_curve_path", ""),
+            "shot_progression": package.get("shot_progression_path", ""),
             "scene_director_plan": package.get("scene_director_plan_path", ""),
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
@@ -988,6 +1226,11 @@ def quick_generate_hook_clip(
             "scene_prompts_path": package.get("scene_prompts_path", ""),
             "beat_timing": beat_timing_plan,
             "beat_timing_path": package.get("beat_timing_path", ""),
+            "timeline_director": timeline_director,
+            "timeline_director_path": package.get("timeline_director_path", ""),
+            "scene_motion_map_path": package.get("scene_motion_map_path", ""),
+            "emotional_curve_path": package.get("emotional_curve_path", ""),
+            "shot_progression_path": package.get("shot_progression_path", ""),
             "scene_director_plan": director_plan,
             "scene_director_plan_path": package.get("scene_director_plan_path", ""),
             "cinematic_quality_report": cinematic_quality_report,
@@ -1014,6 +1257,10 @@ def quick_generate_hook_clip(
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
         render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
         render_manifest_payload["shot_variation_report_path"] = package.get("shot_variation_report_path", "")
+        render_manifest_payload["timeline_director_path"] = package.get("timeline_director_path", "")
+        render_manifest_payload["scene_motion_map_path"] = package.get("scene_motion_map_path", "")
+        render_manifest_payload["emotional_curve_path"] = package.get("emotional_curve_path", "")
+        render_manifest_payload["shot_progression_path"] = package.get("shot_progression_path", "")
         render_manifest_payload["render_stage_path"] = (render_result.get("data") or {}).get("render_stage_path", "")
         render_manifest_payload["render_pipeline_report_path"] = (render_result.get("data") or {}).get("render_pipeline_report_path", "")
         render_manifest_payload["progress_stages"] = progress_stages
@@ -1028,6 +1275,11 @@ def quick_generate_hook_clip(
                     "character_profile": character_profile or {},
                     "hook_analysis": hook_analysis,
                     "scene_director_plan": director_plan,
+                    "timeline_director": timeline_director,
+                    "timeline_director_path": package.get("timeline_director_path", ""),
+                    "scene_motion_map_path": package.get("scene_motion_map_path", ""),
+                    "emotional_curve_path": package.get("emotional_curve_path", ""),
+                    "shot_progression_path": package.get("shot_progression_path", ""),
                     "scene_director_plan_path": package.get("scene_director_plan_path", ""),
                     "cinematic_quality_report": cinematic_quality_report,
                     "cinematic_quality_report_path": package.get("cinematic_quality_report_path", ""),
@@ -1070,6 +1322,11 @@ def quick_generate_hook_clip(
                 "cinematic_quality_report_path": package.get("cinematic_quality_report_path", ""),
                 "beat_timing": beat_timing_plan,
                 "beat_timing_path": package.get("beat_timing_path", ""),
+                "timeline_director": timeline_director,
+                "timeline_director_path": package.get("timeline_director_path", ""),
+                "scene_motion_map_path": package.get("scene_motion_map_path", ""),
+                "emotional_curve_path": package.get("emotional_curve_path", ""),
+                "shot_progression_path": package.get("shot_progression_path", ""),
                 "viral_timing_plan": viral_timing_plan,
                 "viral_metrics": viral_metrics,
                 "progress_stages": progress_stages,
