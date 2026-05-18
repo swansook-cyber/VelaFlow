@@ -8,14 +8,22 @@ from pathlib import Path
 from typing import Any, Dict
 
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE_CACHE_DIR = ROOT / "outputs" / "cache" / "images"
 DEFAULT_NEGATIVE_PROMPT = (
     "bad anatomy, extra fingers, deformed hands, deformed face, low quality, blurry, "
-    "duplicate character, inconsistent character, watermark, text artifacts"
+    "duplicate character, inconsistent character, watermark, text artifacts, storyboard, comic, manga, "
+    "split screen, contact sheet, tiled frames, cinematic strip, multi-panel layout, duplicated frame, "
+    "repeated composition, grid, gallery, UI overlay, subtitles, numbers, watermarks, icons, logos, "
+    "text, labels, debug overlay, frame counters, shot sheet, film strip, collage, storyboard page"
+)
+
+SINGLE_FRAME_PROMPT_RULE = (
+    "single cinematic fullscreen frame, one continuous real-world camera shot, "
+    "NOT a storyboard or multi-panel composition, no text inside the image, no numbers, no UI overlay"
 )
 
 
@@ -173,6 +181,13 @@ def _cache_key(provider: str, prompt: str, settings: Dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _enforce_single_frame_prompt(prompt: str) -> str:
+    value = str(prompt or "").strip()
+    if "single cinematic fullscreen frame" not in value.lower():
+        value = f"{value}, {SINGLE_FRAME_PROMPT_RULE}"
+    return value
+
+
 def _write_prompt_sidecar(output_path: Path, prompt: str, negative_prompt: str, metadata: Dict[str, Any]) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     sidecar = output_path.with_suffix(".json")
@@ -196,24 +211,38 @@ def _placeholder_image(output_path: Path, prompt: str, provider: str, size: str 
     width, height = _parse_size(size)
     width = min(max(width, 512), 1536)
     height = min(max(height, 512), 1536)
-    image = Image.new("RGB", (width, height), (18, 20, 27))
+    seed = int(hashlib.sha256(f"{provider}|{prompt}".encode("utf-8")).hexdigest()[:8], 16)
+    warm_shift = seed % 36
+    x_shift = ((seed >> 5) % 17 - 8) / 100
+    light_shift = ((seed >> 11) % 19 - 9) / 100
+    image = Image.new("RGB", (width, height), (20, 22, 28))
     draw = ImageDraw.Draw(image)
-    accent = (63, 180, 255)
-    draw.rectangle((0, 0, width - 1, height - 1), outline=accent, width=6)
-    draw.rectangle((24, 24, width - 24, height - 24), outline=(66, 74, 90), width=2)
-    title = f"{provider.upper()} PLACEHOLDER"
-    lines = _wrap_text(prompt, max(28, width // 28))[:12]
-    try:
-        font_title = ImageFont.truetype("arial.ttf", max(24, width // 28))
-        font_body = ImageFont.truetype("arial.ttf", max(18, width // 44))
-    except Exception:
-        font_title = ImageFont.load_default()
-        font_body = ImageFont.load_default()
-    draw.text((42, 42), title, fill=accent, font=font_title)
-    y = 110
-    for line in lines:
-        draw.text((42, y), line, fill=(235, 238, 245), font=font_body)
-        y += max(24, height // 32)
+    for y in range(height):
+        ratio = y / max(1, height - 1)
+        r = int(22 + ratio * (22 + warm_shift * 0.25))
+        g = int(24 + ratio * (14 + warm_shift * 0.12))
+        b = int(32 + ratio * (38 - warm_shift * 0.15))
+        draw.line((0, y, width, y), fill=(r, g, b))
+    # Text-free cinematic fallback: single vertical frame, soft window light, one silhouette.
+    glow_center = (int(width * (0.72 + light_shift)), int(height * (0.24 + abs(light_shift) * 0.25)))
+    for radius, alpha in [(420, 28), (300, 38), (180, 54)]:
+        bbox = (
+            glow_center[0] - radius,
+            glow_center[1] - radius,
+            glow_center[0] + radius,
+            glow_center[1] + radius,
+        )
+        draw.ellipse(bbox, fill=(min(255, 40 + alpha), min(255, 52 + alpha), min(255, 74 + alpha)))
+    floor_y = int(height * 0.72)
+    draw.rectangle((0, floor_y, width, height), fill=(16, 17, 22))
+    body_x = int(width * (0.48 + x_shift))
+    body_y = int(height * (0.48 + abs(x_shift) * 0.3))
+    draw.ellipse((body_x - 54, body_y - 120, body_x + 54, body_y - 12), fill=(38, 35, 38))
+    draw.rounded_rectangle((body_x - 82, body_y - 20, body_x + 82, body_y + 260), radius=56, fill=(34, 31, 35))
+    window_x = int(width * (0.09 + ((seed >> 18) % 9) / 100))
+    draw.rectangle((window_x, int(height * 0.16), window_x + int(width * 0.05), int(height * 0.66)), fill=(60, 62, 72))
+    draw.rectangle((window_x + int(width * 0.05), int(height * 0.16), window_x + int(width * 0.31), int(height * 0.20)), fill=(72, 74, 84))
+    draw.rectangle((window_x + int(width * 0.05), int(height * 0.22), window_x + int(width * 0.29), int(height * 0.65)), fill=(118 + warm_shift // 3, 101, 82))
     output_path.parent.mkdir(parents=True, exist_ok=True)
     image.save(output_path)
     return str(output_path)
@@ -478,6 +507,7 @@ def generate_image(provider: str, prompt: str, output_path: str, settings: Dict[
     settings = settings or {}
     provider = (provider or "manual").lower()
     output = Path(output_path)
+    prompt = _enforce_single_frame_prompt(prompt)
     negative_prompt = settings.get("negative_prompt") or DEFAULT_NEGATIVE_PROMPT
     character_note = settings.get("character_note", "")
     if character_note and character_note not in prompt:
@@ -506,6 +536,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
     provider = (provider or "offline").lower()
     output = Path(output_path).with_suffix(".jpg")
     raw_output = output.with_suffix(".raw")
+    prompt = _enforce_single_frame_prompt(prompt)
     negative_prompt = settings.get("negative_prompt") or DEFAULT_NEGATIVE_PROMPT
     character_note = settings.get("character_note", "")
     if character_note and character_note not in prompt:

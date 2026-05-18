@@ -1127,6 +1127,14 @@ def main():
         assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("all_vertical_9x16"), "scene image report did not enforce vertical 9:16")
         assert_true((scene_generation_report.get("fullscreen_validation") or {}).get("all_single_composition"), "scene image report detected multi-frame composition")
         assert_true(scene_generation_report.get("forbidden_scene_image_layout_found") is False, "scene generation report found contact-sheet/grid layout")
+        image_validation_report_path = Path(quick_data.get("image_validation_report_path", ""))
+        assert_true(image_validation_report_path.exists(), "image_validation_report.json missing")
+        image_validation_report = json.loads(image_validation_report_path.read_text(encoding="utf-8"))
+        assert_true(image_validation_report.get("image_validation_engine") == "single_frame_provider_output_guard_v1", "image validation guard missing")
+        assert_true(image_validation_report.get("hard_negative_prompt_active") is True, "hard negative prompt not active")
+        assert_true(image_validation_report.get("panel_layout_detected") is False, "image validation detected panel layout")
+        assert_true(float(image_validation_report.get("storyboard_score") or 0) < 0.99, "storyboard score too high")
+        assert_true(float(image_validation_report.get("text_overlay_score") or 0) < 0.92, "text overlay score too high")
         shot_variation_report_path = Path(quick_data.get("shot_variation_report_path", ""))
         assert_true(shot_variation_report_path.exists(), "shot_variation_report.json missing")
         shot_variation_report = json.loads(shot_variation_report_path.read_text(encoding="utf-8"))
@@ -1181,7 +1189,9 @@ def main():
         assert_true((thumbnail_score.get("quality") or {}).get("thumbnail_quality", 0) > 0, "thumbnail quality scoring failed")
         assert_true(any("cinematic" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts are not cinematic")
         assert_true(any("different framing" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing variety/continuity guidance")
+        assert_true(all("single cinematic fullscreen frame" in item.get("cinematic_prompt", "").lower() and "one continuous real-world camera shot" in item.get("cinematic_prompt", "").lower() and "not a storyboard or multi-panel composition" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing mandatory single-frame positive rules")
         assert_true(all("no collage" in item.get("cinematic_prompt", "").lower() and "not a grid montage" in item.get("cinematic_prompt", "").lower() and "same hairstyle" in item.get("cinematic_prompt", "").lower() and "no text inside image" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing full-screen continuity constraints")
+        assert_true(all("storyboard" in item.get("prompt", "").lower() and "contact sheet" in item.get("hard_negative_prompt", "").lower() and "text" in item.get("hard_negative_prompt", "").lower() for item in quick_data["image_results"]), "hard negative image prompt rules missing")
         assert_true(all("realistic skin texture" in item.get("cinematic_prompt", "").lower() and "natural facial proportions" in item.get("cinematic_prompt", "").lower() and "avoid plastic ai faces" in item.get("cinematic_prompt", "").lower() for item in quick_data["scene_prompts"]["scene_prompts"]), "scene prompts missing cinematic realism layer")
         forbidden_filters = ["hstack", "vstack", "xstack", "tile", "grid", "collage"]
         assert_true(all(job.get("visual_composition_mode") == "single_fullscreen_scene" for job in quick_data["render"].get("scene_jobs", [])), "scene job is not single fullscreen")
@@ -1209,6 +1219,7 @@ def main():
             assert_true((tiktok_final_dir / filename).exists(), f"TikTok package missing {filename}")
         assert_true((tiktok_final_dir / "debug" / "render_pipeline_report.json").exists(), "TikTok package missing debug/render_pipeline_report.json")
         assert_true((tiktok_final_dir / "debug" / "scene_generation_report.json").exists(), "TikTok package missing debug/scene_generation_report.json")
+        assert_true((tiktok_final_dir / "debug" / "image_validation_report.json").exists(), "TikTok package missing debug/image_validation_report.json")
         assert_true((tiktok_final_dir / "debug" / "shot_variation_report.json").exists(), "TikTok package missing debug/shot_variation_report.json")
         for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
             path = tiktok_final_dir / filename

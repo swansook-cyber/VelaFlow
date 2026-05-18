@@ -195,6 +195,7 @@ def build_scene_prompt(
         f"{REALISM_PROMPT_LAYER}, "
         "lens feeling: intimate 35mm/50mm emotional cinema lens, motion-friendly composition, "
         f"vertical 9:16 composition, TikTok-ready framing, subtitle-safe lower third, "
+        "single cinematic fullscreen frame, one continuous real-world camera shot, NOT a storyboard or multi-panel composition, "
         "strong continuity reference: same character identity, same face, same facial proportions, same hairstyle, same hair color, same clothes, same wardrobe fabric, same room/location, "
         "same emotional environment, same cinematic color palette, same lighting palette, "
         "one full-screen scene at a time, no stacked images, no collage, no split-screen layout, "

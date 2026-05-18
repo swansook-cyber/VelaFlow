@@ -120,6 +120,16 @@ CINEMATIC_TRANSITIONS = [
     "directional motion blend",
 ]
 
+HARD_IMAGE_NEGATIVE_PROMPT = (
+    "storyboard, comic, manga, split screen, contact sheet, tiled frames, cinematic strip, multi-panel layout, "
+    "duplicated frame, repeated composition, grid, gallery, UI overlay, subtitles, numbers, watermarks, icons, logos, "
+    "text, labels, debug overlay, frame counters, shot sheet, film strip, collage, storyboard page, random symbols"
+)
+
+SINGLE_FRAME_POSITIVE_RULE = (
+    "single cinematic fullscreen frame, one continuous real-world camera shot, NOT a storyboard or multi-panel composition"
+)
+
 
 def export_tiktok_package(project_name: str, package: dict[str, Any], render_data: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
@@ -184,6 +194,11 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             debug_dir = final_dir / "debug"
             debug_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(scene_generation_report, ensure_parent_dir(debug_dir / "scene_generation_report.json"))
+        image_validation_report = Path(str(render_data.get("image_validation_report") or package.get("image_validation_report_path") or ""))
+        if image_validation_report.is_file():
+            debug_dir = final_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(image_validation_report, ensure_parent_dir(debug_dir / "image_validation_report.json"))
         shot_variation_report = Path(str(render_data.get("shot_variation_report") or package.get("shot_variation_report_path") or ""))
         if shot_variation_report.is_file():
             debug_dir = final_dir / "debug"
@@ -255,6 +270,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "render_pipeline_report": str(final_dir / "debug" / "render_pipeline_report.json") if (final_dir / "debug" / "render_pipeline_report.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
             "scene_generation_report": str(final_dir / "debug" / "scene_generation_report.json") if (final_dir / "debug" / "scene_generation_report.json").is_file() else "",
+            "image_validation_report": str(final_dir / "debug" / "image_validation_report.json") if (final_dir / "debug" / "image_validation_report.json").is_file() else "",
             "shot_variation_report": str(final_dir / "debug" / "shot_variation_report.json") if (final_dir / "debug" / "shot_variation_report.json").is_file() else "",
             "hook_analysis": str(final_dir / "hook_analysis.json") if (final_dir / "hook_analysis.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
@@ -342,7 +358,7 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
     elif preset.get("motion_style") == "cinematic_mv":
         style_suffix = ", music video cinematic frame, dramatic film look"
     base = (
-        f"{prompt}, {camera}, {lighting}{style_suffix}, high quality composition, "
+        f"{prompt}, {camera}, {lighting}{style_suffix}, {SINGLE_FRAME_POSITIVE_RULE}, high quality composition, "
         f"shot variation: {shot_variation.get('framing_variation', scene.get('shot_type', 'cinematic shot'))}, "
         f"camera distance: {shot_variation.get('camera_distance_variation', scene.get('camera_distance', 'cinematic'))}, "
         f"emotional angle: {shot_variation.get('emotional_angle_variation', scene.get('emotional_intent', 'emotional'))}, "
@@ -351,7 +367,8 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
         "single full-screen 9:16 cinematic frame, one scene at a time, no collage, no split screen, "
         "no stacked panels, no tiled frames, not a contact sheet, not a storyboard page, not a grid montage, "
         "same character continuity, same environment continuity, same emotional lighting palette, "
-        "unique framing compared with every other scene, no copy-paste composition, clear subject, no watermark, no random text"
+        "unique framing compared with every other scene, no copy-paste composition, clear subject, no watermark, no random text, "
+        f"hard negative visual rules: NO {HARD_IMAGE_NEGATIVE_PROMPT}"
     )
     return apply_character_consistency(base, character_profile, consistency_strength)
 
@@ -406,6 +423,10 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
         "path": str(image_path),
         "validation": validation,
         "multiple_frames_detected": False,
+        "panel_layout_detected": False,
+        "text_overlay_score": 0.0,
+        "duplicate_region_score": 0.0,
+        "storyboard_score": 0.0,
         "collage_detection_score": 0.0,
         "fullscreen_validation": {
             "exists": bool(validation.get("file_exists")),
@@ -435,6 +456,28 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
                 horizontal_scores.append(_divider_strength(values))
             strong_vertical = sum(1 for score in vertical_scores if score >= 0.86)
             strong_horizontal = sum(1 for score in horizontal_scores if score >= 0.86)
+            thirds = [
+                gray.crop((0, 0, width, height // 3)),
+                gray.crop((0, height // 3, width, (height * 2) // 3)),
+                gray.crop((0, (height * 2) // 3, width, height)),
+            ]
+            region_hashes = []
+            for region in thirds:
+                mini = region.resize((8, 8))
+                values = list(mini.getdata())
+                avg = sum(values) / max(1, len(values))
+                region_hashes.append("".join("1" if value >= avg else "0" for value in values))
+            duplicate_region_score = max(
+                [_hash_similarity(region_hashes[left], region_hashes[right]) for left in range(len(region_hashes)) for right in range(left + 1, len(region_hashes))]
+                or [0.0]
+            )
+            result["duplicate_region_score"] = duplicate_region_score
+            # Text/UI overlays usually create dense high-contrast detail in the bottom or top safe bands.
+            edge_band = gray.crop((0, int(height * 0.74), width, int(height * 0.94)))
+            band_values = list(edge_band.resize((90, 24)).getdata())
+            band_avg = sum(band_values) / max(1, len(band_values))
+            high_contrast = sum(1 for value in band_values if abs(value - band_avg) > 58) / max(1, len(band_values))
+            result["text_overlay_score"] = round(min(1.0, high_contrast * 2.2), 3)
             # Contact sheets usually have multiple clean divider lines. Single-image scenes can contain
             # high-contrast text, windows, or borders, so require repeated panel-like separators.
             if strong_vertical >= 2 and strong_horizontal >= 1:
@@ -443,8 +486,11 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
                 score = round(max(horizontal_scores), 3)
             else:
                 score = 0.0
+            storyboard_score = max(score, duplicate_region_score if duplicate_region_score >= 0.985 and (strong_horizontal or strong_vertical) else 0.0)
+            result["storyboard_score"] = round(storyboard_score, 3)
             result["collage_detection_score"] = score
-            result["multiple_frames_detected"] = score >= 0.82
+            result["panel_layout_detected"] = score >= 0.82
+            result["multiple_frames_detected"] = bool(score >= 0.82 or storyboard_score >= 0.99 or result["text_overlay_score"] >= 0.92)
             result["fullscreen_validation"]["single_composition"] = not result["multiple_frames_detected"]
             result["error"] = "possible_contact_sheet_or_panel_grid" if result["multiple_frames_detected"] else ""
     except Exception as exc:
@@ -490,9 +536,14 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
                 "fullscreen_validation": scan.get("fullscreen_validation", {}),
                 "multiple_frame_detection": {
                     "multiple_frames_detected": scan.get("multiple_frames_detected", False),
+                    "panel_layout_detected": scan.get("panel_layout_detected", False),
                     "error": scan.get("error", ""),
                 },
+                "duplicate_region_score": scan.get("duplicate_region_score", 0.0),
+                "storyboard_score": scan.get("storyboard_score", 0.0),
+                "text_overlay_score": scan.get("text_overlay_score", 0.0),
                 "collage_detection_score": scan.get("collage_detection_score", 0.0),
+                "regeneration_attempts": item.get("regeneration_attempts", 0),
             }
         )
     forbidden = [item for item in validations if (item.get("multiple_frame_detection") or {}).get("multiple_frames_detected")]
@@ -510,13 +561,29 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
             "no_contact_sheet_assets": not forbidden,
         },
         "multiple_frame_detection": [item.get("multiple_frame_detection", {}) for item in validations],
+        "duplicate_region_score": max([float(item.get("duplicate_region_score") or 0) for item in validations] or [0.0]),
+        "storyboard_score": max([float(item.get("storyboard_score") or 0) for item in validations] or [0.0]),
+        "text_overlay_score": max([float(item.get("text_overlay_score") or 0) for item in validations] or [0.0]),
         "collage_detection_score": max([float(item.get("collage_detection_score") or 0) for item in validations] or [0.0]),
+        "panel_layout_detected": any((item.get("multiple_frame_detection") or {}).get("panel_layout_detected") for item in validations),
+        "regeneration_attempts": sum(int(item.get("regeneration_attempts") or 0) for item in validations),
         "forbidden_scene_image_layout_found": bool(forbidden),
         "scene_images": validations,
     }
     path = ensure_parent_dir(output_path)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": not forbidden and report["fullscreen_validation"]["all_vertical_9x16"], "message": "Scene generation report exported", "data": {"path": str(path), "report": report}, "error": "scene_image_contact_sheet_detected" if forbidden else ""}
+
+
+def _write_image_validation_report(project_name: str, image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
+    scene_report = _write_scene_generation_report(project_name, image_results, output_path)
+    report = (scene_report.get("data") or {}).get("report", {})
+    report["image_validation_engine"] = "single_frame_provider_output_guard_v1"
+    report["hard_negative_prompt_active"] = True
+    report["accepted_for_timeline"] = bool(scene_report.get("ok"))
+    path = ensure_parent_dir(output_path)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": scene_report.get("ok"), "message": "Image validation report exported", "data": {"path": str(path), "report": report}, "error": scene_report.get("error", "")}
 
 
 def _write_shot_variation_report(package: dict[str, Any], image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
@@ -827,7 +894,36 @@ def _generate_scene_images(
         prompt = _scene_image_prompt(scene, idea, preset, character_profile, consistency_strength)
         output_path = images_dir / f"{safe_name(scene_id)}.jpg"
         provider_used = image_provider or "offline"
-        diagnostic = generate_image_with_diagnostics(provider_used, prompt, str(output_path), settings)
+        diagnostic: dict[str, Any] = {}
+        structure_scan: dict[str, Any] = {}
+        regeneration_attempts = 0
+        active_prompt = prompt
+        for attempt in range(3):
+            regeneration_attempts = attempt
+            diagnostic = generate_image_with_diagnostics(
+                provider_used,
+                active_prompt,
+                str(output_path),
+                {**settings, "negative_prompt": HARD_IMAGE_NEGATIVE_PROMPT},
+            )
+            image_path_candidate = str((diagnostic.get("data") or {}).get("path") or output_path)
+            structure_scan = _detect_multi_frame_scene_image(image_path_candidate)
+            if not structure_scan.get("multiple_frames_detected") and (structure_scan.get("fullscreen_validation") or {}).get("vertical_9x16"):
+                break
+            active_prompt = (
+                f"{prompt}, STRICT REGENERATION ATTEMPT {attempt + 1}: generate exactly one single cinematic fullscreen frame only, "
+                "one continuous real-world camera shot, no storyboard sheet, no panels, no duplicated regions, no text, no numbers, no icons"
+            )
+            provider_used = image_provider or "offline"
+        if structure_scan.get("multiple_frames_detected"):
+            # Final rescue uses the local text-free cinematic placeholder so the timeline never accepts a bad sheet.
+            diagnostic = generate_image_with_diagnostics(
+                "offline",
+                f"{prompt}, final fallback: {SINGLE_FRAME_POSITIVE_RULE}, no text, no panels",
+                str(output_path),
+                {**settings, "negative_prompt": HARD_IMAGE_NEGATIVE_PROMPT},
+            )
+            structure_scan = _detect_multi_frame_scene_image(str((diagnostic.get("data") or {}).get("path") or output_path))
         image_path = str((diagnostic.get("data") or {}).get("path") or output_path)
         ok = bool(diagnostic.get("ok")) and Path(image_path).is_file()
         error = diagnostic.get("error", "")
@@ -848,8 +944,11 @@ def _generate_scene_images(
                 "error_type": (diagnostic.get("data") or {}).get("error_type", ""),
                 "safe_error_message": (diagnostic.get("data") or {}).get("safe_error_message", ""),
                 "validation": (diagnostic.get("data") or {}).get("validation", {}),
+                "structure_validation": structure_scan,
+                "regeneration_attempts": regeneration_attempts,
+                "hard_negative_prompt": HARD_IMAGE_NEGATIVE_PROMPT,
                 "path": str(image_path),
-                "prompt": prompt,
+                "prompt": active_prompt,
                 "error": error,
             }
         )
@@ -1070,6 +1169,8 @@ def quick_generate_hook_clip(
         package["image_results"] = image_results
         scene_generation_result = _write_scene_generation_report(project_name, image_results, exports_dir / "debug" / "scene_generation_report.json")
         package["scene_generation_report_path"] = (scene_generation_result.get("data") or {}).get("path", "")
+        image_validation_result = _write_image_validation_report(project_name, image_results, exports_dir / "debug" / "image_validation_report.json")
+        package["image_validation_report_path"] = (image_validation_result.get("data") or {}).get("path", "")
         if not scene_generation_result.get("ok"):
             mark_stage("generating_scenes", "failed")
             return {
@@ -1080,6 +1181,7 @@ def quick_generate_hook_clip(
                     "image_results": image_results,
                     "scene_generation_report": (scene_generation_result.get("data") or {}).get("report", {}),
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                    "image_validation_report_path": package.get("image_validation_report_path", ""),
                     "progress_stages": progress_stages,
                 },
                 "error": scene_generation_result.get("error") or "scene_image_fullscreen_validation_failed",
@@ -1110,6 +1212,7 @@ def quick_generate_hook_clip(
             "fallback_count": sum(1 for item in image_results if item.get("fallback_used")),
             "images": image_results,
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+            "image_validation_report_path": package.get("image_validation_report_path", ""),
             "shot_variation_report_path": package.get("shot_variation_report_path", ""),
             "api_keys_exported": False,
         }
@@ -1187,6 +1290,7 @@ def quick_generate_hook_clip(
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
             "scene_generation_report": package.get("scene_generation_report_path", ""),
+            "image_validation_report": package.get("image_validation_report_path", ""),
             "shot_variation_report": package.get("shot_variation_report_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
             "render_pipeline_report_path": (render_result.get("data") or {}).get("render_pipeline_report_path", ""),
@@ -1215,6 +1319,7 @@ def quick_generate_hook_clip(
             "image_generation_manifest": image_manifest,
             "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+            "image_validation_report_path": package.get("image_validation_report_path", ""),
             "shot_variation_report_path": package.get("shot_variation_report_path", ""),
             "character_profile": character_profile or {},
             "character_profile_path": (character_save.get("data") or {}).get("path", ""),
@@ -1256,6 +1361,7 @@ def quick_generate_hook_clip(
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
         render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
+        render_manifest_payload["image_validation_report_path"] = package.get("image_validation_report_path", "")
         render_manifest_payload["shot_variation_report_path"] = package.get("shot_variation_report_path", "")
         render_manifest_payload["timeline_director_path"] = package.get("timeline_director_path", "")
         render_manifest_payload["scene_motion_map_path"] = package.get("scene_motion_map_path", "")
@@ -1287,6 +1393,7 @@ def quick_generate_hook_clip(
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                    "image_validation_report_path": package.get("image_validation_report_path", ""),
                     "shot_variation_report_path": package.get("shot_variation_report_path", ""),
                 },
                 ensure_ascii=False,
@@ -1305,6 +1412,7 @@ def quick_generate_hook_clip(
                 "image_results": image_results,
                 "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                 "scene_generation_report_path": package.get("scene_generation_report_path", ""),
+                "image_validation_report_path": package.get("image_validation_report_path", ""),
                 "shot_variation_report_path": package.get("shot_variation_report_path", ""),
                 "character_profile": character_profile or {},
                 "character_profile_path": (character_save.get("data") or {}).get("path", ""),
