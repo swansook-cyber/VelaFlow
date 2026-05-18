@@ -123,12 +123,48 @@ CINEMATIC_TRANSITIONS = [
 HARD_IMAGE_NEGATIVE_PROMPT = (
     "storyboard, comic, manga, split screen, contact sheet, tiled frames, cinematic strip, multi-panel layout, "
     "duplicated frame, repeated composition, grid, gallery, UI overlay, subtitles, numbers, watermarks, icons, logos, "
-    "text, labels, debug overlay, frame counters, shot sheet, film strip, collage, storyboard page, random symbols"
+    "text, labels, debug overlay, frame counters, shot sheet, film strip, collage, storyboard page, random symbols, "
+    "meme typography, reaction faces, cartoon eyes, anime proportions, sticker aesthetics, thumbnail composition, "
+    "exaggerated facial expressions, emoji, social media overlay, score text, rating text"
 )
 
 SINGLE_FRAME_POSITIVE_RULE = (
     "single cinematic fullscreen frame, one continuous real-world camera shot, NOT a storyboard or multi-panel composition"
 )
+
+VISUAL_MODE = "cinematic_live_action_realism_v3"
+VISUAL_MODE_PREFIX = (
+    "Ultra realistic cinematic live-action film still. Real human anatomy. Natural skin texture. "
+    "Professional movie lighting. No meme. No cartoon. No anime. No exaggerated eyes. No reaction face. "
+    "No thumbnail design. No social media overlay. No subtitles. No text. No emoji. No symbols. "
+    "No UI. No score. No debug text. No watermark."
+)
+
+
+def _lock_cinematic_visual_prompt(text: str) -> str:
+    replacements = {
+        "hook": "emotional lyric moment",
+        "viral": "cinematic",
+        "thumbnail": "film still",
+        "meme": "grounded emotional realism",
+        "tiktok text": "vertical cinematic framing",
+        "reaction": "subtle grounded acting",
+        "emoji": "natural expression",
+        "score": "emotional intensity",
+        "rating": "emotional intensity",
+        "caption": "bottom-safe composition",
+        "subtitle": "bottom-safe composition",
+        "67/100": "emotional intensity",
+    }
+    value = str(text or "")
+    lowered = value.lower()
+    for forbidden, replacement in replacements.items():
+        if forbidden in lowered:
+            value = value.replace(forbidden, replacement).replace(forbidden.title(), replacement)
+            lowered = value.lower()
+    if VISUAL_MODE_PREFIX.lower() not in value.lower():
+        value = f"{VISUAL_MODE_PREFIX} {value}"
+    return value
 
 
 def export_tiktok_package(project_name: str, package: dict[str, Any], render_data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -359,6 +395,8 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
         style_suffix = ", music video cinematic frame, dramatic film look"
     base = (
         f"{prompt}, {camera}, {lighting}{style_suffix}, {SINGLE_FRAME_POSITIVE_RULE}, high quality composition, "
+        "cinematic photography, realistic lens, subtle film grain, depth of field, natural facial proportions, "
+        "realistic lighting, emotionally grounded acting, Netflix A24 cinematic music video frame, "
         f"shot variation: {shot_variation.get('framing_variation', scene.get('shot_type', 'cinematic shot'))}, "
         f"camera distance: {shot_variation.get('camera_distance_variation', scene.get('camera_distance', 'cinematic'))}, "
         f"emotional angle: {shot_variation.get('emotional_angle_variation', scene.get('emotional_intent', 'emotional'))}, "
@@ -370,7 +408,7 @@ def _scene_image_prompt(scene: dict[str, Any], idea: str, preset: dict[str, Any]
         "unique framing compared with every other scene, no copy-paste composition, clear subject, no watermark, no random text, "
         f"hard negative visual rules: NO {HARD_IMAGE_NEGATIVE_PROMPT}"
     )
-    return apply_character_consistency(base, character_profile, consistency_strength)
+    return _lock_cinematic_visual_prompt(apply_character_consistency(base, character_profile, consistency_strength))
 
 
 def _apply_cinematic_shot_variations(package: dict[str, Any], director_plan: dict[str, Any]) -> dict[str, Any]:
@@ -425,6 +463,11 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
         "multiple_frames_detected": False,
         "panel_layout_detected": False,
         "text_overlay_score": 0.0,
+        "emoji_detected_score": 0.0,
+        "cartoon_score": 0.0,
+        "thumbnail_layout_score": 0.0,
+        "anime_score": 0.0,
+        "reaction_face_score": 0.0,
         "duplicate_region_score": 0.0,
         "storyboard_score": 0.0,
         "collage_detection_score": 0.0,
@@ -478,6 +521,18 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
             band_avg = sum(band_values) / max(1, len(band_values))
             high_contrast = sum(1 for value in band_values if abs(value - band_avg) > 58) / max(1, len(band_values))
             result["text_overlay_score"] = round(min(1.0, high_contrast * 2.2), 3)
+            saturation_samples = []
+            rgb = image.convert("RGB").resize((48, 84))
+            for red, green, blue in list(rgb.getdata()):
+                max_channel = max(red, green, blue)
+                min_channel = min(red, green, blue)
+                saturation_samples.append((max_channel - min_channel) / max(1, max_channel))
+            avg_saturation = sum(saturation_samples) / max(1, len(saturation_samples))
+            bright_saturation = sum(1 for value in saturation_samples if value > 0.55) / max(1, len(saturation_samples))
+            result["cartoon_score"] = round(min(1.0, max(0.0, (avg_saturation - 0.42) * 2.2 + bright_saturation * 0.4)), 3)
+            result["anime_score"] = round(min(1.0, max(0.0, result["cartoon_score"] * 0.8 + (result["text_overlay_score"] * 0.2))), 3)
+            result["emoji_detected_score"] = round(min(1.0, max(0.0, bright_saturation * 1.8 if result["text_overlay_score"] > 0.45 else 0.0)), 3)
+            result["reaction_face_score"] = round(min(1.0, max(0.0, result["cartoon_score"] * 0.65 if duplicate_region_score > 0.97 else result["cartoon_score"] * 0.35)), 3)
             # Contact sheets usually have multiple clean divider lines. Single-image scenes can contain
             # high-contrast text, windows, or borders, so require repeated panel-like separators.
             if strong_vertical >= 2 and strong_horizontal >= 1:
@@ -486,11 +541,20 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
                 score = round(max(horizontal_scores), 3)
             else:
                 score = 0.0
+            result["thumbnail_layout_score"] = round(min(1.0, max(score, result["text_overlay_score"] * 0.85)), 3)
             storyboard_score = max(score, duplicate_region_score if duplicate_region_score >= 0.985 and (strong_horizontal or strong_vertical) else 0.0)
             result["storyboard_score"] = round(storyboard_score, 3)
             result["collage_detection_score"] = score
             result["panel_layout_detected"] = score >= 0.82
-            result["multiple_frames_detected"] = bool(score >= 0.82 or storyboard_score >= 0.99 or result["text_overlay_score"] >= 0.92)
+            drift_detected = (
+                result["text_overlay_score"] >= 0.92
+                or result["emoji_detected_score"] >= 0.92
+                or result["cartoon_score"] >= 0.94
+                or result["thumbnail_layout_score"] >= 0.94
+                or result["anime_score"] >= 0.94
+                or result["reaction_face_score"] >= 0.94
+            )
+            result["multiple_frames_detected"] = bool(score >= 0.82 or storyboard_score >= 0.99 or drift_detected)
             result["fullscreen_validation"]["single_composition"] = not result["multiple_frames_detected"]
             result["error"] = "possible_contact_sheet_or_panel_grid" if result["multiple_frames_detected"] else ""
     except Exception as exc:
@@ -542,6 +606,11 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
                 "duplicate_region_score": scan.get("duplicate_region_score", 0.0),
                 "storyboard_score": scan.get("storyboard_score", 0.0),
                 "text_overlay_score": scan.get("text_overlay_score", 0.0),
+                "emoji_detected_score": scan.get("emoji_detected_score", 0.0),
+                "cartoon_score": scan.get("cartoon_score", 0.0),
+                "thumbnail_layout_score": scan.get("thumbnail_layout_score", 0.0),
+                "anime_score": scan.get("anime_score", 0.0),
+                "reaction_face_score": scan.get("reaction_face_score", 0.0),
                 "collage_detection_score": scan.get("collage_detection_score", 0.0),
                 "regeneration_attempts": item.get("regeneration_attempts", 0),
             }
@@ -564,6 +633,11 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
         "duplicate_region_score": max([float(item.get("duplicate_region_score") or 0) for item in validations] or [0.0]),
         "storyboard_score": max([float(item.get("storyboard_score") or 0) for item in validations] or [0.0]),
         "text_overlay_score": max([float(item.get("text_overlay_score") or 0) for item in validations] or [0.0]),
+        "emoji_detected_score": max([float(item.get("emoji_detected_score") or 0) for item in validations] or [0.0]),
+        "cartoon_score": max([float(item.get("cartoon_score") or 0) for item in validations] or [0.0]),
+        "thumbnail_layout_score": max([float(item.get("thumbnail_layout_score") or 0) for item in validations] or [0.0]),
+        "anime_score": max([float(item.get("anime_score") or 0) for item in validations] or [0.0]),
+        "reaction_face_score": max([float(item.get("reaction_face_score") or 0) for item in validations] or [0.0]),
         "collage_detection_score": max([float(item.get("collage_detection_score") or 0) for item in validations] or [0.0]),
         "panel_layout_detected": any((item.get("multiple_frame_detection") or {}).get("panel_layout_detected") for item in validations),
         "regeneration_attempts": sum(int(item.get("regeneration_attempts") or 0) for item in validations),
@@ -579,6 +653,7 @@ def _write_image_validation_report(project_name: str, image_results: list[dict[s
     scene_report = _write_scene_generation_report(project_name, image_results, output_path)
     report = (scene_report.get("data") or {}).get("report", {})
     report["image_validation_engine"] = "single_frame_provider_output_guard_v1"
+    report["visual_mode"] = VISUAL_MODE
     report["hard_negative_prompt_active"] = True
     report["accepted_for_timeline"] = bool(scene_report.get("ok"))
     path = ensure_parent_dir(output_path)

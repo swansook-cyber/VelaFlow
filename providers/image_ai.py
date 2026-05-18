@@ -21,10 +21,46 @@ DEFAULT_NEGATIVE_PROMPT = (
     "text, labels, debug overlay, frame counters, shot sheet, film strip, collage, storyboard page"
 )
 
+VISUAL_MODE = "cinematic_live_action_realism_v3"
+VISUAL_MODE_PROMPT_PREFIX = (
+    "Ultra realistic cinematic live-action film still. "
+    "Real human anatomy. "
+    "Natural skin texture. "
+    "Professional movie lighting. "
+    "No meme. "
+    "No cartoon. "
+    "No anime. "
+    "No exaggerated eyes. "
+    "No reaction face. "
+    "No thumbnail design. "
+    "No social media overlay. "
+    "No subtitles. "
+    "No text. "
+    "No emoji. "
+    "No symbols. "
+    "No UI. "
+    "No score. "
+    "No debug text. "
+    "No watermark."
+)
 SINGLE_FRAME_PROMPT_RULE = (
     "single cinematic fullscreen frame, one continuous real-world camera shot, "
     "NOT a storyboard or multi-panel composition, no text inside the image, no numbers, no UI overlay"
 )
+FORBIDDEN_PROVIDER_PROMPT_TERMS = {
+    "hook": "emotional lyric moment",
+    "viral": "cinematic",
+    "thumbnail": "film still",
+    "meme": "grounded emotional realism",
+    "tiktok text": "vertical cinematic framing",
+    "reaction": "subtle grounded acting",
+    "emoji": "natural expression",
+    "score": "emotional intensity",
+    "rating": "emotional intensity",
+    "caption": "bottom-safe composition",
+    "subtitle": "bottom-safe composition",
+    "67/100": "emotional intensity",
+}
 
 
 class ImageProviderError(RuntimeError):
@@ -183,8 +219,15 @@ def _cache_key(provider: str, prompt: str, settings: Dict[str, Any]) -> str:
 
 def _enforce_single_frame_prompt(prompt: str) -> str:
     value = str(prompt or "").strip()
+    lowered = value.lower()
+    for forbidden, replacement in FORBIDDEN_PROVIDER_PROMPT_TERMS.items():
+        if forbidden in lowered:
+            value = value.replace(forbidden, replacement).replace(forbidden.title(), replacement)
+            lowered = value.lower()
     if "single cinematic fullscreen frame" not in value.lower():
         value = f"{value}, {SINGLE_FRAME_PROMPT_RULE}"
+    if VISUAL_MODE_PROMPT_PREFIX.lower() not in value.lower():
+        value = f"{VISUAL_MODE_PROMPT_PREFIX} {value}"
     return value
 
 
@@ -631,6 +674,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
         "message": "Image generated" if ok and not fallback_used else "Image placeholder fallback used",
         "data": {
             "path": str(generated),
+            "visual_mode": VISUAL_MODE,
             "provider_requested": provider,
             "provider_used": provider_used,
             "requested_model": requested_model or str(primary_diagnostics.get("requested_model") or ""),
