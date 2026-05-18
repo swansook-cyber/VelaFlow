@@ -18,7 +18,7 @@ def _score_scene(scene: dict[str, Any], image_result: dict[str, Any]) -> dict[st
     ).lower()
     score = 50
     reasons: list[str] = []
-    for marker in ["hook", "emotional", "peak", "close-up", "face", "neon", "rain", "meme", "character"]:
+    for marker in ["emotional", "peak", "close-up", "face", "neon", "rain", "character", "cinematic", "realistic"]:
         if marker in text:
             score += 7
             reasons.append(marker)
@@ -28,7 +28,7 @@ def _score_scene(scene: dict[str, Any], image_result: dict[str, Any]) -> dict[st
     if scene.get("scene_id") == "scene_03":
         score += 10
         reasons.append("ending-strongest-frame")
-    for marker in ["center", "centered", "contrast", "thumbnail", "face priority", "silhouette"]:
+    for marker in ["center", "centered", "contrast", "face priority", "silhouette"]:
         if marker in text:
             score += 5
             reasons.append(marker)
@@ -100,6 +100,12 @@ def export_thumbnail(package: dict[str, Any], image_results: list[dict[str, Any]
     score_payload = {
         "generated_by": "VelaFlow",
         "created_at": datetime.now().isoformat(timespec="seconds"),
+        "render_pipeline_version": "cinematic_clean_v3",
+        "thumbnail_mode": "raw_validated_cinematic_frame_only",
+        "overlay_rendering": False,
+        "text_overlay": False,
+        "score_overlay": False,
+        "meme_layout": False,
         "thumbnail_path": str(output) if output.is_file() else "",
         "selected": selected,
         "quality": {

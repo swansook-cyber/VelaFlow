@@ -11,7 +11,7 @@ from core.paths import workflow_project_root
 from core.project_io import safe_name
 
 
-CACHE_VERSION = "render_cache_v1"
+CACHE_VERSION = "cinematic_clean_v3"
 
 
 def cache_fingerprint(*parts: Any) -> str:
@@ -32,6 +32,18 @@ def load_render_cache(project_name: str, workflow_type: str, cache_key: str) -> 
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception as exc:
         return {"ok": False, "message": "Cache manifest unreadable", "data": {"cache_key": cache_key, "cache_dir": str(folder)}, "error": str(exc)}
+    if manifest.get("cache_version") != CACHE_VERSION:
+        return {
+            "ok": False,
+            "message": "Cache invalidated by cinematic clean renderer",
+            "data": {
+                "cache_key": cache_key,
+                "cache_dir": str(folder),
+                "cache_version": manifest.get("cache_version", ""),
+                "required_cache_version": CACHE_VERSION,
+            },
+            "error": "cache_version_mismatch",
+        }
     required = manifest.get("required_files") or []
     missing = [path for path in required if not Path(path).is_file()]
     if missing:

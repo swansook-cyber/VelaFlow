@@ -2937,8 +2937,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.info("Quick Generate TikTok Hook แล้ว preview และ download จะขึ้นตรงนี้ทันที")
         thumbnail_path = Path(str((quick_data.get("thumbnail") or {}).get("path") or quick_data.get("thumbnail_path") or ""))
         if thumbnail_path.is_file():
-            st.markdown("**Thumbnail Preview**")
-            st.image(str(thumbnail_path), use_container_width=True)
+            st.markdown("**Cover Frame Preview**")
+            st.image(str(thumbnail_path), caption="Raw validated cinematic frame, no overlay", use_container_width=True)
         viral_metrics = quick_data.get("viral_metrics") or ((quick_data.get("package") or {}).get("viral_metrics") or {})
         thumbnail_quality = ((quick_data.get("thumbnail") or {}).get("score") or ((quick_data.get("tiktok_package") or {}).get("thumbnail_quality") or 0))
         timing_profile = (quick_data.get("beat_timing") or {}).get("timing_profile") or (quick_data.get("viral_timing_plan") or {}).get("timing_profile", "")
@@ -2948,7 +2948,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             vm1.metric("Hook score", viral_metrics.get("hook_score", 0))
             vm2.metric("Emotional intensity", viral_metrics.get("emotional_impact", 0))
             vm3.metric("Viral pacing", viral_metrics.get("viral_pacing", 0))
-            vm4.metric("Thumbnail quality", thumbnail_quality or "-")
+            vm4.metric("Cover frame", thumbnail_quality or "-")
             if timing_profile:
                 st.caption(f"Pacing profile: {timing_profile}")
         versions = list_clip_versions(project.get("title") or song.get("title") or title, "song")

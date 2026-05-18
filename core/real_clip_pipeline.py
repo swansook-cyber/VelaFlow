@@ -20,7 +20,7 @@ STATIC_SAFE_SCENE_DURATION = 5.0
 CINEMATIC_MIN_SCENE_DURATION = 1.5
 CINEMATIC_MAX_SCENE_DURATION = 3.0
 FORBIDDEN_VISUAL_FILTERS = ("hstack", "vstack", "xstack", "tile", "untile", "thumbnail", "tile=", "layout=")
-RENDER_PIPELINE_VERSION = "timeline_fullscreen_v2"
+RENDER_PIPELINE_VERSION = "cinematic_clean_v3"
 
 
 def ensure_parent_dir(path: str | Path) -> Path:

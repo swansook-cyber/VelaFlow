@@ -17,7 +17,7 @@ from core.paths import workflow_project_root
 from core.preset_engine import get_preset, preset_to_render_settings, preset_to_visual_settings
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir, render_real_hook_clip
-from core.render_cache import cache_fingerprint, copy_cached_assets_to_project, load_render_cache, save_render_cache
+from core.render_cache import CACHE_VERSION as RENDER_CACHE_VERSION, cache_fingerprint, copy_cached_assets_to_project, load_render_cache, save_render_cache
 from core.scene_prompt_engine import apply_scene_director_to_package, apply_scene_prompts_to_package, build_cinematic_quality_report, build_scene_director_plan, build_scene_prompts, save_cinematic_quality_report, save_scene_director_plan, save_scene_prompts
 from core.subtitle_engine import generate_styled_subtitles
 from core.thumbnail_selector import export_thumbnail
@@ -133,6 +133,7 @@ SINGLE_FRAME_POSITIVE_RULE = (
 )
 
 VISUAL_MODE = "cinematic_live_action_realism_v3"
+CLEAN_RENDER_PIPELINE_VERSION = "cinematic_clean_v3"
 VISUAL_MODE_PREFIX = (
     "Ultra realistic cinematic live-action film still. Real human anatomy. Natural skin texture. "
     "Professional movie lighting. No meme. No cartoon. No anime. No exaggerated eyes. No reaction face. "
@@ -240,6 +241,11 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             debug_dir = final_dir / "debug"
             debug_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(shot_variation_report, ensure_parent_dir(debug_dir / "shot_variation_report.json"))
+        render_cleanup_report = Path(str(render_data.get("render_cleanup_report") or package.get("render_cleanup_report_path") or ""))
+        if render_cleanup_report.is_file():
+            debug_dir = final_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(render_cleanup_report, ensure_parent_dir(debug_dir / "render_cleanup_report.json"))
         hook_analysis_file = Path(str(render_data.get("hook_analysis") or package.get("hook_analysis_path") or ""))
         if hook_analysis_file.is_file():
             shutil.copy2(hook_analysis_file, ensure_parent_dir(final_dir / "hook_analysis.json"))
@@ -254,7 +260,10 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         captions = str(package.get("caption") or package.get("subtitle_line") or package.get("hook_text") or "").strip()
         hashtags = package.get("hashtags") or ["#VelaFlow", "#TikTok", "#Reels", "#Shorts"]
         title = str(package.get("hook_text") or "VelaFlow Hook Clip").strip()
-        thumbnail_prompt = str(package.get("thumbnail_prompt") or "").strip() or f"Vertical TikTok thumbnail for: {title}"
+        thumbnail_prompt = (
+            str(package.get("thumbnail_prompt") or "").strip()
+            or f"Raw cinematic cover frame for {title}: single fullscreen live-action film still, no text, no graphics, no overlay"
+        )
         checklist = [
             "[ ] Review final_hook_clip.mp4",
             "[ ] Check subtitles are readable on mobile",
@@ -308,6 +317,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "scene_generation_report": str(final_dir / "debug" / "scene_generation_report.json") if (final_dir / "debug" / "scene_generation_report.json").is_file() else "",
             "image_validation_report": str(final_dir / "debug" / "image_validation_report.json") if (final_dir / "debug" / "image_validation_report.json").is_file() else "",
             "shot_variation_report": str(final_dir / "debug" / "shot_variation_report.json") if (final_dir / "debug" / "shot_variation_report.json").is_file() else "",
+            "render_cleanup_report": str(final_dir / "debug" / "render_cleanup_report.json") if (final_dir / "debug" / "render_cleanup_report.json").is_file() else "",
             "hook_analysis": str(final_dir / "hook_analysis.json") if (final_dir / "hook_analysis.json").is_file() else "",
             "viral_timing_plan": (timing_result.get("data") or {}).get("path", ""),
             "files": written,
@@ -462,7 +472,9 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
         "validation": validation,
         "multiple_frames_detected": False,
         "panel_layout_detected": False,
+        "ocr_text_detected": False,
         "text_overlay_score": 0.0,
+        "numeric_overlay_score": 0.0,
         "emoji_detected_score": 0.0,
         "cartoon_score": 0.0,
         "thumbnail_layout_score": 0.0,
@@ -521,6 +533,8 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
             band_avg = sum(band_values) / max(1, len(band_values))
             high_contrast = sum(1 for value in band_values if abs(value - band_avg) > 58) / max(1, len(band_values))
             result["text_overlay_score"] = round(min(1.0, high_contrast * 2.2), 3)
+            result["numeric_overlay_score"] = round(min(1.0, result["text_overlay_score"] * 0.9), 3)
+            result["ocr_text_detected"] = bool(result["text_overlay_score"] >= 0.92 or result["numeric_overlay_score"] >= 0.92)
             saturation_samples = []
             rgb = image.convert("RGB").resize((48, 84))
             for red, green, blue in list(rgb.getdata()):
@@ -548,6 +562,7 @@ def _detect_multi_frame_scene_image(path: str | Path) -> dict[str, Any]:
             result["panel_layout_detected"] = score >= 0.82
             drift_detected = (
                 result["text_overlay_score"] >= 0.92
+                or result["numeric_overlay_score"] >= 0.92
                 or result["emoji_detected_score"] >= 0.92
                 or result["cartoon_score"] >= 0.94
                 or result["thumbnail_layout_score"] >= 0.94
@@ -605,7 +620,9 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
                 },
                 "duplicate_region_score": scan.get("duplicate_region_score", 0.0),
                 "storyboard_score": scan.get("storyboard_score", 0.0),
+                "ocr_text_detected": scan.get("ocr_text_detected", False),
                 "text_overlay_score": scan.get("text_overlay_score", 0.0),
+                "numeric_overlay_score": scan.get("numeric_overlay_score", 0.0),
                 "emoji_detected_score": scan.get("emoji_detected_score", 0.0),
                 "cartoon_score": scan.get("cartoon_score", 0.0),
                 "thumbnail_layout_score": scan.get("thumbnail_layout_score", 0.0),
@@ -633,6 +650,8 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
         "duplicate_region_score": max([float(item.get("duplicate_region_score") or 0) for item in validations] or [0.0]),
         "storyboard_score": max([float(item.get("storyboard_score") or 0) for item in validations] or [0.0]),
         "text_overlay_score": max([float(item.get("text_overlay_score") or 0) for item in validations] or [0.0]),
+        "numeric_overlay_score": max([float(item.get("numeric_overlay_score") or 0) for item in validations] or [0.0]),
+        "ocr_text_detected": any(bool(item.get("ocr_text_detected")) for item in validations),
         "emoji_detected_score": max([float(item.get("emoji_detected_score") or 0) for item in validations] or [0.0]),
         "cartoon_score": max([float(item.get("cartoon_score") or 0) for item in validations] or [0.0]),
         "thumbnail_layout_score": max([float(item.get("thumbnail_layout_score") or 0) for item in validations] or [0.0]),
@@ -642,11 +661,17 @@ def _write_scene_generation_report(project_name: str, image_results: list[dict[s
         "panel_layout_detected": any((item.get("multiple_frame_detection") or {}).get("panel_layout_detected") for item in validations),
         "regeneration_attempts": sum(int(item.get("regeneration_attempts") or 0) for item in validations),
         "forbidden_scene_image_layout_found": bool(forbidden),
+        "text_or_overlay_found": any(bool(item.get("ocr_text_detected")) for item in validations)
+        or max([float(item.get("text_overlay_score") or 0) for item in validations] or [0.0]) >= 0.92
+        or max([float(item.get("numeric_overlay_score") or 0) for item in validations] or [0.0]) >= 0.92
+        or max([float(item.get("emoji_detected_score") or 0) for item in validations] or [0.0]) >= 0.92,
         "scene_images": validations,
     }
     path = ensure_parent_dir(output_path)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"ok": not forbidden and report["fullscreen_validation"]["all_vertical_9x16"], "message": "Scene generation report exported", "data": {"path": str(path), "report": report}, "error": "scene_image_contact_sheet_detected" if forbidden else ""}
+    ok = not forbidden and not report["text_or_overlay_found"] and report["fullscreen_validation"]["all_vertical_9x16"]
+    error = "scene_image_contact_sheet_detected" if forbidden else "scene_image_text_or_overlay_detected" if report["text_or_overlay_found"] else ""
+    return {"ok": ok, "message": "Scene generation report exported", "data": {"path": str(path), "report": report}, "error": error}
 
 
 def _write_image_validation_report(project_name: str, image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
@@ -654,11 +679,77 @@ def _write_image_validation_report(project_name: str, image_results: list[dict[s
     report = (scene_report.get("data") or {}).get("report", {})
     report["image_validation_engine"] = "single_frame_provider_output_guard_v1"
     report["visual_mode"] = VISUAL_MODE
+    report["render_pipeline_version"] = CLEAN_RENDER_PIPELINE_VERSION
     report["hard_negative_prompt_active"] = True
     report["accepted_for_timeline"] = bool(scene_report.get("ok"))
     path = ensure_parent_dir(output_path)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": scene_report.get("ok"), "message": "Image validation report exported", "data": {"path": str(path), "report": report}, "error": scene_report.get("error", "")}
+
+
+def _write_render_cleanup_report(
+    project_name: str,
+    image_results: list[dict[str, Any]],
+    output_path: str | Path,
+    *,
+    cache_status: dict[str, Any] | None = None,
+    cache_invalidated: bool = False,
+    validation_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    validation_report = validation_report or {}
+    rejected_images = [
+        item
+        for item in image_results or []
+        if int(item.get("regeneration_attempts") or 0) > 0
+        or (item.get("structure_validation") or {}).get("multiple_frames_detected")
+        or (item.get("structure_validation") or {}).get("ocr_text_detected")
+    ]
+    report = {
+        "generated_by": "VelaFlow",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "project_name": project_name,
+        "render_pipeline_version": CLEAN_RENDER_PIPELINE_VERSION,
+        "visual_mode": VISUAL_MODE,
+        "cache_invalidated": bool(cache_invalidated),
+        "cache_status": {
+            "ok": bool((cache_status or {}).get("ok")),
+            "message": (cache_status or {}).get("message", ""),
+            "error": (cache_status or {}).get("error", ""),
+            "required_cache_version": RENDER_CACHE_VERSION,
+        },
+        "legacy_renderer_removed": True,
+        "legacy_renderers_blocked": [
+            "thumbnail_composition_renderer",
+            "meme_image_renderer",
+            "score_overlay_renderer",
+            "caption_overlay_renderer",
+            "debug_text_renderer",
+            "contact_sheet_renderer",
+        ],
+        "overlay_systems_removed": [
+            "automatic image text overlay",
+            "numeric score overlay",
+            "emoji overlay",
+            "caption overlay",
+            "hook text overlay",
+            "debug metadata overlay",
+        ],
+        "thumbnail_mode": "raw_validated_cinematic_frame_only",
+        "automatic_text_rendering": False,
+        "fallback_policy": "text_free_realistic_cinematic_frame_only",
+        "validation_pass": bool(validation_report.get("accepted_for_timeline")) and not bool(validation_report.get("text_or_overlay_found")),
+        "text_overlay_score": validation_report.get("text_overlay_score", 0.0),
+        "numeric_overlay_score": validation_report.get("numeric_overlay_score", 0.0),
+        "emoji_detected_score": validation_report.get("emoji_detected_score", 0.0),
+        "thumbnail_layout_score": validation_report.get("thumbnail_layout_score", 0.0),
+        "ocr_text_detected": bool(validation_report.get("ocr_text_detected")),
+        "thumbnail_mode_detected": bool(float(validation_report.get("thumbnail_layout_score") or 0) >= 0.94),
+        "rejected_images_count": len(rejected_images),
+        "rejected_images": [{"scene_id": item.get("scene_id", ""), "path": item.get("path", "")} for item in rejected_images],
+    }
+    path = ensure_parent_dir(output_path)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": bool(report["validation_pass"]), "message": "Render cleanup report exported", "data": {"path": str(path), "report": report}, "error": "" if report["validation_pass"] else "cinematic_clean_validation_failed"}
 
 
 def _write_shot_variation_report(package: dict[str, Any], image_results: list[dict[str, Any]], output_path: str | Path) -> dict[str, Any]:
@@ -1156,6 +1247,8 @@ def quick_generate_hook_clip(
         exports_dir = project_dir / "exports"
         exports_dir.mkdir(parents=True, exist_ok=True)
         cache_key = cache_fingerprint(
+            CLEAN_RENDER_PIPELINE_VERSION,
+            VISUAL_MODE,
             strongest_hook,
             preset.get("preset_id"),
             source_workflow,
@@ -1205,7 +1298,7 @@ def quick_generate_hook_clip(
         package.update(timeline_paths)
         director_result = save_scene_director_plan(director_plan, exports_dir / "scene_director_plan.json")
         package["scene_director_plan_path"] = (director_result.get("data") or {}).get("path", "")
-        scene_prompt_style = "Cute Character" if preset.get("preset_id") == "cute_character" else "TikTok Meme" if preset.get("preset_id") == "viral_meme" else "Emotional"
+        scene_prompt_style = "Emotional"
         cached_scene_prompts = Path(str((cached_assets.get("files") or {}).get("scene_prompts") or ""))
         if cached_scene_prompts.is_file():
             scene_prompt_plan = json.loads(cached_scene_prompts.read_text(encoding="utf-8"))
@@ -1246,6 +1339,16 @@ def quick_generate_hook_clip(
         package["scene_generation_report_path"] = (scene_generation_result.get("data") or {}).get("path", "")
         image_validation_result = _write_image_validation_report(project_name, image_results, exports_dir / "debug" / "image_validation_report.json")
         package["image_validation_report_path"] = (image_validation_result.get("data") or {}).get("path", "")
+        cache_invalidated = bool(cache_status.get("error") in {"cache_version_mismatch", "cache_stale"} or not cache_status.get("ok"))
+        cleanup_result = _write_render_cleanup_report(
+            project_name,
+            image_results,
+            exports_dir / "debug" / "render_cleanup_report.json",
+            cache_status=cache_status,
+            cache_invalidated=cache_invalidated,
+            validation_report=(image_validation_result.get("data") or {}).get("report", {}),
+        )
+        package["render_cleanup_report_path"] = (cleanup_result.get("data") or {}).get("path", "")
         if not scene_generation_result.get("ok"):
             mark_stage("generating_scenes", "failed")
             return {
@@ -1257,9 +1360,25 @@ def quick_generate_hook_clip(
                     "scene_generation_report": (scene_generation_result.get("data") or {}).get("report", {}),
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                     "image_validation_report_path": package.get("image_validation_report_path", ""),
+                    "render_cleanup_report_path": package.get("render_cleanup_report_path", ""),
                     "progress_stages": progress_stages,
                 },
                 "error": scene_generation_result.get("error") or "scene_image_fullscreen_validation_failed",
+            }
+        if not cleanup_result.get("ok"):
+            mark_stage("generating_scenes", "failed")
+            return {
+                "ok": False,
+                "message": "Scene image generation blocked by cinematic clean validation",
+                "data": {
+                    "package": package,
+                    "image_results": image_results,
+                    "image_validation_report_path": package.get("image_validation_report_path", ""),
+                    "render_cleanup_report": (cleanup_result.get("data") or {}).get("report", {}),
+                    "render_cleanup_report_path": package.get("render_cleanup_report_path", ""),
+                    "progress_stages": progress_stages,
+                },
+                "error": cleanup_result.get("error") or "cinematic_clean_validation_failed",
             }
         shot_variation_result = _write_shot_variation_report(package, image_results, exports_dir / "debug" / "shot_variation_report.json")
         package["shot_variation_report_path"] = (shot_variation_result.get("data") or {}).get("path", "")
@@ -1284,11 +1403,14 @@ def quick_generate_hook_clip(
             "created_at": datetime.now().isoformat(timespec="seconds"),
             "project_name": project_name,
             "provider_requested": image_provider or "offline",
+            "render_pipeline_version": CLEAN_RENDER_PIPELINE_VERSION,
+            "visual_mode": VISUAL_MODE,
             "fallback_count": sum(1 for item in image_results if item.get("fallback_used")),
             "images": image_results,
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
             "image_validation_report_path": package.get("image_validation_report_path", ""),
             "shot_variation_report_path": package.get("shot_variation_report_path", ""),
+            "render_cleanup_report_path": package.get("render_cleanup_report_path", ""),
             "api_keys_exported": False,
         }
         image_manifest_path.write_text(json.dumps(image_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -1367,6 +1489,7 @@ def quick_generate_hook_clip(
             "scene_generation_report": package.get("scene_generation_report_path", ""),
             "image_validation_report": package.get("image_validation_report_path", ""),
             "shot_variation_report": package.get("shot_variation_report_path", ""),
+            "render_cleanup_report": package.get("render_cleanup_report_path", ""),
             "hook_analysis": package.get("hook_analysis_path", ""),
             "render_pipeline_report_path": (render_result.get("data") or {}).get("render_pipeline_report_path", ""),
         }
@@ -1396,6 +1519,7 @@ def quick_generate_hook_clip(
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
             "image_validation_report_path": package.get("image_validation_report_path", ""),
             "shot_variation_report_path": package.get("shot_variation_report_path", ""),
+            "render_cleanup_report_path": package.get("render_cleanup_report_path", ""),
             "character_profile": character_profile or {},
             "character_profile_path": (character_save.get("data") or {}).get("path", ""),
             "hook_analysis": hook_analysis,
@@ -1438,6 +1562,8 @@ def quick_generate_hook_clip(
         render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
         render_manifest_payload["image_validation_report_path"] = package.get("image_validation_report_path", "")
         render_manifest_payload["shot_variation_report_path"] = package.get("shot_variation_report_path", "")
+        render_manifest_payload["render_cleanup_report_path"] = package.get("render_cleanup_report_path", "")
+        render_manifest_payload["render_pipeline_version"] = CLEAN_RENDER_PIPELINE_VERSION
         render_manifest_payload["timeline_director_path"] = package.get("timeline_director_path", "")
         render_manifest_payload["scene_motion_map_path"] = package.get("scene_motion_map_path", "")
         render_manifest_payload["emotional_curve_path"] = package.get("emotional_curve_path", "")
@@ -1470,6 +1596,7 @@ def quick_generate_hook_clip(
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                     "image_validation_report_path": package.get("image_validation_report_path", ""),
                     "shot_variation_report_path": package.get("shot_variation_report_path", ""),
+                    "render_cleanup_report_path": package.get("render_cleanup_report_path", ""),
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -1489,6 +1616,7 @@ def quick_generate_hook_clip(
                 "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                 "image_validation_report_path": package.get("image_validation_report_path", ""),
                 "shot_variation_report_path": package.get("shot_variation_report_path", ""),
+                "render_cleanup_report_path": package.get("render_cleanup_report_path", ""),
                 "character_profile": character_profile or {},
                 "character_profile_path": (character_save.get("data") or {}).get("path", ""),
                 "hook_analysis": hook_analysis,
@@ -1516,7 +1644,7 @@ def quick_generate_hook_clip(
                 "viral_timing_plan_path": (timing_result.get("data") or {}).get("path", ""),
                 "tiktok_package": tiktok_package.get("data", {}),
                 "clip_version": clip_version.get("data", {}),
-                "render_cache": {"cache_key": cache_key, "cache_hit": bool(cache_status.get("ok")), "cache_status": cache_status.get("message", ""), "cache_dir": (cache_save.get("data") or {}).get("cache_dir", "")},
+                "render_cache": {"cache_key": cache_key, "cache_hit": bool(cache_status.get("ok")), "cache_status": cache_status.get("message", ""), "cache_dir": (cache_save.get("data") or {}).get("cache_dir", ""), "render_pipeline_version": CLEAN_RENDER_PIPELINE_VERSION},
                 "voiceover": voice_result.get("data", {}),
                 "hook_audio_path": hook_audio_path,
                 "render": render_result.get("data", {}),
