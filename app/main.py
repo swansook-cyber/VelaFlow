@@ -2748,94 +2748,21 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         real_output = short_clip.get("real_output") or {}
         short_clip = song.setdefault("short_clip", short_clip)
         with st.container(border=True):
-            st.caption("อัปโหลดเพลงเต็ม แล้วตัดเฉพาะช่วง hook ไปใช้เป็นเสียงคลิป ถ้ายังไม่มีไฟล์เสียง VelaFlow ยังสร้าง MP4 แบบ silent/fallback ได้")
+            st.caption("อัปโหลดเพลงเต็ม แล้วเลือกช่วง hook สำหรับ Music Video V2 ต้องมีไฟล์เสียงจริงก่อนสร้างคลิป")
             song["short_clip"] = _render_hook_audio_controls(project.get("title") or song.get("title") or title, short_clip, "song_short_clip", "song")
             project["song"] = song
             _save_project()
 
-        st.markdown("## 🎬 Generate TikTok Hook Clip")
-        content_presets = list_presets()
-        preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
-        default_preset_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
-        selected_clip_preset_label = st.selectbox(
-            "Content Preset",
-            preset_labels,
-            index=default_preset_index,
-            key="song_short_content_preset",
-            help="เลือกโทนผลลัพธ์ของคลิป เช่น Emotional Story หรือ Viral Meme โดยไม่ต้องตั้งค่ากล้อง/จังหวะเอง",
-        )
-        selected_clip_preset = content_presets[preset_labels.index(selected_clip_preset_label)] if content_presets else get_preset("emotional_story")
-        st.caption(str(selected_clip_preset.get("description") or "VelaFlow จะใช้ preset นี้กับภาพ จังหวะ motion และ subtitle"))
-        quality_options = ["Best: AI Video", "Fast: Image Motion"]
-        default_quality = 0 if _user_api_key("gemini") else 1
-        clip_quality = st.selectbox(
-            "Clip Generation Quality",
-            quality_options,
-            index=default_quality,
-            key="song_short_clip_quality",
-            help="Best ต้องใช้ AI Video provider จริง ถ้า provider ใช้ไม่ได้ ระบบจะหยุดและแสดง error ไม่ fallback เงียบ ๆ",
-        )
-        video_generation_mode = "ai_video_provider" if clip_quality.startswith("Best") else "image_motion_fallback"
         video_settings = {
             "provider": "gemini_veo",
             "gemini_api_key": _user_api_key("gemini"),
             "shot_count": 6,
         }
-        if st.session_state.get("developer_mode"):
-            ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
-            st.caption(f"FFmpeg: {ffmpeg_info.get('path') if ffmpeg_info.get('ok') else 'unavailable'}")
-            image_provider, image_settings = _image_provider_controls("song_short_clip")
-            st.caption(f"Video mode: {video_generation_mode} · provider: {video_settings['provider']}")
-        if video_generation_mode == "ai_video_provider":
-            if st.button("Test AI Video Provider", key="song_test_ai_video_provider", use_container_width=True):
-                project_name = project.get("title") or song.get("title") or title
-                debug_dir = workflow_project_root("song") / safe_name(project_name or "hook_clip") / "exports" / "debug"
-                test_path = ensure_parent_dir(debug_dir / "provider_test.mp4")
-                with st.spinner("Testing AI video provider..."):
-                    test_result = generate_video_shot(
-                        "single continuous cinematic video shot, ultra realistic live-action, vertical 9:16, natural human motion, cinematic camera movement, emotional close-up, no text, no subtitles, no logos, no watermark, no split screen, no storyboard",
-                        2.0,
-                        test_path,
-                        provider="gemini_veo",
-                        aspect_ratio="9:16",
-                        motion_style="slow cinematic push-in",
-                        settings=video_settings,
-                    )
-                validation = validate_mp4(test_path, min_duration=1.0) if test_path.is_file() else {}
-                provider_debug = {
-                    "provider_selected": "gemini_veo",
-                    "api_key_detected": bool(video_settings.get("gemini_api_key")),
-                    "endpoint_used": "client.models.generate_videos",
-                    "model_used": video_settings.get("model") or video_settings.get("veo_model") or "veo-3.1-generate-preview",
-                    "request_status": "ok" if test_result.get("ok") else "failed",
-                    "polling_status": ((test_result.get("data") or {}).get("provider_status") or ""),
-                    "download_status": "downloaded" if test_result.get("ok") else "",
-                    "mp4_validation_result": validation,
-                    "final_error": test_result.get("error", ""),
-                }
-                ensure_parent_dir(debug_dir / "provider_debug.json").write_text(json.dumps(provider_debug, ensure_ascii=False, indent=2), encoding="utf-8")
-                if test_result.get("ok") and validation.get("valid_mp4") and validation.get("has_video"):
-                    st.success("PROVIDER OK")
-                else:
-                    st.error(f"PROVIDER FAILED: {test_result.get('error') or validation.get('error') or 'provider_test_failed'}")
-        if not st.session_state.get("developer_mode"):
-            image_settings = {
-                "size": "1024x1536",
-                "quality": "medium",
-                "cache_enabled": False,
-                "openai_api_key": _user_api_key("openai"),
-                "gemini_api_key": _user_api_key("gemini"),
-                "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
-            }
-            if image_settings["gemini_api_key"]:
-                image_provider = "gemini_image"
-            elif image_settings["openai_api_key"]:
-                image_provider = "openai_images"
-            else:
-                image_provider = "offline"
-        hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
         song_audio_path = str(((song.get("short_clip") or {}).get("song_audio") or {}).get("path") or "")
         st.markdown("### Clip Studio V2")
+        st.caption("Mode: Real AI Video")
+        st.caption("Provider: Gemini/Veo")
+        st.caption("Status flow: Submitting video job → Polling provider → Downloading MP4 → Validating video → Muxing hook audio → Completed")
         st.caption("Real AI Video only. If Veo/Gemini video is unavailable, VelaFlow stops instead of using image-motion fallback.")
         if st.button(
             "Generate Real AI Video Clip",
@@ -2865,7 +2792,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             if v2_result.get("ok"):
                 st.success("Music Video V2 ready.")
             else:
-                st.error(v2_result.get("message") or "Real AI Video provider unavailable. Please add a valid Veo/Gemini video key.")
+                st.error("Real AI Video provider unavailable or failed. No fallback was used.")
             st.rerun()
         v2_data = ((song.get("short_clip") or {}).get("music_video_v2") or {})
         if v2_data.get("final_mp4") and Path(str(v2_data.get("final_mp4"))).is_file():
@@ -2873,6 +2800,42 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.download_button("Download Music Video V2 MP4", data=Path(v2_data["final_mp4"]).read_bytes(), file_name="final_hook_clip.mp4", mime="video/mp4", use_container_width=True, key="song_v2_download_final_mp4")
         elif (song.get("short_clip") or {}).get("music_video_v2_error"):
             st.warning(f"Real AI Video provider failed: {(song.get('short_clip') or {}).get('music_video_v2_error')}")
+        if v2_data.get("final_dir") and Path(str(v2_data.get("final_dir"))).is_dir():
+            final_dir = Path(str(v2_data.get("final_dir")))
+            package_files = [path for path in final_dir.iterdir() if path.is_file()]
+            package_buffer = io.BytesIO()
+            with zipfile.ZipFile(package_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+                for path in package_files:
+                    archive.write(path, path.name)
+            st.download_button(
+                "Download TikTok Package",
+                data=package_buffer.getvalue(),
+                file_name="music_video_v2_tiktok_package.zip",
+                mime="application/zip",
+                use_container_width=True,
+                key="song_v2_download_tiktok_package",
+            )
+        if not st.session_state.get("developer_mode"):
+            return
+
+        st.markdown("## Developer Legacy Hook Clip Path")
+        content_presets = list_presets()
+        preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
+        default_preset_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
+        selected_clip_preset_label = st.selectbox(
+            "Content Preset",
+            preset_labels,
+            index=default_preset_index,
+            key="song_short_content_preset",
+            help="Developer-only legacy image-motion path.",
+        )
+        selected_clip_preset = content_presets[preset_labels.index(selected_clip_preset_label)] if content_presets else get_preset("emotional_story")
+        st.caption(str(selected_clip_preset.get("description") or "Legacy developer path"))
+        video_generation_mode = "image_motion_fallback"
+        ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
+        st.caption(f"FFmpeg: {ffmpeg_info.get('path') if ffmpeg_info.get('ok') else 'unavailable'}")
+        image_provider, image_settings = _image_provider_controls("song_short_clip")
+        hook_audio_path = str(((song.get("short_clip") or {}).get("hook_audio") or {}).get("path") or "")
         r1, r2, r3 = st.columns(3)
         if r1.button("Retry Scene Images", use_container_width=True, key="song_retry_scene_images"):
             st.session_state["song_short_force_cache_refresh"] = True

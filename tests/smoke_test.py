@@ -1331,6 +1331,18 @@ def main():
         )
         v2_fail_manifest = json.loads(Path((v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
         assert_true(not v2_fail["ok"] and v2_fail_manifest.get("fallback_used") is False and v2_fail_manifest.get("real_ai_video_used") is False, "Music Video V2 allowed fallback success")
+        main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+        v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
+        legacy_button_pos = main_source.find('"Quick Generate TikTok Hook"')
+        developer_guard_pos = main_source.find('if not st.session_state.get("developer_mode"):', v2_button_pos)
+        legacy_section_pos = main_source.find('"## Developer Legacy Hook Clip Path"', v2_button_pos)
+        v2_call_pos = main_source.find("generate_music_video_v2(", v2_button_pos)
+        legacy_call_pos = main_source.find("quick_generate_hook_clip(", legacy_section_pos)
+        image_provider_pos = main_source.find("_image_provider_controls(\"song_short_clip\")", v2_button_pos)
+        assert_true(v2_button_pos > 0 and v2_call_pos > v2_button_pos, "Creator Mode V2 button is not wired to music_video_v2")
+        assert_true(developer_guard_pos > v2_button_pos and legacy_section_pos > developer_guard_pos and legacy_button_pos > legacy_section_pos, "Legacy quick generate is not hidden behind Developer Mode")
+        assert_true(legacy_call_pos > legacy_section_pos, "Legacy quick generate call moved outside developer section")
+        assert_true(image_provider_pos > legacy_section_pos, "Image Provider selector is visible before developer legacy section")
         affiliate_product = {
             "product_name": "Smoke Pillow",
             "product_type": "home item",
