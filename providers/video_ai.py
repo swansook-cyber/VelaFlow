@@ -1,195 +1,218 @@
-import base64
+from __future__ import annotations
+
 import json
-import os
-import shutil
-import time
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
-
-import requests
+from typing import Any
 
 
-ROOT = Path(__file__).resolve().parents[1]
-SUPPORTED_VIDEO_PROVIDERS = {"manual", "offline", "kling", "runway", "luma", "pixverse", "veo", "google_flow"}
-DEFAULT_VIDEO_NEGATIVE_PROMPT = (
-    "warped face, changing identity, flicker, jitter, melted hands, extra fingers, "
-    "bad anatomy, duplicate character, unstable camera, low quality, blurry frames, watermark"
+VIDEO_VISUAL_MODE = "cinematic_live_action_video_v1"
+FORBIDDEN_VIDEO_PROMPT_TERMS = (
+    "split screen",
+    "storyboard",
+    "contact sheet",
+    "multi-panel",
+    "subtitles",
+    "subtitle",
+    "text overlay",
+    "logo",
+    "watermark",
+    "caption",
 )
 
 
-def _write_sidecar(output_path: Path, prompt: str, metadata: Dict[str, Any]) -> Path:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    sidecar = output_path.with_suffix(".json")
-    sidecar.write_text(
-        json.dumps(
-            {
-                "prompt": prompt,
-                "metadata": metadata,
-                "created_at": time.time(),
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    return sidecar
+def _clean_prompt(value: str) -> str:
+    text = " ".join(str(value or "").split())
+    lowered = text.lower()
+    replacements = {
+        "thumbnail": "cinematic film frame",
+        "meme": "grounded emotional realism",
+        "viral text": "cinematic visual rhythm",
+        "caption": "bottom-safe composition",
+        "subtitle": "bottom-safe composition",
+        "score": "emotional intensity",
+        "67/100": "emotional intensity",
+    }
+    for source, target in replacements.items():
+        if source in lowered:
+            text = text.replace(source, target).replace(source.title(), target)
+            lowered = text.lower()
+    return text
 
 
-def _write_slot_note(output_path: Path, prompt: str, metadata: Dict[str, Any]) -> Path:
-    note_path = output_path.with_suffix(".video_slot.txt")
-    lines = [
-        f"Provider: {metadata.get('provider', '')}",
-        f"Status: {metadata.get('status', '')}",
-        f"Scene: {metadata.get('scene', '')}",
-        f"Expected output: {output_path.name}",
-        f"Duration: {metadata.get('duration_seconds', '')} seconds",
-        f"Aspect ratio: {metadata.get('aspect_ratio', '')}",
-        f"Source image: {metadata.get('image_path', '')}",
-        "",
-        "Prompt:",
-        prompt or "",
-        "",
-        "Negative prompt:",
-        metadata.get("negative_prompt", ""),
-        "",
-        "Notes:",
-        metadata.get("reason", ""),
+def build_hook_video_shot_prompts(
+    *,
+    full_hook_lyrics: str,
+    mood: str = "",
+    scene_director_plan: dict[str, Any] | None = None,
+    emotional_arc: dict[str, Any] | list[Any] | None = None,
+    target_duration: float = 15.0,
+    shot_count: int = 6,
+) -> list[dict[str, Any]]:
+    scenes = (scene_director_plan or {}).get("scenes") or []
+    shot_count = max(6, min(10, int(shot_count or 6)))
+    duration = max(2.0, min(4.0, float(target_duration or 15.0) / shot_count))
+    camera_styles = [
+        "wide emotional establishing shot with subtle handheld drift",
+        "medium profile shot with slow push-in",
+        "over-shoulder reflection shot with parallax depth",
+        "close-up eyes shot with emotional breathing motion",
+        "side profile shot with cinematic drift",
+        "release shot with soft pull-out and fade",
+        "low-angle room detail shot with slow pan",
+        "close emotional face shot with rack-focus feeling",
+        "negative-space silhouette shot with gentle orbit",
+        "ending close-up with soft light falloff",
     ]
-    note_path.write_text("\n".join(lines), encoding="utf-8")
-    return note_path
+    hook = _clean_prompt(full_hook_lyrics)
+    arc_text = _clean_prompt(json.dumps(emotional_arc or {}, ensure_ascii=False, default=str))
+    prompts: list[dict[str, Any]] = []
+    for index in range(shot_count):
+        scene = scenes[index % len(scenes)] if scenes else {}
+        camera = camera_styles[index]
+        emotional_intent = _clean_prompt(str(scene.get("emotional_intent") or scene.get("subtitle") or mood or "emotional longing"))
+        continuity = scene.get("continuity_notes") or {}
+        continuity_text = _clean_prompt(
+            "same character, same face, same hairstyle, same clothing, same room, same lighting palette, "
+            f"{continuity.get('character', '')} {continuity.get('location', '')}"
+        )
+        prompt = (
+            "single continuous cinematic video shot, ultra realistic live-action, vertical 9:16, "
+            "natural human motion, cinematic camera movement, realistic skin texture, natural lighting, "
+            f"{camera}, {emotional_intent}, {continuity_text}, mood: {mood}, emotional arc: {arc_text[:220]}, "
+            f"full hook feeling: {hook[:360]}, no text, no subtitles, no logos, no watermark, no split screen, no storyboard"
+        )
+        prompts.append(
+            {
+                "shot_id": f"shot_{index + 1:02d}",
+                "duration_seconds": round(duration, 2),
+                "aspect_ratio": "9:16",
+                "motion_style": camera,
+                "prompt": prompt,
+                "full_hook_section_used": bool(hook),
+            }
+        )
+    return prompts
 
 
-def _placeholder_result(provider: str, prompt: str, image_path: str, output_path: Path, settings: Dict[str, Any], reason: str) -> str:
-    metadata = {
-        "provider": provider,
-        "status": "placeholder",
-        "reason": reason,
-        "scene": settings.get("scene", ""),
-        "image_path": image_path,
-        "duration_seconds": settings.get("duration_seconds", 5),
-        "aspect_ratio": settings.get("aspect_ratio", "16:9"),
-        "negative_prompt": settings.get("negative_prompt") or DEFAULT_VIDEO_NEGATIVE_PROMPT,
-        "character_note": settings.get("character_note", ""),
-        "reference_image_path": settings.get("reference_image_path", ""),
-        "output_path": str(output_path),
-        "ready_for_render": False,
-    }
-    _write_sidecar(output_path, prompt, metadata)
-    _write_slot_note(output_path, prompt, metadata)
-    return str(output_path)
+def validate_video_prompt(prompt: str) -> dict[str, Any]:
+    lowered = str(prompt or "").lower()
+    found = [term for term in FORBIDDEN_VIDEO_PROMPT_TERMS if term in lowered and f"no {term}" not in lowered]
+    required = [
+        "single continuous cinematic video shot",
+        "ultra realistic live-action",
+        "vertical 9:16",
+        "natural human motion",
+        "cinematic camera movement",
+        "no text",
+        "no subtitles",
+    ]
+    missing = [term for term in required if term not in lowered]
+    return {"ok": not found and not missing, "forbidden_terms_found": found, "missing_required_terms": missing}
 
 
-def _manual_result(prompt: str, image_path: str, output_path: Path, settings: Dict[str, Any]) -> str:
-    manual_path = Path(settings.get("manual_video_path", "") or "")
-    if manual_path.is_file():
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        if output_path.suffix.lower() != manual_path.suffix.lower():
-            output_path = output_path.with_suffix(manual_path.suffix.lower())
-        shutil.copy2(manual_path, output_path)
-        metadata = {
-            "provider": "manual",
-            "status": "ready",
-            "scene": settings.get("scene", ""),
-            "image_path": image_path,
-            "manual_video_path": str(manual_path),
-            "duration_seconds": settings.get("duration_seconds", 5),
-            "aspect_ratio": settings.get("aspect_ratio", "16:9"),
-            "negative_prompt": settings.get("negative_prompt") or DEFAULT_VIDEO_NEGATIVE_PROMPT,
-            "output_path": str(output_path),
-            "ready_for_render": True,
-        }
-        _write_sidecar(output_path, prompt, metadata)
-        return str(output_path)
-    return _placeholder_result("manual", prompt, image_path, output_path, settings, "Manual provider needs a local video file.")
-
-
-def _decode_video_payload(data: Dict[str, Any], output_path: Path) -> str | None:
-    candidates: list[Any] = []
-    if isinstance(data.get("data"), list):
-        candidates.extend(data["data"])
-    if isinstance(data.get("videos"), list):
-        candidates.extend(data["videos"])
-    if isinstance(data.get("output"), list):
-        candidates.extend(data["output"])
-    candidates.append(data)
-
-    for item in candidates:
-        if not isinstance(item, dict):
-            continue
-        b64_value = item.get("b64_json") or item.get("video") or item.get("video_base64") or item.get("base64")
-        if b64_value:
-            if "," in b64_value and b64_value.strip().startswith("data:"):
-                b64_value = b64_value.split(",", 1)[1]
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_bytes(base64.b64decode(b64_value))
-            return str(output_path)
-        video_url = item.get("url") or item.get("video_url") or item.get("output_url")
-        if video_url:
-            response = requests.get(video_url, timeout=300)
-            response.raise_for_status()
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_bytes(response.content)
-            return str(output_path)
-    return None
-
-
-def _generic_http_video(provider: str, prompt: str, image_path: str, output_path: Path, settings: Dict[str, Any]) -> str:
-    env_prefix = provider.upper()
-    endpoint = settings.get("endpoint") or os.getenv(f"{env_prefix}_API_URL", "")
-    token = settings.get("api_key") or os.getenv(f"{env_prefix}_API_KEY", "")
-    if not endpoint:
-        return _placeholder_result(provider, prompt, image_path, output_path, settings, f"{provider} API endpoint is not configured.")
-
-    body = {
-        "prompt": prompt,
-        "negative_prompt": settings.get("negative_prompt") or DEFAULT_VIDEO_NEGATIVE_PROMPT,
-        "image_path": image_path,
-        "duration_seconds": settings.get("duration_seconds", 5),
-        "aspect_ratio": settings.get("aspect_ratio", "16:9"),
-        "motion_strength": settings.get("motion_strength", "medium"),
-        "seed": settings.get("seed"),
-        "settings": settings,
-    }
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
-
-    response = requests.post(endpoint, headers=headers, json=body, timeout=int(settings.get("timeout") or os.getenv("VIDEO_REQUEST_TIMEOUT", "300")))
-    response.raise_for_status()
-    data = response.json()
-    decoded = _decode_video_payload(data, output_path)
-    status = "ready" if decoded else "submitted"
-    metadata = {
-        "provider": provider,
-        "status": status,
-        "scene": settings.get("scene", ""),
-        "image_path": image_path,
-        "duration_seconds": settings.get("duration_seconds", 5),
-        "aspect_ratio": settings.get("aspect_ratio", "16:9"),
-        "negative_prompt": body["negative_prompt"],
-        "response": data,
-        "output_path": str(output_path),
-        "ready_for_render": bool(decoded),
-    }
-    _write_sidecar(output_path, prompt, metadata)
-    if not decoded:
-        _write_slot_note(output_path, prompt, metadata)
-    return decoded or str(output_path)
-
-
-def generate_video(provider: str, prompt: str, image_path: str, output_path: str, settings: Dict[str, Any] | None = None) -> str:
+def generate_video_shot(
+    prompt: str,
+    duration_seconds: float,
+    output_path: str | Path,
+    *,
+    provider: str = "gemini_veo",
+    aspect_ratio: str = "9:16",
+    motion_style: str = "cinematic drift",
+    settings: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     settings = settings or {}
-    provider = (provider or "manual").lower()
     output = Path(output_path)
-    if provider not in SUPPORTED_VIDEO_PROVIDERS:
-        return _placeholder_result(provider, prompt, image_path, output, settings, f"Unsupported provider: {provider}")
+    validation = validate_video_prompt(prompt)
+    if not validation.get("ok"):
+        return {
+            "ok": False,
+            "message": "Video prompt failed safety validation",
+            "data": {"path": str(output), "provider": provider, "prompt_validation": validation},
+            "error": "video_prompt_validation_failed",
+        }
+    api_key = str(settings.get("gemini_api_key") or settings.get("veo_api_key") or "").strip()
+    if provider in {"gemini_veo", "google_veo", "veo"} and not api_key:
+        return {
+            "ok": False,
+            "message": "AI video provider unavailable",
+            "data": {
+                "path": str(output),
+                "provider": provider,
+                "provider_available": False,
+                "fallback_reason": "missing_api_key",
+                "duration_seconds": duration_seconds,
+                "aspect_ratio": aspect_ratio,
+                "motion_style": motion_style,
+                "prompt_validation": validation,
+            },
+            "error": "missing_api_key",
+        }
+    return {
+        "ok": False,
+        "message": "AI video provider placeholder is not connected yet",
+        "data": {
+            "path": str(output),
+            "provider": provider,
+            "provider_available": bool(api_key),
+            "fallback_reason": "provider_placeholder_not_connected",
+            "duration_seconds": duration_seconds,
+            "aspect_ratio": aspect_ratio,
+            "motion_style": motion_style,
+            "prompt_validation": validation,
+        },
+        "error": "provider_placeholder_not_connected",
+    }
 
-    character_note = settings.get("character_note", "")
-    if character_note and character_note not in prompt:
-        prompt = f"{prompt}\n\nCharacter lock: {character_note}"
 
-    if provider == "manual":
-        return _manual_result(prompt, image_path, output, settings)
-    if provider == "offline":
-        return _placeholder_result("offline", prompt, image_path, output, settings, "Offline video mode creates a render slot only.")
-    return _generic_http_video(provider, prompt, image_path, output, settings)
+def generate_video(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    if len(args) >= 4:
+        provider = str(args[0] or "gemini_veo")
+        prompt = str(args[1] or "")
+        output_path = args[3]
+        settings = args[4] if len(args) >= 5 and isinstance(args[4], dict) else kwargs.get("settings") or {}
+        if provider == "offline":
+            output = Path(output_path)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "generated_by": "VelaFlow",
+                        "provider": "offline",
+                        "prompt": prompt,
+                        "source_image": str(args[2] or ""),
+                        "metadata": settings,
+                        "created_at": datetime.now().isoformat(timespec="seconds"),
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            output.with_suffix(".video_slot.txt").write_text(
+                "Offline video provider placeholder. Use image-motion fallback for final MP4.\n",
+                encoding="utf-8",
+            )
+            return {"ok": True, "message": "Offline video slot exported", "data": {"path": str(output)}, "error": ""}
+    else:
+        prompt = str(args[0] if args else kwargs.get("prompt", ""))
+        output_path = args[1] if len(args) >= 2 else kwargs.get("output_path", "")
+        provider = str(kwargs.get("provider") or "gemini_veo")
+        settings = kwargs.get("settings") or {}
+    return generate_video_shot(
+        prompt,
+        float(kwargs.get("duration_seconds") or kwargs.get("duration") or 5.0),
+        output_path,
+        provider=provider,
+        aspect_ratio=str(kwargs.get("aspect_ratio") or "9:16"),
+        motion_style=str(kwargs.get("motion_style") or "cinematic drift"),
+        settings=settings,
+    )
+
+
+def save_video_generation_manifest(path: str | Path, payload: dict[str, Any]) -> dict[str, Any]:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    data = {"generated_by": "VelaFlow", "created_at": datetime.now().isoformat(timespec="seconds"), **payload}
+    output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "message": "Video generation manifest exported", "data": {"path": str(output), "manifest": data}, "error": ""}

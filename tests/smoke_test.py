@@ -219,7 +219,7 @@ from core.timeline_builder import build_timeline
 from core.voiceover_engine import build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
 from providers.veo_provider import build_veo_payload, get_operation_name, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from providers.image_ai import detect_image_provider_capability, generate_image, generate_image_with_diagnostics, validate_image_file
-from providers.video_ai import generate_video
+from providers.video_ai import build_hook_video_shot_prompts, generate_video, generate_video_shot, validate_video_prompt
 from scripts.create_source_package import create_source_package
 from scripts.build_beta_package import build_beta_package
 from app.presets import DEFAULT_MUSIC_PRESET, DEFAULT_VOCAL_DIRECTION, get_music_preset, get_recommended_ai_controls, get_vocal_direction, list_music_preset_names, list_vocal_direction_names, music_preset_prompt, vocal_direction_prompt
@@ -1115,6 +1115,17 @@ def main():
         assert_true((quick_data.get("clip_version") or {}).get("version_id") == "v1" and Path((quick_data.get("clip_version") or {}).get("path", "")).exists(), "clip version v1 missing")
         assert_true((quick_data.get("render_cache") or {}).get("cache_key"), "render cache key missing")
         assert_true((quick_data.get("viral_metrics") or {}).get("hook_score", 0) > 0 and (quick_data.get("viral_metrics") or {}).get("tiktok_retention_potential", 0) > 0, "TikTok hook scoring missing")
+        video_prompt_probe = build_hook_video_shot_prompts(
+            full_hook_lyrics="ทำไมต้องเป็นเธอ ทั้งท่อน hook เต็มใช้กำกับวิดีโอ",
+            mood="Emotional",
+            scene_director_plan=quick_data.get("scene_director_plan") or {},
+            emotional_arc=quick_data.get("beat_timing", {}).get("emotional_curve") or {},
+            target_duration=15,
+        )
+        assert_true(len(video_prompt_probe) >= 6 and all(item.get("full_hook_section_used") for item in video_prompt_probe), "video shot prompt director did not use full hook section")
+        assert_true(all(validate_video_prompt(item["prompt"])["ok"] for item in video_prompt_probe), "AI video prompts contain forbidden text/collage terms")
+        missing_video_key = generate_video_shot(video_prompt_probe[0]["prompt"], 2.5, ROOT / "outputs" / "smoke_tests" / "missing_video_key.mp4", settings={})
+        assert_true(not missing_video_key["ok"] and missing_video_key["error"] in {"missing_api_key", "provider_placeholder_not_connected"}, "video_ai provider missing-key fallback failed")
         assert_true(quick_data.get("image_results") and all(item.get("path") for item in quick_data["image_results"]), "quick hook clip image pipeline failed")
         assert_true(all(Path(item["path"]).suffix.lower() == ".jpg" and validate_image_file(item["path"])["ok"] for item in quick_data["image_results"]), "quick hook scene JPG validation failed")
         assert_true(all({"provider_used", "fallback_used", "fallback_reason", "error_type", "safe_error_message"}.issubset(set(item.keys())) for item in quick_data["image_results"]), "image diagnostics missing")
@@ -1164,6 +1175,13 @@ def main():
         assert_true(float(render_cleanup_report.get("numeric_overlay_score") or 0) < 0.92, "cleanup report numeric overlay detected")
         assert_true(float(render_cleanup_report.get("emoji_detected_score") or 0) < 0.92, "cleanup report emoji overlay detected")
         assert_true(render_cleanup_report.get("thumbnail_mode_detected") is False, "thumbnail composition mode detected")
+        video_manifest_path = Path(quick_data.get("video_generation_manifest_path", ""))
+        assert_true(video_manifest_path.exists(), "video_generation_manifest.json missing")
+        video_manifest = json.loads(video_manifest_path.read_text(encoding="utf-8"))
+        assert_true(video_manifest.get("mode") in {"image_motion_fallback", "ai_video_provider"}, "video generation mode missing")
+        assert_true(video_manifest.get("full_hook_section_used") is True, "video generation did not receive full hook section")
+        assert_true(len(video_manifest.get("shot_prompts") or []) >= 6, "video shot prompts missing")
+        assert_true(all("single continuous cinematic video shot" in item.get("prompt", "").lower() and "no text" in item.get("prompt", "").lower() and "no storyboard" in item.get("prompt", "").lower() for item in video_manifest.get("shot_prompts", [])), "video prompt safety rules missing")
         assert_true(Path(quick_data["render"]["subtitles"]).exists(), "quick hook clip subtitle export failed")
         subtitle_text = Path(quick_data["render"]["subtitles"]).read_text(encoding="utf-8-sig")
         styled_text = Path((quick_data.get("styled_subtitles") or {}).get("ass", "")).read_text(encoding="utf-8-sig")
@@ -1244,11 +1262,27 @@ def main():
         assert_true((tiktok_final_dir / "debug" / "image_validation_report.json").exists(), "TikTok package missing debug/image_validation_report.json")
         assert_true((tiktok_final_dir / "debug" / "shot_variation_report.json").exists(), "TikTok package missing debug/shot_variation_report.json")
         assert_true((tiktok_final_dir / "debug" / "render_cleanup_report.json").exists(), "TikTok package missing debug/render_cleanup_report.json")
+        assert_true((tiktok_final_dir / "video_generation_manifest.json").exists(), "TikTok package missing video_generation_manifest.json")
         for filename in ["suno_export.txt", "tiktok_caption.txt", "youtube_caption.txt", "hashtags.txt", "cover_prompt_1x1.txt", "cover_prompt_9x16.txt", "cover_prompt_16x9.txt", "upload_checklist.txt"]:
             path = tiktok_final_dir / filename
             assert_true(path.exists() and path.read_text(encoding="utf-8-sig").strip(), f"creator export package missing {filename}")
         assert_true("STYLE PROMPT FOR SUNO" in (tiktok_final_dir / "suno_export.txt").read_text(encoding="utf-8-sig"), "creator Suno TXT format missing")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
+        ai_video_fallback_clip = quick_generate_hook_clip(
+            "Smoke AI Video Fallback Clip",
+            "ใช้ทั้งท่อนฮุกเต็มเพื่อทดสอบ AI Video mode แล้ว fallback อย่างปลอดภัย",
+            image_provider="offline",
+            voiceover_style="calm narrator",
+            preset_id="emotional_story",
+            hook_audio_path=hook_audio_trim["data"]["path"],
+            video_generation_mode="ai_video_provider",
+            video_settings={"provider": "gemini_veo", "gemini_api_key": ""},
+        )
+        ai_video_data = ai_video_fallback_clip.get("data", {})
+        assert_true(ai_video_fallback_clip["ok"] and validate_mp4(ai_video_data["final_mp4"])["valid_mp4"], "AI Video mode fallback did not produce playable MP4")
+        ai_video_manifest = json.loads(Path(ai_video_data["video_generation_manifest_path"]).read_text(encoding="utf-8"))
+        assert_true(ai_video_manifest.get("mode") == "ai_video_provider" and ai_video_manifest.get("fallback_used") is True, "AI Video mode did not record safe fallback")
+        assert_true(ai_video_manifest.get("fallback_mode") == "image_motion_fallback", "AI Video fallback mode missing")
         affiliate_product = {
             "product_name": "Smoke Pillow",
             "product_type": "home item",

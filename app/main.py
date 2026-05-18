@@ -2765,10 +2765,26 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         )
         selected_clip_preset = content_presets[preset_labels.index(selected_clip_preset_label)] if content_presets else get_preset("emotional_story")
         st.caption(str(selected_clip_preset.get("description") or "VelaFlow จะใช้ preset นี้กับภาพ จังหวะ motion และ subtitle"))
+        quality_options = ["Best: AI Video", "Fast: Image Motion"]
+        default_quality = 0 if _user_api_key("gemini") else 1
+        clip_quality = st.selectbox(
+            "Clip Generation Quality",
+            quality_options,
+            index=default_quality,
+            key="song_short_clip_quality",
+            help="Best จะลองสร้างช็อตวิดีโอ AI ก่อน ถ้า provider ยังใช้ไม่ได้จะ fallback เป็น Image Motion อัตโนมัติ",
+        )
+        video_generation_mode = "ai_video_provider" if clip_quality.startswith("Best") else "image_motion_fallback"
+        video_settings = {
+            "provider": "gemini_veo",
+            "gemini_api_key": _user_api_key("gemini"),
+            "shot_count": 6,
+        }
         if st.session_state.get("developer_mode"):
             ffmpeg_info = ffmpeg_version(settings.ffmpeg_path)
             st.caption(f"FFmpeg: {ffmpeg_info.get('path') if ffmpeg_info.get('ok') else 'unavailable'}")
             image_provider, image_settings = _image_provider_controls("song_short_clip")
+            st.caption(f"Video mode: {video_generation_mode} · provider: {video_settings['provider']}")
         else:
             image_settings = {
                 "size": "1024x1536",
@@ -2856,6 +2872,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                         duration_seconds=15,
                         image_provider=image_provider,
                         image_settings=image_settings,
+                        video_generation_mode=video_generation_mode,
+                        video_settings=video_settings,
                         preset_id=str(selected_clip_preset.get("preset_id") or "emotional_story"),
                         voiceover_style="emotional storyteller",
                         voiceover_api_key=_user_api_key("openai"),
@@ -2935,6 +2953,12 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             _render_final_downloads("song_short_clip", {"final_mp4": short_clip.get("final_mp4"), "subtitles": short_clip.get("subtitles"), "status": "completed"})
         else:
             st.info("Quick Generate TikTok Hook แล้ว preview และ download จะขึ้นตรงนี้ทันที")
+        video_generation = quick_data.get("video_generation") or {}
+        if video_generation:
+            if video_generation.get("fallback_used"):
+                st.warning("AI Video provider ยังไม่พร้อม ระบบใช้ Image Motion fallback ให้เรียบร้อย")
+            elif video_generation.get("manifest_path"):
+                st.success("AI Video shot manifest ready")
         thumbnail_path = Path(str((quick_data.get("thumbnail") or {}).get("path") or quick_data.get("thumbnail_path") or ""))
         if thumbnail_path.is_file():
             st.markdown("**Cover Frame Preview**")

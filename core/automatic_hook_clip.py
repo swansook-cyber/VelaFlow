@@ -25,6 +25,7 @@ from core.versioning import save_clip_version
 from core.viral_timing_engine import create_viral_timing_plan, save_viral_timing_plan
 from core.voiceover_engine import generate_voiceover_audio
 from providers.image_ai import generate_image, generate_image_with_diagnostics, validate_image_file
+from providers.video_ai import build_hook_video_shot_prompts, generate_video_shot, save_video_generation_manifest
 
 
 DEFAULT_VISUAL_SETTINGS = {
@@ -246,6 +247,9 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             debug_dir = final_dir / "debug"
             debug_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(render_cleanup_report, ensure_parent_dir(debug_dir / "render_cleanup_report.json"))
+        video_generation_manifest = Path(str(render_data.get("video_generation_manifest") or package.get("video_generation_manifest_path") or ""))
+        if video_generation_manifest.is_file():
+            shutil.copy2(video_generation_manifest, ensure_parent_dir(final_dir / "video_generation_manifest.json"))
         hook_analysis_file = Path(str(render_data.get("hook_analysis") or package.get("hook_analysis_path") or ""))
         if hook_analysis_file.is_file():
             shutil.copy2(hook_analysis_file, ensure_parent_dir(final_dir / "hook_analysis.json"))
@@ -314,6 +318,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "render_stage": str(final_dir / "render_stage.json") if (final_dir / "render_stage.json").is_file() else "",
             "render_pipeline_report": str(final_dir / "debug" / "render_pipeline_report.json") if (final_dir / "debug" / "render_pipeline_report.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
+            "video_generation_manifest": str(final_dir / "video_generation_manifest.json") if (final_dir / "video_generation_manifest.json").is_file() else "",
             "scene_generation_report": str(final_dir / "debug" / "scene_generation_report.json") if (final_dir / "debug" / "scene_generation_report.json").is_file() else "",
             "image_validation_report": str(final_dir / "debug" / "image_validation_report.json") if (final_dir / "debug" / "image_validation_report.json").is_file() else "",
             "shot_variation_report": str(final_dir / "debug" / "shot_variation_report.json") if (final_dir / "debug" / "shot_variation_report.json").is_file() else "",
@@ -1126,6 +1131,85 @@ def _voiceover_script(package: dict[str, Any]) -> str:
     return "\n".join(line for line in lines if line) or str(package.get("hook_text") or "")
 
 
+def _try_ai_video_generation(
+    project_name: str,
+    package: dict[str, Any],
+    *,
+    exports_dir: Path,
+    scenes_dir: Path,
+    video_generation_mode: str,
+    video_settings: dict[str, Any] | None = None,
+    full_hook_lyrics: str = "",
+    target_duration: float = 15.0,
+    scene_director_plan: dict[str, Any] | None = None,
+    emotional_arc: dict[str, Any] | list[Any] | None = None,
+) -> dict[str, Any]:
+    video_settings = video_settings or {}
+    provider = str(video_settings.get("provider") or "gemini_veo")
+    mode = str(video_generation_mode or "image_motion_fallback")
+    shot_prompts = build_hook_video_shot_prompts(
+        full_hook_lyrics=full_hook_lyrics or str(package.get("hook_text") or ""),
+        mood=str((package.get("creator_outcome_preset") or {}).get("label") or ""),
+        scene_director_plan=scene_director_plan or {},
+        emotional_arc=emotional_arc or {},
+        target_duration=target_duration,
+        shot_count=int(video_settings.get("shot_count") or 6),
+    )
+    shots_dir = scenes_dir / "ai_video_shots"
+    shots_dir.mkdir(parents=True, exist_ok=True)
+    shot_results: list[dict[str, Any]] = []
+    fallback_used = mode != "ai_video_provider"
+    fallback_reason = "image_motion_mode_selected" if fallback_used else ""
+    if mode == "ai_video_provider":
+        for shot in shot_prompts:
+            output_path = shots_dir / f"{shot['shot_id']}.mp4"
+            result = generate_video_shot(
+                shot["prompt"],
+                shot["duration_seconds"],
+                output_path,
+                provider=provider,
+                aspect_ratio=str(shot.get("aspect_ratio") or "9:16"),
+                motion_style=str(shot.get("motion_style") or ""),
+                settings=video_settings,
+            )
+            shot_results.append({"shot": shot, "result": result})
+            if not result.get("ok"):
+                fallback_used = True
+                fallback_reason = result.get("error") or "ai_video_provider_failed"
+                break
+    manifest_result = save_video_generation_manifest(
+        exports_dir / "video_generation_manifest.json",
+        {
+            "project_name": project_name,
+            "mode": mode,
+            "provider": provider,
+            "visual_mode": "cinematic_live_action_video_v1",
+            "full_hook_section_used": bool(full_hook_lyrics and len(full_hook_lyrics.strip()) >= len(str(package.get("hook_text") or "").strip())),
+            "shot_prompts": shot_prompts,
+            "shot_durations": [shot.get("duration_seconds") for shot in shot_prompts],
+            "shot_results": shot_results,
+            "fallback_used": fallback_used,
+            "fallback_reason": fallback_reason,
+            "fallback_mode": "image_motion_fallback" if fallback_used else "",
+            "final_video_path": "",
+            "api_keys_exported": False,
+        },
+    )
+    return {
+        "ok": not fallback_used,
+        "message": "AI video shots generated" if not fallback_used else "AI video fallback activated",
+        "data": {
+            "manifest_path": (manifest_result.get("data") or {}).get("path", ""),
+            "manifest": (manifest_result.get("data") or {}).get("manifest", {}),
+            "shot_prompts": shot_prompts,
+            "shot_results": shot_results,
+            "fallback_used": fallback_used,
+            "fallback_reason": fallback_reason,
+        },
+        "error": "" if not fallback_used else fallback_reason,
+    }
+
+
 def quick_generate_hook_clip(
     project_name: str,
     idea: str,
@@ -1137,6 +1221,8 @@ def quick_generate_hook_clip(
     render_settings: dict[str, Any] | None = None,
     image_provider: str = "offline",
     image_settings: dict[str, Any] | None = None,
+    video_generation_mode: str = "image_motion_fallback",
+    video_settings: dict[str, Any] | None = None,
     voiceover_style: str = "calm narrator",
     voiceover_api_key: str = "",
     hook_audio_path: str = "",
@@ -1253,6 +1339,7 @@ def quick_generate_hook_clip(
             preset.get("preset_id"),
             source_workflow,
             image_provider or "offline",
+            video_generation_mode or "image_motion_fallback",
             effective_subtitle_style,
             variation,
             character_profile or {},
@@ -1415,6 +1502,22 @@ def quick_generate_hook_clip(
         }
         image_manifest_path.write_text(json.dumps(image_manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         package["image_generation_manifest_path"] = str(image_manifest_path)
+        scenes_dir = project_dir / "scenes"
+        video_generation = _try_ai_video_generation(
+            project_name,
+            package,
+            exports_dir=exports_dir,
+            scenes_dir=scenes_dir,
+            video_generation_mode=video_generation_mode,
+            video_settings=video_settings or {},
+            full_hook_lyrics=str(idea or ""),
+            target_duration=float(beat_timing_plan.get("duration") or duration_seconds),
+            scene_director_plan=director_plan,
+            emotional_arc=beat_timing_plan.get("emotional_curve") or {},
+        )
+        package["video_generation_mode"] = video_generation_mode
+        package["video_generation_manifest_path"] = (video_generation.get("data") or {}).get("manifest_path", "")
+        package["video_generation_fallback_used"] = bool((video_generation.get("data") or {}).get("fallback_used"))
         cache_save = save_render_cache(
             project_name,
             storage_workflow_type,
@@ -1486,6 +1589,7 @@ def quick_generate_hook_clip(
             "scene_director_plan": package.get("scene_director_plan_path", ""),
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
+            "video_generation_manifest": package.get("video_generation_manifest_path", ""),
             "scene_generation_report": package.get("scene_generation_report_path", ""),
             "image_validation_report": package.get("image_validation_report_path", ""),
             "shot_variation_report": package.get("shot_variation_report_path", ""),
@@ -1515,7 +1619,9 @@ def quick_generate_hook_clip(
             "image_provider": image_provider or "offline",
             "image_results": image_results,
             "image_generation_manifest": image_manifest,
+            "video_generation": video_generation.get("data", {}),
             "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
+            "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
             "image_validation_report_path": package.get("image_validation_report_path", ""),
             "shot_variation_report_path": package.get("shot_variation_report_path", ""),
@@ -1559,6 +1665,7 @@ def quick_generate_hook_clip(
         render_manifest_payload = dict((render_result.get("data") or {}).get("manifest", manifest))
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
+        render_manifest_payload["video_generation_manifest_path"] = package.get("video_generation_manifest_path", "")
         render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
         render_manifest_payload["image_validation_report_path"] = package.get("image_validation_report_path", "")
         render_manifest_payload["shot_variation_report_path"] = package.get("shot_variation_report_path", "")
@@ -1593,6 +1700,7 @@ def quick_generate_hook_clip(
                     "scenes": package.get("scene_sequence", []),
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
+                    "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                     "image_validation_report_path": package.get("image_validation_report_path", ""),
                     "shot_variation_report_path": package.get("shot_variation_report_path", ""),
@@ -1613,6 +1721,7 @@ def quick_generate_hook_clip(
                 "package_export": export_result.get("data", {}),
                 "image_results": image_results,
                 "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
+                "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
                 "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                 "image_validation_report_path": package.get("image_validation_report_path", ""),
                 "shot_variation_report_path": package.get("shot_variation_report_path", ""),
@@ -1648,6 +1757,8 @@ def quick_generate_hook_clip(
                 "voiceover": voice_result.get("data", {}),
                 "hook_audio_path": hook_audio_path,
                 "render": render_result.get("data", {}),
+                "video_generation": video_generation.get("data", {}),
+                "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
                 "manifest_path": str(quick_manifest_path),
                 "render_manifest_path": str(render_manifest_path),
                 "render_stage_path": (render_result.get("data") or {}).get("render_stage_path", ""),
