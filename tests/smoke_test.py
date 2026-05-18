@@ -1268,8 +1268,8 @@ def main():
             assert_true(path.exists() and path.read_text(encoding="utf-8-sig").strip(), f"creator export package missing {filename}")
         assert_true("STYLE PROMPT FOR SUNO" in (tiktok_final_dir / "suno_export.txt").read_text(encoding="utf-8-sig"), "creator Suno TXT format missing")
         assert_true(validate_mp4(tiktok_final_dir / "final_hook_clip.mp4")["valid_mp4"], "TikTok package final MP4 not playable")
-        ai_video_fallback_clip = quick_generate_hook_clip(
-            "Smoke AI Video Fallback Clip",
+        strict_ai_video_clip = quick_generate_hook_clip(
+            "Smoke Strict AI Video Clip",
             "ใช้ทั้งท่อนฮุกเต็มเพื่อทดสอบ AI Video mode แล้ว fallback อย่างปลอดภัย",
             image_provider="offline",
             voiceover_style="calm narrator",
@@ -1278,11 +1278,13 @@ def main():
             video_generation_mode="ai_video_provider",
             video_settings={"provider": "gemini_veo", "gemini_api_key": ""},
         )
-        ai_video_data = ai_video_fallback_clip.get("data", {})
-        assert_true(ai_video_fallback_clip["ok"] and validate_mp4(ai_video_data["final_mp4"])["valid_mp4"], "AI Video mode fallback did not produce playable MP4")
+        ai_video_data = strict_ai_video_clip.get("data", {})
+        assert_true(not strict_ai_video_clip["ok"] and strict_ai_video_clip.get("error"), "AI Video strict mode silently succeeded without provider")
         ai_video_manifest = json.loads(Path(ai_video_data["video_generation_manifest_path"]).read_text(encoding="utf-8"))
-        assert_true(ai_video_manifest.get("mode") == "ai_video_provider" and ai_video_manifest.get("fallback_used") is True, "AI Video mode did not record safe fallback")
-        assert_true(ai_video_manifest.get("fallback_mode") == "image_motion_fallback", "AI Video fallback mode missing")
+        assert_true(ai_video_manifest.get("mode_requested") == "ai_video_provider", "AI Video strict mode manifest missing")
+        assert_true(ai_video_manifest.get("real_ai_video_used") is False and ai_video_manifest.get("provider_confirmed_live") is False, "AI Video strict mode fake-confirmed provider")
+        assert_true(ai_video_manifest.get("fallback_used") is False and not ai_video_manifest.get("fallback_mode"), "AI Video strict mode allowed fallback")
+        assert_true(Path(ai_video_data["provider_debug_path"]).exists(), "AI Video provider_debug.json missing")
         affiliate_product = {
             "product_name": "Smoke Pillow",
             "product_type": "home item",

@@ -172,7 +172,7 @@ from core.render_queue import (
     start_render_job as start_creator_render_job,
 )
 from core.storage_cleanup import cleanup_project_storage
-from core.real_clip_pipeline import ensure_parent_dir, render_image_motion_scene, render_real_hook_clip, trim_audio_clip
+from core.real_clip_pipeline import ensure_parent_dir, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.render_profiles import RENDER_PROFILES
@@ -218,7 +218,7 @@ from core.versioning import list_clip_versions
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
-from providers.video_ai import generate_video
+from providers.video_ai import generate_video, generate_video_shot
 from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from app.presets import (
     DEFAULT_MUSIC_PRESET,
@@ -2772,7 +2772,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             quality_options,
             index=default_quality,
             key="song_short_clip_quality",
-            help="Best จะลองสร้างช็อตวิดีโอ AI ก่อน ถ้า provider ยังใช้ไม่ได้จะ fallback เป็น Image Motion อัตโนมัติ",
+            help="Best ต้องใช้ AI Video provider จริง ถ้า provider ใช้ไม่ได้ ระบบจะหยุดและแสดง error ไม่ fallback เงียบ ๆ",
         )
         video_generation_mode = "ai_video_provider" if clip_quality.startswith("Best") else "image_motion_fallback"
         video_settings = {
@@ -2785,7 +2785,39 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.caption(f"FFmpeg: {ffmpeg_info.get('path') if ffmpeg_info.get('ok') else 'unavailable'}")
             image_provider, image_settings = _image_provider_controls("song_short_clip")
             st.caption(f"Video mode: {video_generation_mode} · provider: {video_settings['provider']}")
-        else:
+        if video_generation_mode == "ai_video_provider":
+            if st.button("Test AI Video Provider", key="song_test_ai_video_provider", use_container_width=True):
+                project_name = project.get("title") or song.get("title") or title
+                debug_dir = workflow_project_root("song") / safe_name(project_name or "hook_clip") / "exports" / "debug"
+                test_path = ensure_parent_dir(debug_dir / "provider_test.mp4")
+                with st.spinner("Testing AI video provider..."):
+                    test_result = generate_video_shot(
+                        "single continuous cinematic video shot, ultra realistic live-action, vertical 9:16, natural human motion, cinematic camera movement, emotional close-up, no text, no subtitles, no logos, no watermark, no split screen, no storyboard",
+                        2.0,
+                        test_path,
+                        provider="gemini_veo",
+                        aspect_ratio="9:16",
+                        motion_style="slow cinematic push-in",
+                        settings=video_settings,
+                    )
+                validation = validate_mp4(test_path, min_duration=1.0) if test_path.is_file() else {}
+                provider_debug = {
+                    "provider_selected": "gemini_veo",
+                    "api_key_detected": bool(video_settings.get("gemini_api_key")),
+                    "endpoint_used": "client.models.generate_videos",
+                    "model_used": video_settings.get("model") or video_settings.get("veo_model") or "veo-3.1-generate-preview",
+                    "request_status": "ok" if test_result.get("ok") else "failed",
+                    "polling_status": ((test_result.get("data") or {}).get("provider_status") or ""),
+                    "download_status": "downloaded" if test_result.get("ok") else "",
+                    "mp4_validation_result": validation,
+                    "final_error": test_result.get("error", ""),
+                }
+                ensure_parent_dir(debug_dir / "provider_debug.json").write_text(json.dumps(provider_debug, ensure_ascii=False, indent=2), encoding="utf-8")
+                if test_result.get("ok") and validation.get("valid_mp4") and validation.get("has_video"):
+                    st.success("PROVIDER OK")
+                else:
+                    st.error(f"PROVIDER FAILED: {test_result.get('error') or validation.get('error') or 'provider_test_failed'}")
+        if not st.session_state.get("developer_mode"):
             image_settings = {
                 "size": "1024x1536",
                 "quality": "medium",

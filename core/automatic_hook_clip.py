@@ -250,6 +250,11 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
         video_generation_manifest = Path(str(render_data.get("video_generation_manifest") or package.get("video_generation_manifest_path") or ""))
         if video_generation_manifest.is_file():
             shutil.copy2(video_generation_manifest, ensure_parent_dir(final_dir / "video_generation_manifest.json"))
+        provider_debug = Path(str(render_data.get("provider_debug") or package.get("provider_debug_path") or ""))
+        if provider_debug.is_file():
+            debug_dir = final_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(provider_debug, ensure_parent_dir(debug_dir / "provider_debug.json"))
         hook_analysis_file = Path(str(render_data.get("hook_analysis") or package.get("hook_analysis_path") or ""))
         if hook_analysis_file.is_file():
             shutil.copy2(hook_analysis_file, ensure_parent_dir(final_dir / "hook_analysis.json"))
@@ -319,6 +324,7 @@ def export_tiktok_package(project_name: str, package: dict[str, Any], render_dat
             "render_pipeline_report": str(final_dir / "debug" / "render_pipeline_report.json") if (final_dir / "debug" / "render_pipeline_report.json").is_file() else "",
             "image_generation_manifest": str(final_dir / "image_generation_manifest.json") if (final_dir / "image_generation_manifest.json").is_file() else "",
             "video_generation_manifest": str(final_dir / "video_generation_manifest.json") if (final_dir / "video_generation_manifest.json").is_file() else "",
+            "provider_debug": str(final_dir / "debug" / "provider_debug.json") if (final_dir / "debug" / "provider_debug.json").is_file() else "",
             "scene_generation_report": str(final_dir / "debug" / "scene_generation_report.json") if (final_dir / "debug" / "scene_generation_report.json").is_file() else "",
             "image_validation_report": str(final_dir / "debug" / "image_validation_report.json") if (final_dir / "debug" / "image_validation_report.json").is_file() else "",
             "shot_variation_report": str(final_dir / "debug" / "shot_variation_report.json") if (final_dir / "debug" / "shot_variation_report.json").is_file() else "",
@@ -1161,6 +1167,19 @@ def _try_ai_video_generation(
     shot_paths: list[str] = []
     fallback_used = mode != "ai_video_provider"
     fallback_reason = "image_motion_mode_selected" if fallback_used else ""
+    provider_debug = {
+        "provider_selected": provider,
+        "api_key_detected": bool(
+            (video_settings.get("gemini_api_key") or video_settings.get("google_api_key") or video_settings.get("veo_api_key"))
+        ),
+        "endpoint_used": "client.models.generate_videos",
+        "model_used": str(video_settings.get("model") or video_settings.get("veo_model") or "veo-3.1-generate-preview"),
+        "request_status": "not_requested" if mode != "ai_video_provider" else "pending",
+        "polling_status": "",
+        "download_status": "",
+        "mp4_validation_result": {},
+        "final_error": "",
+    }
     if mode == "ai_video_provider":
         max_real_shots = max(1, min(10, int(video_settings.get("max_real_shots") or 3)))
         for shot in shot_prompts[:max_real_shots]:
@@ -1175,11 +1194,20 @@ def _try_ai_video_generation(
                 settings=video_settings,
             )
             shot_results.append({"shot": shot, "result": result})
+            result_data = result.get("data") or {}
+            provider_debug["request_status"] = "ok" if result.get("ok") else "failed"
+            provider_debug["polling_status"] = (result_data.get("provider_status") or result_data.get("fallback_reason") or "")
+            provider_debug["download_status"] = "downloaded" if result.get("ok") else ""
+            provider_debug["mp4_validation_result"] = result_data.get("validation") or {}
             if not result.get("ok"):
-                fallback_used = True
+                fallback_used = False
                 fallback_reason = result.get("error") or "ai_video_provider_failed"
+                provider_debug["final_error"] = fallback_reason
                 break
             shot_paths.append(str(output_path))
+    provider_debug_path = ensure_parent_dir(exports_dir / "debug" / "provider_debug.json")
+    provider_debug_path.write_text(json.dumps(provider_debug, ensure_ascii=False, indent=2), encoding="utf-8")
+    provider_confirmed_live = bool(mode == "ai_video_provider" and shot_paths and not fallback_reason)
     manifest_result = save_video_generation_manifest(
         exports_dir / "video_generation_manifest.json",
         {
@@ -1188,7 +1216,8 @@ def _try_ai_video_generation(
             "mode": mode,
             "provider_used": provider,
             "provider": provider,
-            "real_ai_video_used": bool(mode == "ai_video_provider" and shot_paths and not fallback_used),
+            "real_ai_video_used": provider_confirmed_live,
+            "provider_confirmed_live": provider_confirmed_live,
             "visual_mode": "cinematic_live_action_video_v1",
             "full_hook_section_used": bool(full_hook_lyrics and len(full_hook_lyrics.strip()) >= len(str(package.get("hook_text") or "").strip())),
             "shot_prompts": shot_prompts,
@@ -1198,24 +1227,26 @@ def _try_ai_video_generation(
             "fallback_used": fallback_used,
             "fallback_reason": fallback_reason,
             "fallback_mode": "image_motion_fallback" if fallback_used else "",
+            "provider_debug_path": str(provider_debug_path),
             "final_video_path": "",
             "validation_result": {},
             "api_keys_exported": False,
         },
     )
     return {
-        "ok": not fallback_used,
-        "message": "AI video shots generated" if not fallback_used else "AI video fallback activated",
+        "ok": provider_confirmed_live if mode == "ai_video_provider" else False,
+        "message": "AI video shots generated" if provider_confirmed_live else "AI video provider failed" if mode == "ai_video_provider" else "Image motion mode selected",
         "data": {
             "manifest_path": (manifest_result.get("data") or {}).get("path", ""),
             "manifest": (manifest_result.get("data") or {}).get("manifest", {}),
+            "provider_debug_path": str(provider_debug_path),
             "shot_prompts": shot_prompts,
             "shot_results": shot_results,
             "shot_paths": shot_paths,
             "fallback_used": fallback_used,
             "fallback_reason": fallback_reason,
         },
-        "error": "" if not fallback_used else fallback_reason,
+        "error": "" if provider_confirmed_live else fallback_reason,
     }
 
 
@@ -1527,6 +1558,21 @@ def quick_generate_hook_clip(
         package["video_generation_mode"] = video_generation_mode
         package["video_generation_manifest_path"] = (video_generation.get("data") or {}).get("manifest_path", "")
         package["video_generation_fallback_used"] = bool((video_generation.get("data") or {}).get("fallback_used"))
+        package["provider_debug_path"] = (video_generation.get("data") or {}).get("provider_debug_path", "")
+        if video_generation_mode == "ai_video_provider" and not video_generation.get("ok"):
+            mark_stage("rendering_video", "failed")
+            return {
+                "ok": False,
+                "message": f"AI Video provider failed: {video_generation.get('error') or 'provider unavailable'}",
+                "data": {
+                    "package": package,
+                    "video_generation": video_generation.get("data", {}),
+                    "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+                    "provider_debug_path": package.get("provider_debug_path", ""),
+                    "progress_stages": progress_stages,
+                },
+                "error": video_generation.get("error") or "ai_video_provider_failed",
+            }
         cache_save = save_render_cache(
             project_name,
             storage_workflow_type,
@@ -1693,6 +1739,7 @@ def quick_generate_hook_clip(
             "cinematic_quality_report": package.get("cinematic_quality_report_path", ""),
             "image_generation_manifest": package.get("image_generation_manifest_path", ""),
             "video_generation_manifest": package.get("video_generation_manifest_path", ""),
+            "provider_debug": package.get("provider_debug_path", ""),
             "scene_generation_report": package.get("scene_generation_report_path", ""),
             "image_validation_report": package.get("image_validation_report_path", ""),
             "shot_variation_report": package.get("shot_variation_report_path", ""),
@@ -1725,6 +1772,7 @@ def quick_generate_hook_clip(
             "video_generation": video_generation.get("data", {}),
             "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
             "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+            "provider_debug_path": package.get("provider_debug_path", ""),
             "scene_generation_report_path": package.get("scene_generation_report_path", ""),
             "image_validation_report_path": package.get("image_validation_report_path", ""),
             "shot_variation_report_path": package.get("shot_variation_report_path", ""),
@@ -1769,6 +1817,7 @@ def quick_generate_hook_clip(
         render_manifest_payload["image_results"] = image_results
         render_manifest_payload["image_generation_manifest_path"] = package.get("image_generation_manifest_path", "")
         render_manifest_payload["video_generation_manifest_path"] = package.get("video_generation_manifest_path", "")
+        render_manifest_payload["provider_debug_path"] = package.get("provider_debug_path", "")
         render_manifest_payload["scene_generation_report_path"] = package.get("scene_generation_report_path", "")
         render_manifest_payload["image_validation_report_path"] = package.get("image_validation_report_path", "")
         render_manifest_payload["shot_variation_report_path"] = package.get("shot_variation_report_path", "")
@@ -1804,6 +1853,7 @@ def quick_generate_hook_clip(
                     "image_results": image_results,
                     "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                     "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+                    "provider_debug_path": package.get("provider_debug_path", ""),
                     "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                     "image_validation_report_path": package.get("image_validation_report_path", ""),
                     "shot_variation_report_path": package.get("shot_variation_report_path", ""),
@@ -1825,6 +1875,7 @@ def quick_generate_hook_clip(
                 "image_results": image_results,
                 "image_generation_manifest_path": package.get("image_generation_manifest_path", ""),
                 "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+                "provider_debug_path": package.get("provider_debug_path", ""),
                 "scene_generation_report_path": package.get("scene_generation_report_path", ""),
                 "image_validation_report_path": package.get("image_validation_report_path", ""),
                 "shot_variation_report_path": package.get("shot_variation_report_path", ""),
@@ -1862,6 +1913,7 @@ def quick_generate_hook_clip(
                 "render": render_result.get("data", {}),
                 "video_generation": video_generation.get("data", {}),
                 "video_generation_manifest_path": package.get("video_generation_manifest_path", ""),
+                "provider_debug_path": package.get("provider_debug_path", ""),
                 "manifest_path": str(quick_manifest_path),
                 "render_manifest_path": str(render_manifest_path),
                 "render_stage_path": (render_result.get("data") or {}).get("render_stage_path", ""),
