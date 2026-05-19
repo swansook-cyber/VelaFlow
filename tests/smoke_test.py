@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 import zipfile
@@ -24,6 +25,7 @@ from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
+from core.clip_studio_v2 import build_clip_studio_v2_shot_prompts, generate_clip_studio_v2
 from core.music_video_v2 import build_music_video_v2_shot_plan, generate_music_video_v2
 from core.navigation_config import (
     FULL_MENU_GROUPS,
@@ -1331,18 +1333,83 @@ def main():
         )
         v2_fail_manifest = json.loads(Path((v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
         assert_true(not v2_fail["ok"] and v2_fail_manifest.get("fallback_used") is False and v2_fail_manifest.get("real_ai_video_used") is False, "Music Video V2 allowed fallback success")
+        clip_v2_plan = build_clip_studio_v2_shot_prompts("full hook line one\nfull hook line two\nfull hook line three", hook_duration=8, mood_preset="emotional")
+        assert_true(3 <= len(clip_v2_plan) <= 5 and all("no subtitle inside video" in shot["prompt"].lower() for shot in clip_v2_plan), "Clip Studio V2 shot prompt rules failed")
+
+        def fake_clip_v2_provider(prompt, output_path, **kwargs):
+            scene = {"scene_id": Path(output_path).stem, "duration": float(kwargs.get("duration_seconds") or 2), "render_mode": "placeholder"}
+            rendered = render_placeholder_scene(scene, output_path, aspect_ratio="9:16")
+            validation = validate_mp4(output_path, min_duration=1.0, min_file_size=1)
+            return {
+                "ok": bool(rendered.get("ok") and validation.get("valid_mp4")),
+                "message": "test provider generated MP4",
+                "data": {
+                    "path": str(output_path),
+                    "debug": {"request_status": "submitted", "polling_status": "done", "download_status": "downloaded", "validation": validation},
+                    "validation": validation,
+                },
+                "error": "" if rendered.get("ok") else rendered.get("error", "test_provider_failed"),
+            }
+
+        v2_source_audio = out / "hook_clip_projects" / "clip_studio_v2_source.mp3"
+        subprocess.run(
+            [
+                find_ffmpeg(),
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=6",
+                "-c:a",
+                "libmp3lame",
+                str(v2_source_audio),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        clip_v2 = generate_clip_studio_v2(
+            project_name="Smoke Clip Studio V2",
+            song={"title": "Smoke Clip V2", "artist_name": "VelaFlow", "mood": "emotional"},
+            uploaded_mp3_path=v2_source_audio,
+            hook_start_time=0,
+            hook_end_time=6,
+            full_hook_lyrics="full hook line one\nfull hook line two\nfull hook line three",
+            mood_preset="emotional",
+            provider_settings={"gemini_api_key": "test-key"},
+            video_provider_fn=fake_clip_v2_provider,
+        )
+        clip_v2_data = clip_v2.get("data", {})
+        clip_v2_validation = validate_mp4(clip_v2_data["final_mp4"], require_audio=True)
+        assert_true(clip_v2["ok"] and clip_v2_validation.get("valid_mp4") and clip_v2_validation.get("has_audio") and clip_v2_validation.get("has_video"), "Clip Studio V2 final MP4 validation failed")
+        assert_true(clip_v2_validation.get("file_size", 0) > 500 * 1024, "Clip Studio V2 final MP4 too small")
+        clip_v2_manifest = json.loads(Path(clip_v2_data["manifest_path"]).read_text(encoding="utf-8"))
+        assert_true(clip_v2_manifest.get("mode") == "clip_studio_v2" and clip_v2_manifest.get("real_ai_video_used") is True and clip_v2_manifest.get("provider_confirmed_live") is True and clip_v2_manifest.get("fallback_used") is False, "Clip Studio V2 manifest failed strict real-video flags")
+        assert_true(abs(float(clip_v2_manifest.get("hook_duration") or 0) - 6.0) < 0.1, "Clip Studio V2 did not use full hook range")
+        clip_v2_fail = generate_clip_studio_v2(
+            project_name="Smoke Clip Studio V2 Missing Provider",
+            song={"title": "Smoke Clip V2"},
+            uploaded_mp3_path=v2_source_audio,
+            hook_start_time=0,
+            hook_end_time=6,
+            full_hook_lyrics="full hook line one\nfull hook line two",
+            provider_settings={"gemini_api_key": ""},
+        )
+        clip_v2_fail_manifest = json.loads(Path((clip_v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
+        assert_true(not clip_v2_fail["ok"] and clip_v2_fail_manifest.get("fallback_used") is False and clip_v2_fail_manifest.get("final_video_path") == "", "Clip Studio V2 created fallback success")
         main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
         legacy_button_pos = main_source.find('"Quick Generate TikTok Hook"')
         developer_guard_pos = main_source.find('if not st.session_state.get("developer_mode"):', v2_button_pos)
         legacy_section_pos = main_source.find('"## Developer Legacy Hook Clip Path"', v2_button_pos)
-        v2_call_pos = main_source.find("generate_music_video_v2(", v2_button_pos)
+        v2_call_pos = main_source.find("generate_clip_studio_v2(", v2_button_pos)
         legacy_call_pos = main_source.find("quick_generate_hook_clip(", legacy_section_pos)
         image_provider_pos = main_source.find("_image_provider_controls(\"song_short_clip\")", v2_button_pos)
-        assert_true(v2_button_pos > 0 and v2_call_pos > v2_button_pos, "Creator Mode V2 button is not wired to music_video_v2")
+        assert_true(v2_button_pos > 0 and v2_call_pos > v2_button_pos, "Creator Mode V2 button is not wired to clip_studio_v2")
         assert_true(developer_guard_pos > v2_button_pos and legacy_section_pos > developer_guard_pos and legacy_button_pos > legacy_section_pos, "Legacy quick generate is not hidden behind Developer Mode")
         assert_true(legacy_call_pos > legacy_section_pos, "Legacy quick generate call moved outside developer section")
         assert_true(image_provider_pos > legacy_section_pos, "Image Provider selector is visible before developer legacy section")
+        assert_true("generate_music_video_v2(" not in main_source, "Frontend still routes to older music_video_v2 wrapper")
         affiliate_product = {
             "product_name": "Smoke Pillow",
             "product_type": "home item",

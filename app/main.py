@@ -86,7 +86,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.licensing import get_license_service
 from core.marketing_package import build_marketing_package, export_marketing_package
-from core.music_video_v2 import generate_music_video_v2
+from core.clip_studio_v2 import generate_clip_studio_v2
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard
 from core.navigation_config import (
     FULL_MENU_GROUPS,
@@ -219,7 +219,7 @@ from core.versioning import list_clip_versions
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
-from providers.video_ai import generate_video, generate_video_shot
+from providers.veo_video_provider import test_veo_video_provider
 from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from app.presets import (
     DEFAULT_MUSIC_PRESET,
@@ -2764,6 +2764,14 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         st.caption("Provider: Gemini/Veo")
         st.caption("Status flow: Submitting video job → Polling provider → Downloading MP4 → Validating video → Muxing hook audio → Completed")
         st.caption("Real AI Video only. If Veo/Gemini video is unavailable, VelaFlow stops instead of using image-motion fallback.")
+        if st.button("Test AI Video Provider", use_container_width=True, key="song_test_clip_studio_v2_provider"):
+            test_path = workflow_project_root("song") / safe_name(project.get("title") or song.get("title") or title or "clip_studio_v2") / "exports" / "debug" / "provider_test.mp4"
+            with st.spinner("Testing real AI video provider..."):
+                provider_test = test_veo_video_provider(test_path, settings={"gemini_api_key": _user_api_key("gemini")})
+            if provider_test.get("ok"):
+                st.success("PROVIDER OK")
+            else:
+                st.error(f"PROVIDER FAILED: {provider_test.get('message') or provider_test.get('error')}")
         if st.button(
             "Generate Real AI Video Clip",
             type="primary",
@@ -2774,15 +2782,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             project_name = project.get("title") or song.get("title") or title
             full_hook_lyrics = str(best_hook.get("section_text") or best_hook.get("hook_text") or song.get("complete_lyrics") or song.get("lyrics") or "")
             with st.spinner("Generating real AI video shots..."):
-                v2_result = generate_music_video_v2(
+                v2_result = generate_clip_studio_v2(
                     project_name=project_name,
                     song=song,
-                    uploaded_audio_path=song_audio_path,
+                    uploaded_mp3_path=song_audio_path,
                     hook_start_time=float((song.get("short_clip") or {}).get("hook_start_time", 15.0)),
                     hook_end_time=float((song.get("short_clip") or {}).get("hook_end_time", 30.0)),
                     full_hook_lyrics=full_hook_lyrics,
-                    provider="gemini_veo",
-                    video_settings={"gemini_api_key": _user_api_key("gemini")},
+                    mood_preset=str(song.get("mood") or mood or ""),
+                    provider_settings={"gemini_api_key": _user_api_key("gemini")},
                 )
             song.setdefault("short_clip", {})["music_video_v2"] = v2_result.get("data", {})
             song["short_clip"]["music_video_v2_ok"] = bool(v2_result.get("ok"))
