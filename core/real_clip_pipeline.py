@@ -283,17 +283,17 @@ def _subtitle_burn_filter(subtitle_path: str | Path) -> str:
     safe_subtitle = _ffmpeg_subtitle_path(subtitle_path)
     force_style = (
         f"Fontname={THAI_SUBTITLE_FONT},"
-        "Fontsize=40,"
+        "Fontsize=30,"
         "PrimaryColour=&H00FFFFFF,"
         "OutlineColour=&H00000000,"
         "BackColour=&H66000000,"
         "BorderStyle=1,"
-        "Outline=2,"
+        "Outline=1,"
         "Shadow=1,"
         "Alignment=2,"
-        "MarginL=130,"
-        "MarginR=130,"
-        "MarginV=175"
+        "MarginL=140,"
+        "MarginR=140,"
+        "MarginV=140"
     )
     return f"subtitles='{safe_subtitle}':charenc=UTF-8:force_style='{force_style}'"
 

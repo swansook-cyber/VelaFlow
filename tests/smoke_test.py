@@ -1383,6 +1383,12 @@ def main():
         clip_v2_validation = validate_mp4(clip_v2_data["final_mp4"], require_audio=True)
         assert_true(clip_v2["ok"] and clip_v2_validation.get("valid_mp4") and clip_v2_validation.get("has_audio") and clip_v2_validation.get("has_video"), "Clip Studio V2 final MP4 validation failed")
         assert_true(clip_v2_validation.get("file_size", 0) > 500 * 1024, "Clip Studio V2 final MP4 too small")
+        clip_v2_ass = Path(clip_v2_data["final_dir"]) / "styled_subtitles.ass"
+        clip_v2_ass_text = clip_v2_ass.read_text(encoding="utf-8-sig")
+        clip_v2_style = next(line for line in clip_v2_ass_text.splitlines() if line.startswith("Style: Default,"))
+        clip_v2_style_parts = clip_v2_style.split(",")
+        assert_true("PlayResX: 720" in clip_v2_ass_text and "PlayResY: 1280" in clip_v2_ass_text, "Clip Studio V2 subtitle ASS resolution missing")
+        assert_true(int(clip_v2_style_parts[2]) <= 34 and int(clip_v2_style_parts[16]) <= 1 and clip_v2_style_parts[18] == "2" and int(clip_v2_style_parts[21]) >= 130, "Clip Studio V2 subtitles are not small bottom-safe cinematic style")
         clip_v2_manifest = json.loads(Path(clip_v2_data["manifest_path"]).read_text(encoding="utf-8"))
         assert_true(clip_v2_manifest.get("mode") == "clip_studio_v2" and clip_v2_manifest.get("real_ai_video_used") is True and clip_v2_manifest.get("provider_confirmed_live") is True and clip_v2_manifest.get("fallback_used") is False, "Clip Studio V2 manifest failed strict real-video flags")
         assert_true(2 <= int(clip_v2_manifest.get("shot_count") or 0) <= 3 and clip_v2_manifest.get("max_shot_duration_seconds") == 8, "Clip Studio V2 did not limit real Veo shots to 2-3")
