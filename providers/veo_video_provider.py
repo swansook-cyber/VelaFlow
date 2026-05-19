@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import os
+import json
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from core.real_clip_pipeline import ensure_parent_dir, validate_mp4
+from core.video_muxer import write_ffprobe_text
 
 
 VEO_MODEL = os.getenv("VEO_MODEL", "veo-3.1-generate-preview")
 PROVIDER_METHOD = "client.models.generate_videos"
+LIVE_PROVIDER_TEST_PROMPT = (
+    "A cinematic vertical video of a lonely woman sitting near a rainy window at night, "
+    "soft warm lighting, subtle motion, realistic film look"
+)
 
 
 def _api_key(settings: dict[str, Any] | None = None) -> str:
@@ -111,9 +117,10 @@ def generate_veo_video_shot(
         except Exception:
             types = None
         client = genai.Client(api_key=key)
-        config: Any = {"aspect_ratio": aspect_ratio, "duration_seconds": max(2, min(8, int(round(duration_seconds))))}
+        clipped_duration = max(4, min(8, int(round(duration_seconds))))
+        config: Any = {"aspectRatio": aspect_ratio, "durationSeconds": clipped_duration, "numberOfVideos": 1}
         if types is not None and hasattr(types, "GenerateVideosConfig"):
-            config = types.GenerateVideosConfig(aspect_ratio=aspect_ratio, duration_seconds=max(2, min(8, int(round(duration_seconds)))))
+            config = types.GenerateVideosConfig(aspectRatio=aspect_ratio, durationSeconds=clipped_duration, numberOfVideos=1)
         operation = client.models.generate_videos(model=model, prompt=prompt, config=config)
         debug["request_status"] = "submitted"
         debug["operation_name"] = _operation_name(operation)
@@ -146,9 +153,37 @@ def generate_veo_video_shot(
 
 def test_veo_video_provider(output_path: str | Path, *, settings: dict[str, Any] | None = None) -> dict[str, Any]:
     return generate_veo_video_shot(
-        "single continuous cinematic video shot, ultra realistic live-action, vertical 9:16, natural human motion, cinematic camera movement, emotional close-up, no text, no subtitles, no logo, no watermark, no split screen, no storyboard",
+        LIVE_PROVIDER_TEST_PROMPT,
         output_path,
-        duration_seconds=2,
+        duration_seconds=8,
         aspect_ratio="9:16",
         settings=settings or {},
     )
+
+
+def run_live_veo_provider_test(debug_dir: str | Path, *, settings: dict[str, Any] | None = None) -> dict[str, Any]:
+    debug_path = Path(debug_dir)
+    debug_path.mkdir(parents=True, exist_ok=True)
+    output_path = debug_path / "live_provider_test.mp4"
+    response_path = debug_path / "live_provider_response.json"
+    ffprobe_path = debug_path / "live_ffprobe.txt"
+    result = test_veo_video_provider(output_path, settings=settings or {})
+    payload = {
+        "ok": bool(result.get("ok")),
+        "provider_method": PROVIDER_METHOD,
+        "model": (settings or {}).get("model") or (settings or {}).get("veo_model") or VEO_MODEL,
+        "aspect_ratio": "9:16",
+        "duration_seconds": 8,
+        "prompt": LIVE_PROVIDER_TEST_PROMPT,
+        "mp4_path": str(output_path),
+        "response": result,
+        "validation": (result.get("data") or {}).get("validation") or (result.get("data") or {}).get("debug", {}).get("validation") or {},
+    }
+    response_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    if output_path.is_file():
+        write_ffprobe_text(output_path, ffprobe_path)
+    else:
+        ffprobe_path.write_text("MP4 not created; ffprobe not run.\n", encoding="utf-8")
+    payload["response_path"] = str(response_path)
+    payload["ffprobe_path"] = str(ffprobe_path)
+    return payload

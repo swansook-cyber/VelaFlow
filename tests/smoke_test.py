@@ -1386,15 +1386,21 @@ def main():
         clip_v2_manifest = json.loads(Path(clip_v2_data["manifest_path"]).read_text(encoding="utf-8"))
         assert_true(clip_v2_manifest.get("mode") == "clip_studio_v2" and clip_v2_manifest.get("real_ai_video_used") is True and clip_v2_manifest.get("provider_confirmed_live") is True and clip_v2_manifest.get("fallback_used") is False, "Clip Studio V2 manifest failed strict real-video flags")
         assert_true(abs(float(clip_v2_manifest.get("hook_duration") or 0) - 6.0) < 0.1, "Clip Studio V2 did not use full hook range")
-        clip_v2_fail = generate_clip_studio_v2(
-            project_name="Smoke Clip Studio V2 Missing Provider",
-            song={"title": "Smoke Clip V2"},
-            uploaded_mp3_path=v2_source_audio,
-            hook_start_time=0,
-            hook_end_time=6,
-            full_hook_lyrics="full hook line one\nfull hook line two",
-            provider_settings={"gemini_api_key": ""},
-        )
+        saved_video_env = {key: os.environ.pop(key, None) for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "VEO_API_KEY")}
+        try:
+            clip_v2_fail = generate_clip_studio_v2(
+                project_name="Smoke Clip Studio V2 Missing Provider",
+                song={"title": "Smoke Clip V2"},
+                uploaded_mp3_path=v2_source_audio,
+                hook_start_time=0,
+                hook_end_time=6,
+                full_hook_lyrics="full hook line one\nfull hook line two",
+                provider_settings={"gemini_api_key": ""},
+            )
+        finally:
+            for key, value in saved_video_env.items():
+                if value is not None:
+                    os.environ[key] = value
         clip_v2_fail_manifest = json.loads(Path((clip_v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
         assert_true(not clip_v2_fail["ok"] and clip_v2_fail_manifest.get("fallback_used") is False and clip_v2_fail_manifest.get("final_video_path") == "", "Clip Studio V2 created fallback success")
         main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")

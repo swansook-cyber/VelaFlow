@@ -219,7 +219,7 @@ from core.versioning import list_clip_versions
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
-from providers.veo_video_provider import test_veo_video_provider
+from providers.veo_video_provider import run_live_veo_provider_test
 from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from app.presets import (
     DEFAULT_MUSIC_PRESET,
@@ -2764,14 +2764,6 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         st.caption("Provider: Gemini/Veo")
         st.caption("Status flow: Submitting video job → Polling provider → Downloading MP4 → Validating video → Muxing hook audio → Completed")
         st.caption("Real AI Video only. If Veo/Gemini video is unavailable, VelaFlow stops instead of using image-motion fallback.")
-        if st.button("Test AI Video Provider", use_container_width=True, key="song_test_clip_studio_v2_provider"):
-            test_path = workflow_project_root("song") / safe_name(project.get("title") or song.get("title") or title or "clip_studio_v2") / "exports" / "debug" / "provider_test.mp4"
-            with st.spinner("Testing real AI video provider..."):
-                provider_test = test_veo_video_provider(test_path, settings={"gemini_api_key": _user_api_key("gemini")})
-            if provider_test.get("ok"):
-                st.success("PROVIDER OK")
-            else:
-                st.error(f"PROVIDER FAILED: {provider_test.get('message') or provider_test.get('error')}")
         if st.button(
             "Generate Real AI Video Clip",
             type="primary",
@@ -2827,6 +2819,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             return
 
         st.markdown("## Developer Legacy Hook Clip Path")
+        if st.button("Test Live Veo Provider", use_container_width=True, key="song_test_live_veo_provider"):
+            debug_dir = workflow_project_root("song") / safe_name(project.get("title") or song.get("title") or title or "clip_studio_v2") / "exports" / "debug"
+            with st.spinner("Running live Veo provider proof test..."):
+                live_test = run_live_veo_provider_test(debug_dir, settings={"gemini_api_key": _user_api_key("gemini")})
+            if live_test.get("ok"):
+                st.success("PROVIDER OK")
+            else:
+                st.error("PROVIDER FAILED")
+            st.json(live_test)
         content_presets = list_presets()
         preset_labels = [str(item.get("label") or item.get("preset_id")) for item in content_presets]
         default_preset_index = next((idx for idx, item in enumerate(content_presets) if item.get("preset_id") == "emotional_story"), 0)
