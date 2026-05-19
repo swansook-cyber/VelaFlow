@@ -82,6 +82,7 @@ from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
 from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
+from core.hook_detector import detect_hook_section
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.licensing import get_license_service
@@ -1478,6 +1479,32 @@ def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_pr
     audio_path = str((state.get("song_audio") or {}).get("path") or "")
     if audio_path:
         st.caption(f"Audio: {audio_path}")
+    detect_cols = st.columns([1, 1])
+    quota_saving = detect_cols[1].toggle("Quota-saving 8s hook", value=bool(state.get("quota_saving_hook", True)), key=f"{key_prefix}_quota_saving_hook")
+    state["quota_saving_hook"] = quota_saving
+    if detect_cols[0].button("Auto Detect Hook", key=f"{key_prefix}_auto_detect_hook", use_container_width=True, disabled=not bool(audio_path)):
+        debug_dir = resolve_project_folder(project_name or "project", workflow_type if workflow_type in {"song", "clips"} else "song") / "exports" / "debug"
+        detection = detect_hook_section(audio_path, output_dir=debug_dir, quota_saving_mode=quota_saving, ffmpeg_path=settings.ffmpeg_path)
+        state["hook_detection"] = detection.get("data", {})
+        if detection.get("ok"):
+            st.success("Hook section detected")
+        else:
+            st.error(detection.get("message") or detection.get("error") or "Hook detection failed")
+    detection_data = state.get("hook_detection") or {}
+    if detection_data:
+        with st.container(border=True):
+            st.markdown("**Suggested Hook**")
+            d1, d2, d3, d4 = st.columns(4)
+            d1.metric("Start", f"{float(detection_data.get('hook_start_time', 0)):.1f}s")
+            d2.metric("End", f"{float(detection_data.get('hook_end_time', 0)):.1f}s")
+            d3.metric("Duration", f"{float(detection_data.get('hook_duration', 0)):.1f}s")
+            d4.metric("Confidence", f"{int(detection_data.get('confidence', 0))}%")
+            st.caption(str(detection_data.get("reason") or ""))
+            if st.button("Apply Suggested Hook", key=f"{key_prefix}_apply_detected_hook", use_container_width=True):
+                state["hook_start_time"] = float(detection_data.get("hook_start_time") or state.get("hook_start_time", 15.0))
+                state["hook_end_time"] = float(detection_data.get("hook_end_time") or state.get("hook_end_time", 30.0))
+                st.success("Suggested hook applied. You can still adjust it manually.")
+                st.rerun()
     c1, c2 = st.columns(2)
     start = c1.number_input("Hook Start Time", min_value=0.0, value=float(state.get("hook_start_time", 15.0)), step=0.5, key=f"{key_prefix}_hook_start")
     end = c2.number_input("Hook End Time", min_value=1.0, value=float(state.get("hook_end_time", 30.0)), step=0.5, key=f"{key_prefix}_hook_end")

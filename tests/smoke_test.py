@@ -59,6 +59,7 @@ from core.visual_engine import build_camera_direction, build_scene_flow, build_s
 from core.visual_presets import list_camera_presets, list_lighting_presets, list_motion_presets, list_visual_mood_presets
 from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
+from core.hook_detector import detect_hook_section
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_engine import apply_character_consistency, create_character_profile
 from core.beat_timing_engine import create_beat_timing_plan
@@ -1041,6 +1042,30 @@ def main():
             end_time=2,
         )
         assert_true(hook_audio_trim["ok"] and Path(hook_audio_trim["data"]["path"]).exists(), "hook audio trim failed")
+        long_hook_source = out / "hook_clip_projects" / "long_hook_source.mp3"
+        subprocess.run(
+            [
+                find_ffmpeg(),
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=220:duration=30",
+                "-c:a",
+                "libmp3lame",
+                str(long_hook_source),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        detected_hook = detect_hook_section(long_hook_source, output_dir=out / "hook_clip_projects" / "exports" / "debug", quota_saving_mode=True)
+        detected_data = detected_hook.get("data", {})
+        assert_true(detected_hook["ok"] and detected_data.get("hook_end_time", 0) > detected_data.get("hook_start_time", 0), "hook detector did not return valid start/end")
+        assert_true(8 <= float(detected_data.get("hook_duration", 0)) <= 24, "hook detector duration out of MVP bounds")
+        assert_true(Path(detected_data.get("report_path", "")).exists(), "hook detection report missing")
+        report = json.loads(Path(detected_data["report_path"]).read_text(encoding="utf-8"))
+        assert_true(report.get("veo_called") is False and report.get("confidence", 0) > 0 and report.get("reason"), "hook detector report missing local/no-Veo proof")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
