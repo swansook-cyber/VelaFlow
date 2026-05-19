@@ -22,6 +22,8 @@ def detect_hook_section(
     *,
     output_dir: str | Path,
     quota_saving_mode: bool = True,
+    min_hook_duration: float | None = None,
+    max_hook_duration: float | None = None,
     ffmpeg_path: str = "",
 ) -> dict[str, Any]:
     source = Path(audio_path)
@@ -50,9 +52,11 @@ def detect_hook_section(
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": False, "message": "Audio duration unavailable", "data": {"report_path": str(report_path)}, "error": "audio_duration_unavailable"}
 
-    target_duration = 8.0 if quota_saving_mode else min(24.0, max(15.0, duration * 0.22))
-    target_duration = min(target_duration, max(8.0, duration))
-    target_duration = max(8.0, min(24.0, target_duration))
+    min_duration = float(min_hook_duration if min_hook_duration is not None else (8.0 if quota_saving_mode else 15.0))
+    max_duration = float(max_hook_duration if max_hook_duration is not None else (8.0 if quota_saving_mode else 24.0))
+    target_duration = 8.0 if quota_saving_mode else min(max_duration, max(min_duration, duration * 0.22))
+    target_duration = min(target_duration, max(min_duration, duration))
+    target_duration = max(min_duration, min(max_duration, target_duration))
     target_duration = min(target_duration, duration)
 
     intro_guard = min(max(8.0, duration * 0.18), max(0.0, duration - target_duration))

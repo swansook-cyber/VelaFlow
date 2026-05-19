@@ -83,6 +83,7 @@ from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
 from core.hook_detector import detect_hook_section
+from core.hook_package_generator import generate_full_hook_creator_package
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.licensing import get_license_service
@@ -2786,6 +2787,42 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             "shot_count": 6,
         }
         song_audio_path = str(((song.get("short_clip") or {}).get("song_audio") or {}).get("path") or "")
+        st.markdown("### Creator Hook Package")
+        st.caption("Detects the full hook section, exports hook_audio.mp3, prompt files, captions, hashtags, subtitles, and a ZIP for Flow/Veo/Runway/Kling/Pika/CapCut workflows.")
+        if st.button("Generate Creator Package", type="primary", use_container_width=True, key="song_generate_creator_hook_package", disabled=not bool(song_audio_path)):
+            package_result = generate_full_hook_creator_package(
+                project_name=project.get("title") or song.get("title") or title,
+                uploaded_mp3_path=song_audio_path,
+                lyrics_text=str(song.get("complete_lyrics") or song.get("normalized_song_output") or ""),
+                fallback_hook=str(best_hook.get("section_text") or best_hook.get("hook_text") or ""),
+                song_title=str(song.get("title") or title or ""),
+                artist_name=str(song.get("artist_name") or artist or ""),
+                mood=str(song.get("mood") or mood or ""),
+                hook_start_time=float((song.get("short_clip") or {}).get("hook_start_time", 15.0)),
+                hook_end_time=float((song.get("short_clip") or {}).get("hook_end_time", 30.0)),
+                ffmpeg_path=settings.ffmpeg_path,
+            )
+            song.setdefault("short_clip", {})["creator_package"] = package_result.get("data", {})
+            song["short_clip"]["creator_package_ok"] = bool(package_result.get("ok"))
+            song["short_clip"]["creator_package_error"] = package_result.get("error", "")
+            project["song"] = song
+            _save_project()
+            if package_result.get("ok"):
+                st.success("Creator package ready.")
+            else:
+                st.error(package_result.get("error") or package_result.get("message") or "Creator package failed")
+            st.rerun()
+        creator_package = ((song.get("short_clip") or {}).get("creator_package") or {})
+        if creator_package.get("zip_path") and Path(str(creator_package.get("zip_path"))).is_file():
+            zip_path = Path(str(creator_package.get("zip_path")))
+            st.download_button(
+                "Download Creator Package ZIP",
+                data=zip_path.read_bytes(),
+                file_name="velaflow_creator_package.zip",
+                mime="application/zip",
+                use_container_width=True,
+                key="song_download_full_hook_creator_package",
+            )
         st.markdown("### Clip Studio V2")
         st.caption("Mode: Real AI Video")
         st.caption("Provider: Gemini/Veo")

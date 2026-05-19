@@ -60,6 +60,7 @@ from core.visual_presets import list_camera_presets, list_lighting_presets, list
 from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.hook_detector import detect_hook_section
+from core.hook_package_generator import generate_full_hook_creator_package
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_engine import apply_character_consistency, create_character_profile
 from core.beat_timing_engine import create_beat_timing_plan
@@ -1066,6 +1067,39 @@ def main():
         assert_true(Path(detected_data.get("report_path", "")).exists(), "hook detection report missing")
         report = json.loads(Path(detected_data["report_path"]).read_text(encoding="utf-8"))
         assert_true(report.get("veo_called") is False and report.get("confidence", 0) > 0 and report.get("reason"), "hook detector report missing local/no-Veo proof")
+        package_lyrics = """[Verse]
+คืนนี้ยังเงียบเหมือนเดิม
+ฉันเดินผ่านฝนคนเดียว
+
+[Chorus]
+ทำไมใจยังจำเธอ
+ทั้งที่เธอไม่เคยกลับมา
+ฝนตกลงมาเหมือนคำลา
+แต่ฉันยังรักเธออยู่ดี
+
+[Bridge]
+แสงไฟยังสั่นในตา
+เหมือนคำสัญญาที่หายไป
+"""
+        creator_package = generate_full_hook_creator_package(
+            project_name="Smoke Full Hook Package",
+            uploaded_mp3_path=long_hook_source,
+            lyrics_text=package_lyrics,
+            song_title="Smoke Hook",
+            artist_name="VelaFlow",
+            mood="cinematic emotional thai pop",
+            ffmpeg_path=find_ffmpeg(),
+        )
+        creator_data = creator_package.get("data", {})
+        creator_manifest = json.loads(Path(creator_data["manifest_path"]).read_text(encoding="utf-8"))
+        assert_true(creator_package["ok"] and Path(creator_data["zip_path"]).exists(), "creator package ZIP missing")
+        assert_true(15 <= float(creator_manifest.get("hook_duration", 0)) <= 30, "creator package hook duration out of range")
+        assert_true(int(creator_manifest.get("selected_hook_section_lines", 0)) >= 3, "creator package did not use full hook section")
+        for filename in ["hook_audio.mp3", "selected_hook_section.txt", "hook_summary.txt", "hook_emotion.json", "image_prompt.txt", "video_prompt_flow.txt", "video_prompt_runway.txt", "thumbnail_prompt.txt", "subtitle.srt", "tiktok_caption.txt", "youtube_description.txt", "hashtags.txt", "creator_package_manifest.json"]:
+            assert_true((Path(creator_data["package_dir"]) / filename).exists(), f"creator package missing {filename}")
+        with zipfile.ZipFile(creator_data["zip_path"], "r") as package_zip:
+            names = set(package_zip.namelist())
+        assert_true("creator_package_manifest.json" in names and "video_prompt_flow.txt" in names and "hook_audio.mp3" in names, "creator package ZIP contents missing")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
