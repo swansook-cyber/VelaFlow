@@ -16,30 +16,43 @@ from providers.veo_video_provider import VEO_MODEL, generate_veo_video_shot
 CLIP_STUDIO_V2_MODE = "clip_studio_v2"
 
 
+def split_veo_shot_durations(hook_duration: float) -> list[int]:
+    remaining = max(4, int(round(float(hook_duration or 0))))
+    durations: list[int] = []
+    while remaining > 8:
+        next_duration = 8
+        if remaining - next_duration < 4:
+            next_duration = remaining - 4
+        durations.append(next_duration)
+        remaining -= next_duration
+    durations.append(remaining)
+    return [max(4, min(8, int(duration))) for duration in durations]
+
+
 def build_clip_studio_v2_shot_prompts(full_hook_lyrics: str, *, hook_duration: float, mood_preset: str = "") -> list[dict[str, Any]]:
-    count = 2 if hook_duration <= 16 else 3
-    duration = max(2.0, min(8.0, hook_duration / count))
+    durations = split_veo_shot_durations(hook_duration)
     lines = [line.strip() for line in str(full_hook_lyrics or "").splitlines() if line.strip()] or [str(full_hook_lyrics or "emotional hook").strip()]
     cameras = [
         "wide cinematic room shot with slow drift",
         "medium emotional profile shot with slow push-in",
         "close-up emotional eyes with subtle breathing motion",
+        "soft emotional release shot with slow pull-out",
     ]
     hook_context = " ".join(str(full_hook_lyrics or "").split())
     prompts = []
-    for index in range(count):
+    for index, duration in enumerate(durations):
         lyric = lines[index % len(lines)]
         prompt = (
             "single continuous cinematic video shot, realistic cinematic live-action, vertical 9:16, "
             "natural human motion, cinematic camera movement, same character, same location, same wardrobe, same lighting mood, "
-            f"{cameras[index]}, emotional Thai music video mood, mood preset: {mood_preset}, lyric emotion: {lyric}, "
+            f"{cameras[index % len(cameras)]}, emotional Thai music video mood, mood preset: {mood_preset}, lyric emotion: {lyric}, "
             f"full hook section context: {hook_context[:600]}, no text, no subtitle inside video, no subtitles, no logo, no watermark, "
             "no emoji, no meme style, no thumbnail style, no split screen, no storyboard"
         )
         prompts.append(
             {
                 "shot_id": f"shot_{index + 1:02d}",
-                "duration_seconds": round(duration, 2),
+                "duration_seconds": duration,
                 "aspect_ratio": "9:16",
                 "prompt": prompt,
                 "subtitle": lyric,
@@ -119,6 +132,7 @@ def generate_clip_studio_v2(
         provider_debug["final_error"] = audio_result.get("error") or "hook_audio_trim_failed"
         return _fail(final_dir, debug_dir, project_name, provider_debug, hook_start_time, hook_end_time, hook_duration, [], [], provider_debug["final_error"])
     shot_prompts = build_clip_studio_v2_shot_prompts(full_hook_lyrics, hook_duration=hook_duration, mood_preset=mood_preset)
+    shot_durations = [int(shot.get("duration_seconds") or 0) for shot in shot_prompts]
     shot_paths: list[str] = []
     shot_results: list[dict[str, Any]] = []
     for shot in shot_prompts:
@@ -133,6 +147,7 @@ def generate_clip_studio_v2(
         shot_results.append({"shot": shot, "result": result})
         debug = (result.get("data") or {}).get("debug") or {}
         provider_debug.update({key: value for key, value in debug.items() if key in provider_debug})
+        provider_debug.setdefault("provider_request_payloads", []).append(debug.get("request_payload") or {})
         if not result.get("ok"):
             error = result.get("message") or result.get("error") or "Real AI Video provider unavailable or failed. No fallback was used."
             provider_debug["final_error"] = error
@@ -162,6 +177,7 @@ def generate_clip_studio_v2(
         shot_prompts,
         shot_results,
         shot_paths,
+        shot_durations,
         str(final_mp4),
         validation,
         "",
@@ -188,7 +204,8 @@ def generate_clip_studio_v2(
 def _fail(final_dir: Path, debug_dir: Path, project_name: str, provider_debug: dict[str, Any], start: float, end: float, duration: float, shot_prompts: list[dict[str, Any]], shot_results: list[dict[str, Any]], error: str, validation: dict[str, Any] | None = None) -> dict[str, Any]:
     provider_debug_path = ensure_parent_dir(debug_dir / "provider_debug.json")
     provider_debug_path.write_text(json.dumps(provider_debug, ensure_ascii=False, indent=2), encoding="utf-8")
-    manifest = _manifest(final_dir, project_name, provider_debug, start, end, duration, shot_prompts, shot_results, [], "", validation or {}, error, False)
+    shot_durations = [int(shot.get("duration_seconds") or 0) for shot in shot_prompts]
+    manifest = _manifest(final_dir, project_name, provider_debug, start, end, duration, shot_prompts, shot_results, [], shot_durations, "", validation or {}, error, False)
     return {
         "ok": False,
         "message": "Real AI Video provider unavailable or failed. No fallback was used.",
@@ -197,7 +214,7 @@ def _fail(final_dir: Path, debug_dir: Path, project_name: str, provider_debug: d
     }
 
 
-def _manifest(final_dir: Path, project_name: str, provider_debug: dict[str, Any], start: float, end: float, duration: float, shot_prompts: list[dict[str, Any]], shot_results: list[dict[str, Any]], shot_paths: list[str], final_video_path: str, validation: dict[str, Any], error: str, success: bool) -> str:
+def _manifest(final_dir: Path, project_name: str, provider_debug: dict[str, Any], start: float, end: float, duration: float, shot_prompts: list[dict[str, Any]], shot_results: list[dict[str, Any]], shot_paths: list[str], shot_durations: list[int], final_video_path: str, validation: dict[str, Any], error: str, success: bool) -> str:
     payload = {
         "mode": CLIP_STUDIO_V2_MODE,
         "provider": provider_debug.get("provider_selected", "gemini_veo"),
@@ -208,6 +225,10 @@ def _manifest(final_dir: Path, project_name: str, provider_debug: dict[str, Any]
         "status_flow": ["submitting", "polling", "downloading", "muxing", "complete"] if success else ["submitting", "failed"],
         "shot_count": len(shot_paths or shot_prompts),
         "max_shot_duration_seconds": 8,
+        "shot_durations": shot_durations,
+        "provider_request_payloads": provider_debug.get("provider_request_payloads", []),
+        "generated_shot_filenames": [Path(path).name for path in shot_paths],
+        "concat_file_list": [str(path) for path in shot_paths],
         "hook_start_time": start,
         "hook_end_time": end,
         "hook_duration": duration,

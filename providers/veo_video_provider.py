@@ -121,6 +121,13 @@ def generate_veo_video_shot(
         config: Any = {"aspectRatio": aspect_ratio, "durationSeconds": clipped_duration, "numberOfVideos": 1}
         if types is not None and hasattr(types, "GenerateVideosConfig"):
             config = types.GenerateVideosConfig(aspectRatio=aspect_ratio, durationSeconds=clipped_duration, numberOfVideos=1)
+        debug["request_payload"] = {
+            "model": model,
+            "durationSeconds": clipped_duration,
+            "aspectRatio": aspect_ratio,
+            "numberOfVideos": 1,
+            "provider_method": PROVIDER_METHOD,
+        }
         operation = client.models.generate_videos(model=model, prompt=prompt, config=config)
         debug["request_status"] = "submitted"
         debug["operation_name"] = _operation_name(operation)

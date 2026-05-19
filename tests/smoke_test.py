@@ -25,7 +25,7 @@ from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
-from core.clip_studio_v2 import build_clip_studio_v2_shot_prompts, generate_clip_studio_v2
+from core.clip_studio_v2 import build_clip_studio_v2_shot_prompts, generate_clip_studio_v2, split_veo_shot_durations
 from core.music_video_v2 import build_music_video_v2_shot_plan, generate_music_video_v2
 from core.navigation_config import (
     FULL_MENU_GROUPS,
@@ -1334,7 +1334,11 @@ def main():
         v2_fail_manifest = json.loads(Path((v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
         assert_true(not v2_fail["ok"] and v2_fail_manifest.get("fallback_used") is False and v2_fail_manifest.get("real_ai_video_used") is False, "Music Video V2 allowed fallback success")
         clip_v2_plan = build_clip_studio_v2_shot_prompts("full hook line one\nfull hook line two\nfull hook line three", hook_duration=8, mood_preset="emotional")
-        assert_true(2 <= len(clip_v2_plan) <= 3 and all(float(shot["duration_seconds"]) <= 8 for shot in clip_v2_plan) and all("no subtitle inside video" in shot["prompt"].lower() for shot in clip_v2_plan), "Clip Studio V2 shot prompt rules failed")
+        assert_true(split_veo_shot_durations(20) == [8, 8, 4], "Clip Studio V2 did not split 20s hook into legal Veo shots")
+        clip_v2_plan_20s = build_clip_studio_v2_shot_prompts("full hook line one\nfull hook line two\nfull hook line three", hook_duration=20, mood_preset="emotional")
+        assert_true([shot["duration_seconds"] for shot in clip_v2_plan_20s] == [8, 8, 4], "Clip Studio V2 20s shot prompt durations are illegal")
+        assert_true(all(4 <= int(shot["duration_seconds"]) <= 8 for shot in clip_v2_plan_20s), "Clip Studio V2 generated out-of-bound Veo duration")
+        assert_true(1 <= len(clip_v2_plan) <= 3 and all(4 <= float(shot["duration_seconds"]) <= 8 for shot in clip_v2_plan) and all("no subtitle inside video" in shot["prompt"].lower() for shot in clip_v2_plan), "Clip Studio V2 shot prompt rules failed")
 
         def fake_clip_v2_provider(prompt, output_path, **kwargs):
             scene = {"scene_id": Path(output_path).stem, "duration": float(kwargs.get("duration_seconds") or 2), "render_mode": "placeholder"}
@@ -1345,7 +1349,13 @@ def main():
                 "message": "test provider generated MP4",
                 "data": {
                     "path": str(output_path),
-                    "debug": {"request_status": "submitted", "polling_status": "done", "download_status": "downloaded", "validation": validation},
+                    "debug": {
+                        "request_status": "submitted",
+                        "polling_status": "done",
+                        "download_status": "downloaded",
+                        "request_payload": {"durationSeconds": int(kwargs.get("duration_seconds") or 0), "aspectRatio": kwargs.get("aspect_ratio", "9:16")},
+                        "validation": validation,
+                    },
                     "validation": validation,
                 },
                 "error": "" if rendered.get("ok") else rendered.get("error", "test_provider_failed"),
@@ -1391,7 +1401,9 @@ def main():
         assert_true(int(clip_v2_style_parts[2]) <= 34 and int(clip_v2_style_parts[16]) <= 1 and clip_v2_style_parts[18] == "2" and int(clip_v2_style_parts[21]) >= 130, "Clip Studio V2 subtitles are not small bottom-safe cinematic style")
         clip_v2_manifest = json.loads(Path(clip_v2_data["manifest_path"]).read_text(encoding="utf-8"))
         assert_true(clip_v2_manifest.get("mode") == "clip_studio_v2" and clip_v2_manifest.get("real_ai_video_used") is True and clip_v2_manifest.get("provider_confirmed_live") is True and clip_v2_manifest.get("fallback_used") is False, "Clip Studio V2 manifest failed strict real-video flags")
-        assert_true(2 <= int(clip_v2_manifest.get("shot_count") or 0) <= 3 and clip_v2_manifest.get("max_shot_duration_seconds") == 8, "Clip Studio V2 did not limit real Veo shots to 2-3")
+        assert_true(all(4 <= int(duration) <= 8 for duration in clip_v2_manifest.get("shot_durations", [])) and clip_v2_manifest.get("max_shot_duration_seconds") == 8, "Clip Studio V2 did not enforce legal Veo shot durations")
+        assert_true(all(4 <= int(payload.get("durationSeconds", 0)) <= 8 for payload in clip_v2_manifest.get("provider_request_payloads", [])), "Clip Studio V2 provider request payload sent illegal duration")
+        assert_true(clip_v2_manifest.get("generated_shot_filenames") and clip_v2_manifest.get("concat_file_list"), "Clip Studio V2 debug shot filenames/concat file list missing")
         assert_true(clip_v2_manifest.get("status_flow") == ["submitting", "polling", "downloading", "muxing", "complete"], "Clip Studio V2 status flow missing")
         assert_true(abs(float(clip_v2_manifest.get("hook_duration") or 0) - 6.0) < 0.1, "Clip Studio V2 did not use full hook range")
         saved_video_env = {key: os.environ.pop(key, None) for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "VEO_API_KEY")}
