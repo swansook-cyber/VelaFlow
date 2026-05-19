@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -18,15 +17,13 @@ CLIP_STUDIO_V2_MODE = "clip_studio_v2"
 
 
 def build_clip_studio_v2_shot_prompts(full_hook_lyrics: str, *, hook_duration: float, mood_preset: str = "") -> list[dict[str, Any]]:
-    count = max(3, min(5, math.ceil(max(6.0, hook_duration) / 4.0)))
-    duration = max(2.0, min(4.0, hook_duration / count))
+    count = 2 if hook_duration <= 16 else 3
+    duration = max(2.0, min(8.0, hook_duration / count))
     lines = [line.strip() for line in str(full_hook_lyrics or "").splitlines() if line.strip()] or [str(full_hook_lyrics or "emotional hook").strip()]
     cameras = [
         "wide cinematic room shot with slow drift",
         "medium emotional profile shot with slow push-in",
-        "over-shoulder reflection shot with natural hand movement",
         "close-up emotional eyes with subtle breathing motion",
-        "soft release shot with slow pull-out",
     ]
     hook_context = " ".join(str(full_hook_lyrics or "").split())
     prompts = []
@@ -208,6 +205,9 @@ def _manifest(final_dir: Path, project_name: str, provider_debug: dict[str, Any]
         "real_ai_video_used": bool(success),
         "provider_confirmed_live": bool(success),
         "fallback_used": False,
+        "status_flow": ["submitting", "polling", "downloading", "muxing", "complete"] if success else ["submitting", "failed"],
+        "shot_count": len(shot_paths or shot_prompts),
+        "max_shot_duration_seconds": 8,
         "hook_start_time": start,
         "hook_end_time": end,
         "hook_duration": duration,

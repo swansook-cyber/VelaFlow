@@ -1334,7 +1334,7 @@ def main():
         v2_fail_manifest = json.loads(Path((v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
         assert_true(not v2_fail["ok"] and v2_fail_manifest.get("fallback_used") is False and v2_fail_manifest.get("real_ai_video_used") is False, "Music Video V2 allowed fallback success")
         clip_v2_plan = build_clip_studio_v2_shot_prompts("full hook line one\nfull hook line two\nfull hook line three", hook_duration=8, mood_preset="emotional")
-        assert_true(3 <= len(clip_v2_plan) <= 5 and all("no subtitle inside video" in shot["prompt"].lower() for shot in clip_v2_plan), "Clip Studio V2 shot prompt rules failed")
+        assert_true(2 <= len(clip_v2_plan) <= 3 and all(float(shot["duration_seconds"]) <= 8 for shot in clip_v2_plan) and all("no subtitle inside video" in shot["prompt"].lower() for shot in clip_v2_plan), "Clip Studio V2 shot prompt rules failed")
 
         def fake_clip_v2_provider(prompt, output_path, **kwargs):
             scene = {"scene_id": Path(output_path).stem, "duration": float(kwargs.get("duration_seconds") or 2), "render_mode": "placeholder"}
@@ -1385,6 +1385,8 @@ def main():
         assert_true(clip_v2_validation.get("file_size", 0) > 500 * 1024, "Clip Studio V2 final MP4 too small")
         clip_v2_manifest = json.loads(Path(clip_v2_data["manifest_path"]).read_text(encoding="utf-8"))
         assert_true(clip_v2_manifest.get("mode") == "clip_studio_v2" and clip_v2_manifest.get("real_ai_video_used") is True and clip_v2_manifest.get("provider_confirmed_live") is True and clip_v2_manifest.get("fallback_used") is False, "Clip Studio V2 manifest failed strict real-video flags")
+        assert_true(2 <= int(clip_v2_manifest.get("shot_count") or 0) <= 3 and clip_v2_manifest.get("max_shot_duration_seconds") == 8, "Clip Studio V2 did not limit real Veo shots to 2-3")
+        assert_true(clip_v2_manifest.get("status_flow") == ["submitting", "polling", "downloading", "muxing", "complete"], "Clip Studio V2 status flow missing")
         assert_true(abs(float(clip_v2_manifest.get("hook_duration") or 0) - 6.0) < 0.1, "Clip Studio V2 did not use full hook range")
         saved_video_env = {key: os.environ.pop(key, None) for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "VEO_API_KEY")}
         try:
@@ -1412,6 +1414,7 @@ def main():
         legacy_call_pos = main_source.find("quick_generate_hook_clip(", legacy_section_pos)
         image_provider_pos = main_source.find("_image_provider_controls(\"song_short_clip\")", v2_button_pos)
         assert_true(v2_button_pos > 0 and v2_call_pos > v2_button_pos, "Creator Mode V2 button is not wired to clip_studio_v2")
+        assert_true("submitting → polling → downloading → muxing → complete" in main_source, "Clip Studio V2 status text missing")
         assert_true(developer_guard_pos > v2_button_pos and legacy_section_pos > developer_guard_pos and legacy_button_pos > legacy_section_pos, "Legacy quick generate is not hidden behind Developer Mode")
         assert_true(legacy_call_pos > legacy_section_pos, "Legacy quick generate call moved outside developer section")
         assert_true(image_provider_pos > legacy_section_pos, "Image Provider selector is visible before developer legacy section")

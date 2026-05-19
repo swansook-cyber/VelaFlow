@@ -2762,7 +2762,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         st.markdown("### Clip Studio V2")
         st.caption("Mode: Real AI Video")
         st.caption("Provider: Gemini/Veo")
-        st.caption("Status flow: Submitting video job → Polling provider → Downloading MP4 → Validating video → Muxing hook audio → Completed")
+        st.caption("Status: submitting → polling → downloading → muxing → complete")
+        st.caption("Generates 2-3 real Veo shots from the full hook range, then muxes hook_audio.mp3 and burns bottom-safe subtitles.")
         st.caption("Real AI Video only. If Veo/Gemini video is unavailable, VelaFlow stops instead of using image-motion fallback.")
         if st.button(
             "Generate Real AI Video Clip",
