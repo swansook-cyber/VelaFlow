@@ -2118,6 +2118,44 @@ def _render_suno_downloads(project_name: str, song: dict[str, Any]) -> None:
     st.caption(f"Lyrics Only: {data.get('lyrics_only', '')}")
 
 
+def _render_creator_lyrics_action_bar(project: dict[str, Any], song: dict[str, Any], edited_lyrics: str, *, key_prefix: str) -> None:
+    project_name = project.get("title") or song.get("title") or "VelaFlow Song"
+    workflow_mode = st.session_state.get("workflow_mode", "Song Studio Only")
+    temp_song = {**song, "complete_lyrics": edited_lyrics, "normalized_song_output": edited_lyrics}
+    export_result = export_suno_files(project_name, temp_song, workflow_mode=workflow_mode) if str(edited_lyrics or "").strip() else {"ok": False, "data": {}}
+    export_data = export_result.get("data", {}) if export_result.get("ok") else {}
+    lyrics_txt = export_data.get("lyrics_only_text") or edited_lyrics
+    suno_txt = export_data.get("suno_full_text") or edited_lyrics
+    suno_filename = export_data.get("suno_full_filename") or resolve_export_txt_filename(temp_song, project_name, workflow_mode, suno_txt)
+    cols = st.columns(5)
+    if cols[0].button("Save", type="primary", use_container_width=True, key=f"{key_prefix}_save"):
+        temp_song["instrument_tag_validation"] = validate_english_only_tags(edited_lyrics)
+        result = save_song_state(project_name, temp_song, workflow_mode=workflow_mode)
+        if result.get("ok"):
+            project["song"] = result["data"]["song"]
+            st.session_state.lyrics_saved = True
+            st.session_state.normalized_song_output = edited_lyrics
+            _save_project()
+            _log_beta_event("export", workflow="music", metadata={"format": "song_txt"})
+            st.success("Lyrics saved")
+            st.rerun()
+        else:
+            st.error(result.get("error", "Save failed"))
+    if cols[1].button("Copy", use_container_width=True, key=f"{key_prefix}_copy"):
+        st.session_state[f"{key_prefix}_show_copy"] = True
+    cols[2].download_button("Lyrics TXT", data=lyrics_txt, file_name="lyrics_only.txt", mime="text/plain", use_container_width=True, key=f"{key_prefix}_lyrics_txt")
+    cols[3].download_button("Suno TXT", data=suno_txt, file_name=suno_filename, mime="text/plain", use_container_width=True, key=f"{key_prefix}_suno_txt")
+    if cols[4].button("Release Package", use_container_width=True, key=f"{key_prefix}_release"):
+        if export_result.get("ok"):
+            project["song"] = temp_song
+            _save_project()
+            st.success("Release package generated")
+        else:
+            st.error(export_result.get("error") or "Release package failed")
+    if st.session_state.get(f"{key_prefix}_show_copy"):
+        st.text_area("Copy Lyrics", value=lyrics_txt, height=220, key=f"{key_prefix}_copy_text")
+
+
 def _artist_preset_label(preset: dict[str, Any]) -> str:
     badges = []
     if preset.get("is_default"):
@@ -2534,12 +2572,12 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     s7.metric("MV Ready", "Yes" if ready_for_mv else "No")
 
     st.divider()
-    st.markdown("**Step 1-2: Hook Candidates**")
+    st.markdown("**Hooks**")
     hook_actions = st.columns(3)
-    generate_hooks_clicked = hook_actions[0].button("Generate Hook Candidates", type="primary", key="song_generate_hooks", help="สร้างตัวเลือกฮุกหลายแบบให้เลือกก่อนเขียนเนื้อเพลงเต็ม")
-    regenerate_hooks_clicked = hook_actions[1].button("Regenerate Hooks", key="song_regenerate_hooks", help="ล้างฮุกเดิมแล้วสร้างชุดใหม่ ถ้ายังไม่ถูกใจ")
+    generate_hooks_clicked = hook_actions[0].button("Generate Viral Hooks", type="primary", key="song_generate_hooks", help="สร้างตัวเลือกฮุกหลายแบบให้เลือกก่อนเขียนเนื้อเพลงเต็ม")
+    regenerate_hooks_clicked = hook_actions[1].button("Try New Hooks", key="song_regenerate_hooks", help="ลองฮุกชุดใหม่ถ้ายังไม่ถูกใจ")
     hook_cache_dir = ROOT / "outputs" / "cache" / "text"
-    if hook_cache_dir.exists() and hook_actions[2].button("Clear Hook Cache", key="song_clear_hook_cache", help="ล้างข้อมูลฮุกเก่าที่แคชไว้ เพื่อให้ลองไอเดียใหม่ได้สะอาดขึ้น"):
+    if hook_cache_dir.exists() and hook_actions[2].button("Reset Hooks", key="song_clear_hook_cache", help="เริ่มชุดฮุกใหม่ให้สะอาดขึ้น"):
         for cache_file in hook_cache_dir.glob("*.json"):
             cache_file.unlink(missing_ok=True)
         st.success("Hook cache cleared")
@@ -2624,11 +2662,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     st.toast("Hook selected")
                     st.rerun()
     else:
-        st.info("ยังไม่มี hook candidates. กด Generate Hook Candidates ก่อน หรือ Generate Full Lyrics จะสร้างและเลือก hook อัตโนมัติ")
+        st.info("ยังไม่มี hook. กด Generate Viral Hooks ก่อน หรือ Generate Full Lyrics จะสร้างและเลือก hook ให้อัตโนมัติ")
 
     st.divider()
-    st.markdown("**Step 3-5: Generate Full Lyrics, Normalize Tags, Preview**")
-    if st.button("Generate Full Lyrics Using Selected Hook", key="song_generate_full_lyrics", help="สร้างเนื้อเพลงพร้อม Release Package สำหรับนำไปใช้งานต่อ"):
+    st.markdown("**Lyrics**")
+    if st.button("Generate Full Lyrics", key="song_generate_full_lyrics", help="สร้างเนื้อเพลงเต็มจากไอเดียและฮุกที่เลือก"):
         if not idea.strip():
             st.error("กรุณาใส่ไอเดียเพลง")
             st.stop()
@@ -2757,6 +2795,21 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     song = normalize_song_metadata(project.get("song", {}) or {}, get_artist_preset((project.get("song", {}) or {}).get("artist_preset") or load_default_artist_id()))
     if song.get("hook_candidates") or song.get("normalized_song_output") or song.get("complete_lyrics"):
         project["song"] = song
+        lyrics_for_editor = song.get("normalized_song_output") or song.get("complete_lyrics", "")
+        if lyrics_for_editor:
+            st.divider()
+            st.markdown("## Edit Lyrics")
+            edited_creator_lyrics = st.text_area(
+                "Lyrics Editor",
+                value=lyrics_for_editor,
+                height=420,
+                key="song_creator_lyrics_editor",
+                help="แก้เนื้อเพลงได้ต่อเนื่อง แล้วใช้ปุ่มด้านล่างเพื่อบันทึกหรือส่งออก",
+            )
+            song["complete_lyrics"] = edited_creator_lyrics
+            song["normalized_song_output"] = edited_creator_lyrics
+            project["song"] = song
+            _render_creator_lyrics_action_bar(project, song, edited_creator_lyrics, key_prefix="song_creator_action_bar")
         st.divider()
         best_hook = detect_best_song_hook(song)
         st.markdown("## 🎯 Best Hook Detected")
