@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,19 @@ def _hashtags(mood: str = "") -> str:
     if "pop" in str(mood).lower():
         base.append("#ThaiPop")
     return " ".join(base)
+
+
+def _upload_checklist() -> str:
+    return "\n".join(
+        [
+            "[ ] Review selected_hook_section.txt",
+            "[ ] Preview hook_audio.mp3",
+            "[ ] Choose platform prompt: Flow / Veo / Runway / Kling / Pika / CapCut",
+            "[ ] Paste prompt into external video tool",
+            "[ ] Add subtitle.srt in editor if needed",
+            "[ ] Copy TikTok caption and hashtags",
+        ]
+    )
 
 
 def _write_text(path: Path, content: str) -> str:
@@ -105,20 +119,31 @@ def generate_full_hook_creator_package(
     files["tiktok_caption.txt"] = _write_text(package_dir / "tiktok_caption.txt", _caption_from_hook(hook_section))
     files["youtube_description.txt"] = _write_text(package_dir / "youtube_description.txt", f"{song_title or project_name}\n\n{prompt_package['hook_summary']}\n\nCreated with VelaFlow.")
     files["hashtags.txt"] = _write_text(package_dir / "hashtags.txt", _hashtags(mood))
+    files["upload_checklist.txt"] = _write_text(package_dir / "upload_checklist.txt", _upload_checklist())
+    warning = ""
+    if len(subtitle_lines) <= 1:
+        warning = "Only one lyric line available; user should review."
     manifest = {
+        "package_version": "full_hook_creator_package_v1",
         "project_name": project_name,
         "song_title": song_title,
         "artist_name": artist_name,
         "hook_start_time": round(start, 2),
         "hook_end_time": round(end, 2),
         "hook_duration": round(end - start, 2),
-        "hook_confidence": detected.get("confidence"),
+        "confidence_score": detected.get("confidence_score", detected.get("confidence")),
+        "detection_reason": detected.get("detection_reason", detected.get("reason", "")),
+        "energy_profile_summary": detected.get("energy_profile_summary", ""),
+        "suggested_use": detected.get("suggested_use", ""),
         "hook_summary": prompt_package.get("hook_summary"),
         "emotional_tone": prompt_package.get("hook_emotion", {}).get("emotional_tone"),
-        "selected_hook_section_lines": len(subtitle_lines),
-        "files": files,
+        "selected_hook_section_line_count": len(subtitle_lines),
+        "hook_section_warning": warning,
+        "generated_files": files,
+        "target_platforms": ["Flow", "Veo", "Runway", "Kling", "Pika", "CapCut"],
         "detection_report": detected.get("report_path", ""),
         "veo_called": False,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     manifest_path = package_dir / "creator_package_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

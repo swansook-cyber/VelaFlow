@@ -1483,7 +1483,7 @@ def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_pr
     detect_cols = st.columns([1, 1])
     quota_saving = detect_cols[1].toggle("Quota-saving 8s hook", value=bool(state.get("quota_saving_hook", True)), key=f"{key_prefix}_quota_saving_hook")
     state["quota_saving_hook"] = quota_saving
-    if detect_cols[0].button("Auto Detect Hook", key=f"{key_prefix}_auto_detect_hook", use_container_width=True, disabled=not bool(audio_path)):
+    if detect_cols[0].button("Auto Detect Full Hook", key=f"{key_prefix}_auto_detect_hook", use_container_width=True, disabled=not bool(audio_path)):
         debug_dir = resolve_project_folder(project_name or "project", workflow_type if workflow_type in {"song", "clips"} else "song") / "exports" / "debug"
         detection = detect_hook_section(audio_path, output_dir=debug_dir, quota_saving_mode=quota_saving, ffmpeg_path=settings.ffmpeg_path)
         state["hook_detection"] = detection.get("data", {})
@@ -2787,7 +2787,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             "shot_count": 6,
         }
         song_audio_path = str(((song.get("short_clip") or {}).get("song_audio") or {}).get("path") or "")
-        st.markdown("### Creator Hook Package")
+        st.markdown("### Full Hook Creator Package")
         st.caption("Detects the full hook section, exports hook_audio.mp3, prompt files, captions, hashtags, subtitles, and a ZIP for Flow/Veo/Runway/Kling/Pika/CapCut workflows.")
         if st.button("Generate Creator Package", type="primary", use_container_width=True, key="song_generate_creator_hook_package", disabled=not bool(song_audio_path)):
             package_result = generate_full_hook_creator_package(
@@ -2813,6 +2813,10 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 st.error(package_result.get("error") or package_result.get("message") or "Creator package failed")
             st.rerun()
         creator_package = ((song.get("short_clip") or {}).get("creator_package") or {})
+        if creator_package.get("manifest"):
+            manifest_files = list((creator_package.get("manifest") or {}).get("generated_files", {}).keys())
+            if manifest_files:
+                st.caption("Package files: " + ", ".join(manifest_files))
         if creator_package.get("zip_path") and Path(str(creator_package.get("zip_path"))).is_file():
             zip_path = Path(str(creator_package.get("zip_path")))
             st.download_button(

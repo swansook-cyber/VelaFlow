@@ -44,19 +44,31 @@ def build_prompt_director_package(full_hook_section: str, *, song_title: str = "
         "Maintain the same character, same apartment room, same wardrobe, same warm rainy-night lighting palette, "
         "and a continuous emotional arc across the full hook section."
     )
+    safety = "No text inside video, no logo, no watermark, no subtitles, no subtitle inside AI video."
+    scene_language = (
+        "Use cinematic pacing, slow emotional camera movement, wide-to-medium-to-close-up scene progression, "
+        "natural acting, and clear vertical 9:16 framing."
+    )
     return {
         "hook_summary": f"{title} by {artist}: {emotion['emotional_tone']} hook sequence about {hook_clean[:180]}",
         "hook_emotion": emotion,
         "image_prompt": (
-            f"{base_scene} Premium realistic film still, subtle skin texture, natural shadows, no text, no logo. {continuity}"
+            f"{base_scene} {scene_language} Premium realistic film still, subtle skin texture, natural shadows, no text, no logo. {continuity}"
         ),
         "video_prompt_flow": (
-            f"{base_scene} One continuous vertical cinematic hook sequence for Flow/Veo. {continuity} "
-            "No subtitles inside generated video, no text, no watermark, no split screen."
+            f"{base_scene} One continuous vertical cinematic hook sequence for Flow. {scene_language} {continuity} {safety} No split screen."
+        ),
+        "video_prompt_veo": (
+            f"{base_scene} Generate realistic live-action vertical 9:16 video shots with natural human motion. "
+            f"{scene_language} {continuity} {safety}"
         ),
         "video_prompt_runway": (
             f"{base_scene} Realistic live-action shot progression with wide lonely opening, medium emotional build, "
-            f"close-up emotional climax, soft release ending. {continuity}"
+            f"close-up emotional climax, soft release ending. {scene_language} {continuity} {safety}"
+        ),
+        "video_prompt_kling": (
+            f"{base_scene} Cinematic realistic vertical 9:16 music video prompt for Kling. "
+            f"{scene_language} Keep emotional continuity and smooth camera movement. {continuity} {safety}"
         ),
         "thumbnail_prompt": (
             "Vertical emotional thumbnail frame, close-up expressive eyes near rainy window, warm cinematic rim light, "
@@ -78,7 +90,9 @@ def export_prompt_director_files(package: dict[str, Any], export_dir: str | Path
         "hook_emotion.json": json.dumps(package.get("hook_emotion", {}), ensure_ascii=False, indent=2),
         "image_prompt.txt": package.get("image_prompt", ""),
         "video_prompt_flow.txt": package.get("video_prompt_flow", ""),
+        "video_prompt_veo.txt": package.get("video_prompt_veo", ""),
         "video_prompt_runway.txt": package.get("video_prompt_runway", ""),
+        "video_prompt_kling.txt": package.get("video_prompt_kling", ""),
         "thumbnail_prompt.txt": package.get("thumbnail_prompt", ""),
         "cinematic_direction.txt": package.get("cinematic_direction", ""),
         "mood_summary.txt": package.get("mood_summary", ""),

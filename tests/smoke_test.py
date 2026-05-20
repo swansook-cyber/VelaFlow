@@ -1094,12 +1094,15 @@ def main():
         creator_manifest = json.loads(Path(creator_data["manifest_path"]).read_text(encoding="utf-8"))
         assert_true(creator_package["ok"] and Path(creator_data["zip_path"]).exists(), "creator package ZIP missing")
         assert_true(15 <= float(creator_manifest.get("hook_duration", 0)) <= 30, "creator package hook duration out of range")
-        assert_true(int(creator_manifest.get("selected_hook_section_lines", 0)) >= 3, "creator package did not use full hook section")
-        for filename in ["hook_audio.mp3", "selected_hook_section.txt", "hook_summary.txt", "hook_emotion.json", "image_prompt.txt", "video_prompt_flow.txt", "video_prompt_runway.txt", "thumbnail_prompt.txt", "subtitle.srt", "tiktok_caption.txt", "youtube_description.txt", "hashtags.txt", "creator_package_manifest.json"]:
+        assert_true(int(creator_manifest.get("selected_hook_section_line_count", 0)) >= 3, "creator package did not use full hook section")
+        assert_true(creator_manifest.get("package_version") and creator_manifest.get("confidence_score") and creator_manifest.get("detection_reason") and creator_manifest.get("target_platforms"), "creator package manifest missing required creator fields")
+        for filename in ["hook_audio.mp3", "selected_hook_section.txt", "hook_summary.txt", "hook_emotion.json", "image_prompt.txt", "video_prompt_flow.txt", "video_prompt_veo.txt", "video_prompt_runway.txt", "video_prompt_kling.txt", "thumbnail_prompt.txt", "cinematic_direction.txt", "mood_summary.txt", "subtitle.srt", "tiktok_caption.txt", "youtube_description.txt", "hashtags.txt", "upload_checklist.txt", "creator_package_manifest.json"]:
             assert_true((Path(creator_data["package_dir"]) / filename).exists(), f"creator package missing {filename}")
+        flow_prompt = (Path(creator_data["package_dir"]) / "video_prompt_flow.txt").read_text(encoding="utf-8-sig").lower()
+        assert_true("emotional progression" in flow_prompt and "vertical 9:16" in flow_prompt and "no text" in flow_prompt and "no watermark" in flow_prompt and "no subtitles" in flow_prompt, "creator package prompts missing required platform safety/style language")
         with zipfile.ZipFile(creator_data["zip_path"], "r") as package_zip:
             names = set(package_zip.namelist())
-        assert_true("creator_package_manifest.json" in names and "video_prompt_flow.txt" in names and "hook_audio.mp3" in names, "creator package ZIP contents missing")
+        assert_true("creator_package_manifest.json" in names and "video_prompt_flow.txt" in names and "video_prompt_veo.txt" in names and "video_prompt_kling.txt" in names and "hook_audio.mp3" in names, "creator package ZIP contents missing")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
