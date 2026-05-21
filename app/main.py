@@ -136,6 +136,14 @@ from core.viral_clips_content import (
     generate_viral_clips_content,
     viral_clips_to_text,
 )
+from core.video_prompt_studio import (
+    CLIP_LENGTHS as VIDEO_PROMPT_CLIP_LENGTHS,
+    PRESETS as VIDEO_PROMPT_PRESETS,
+    PROJECT_TYPES as VIDEO_PROMPT_PROJECT_TYPES,
+    TARGET_PLATFORMS as VIDEO_PROMPT_TARGET_PLATFORMS,
+    build_video_prompt_package,
+    video_prompt_package_to_text,
+)
 from core.visual_presets import (
     DEFAULT_VISUAL_SETTINGS,
     list_camera_presets,
@@ -5362,6 +5370,90 @@ elif page == "MV Director":
     if storyboard_export:
         st.caption(f"Latest storyboard export: {storyboard_export}")
     st.dataframe(pd.DataFrame((project.get("mv", {}) or {}).get("storyboard", []) or []), use_container_width=True, height=360)
+
+elif page == "Video Prompt Studio":
+    _page_header("Video Prompt Studio", "Plan AI video prompts for Whisk, Flow, Veo, Runway, Kling, Pika, and Luma.", project)
+    st.caption("Lightweight prompt workflow only. No paid API call, no video rendering, no upload automation.")
+    state = project.setdefault("video_prompt_studio", {})
+    with st.container(border=True):
+        st.markdown("### How to use")
+        st.write("1. Paste lyrics or idea\n2. Choose video type\n3. Generate storyboard\n4. Copy prompt to Whisk / Flow / Veo / Runway\n5. Create short clips and edit later")
+    preset_cols = st.columns(5)
+    for idx, preset_name in enumerate(VIDEO_PROMPT_PRESETS):
+        if preset_cols[idx % 5].button(preset_name, use_container_width=True, key=f"video_prompt_preset_{idx}"):
+            state.update(VIDEO_PROMPT_PRESETS[preset_name])
+            state["active_preset"] = preset_name
+            project["video_prompt_studio"] = state
+            _save_project()
+            st.rerun()
+    with st.container(border=True):
+        c1, c2 = st.columns(2)
+        project_type = c1.selectbox("Project type", VIDEO_PROMPT_PROJECT_TYPES, index=VIDEO_PROMPT_PROJECT_TYPES.index(state.get("project_type", VIDEO_PROMPT_PROJECT_TYPES[0])) if state.get("project_type") in VIDEO_PROMPT_PROJECT_TYPES else 0, key="video_prompt_project_type", help="เลือกประเภทวิดีโอที่อยากสร้าง")
+        target_platform = c2.selectbox("Target platform", VIDEO_PROMPT_TARGET_PLATFORMS, index=VIDEO_PROMPT_TARGET_PLATFORMS.index(state.get("target_platform", "Multi Platform")) if state.get("target_platform") in VIDEO_PROMPT_TARGET_PLATFORMS else len(VIDEO_PROMPT_TARGET_PLATFORMS) - 1, key="video_prompt_target_platform", help="เลือกเครื่องมือปลายทาง เช่น Whisk, Flow, Veo, Runway")
+        main_idea = st.text_area("Main idea or lyrics", value=state.get("main_idea", ""), height=170, key="video_prompt_main_idea", help="วางเนื้อเพลง ไอเดียสินค้า หรือคอนเซ็ปต์สั้นๆ")
+        c3, c4 = st.columns(2)
+        mood = c3.text_input("Mood", value=state.get("mood", "emotional cinematic"), key="video_prompt_mood", help="เช่น เศร้า อบอุ่น หรูหรา ตลก หรือดราม่า")
+        clip_length = c4.selectbox("Clip length", VIDEO_PROMPT_CLIP_LENGTHS, index=VIDEO_PROMPT_CLIP_LENGTHS.index(state.get("clip_length", "15s")) if state.get("clip_length") in VIDEO_PROMPT_CLIP_LENGTHS else 2, key="video_prompt_clip_length")
+        visual_style = st.text_input("Visual style", value=state.get("visual_style", "realistic cinematic vertical video"), key="video_prompt_visual_style", help="เช่น rainy window, UGC product close-up, cinematic apartment")
+        reference_style_notes = st.text_area("Reference style notes", value=state.get("reference_style_notes", ""), height=90, key="video_prompt_reference_notes", help="ใส่ reference mood/style เช่น โทนสี แสง ห้อง เสื้อผ้า หรือภาพอ้างอิงที่อยากให้คงที่")
+        generate_video_prompt = st.button("Generate Storyboard + AI Video Prompts", type="primary", use_container_width=True, disabled=not bool(main_idea.strip()), key="video_prompt_generate")
+    if generate_video_prompt:
+        package = build_video_prompt_package(
+            project_type=project_type,
+            main_idea=main_idea,
+            mood=mood,
+            visual_style=visual_style,
+            target_platform=target_platform,
+            clip_length=clip_length,
+            reference_style_notes=reference_style_notes,
+        )
+        state.update(
+            {
+                "project_type": project_type,
+                "target_platform": target_platform,
+                "main_idea": main_idea,
+                "mood": mood,
+                "visual_style": visual_style,
+                "clip_length": clip_length,
+                "reference_style_notes": reference_style_notes,
+                "package": package,
+            }
+        )
+        project["video_prompt_studio"] = state
+        _save_project()
+        _log_beta_event("generate", workflow="video_prompt_studio", metadata={"page": "Video Prompt Studio", "target_platform": target_platform})
+        st.rerun()
+    package = state.get("package") or {}
+    if package:
+        st.markdown("## Video Prompt Package")
+        st.success("Storyboard and prompts ready.")
+        tabs = st.tabs(["Concept", "Storyboard", "Copy Prompts", "Download"])
+        with tabs[0]:
+            st.write(package.get("overall_video_concept", ""))
+            st.text_area("Thai caption", value=package.get("thai_caption", ""), height=80, key="video_prompt_thai_caption")
+            st.text_area("English caption", value=package.get("english_caption", ""), height=80, key="video_prompt_english_caption")
+            st.write(" ".join(package.get("hashtags", [])))
+        with tabs[1]:
+            for scene in package.get("scene_list", []):
+                with st.container(border=True):
+                    st.markdown(f"**{scene.get('shot_id', '')}**")
+                    st.write(f"Visual: {scene.get('visual_focus', '')}")
+                    st.write(f"Camera movement: {scene.get('camera_movement', '')}")
+                    st.write(f"Lighting and color tone: {scene.get('lighting', '')}")
+                    st.text_area("Shot prompt", value=scene.get("prompt", ""), height=100, key=f"video_prompt_scene_{scene.get('shot_id', '')}")
+        with tabs[2]:
+            st.button("Copy Whisk Prompt", use_container_width=True, key="video_prompt_copy_whisk")
+            st.text_area("Whisk Prompt", value=package.get("whisk_prompt", ""), height=130, key="video_prompt_whisk_prompt")
+            st.button("Copy Video Prompt", use_container_width=True, key="video_prompt_copy_video")
+            st.text_area("Video Prompt for Veo / Flow / Runway / Kling / Pika / Luma", value=package.get("video_prompt", ""), height=150, key="video_prompt_video_prompt")
+            st.button("Copy Full Shot Package", use_container_width=True, key="video_prompt_copy_full")
+            st.text_area("Full Shot Package", value=package.get("full_shot_package", ""), height=220, key="video_prompt_full_package")
+            st.text_area("Negative prompt", value=package.get("negative_prompt", ""), height=90, key="video_prompt_negative_prompt")
+        with tabs[3]:
+            txt_payload = video_prompt_package_to_text(package)
+            st.download_button("Download TXT", data=txt_payload.encode("utf-8-sig"), file_name="velaflow_video_prompt_package.txt", mime="text/plain", use_container_width=True, key="video_prompt_download_txt")
+    else:
+        st.info("Choose a preset or paste an idea to generate your first AI video prompt package.")
 
 elif page == "Character Studio":
     st.subheader("Character Studio")

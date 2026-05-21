@@ -84,6 +84,7 @@ from core.preset_engine import get_preset, list_presets, preset_to_render_settin
 from core.product_prompt_engine import build_product_scene_prompts
 from core.thumbnail_selector import score_affiliate_thumbnail_candidates
 from core.trend_finder import export_trend_package, find_affiliate_trends
+from core.video_prompt_studio import PRESETS as VIDEO_PROMPT_PRESETS, build_video_prompt_package, video_prompt_package_to_text
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -481,6 +482,7 @@ def main():
     song_only_pages = flatten_pages(SONG_ONLY_MENU_GROUPS)
     assert_true(FULL_MENU_GROUPS["SONG"] == ["Song Studio", "Song Library", "Artist Preset Manager"], "SONG navigation group failed")
     assert_true("Artist Preset Manager" in FULL_MENU_GROUPS["SONG"], "Artist Preset Manager missing from SONG group")
+    assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"], "Video Prompt Studio missing from VISUAL group")
     assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
     assert_true("One Click Creator Flow" in song_only_pages and "Remaster Studio" in song_only_pages, "Song Studio Only missing creator/remaster flow")
@@ -1599,6 +1601,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
+        assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")
@@ -1746,6 +1749,18 @@ def main():
         assert_true(trend_export["ok"] and trend_zip.exists() and all((trend_dir / name).exists() for name in required_trend_files), "affiliate trend ZIP export failed")
         trend_manifest = json.loads((trend_dir / "trend_manifest.json").read_text(encoding="utf-8"))
         assert_true(trend_manifest["local_first"] is True and trend_manifest["automation_policy"].startswith("No scraping automation"), "affiliate trend manifest failed")
+        video_prompt_package = build_video_prompt_package(
+            project_type="Music MV",
+            main_idea="ฝนตกในห้องเก่า\nยังคิดถึงเธออยู่",
+            mood="sad pop",
+            visual_style="rainy cinematic apartment",
+            target_platform="Google Whisk",
+            clip_length="15s",
+            reference_style_notes="same woman, same room, warm shadow",
+        )
+        assert_true(video_prompt_package["ok"] and len(video_prompt_package["scene_list"]) == 3 and "Google Whisk" in video_prompt_package["video_prompt"], "video prompt studio package failed")
+        assert_true("no text" in video_prompt_package["negative_prompt"].lower() and "vertical 9:16" in video_prompt_package["whisk_prompt"], "video prompt safety/framing failed")
+        assert_true("Sad Pop MV" in VIDEO_PROMPT_PRESETS and "WHISK IMAGE PROMPT" in video_prompt_package_to_text(video_prompt_package), "video prompt preset/text export failed")
         assert_true(len(list_shorts_variations()) == 5 and list_shorts_variations()[0]["variation_id"] == "v1_emotional", "shorts variation list failed")
         shorts_result = generate_shorts_factory(
             "Smoke Shorts Factory",
