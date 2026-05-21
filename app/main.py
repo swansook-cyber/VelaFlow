@@ -83,7 +83,7 @@ from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
 from core.hook_detector import detect_hook_section
-from core.hook_package_generator import extract_full_hook_section, generate_full_hook_creator_package
+from core.hook_package_generator import build_final_creator_zip, extract_full_hook_section, generate_full_hook_creator_package
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.prompt_director import CREATOR_EXPORT_MODES, PROMPT_STYLES
@@ -1648,6 +1648,154 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     if st.session_state.get("developer_mode") and result_data.get("report_path"):
         with st.expander("Remaster Report", expanded=False):
             st.json(report, expanded=False)
+
+
+def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_duration: float) -> list[dict[str, Any]]:
+    base_confidence = int(detection.get("confidence_score", detection.get("confidence", 62)) or 62)
+    energy_text = str(detection.get("energy_profile_summary") or "")
+    sad_bonus = 8 if any(token in full_hook for token in ["ลืม", "คิดถึง", "รัก", "เหงา", "เจ็บ"]) else 0
+    return [
+        {"type": "Emotional", "score": min(99, base_confidence + sad_bonus), "tone": "intimate longing", "platform": "TikTok / Shorts", "duration": f"{int(target_duration)}s"},
+        {"type": "Viral", "score": min(99, base_confidence + (6 if target_duration <= 20 else 2)), "tone": "fast hook", "platform": "TikTok", "duration": "15-20s"},
+        {"type": "Cinematic", "score": min(99, base_confidence + 5), "tone": "mini MV", "platform": "Flow / Kling", "duration": "20-30s"},
+        {"type": "Sad", "score": min(99, base_confidence + sad_bonus + 3), "tone": "heartbreak", "platform": "Kling / Runway", "duration": "20-30s"},
+        {"type": "Aggressive", "score": min(99, base_confidence + (8 if "strongest" in energy_text.lower() else 0)), "tone": "high energy", "platform": "TikTok", "duration": "15s"},
+    ]
+
+
+def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
+    _page_header("One Click Creator Flow", "Finish lyrics, hook prompts, remaster, and creator ZIP in one stable local workflow.", project)
+    st.markdown("### Quick Start")
+    with st.container(border=True):
+        st.markdown(
+            "1. Upload or paste your finished song/lyrics  \n"
+            "2. Detect the strongest full hook  \n"
+            "3. Generate creator prompts and scene plan  \n"
+            "4. Remaster audio locally  \n"
+            "5. Download one final creator ZIP"
+        )
+    with st.expander("Example workflows", expanded=False):
+        st.table(
+            [
+                {"Workflow": "Emotional TikTok hook", "Target": "20s", "Export Mode": "TikTok Emotional", "Remaster": "TikTok Loud"},
+                {"Workflow": "Spotify teaser", "Target": "15s", "Export Mode": "Spotify Canvas", "Remaster": "Spotify Balanced"},
+                {"Workflow": "Cinematic MV preview", "Target": "30s", "Export Mode": "Cinematic MV", "Remaster": "Cinematic Wide"},
+                {"Workflow": "Sad short", "Target": "20s", "Export Mode": "Sad Emotional", "Remaster": "Emotional Soft"},
+            ]
+        )
+    flow_state = project.setdefault("one_click_creator", {})
+    lyrics_source = str((project.get("song", {}) or {}).get("complete_lyrics") or (project.get("song", {}) or {}).get("normalized_song_output") or "")
+    lyrics_text = st.text_area("Lyrics / Song Hook", value=flow_state.get("lyrics_text", lyrics_source), height=220, key="one_click_lyrics")
+    flow_state["lyrics_text"] = lyrics_text
+    uploaded = st.file_uploader("Upload finished song", type=["mp3", "wav", "m4a"], key="one_click_song_upload")
+    if uploaded:
+        upload_result = _save_uploaded_audio(project.get("title") or "one_click_creator", uploaded, "song")
+        if upload_result.get("ok"):
+            flow_state["source_audio"] = upload_result["data"]
+            project["one_click_creator"] = flow_state
+            _save_project()
+            st.success("Song uploaded")
+        else:
+            st.warning(upload_result.get("error") or upload_result.get("message"))
+    source_path = str((flow_state.get("source_audio") or {}).get("path") or "")
+    if source_path and Path(source_path).is_file():
+        st.audio(source_path)
+    c1, c2, c3 = st.columns(3)
+    target_duration = float(c1.selectbox("Target Hook", [15, 20, 30], index=1, key="one_click_target_hook_duration"))
+    remaster_style = c2.selectbox("Remaster Preset", REMASTER_STYLES, index=0, key="one_click_remaster_style")
+    export_mode = c3.selectbox("Export Mode", CREATOR_EXPORT_MODES, index=0, key="one_click_export_mode")
+    prompt_style = st.selectbox("Prompt Style", PROMPT_STYLES, index=1, key="one_click_prompt_style")
+    detection = flow_state.get("hook_detection") or {}
+    if source_path:
+        if st.button("Auto Detect Best Full Hook", use_container_width=True, key="one_click_detect_hook"):
+            debug_dir = resolve_project_folder(project.get("title") or "one_click_creator", "song") / "exports" / "debug"
+            detected = detect_hook_section(source_path, output_dir=debug_dir, quota_saving_mode=False, min_hook_duration=target_duration, max_hook_duration=target_duration, ffmpeg_path=settings.ffmpeg_path)
+            flow_state["hook_detection"] = detected.get("data", {})
+            project["one_click_creator"] = flow_state
+            _save_project()
+            if detected.get("ok"):
+                st.success("Full hook detected")
+            else:
+                st.error(detected.get("error") or detected.get("message") or "Hook detection failed")
+            st.rerun()
+    full_hook = extract_full_hook_section(lyrics_text, fallback_hook=str((project.get("song", {}) or {}).get("selected_hook_text") or ""))
+    if detection:
+        st.markdown("### Hook Comparison Cards")
+        card_cols = st.columns(5)
+        for idx, card in enumerate(_hook_comparison_cards(detection, full_hook, target_duration)):
+            with card_cols[idx]:
+                st.metric(card["type"], card["score"])
+                st.caption(f"{card['tone']} · {card['platform']} · {card['duration']}")
+        rec = _creator_package_recommendations(full_hook, detection, str((project.get("song", {}) or {}).get("mood") or ""))
+        st.info(f"Recommended: {rec['export_mode']} · {rec['prompt_style']} · {rec['ai_tool']} · {rec['hook_duration']}s")
+    if st.button("Generate Final Creator ZIP", type="primary", use_container_width=True, disabled=not bool(source_path), key="one_click_generate_final_zip"):
+        progress = st.progress(0, text="analyzing song")
+        debug_dir = resolve_project_folder(project.get("title") or "one_click_creator", "song") / "exports" / "debug"
+        detected = detect_hook_section(source_path, output_dir=debug_dir, quota_saving_mode=False, min_hook_duration=target_duration, max_hook_duration=target_duration, ffmpeg_path=settings.ffmpeg_path)
+        if not detected.get("ok"):
+            st.error(detected.get("error") or "Hook detection failed")
+            return
+        progress.progress(20, text="detecting hook")
+        data = detected["data"]
+        package = generate_full_hook_creator_package(
+            project_name=project.get("title") or "one_click_creator",
+            uploaded_mp3_path=source_path,
+            lyrics_text=lyrics_text,
+            fallback_hook=full_hook,
+            song_title=str((project.get("song", {}) or {}).get("title") or project.get("title") or ""),
+            artist_name=str((project.get("song", {}) or {}).get("artist_name") or project.get("artist") or ""),
+            mood=str((project.get("song", {}) or {}).get("mood") or ""),
+            export_mode=export_mode,
+            prompt_style=prompt_style,
+            hook_start_time=float(data.get("hook_start_time") or 0),
+            hook_end_time=float(data.get("hook_end_time") or target_duration),
+            ffmpeg_path=settings.ffmpeg_path,
+        )
+        if not package.get("ok"):
+            st.error(package.get("error") or "Creator prompt package failed")
+            return
+        progress.progress(45, text="generating prompts")
+        remaster = remaster_song_audio(source_path, project_name=project.get("title") or "one_click_creator", remaster_style=remaster_style, ffmpeg_path=settings.ffmpeg_path)
+        if not remaster.get("ok"):
+            st.error(remaster.get("error") or "Remaster failed")
+            return
+        progress.progress(70, text="remastering")
+        final_zip = build_final_creator_zip(
+            package_dir=package["data"]["package_dir"],
+            original_audio_path=source_path,
+            remaster_data=remaster["data"],
+            output_zip_path=resolve_project_folder(project.get("title") or "one_click_creator", "song") / "exports" / "final_creator_package.zip",
+        )
+        progress.progress(90, text="exporting package")
+        flow_state["hook_detection"] = data
+        flow_state["creator_package"] = package.get("data", {})
+        flow_state["remaster"] = remaster.get("data", {})
+        flow_state["final_zip"] = final_zip.get("data", {})
+        flow_state["last_ok"] = bool(final_zip.get("ok"))
+        flow_state["last_error"] = final_zip.get("error", "")
+        project["one_click_creator"] = flow_state
+        _save_project()
+        progress.progress(100, text="complete")
+        if final_zip.get("ok"):
+            st.success("Final Creator ZIP ready")
+        else:
+            st.warning(final_zip.get("error") or "Final ZIP created with missing files")
+        st.rerun()
+    final_zip_path = Path(str((flow_state.get("final_zip") or {}).get("zip_path") or ""))
+    remaster_data = flow_state.get("remaster") or {}
+    source_audio_path = Path(source_path)
+    mastered = Path(str(remaster_data.get("mastered_wav") or ""))
+    if source_audio_path.is_file() or mastered.is_file():
+        st.markdown("### Original vs Mastered")
+        if source_audio_path.is_file():
+            st.markdown("**Play Original**")
+            st.audio(str(source_audio_path))
+        if mastered.is_file():
+            st.markdown("**Play Mastered**")
+            st.audio(str(mastered))
+            st.caption("A/B Compare: play each preview above and switch between them.")
+    if final_zip_path.is_file():
+        st.download_button("Download Final Creator ZIP", data=final_zip_path.read_bytes(), file_name="velaflow_final_creator_package.zip", mime="application/zip", use_container_width=True, key="one_click_download_final_zip")
 
 
 def _image_provider_controls(key_prefix: str) -> tuple[str, dict[str, Any]]:
@@ -4746,6 +4894,9 @@ elif page == "Creator Wizard":
 
 elif page == "Song Studio":
     _render_song_studio(project)
+
+elif page == "One Click Creator Flow":
+    _render_one_click_creator_flow(project)
 
 elif page == "Remaster Studio":
     _render_remaster_studio(project)

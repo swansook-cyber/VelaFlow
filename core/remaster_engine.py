@@ -13,21 +13,24 @@ from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media
 
 
 REMASTER_STYLES = [
-    "Spotify Clean",
     "TikTok Loud",
+    "Spotify Balanced",
+    "YouTube Clean",
     "Warm Vocal",
     "Cinematic Wide",
-    "Bass Boost",
-    "Soft Emotional",
+    "Emotional Soft",
 ]
 
 
 STYLE_FILTERS = {
+    "Spotify Balanced": "highpass=f=28,lowpass=f=18500,loudnorm=I=-14:TP=-1.2:LRA=11,alimiter=limit=0.96",
     "Spotify Clean": "highpass=f=28,lowpass=f=18500,loudnorm=I=-14:TP=-1.2:LRA=11,alimiter=limit=0.96",
     "TikTok Loud": "highpass=f=35,equalizer=f=2500:t=q:w=1.1:g=1.5,acompressor=threshold=-16dB:ratio=2.2:attack=8:release=120,loudnorm=I=-10:TP=-1.0:LRA=8,alimiter=limit=0.95",
+    "YouTube Clean": "highpass=f=30,lowpass=f=19000,equalizer=f=3000:t=q:w=1.0:g=1.0,loudnorm=I=-13:TP=-1.2:LRA=10,alimiter=limit=0.96",
     "Warm Vocal": "highpass=f=32,equalizer=f=180:t=q:w=0.8:g=1.2,equalizer=f=3200:t=q:w=1.0:g=1.4,loudnorm=I=-13:TP=-1.1:LRA=10,alimiter=limit=0.96",
     "Cinematic Wide": "highpass=f=25,equalizer=f=120:t=q:w=0.9:g=1.0,aecho=0.55:0.45:18:0.12,loudnorm=I=-15:TP=-1.4:LRA=12,alimiter=limit=0.96",
     "Bass Boost": "highpass=f=28,bass=g=4:f=95,acompressor=threshold=-18dB:ratio=2.0:attack=10:release=160,loudnorm=I=-12:TP=-1.1:LRA=9,alimiter=limit=0.95",
+    "Emotional Soft": "highpass=f=24,equalizer=f=800:t=q:w=1.2:g=-0.8,equalizer=f=4500:t=q:w=1.0:g=0.8,loudnorm=I=-16:TP=-1.5:LRA=13,alimiter=limit=0.97",
     "Soft Emotional": "highpass=f=24,equalizer=f=800:t=q:w=1.2:g=-0.8,equalizer=f=4500:t=q:w=1.0:g=0.8,loudnorm=I=-16:TP=-1.5:LRA=13,alimiter=limit=0.97",
 }
 
@@ -57,7 +60,7 @@ def remaster_song_audio(
     source_audio_path: str | Path,
     *,
     project_name: str = "remaster_project",
-    remaster_style: str = "Spotify Clean",
+    remaster_style: str = "Spotify Balanced",
     ffmpeg_path: str = "",
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
@@ -66,11 +69,12 @@ def remaster_song_audio(
     output_dir = project_dir / "exports" / "remaster"
     wav_path = output_dir / "mastered_song.wav"
     mp3_path = output_dir / "mastered_preview.mp3"
-    report_path = output_dir / "remaster_report.json"
+    report_path = output_dir / "mastering_report.json"
+    legacy_report_path = output_dir / "remaster_report.json"
     zip_path = output_dir / "remaster_package.zip"
     converted_path = output_dir / "source_converted.wav"
     output_dir.mkdir(parents=True, exist_ok=True)
-    style = remaster_style if remaster_style in STYLE_FILTERS else "Spotify Clean"
+    style = remaster_style if remaster_style in STYLE_FILTERS else "Spotify Balanced"
 
     if not source.is_file():
         return {"ok": False, "message": "Source audio missing", "data": {}, "error": "missing_audio"}
@@ -101,6 +105,7 @@ def remaster_song_audio(
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
         ensure_parent_dir(report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        ensure_parent_dir(legacy_report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": False, "message": "Mastered WAV failed validation", "data": {"report_path": str(report_path), "report": report}, "error": "master_wav_failed"}
 
     mp3 = _run([ffmpeg, "-y", "-i", str(wav_path), "-vn", "-c:a", "libmp3lame", "-b:a", "192k", str(mp3_path)])
@@ -125,6 +130,7 @@ def remaster_song_audio(
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     ensure_parent_dir(report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    ensure_parent_dir(legacy_report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in [wav_path, mp3_path, report_path]:
             if path.is_file():

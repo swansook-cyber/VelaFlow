@@ -10,7 +10,7 @@ PAGE_LABELS = {
 }
 
 FULL_MENU_GROUPS = {
-    "START": ["Dashboard", "Creator Wizard"],
+    "START": ["Dashboard", "One Click Creator Flow", "Creator Wizard"],
     "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
     "VISUAL": ["MV Director", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
     "PRODUCTION": ["Hook Clip Studio", "Remaster Studio", "Affiliate Studio", "Shorts Factory", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
@@ -19,7 +19,7 @@ FULL_MENU_GROUPS = {
 }
 
 SONG_ONLY_MENU_GROUPS = {
-    "START": ["Dashboard"],
+    "START": ["Dashboard", "One Click Creator Flow"],
     "MUSIC": ["Song Studio", "Hook Clip Studio", "Remaster Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }

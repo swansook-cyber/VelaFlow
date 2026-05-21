@@ -180,3 +180,55 @@ def generate_full_hook_creator_package(
         },
         "error": "",
     }
+
+
+def build_final_creator_zip(
+    *,
+    package_dir: str | Path,
+    original_audio_path: str | Path,
+    remaster_data: dict[str, Any],
+    output_zip_path: str | Path,
+) -> dict[str, Any]:
+    folder = Path(package_dir)
+    original = Path(original_audio_path)
+    remaster = remaster_data or {}
+    zip_path = ensure_parent_dir(output_zip_path)
+    mapping = {
+        "audio/original_song.mp3": original,
+        "audio/hook_audio.mp3": folder / "hook_audio.mp3",
+        "audio/mastered_song.wav": Path(str(remaster.get("mastered_wav") or "")),
+        "audio/mastered_preview.mp3": Path(str(remaster.get("mp3_preview") or "")),
+        "prompts/image_prompt.txt": folder / "image_prompt.txt",
+        "prompts/veo_prompt.txt": folder / "video_prompt_veo.txt",
+        "prompts/runway_prompt.txt": folder / "video_prompt_runway.txt",
+        "prompts/kling_prompt.txt": folder / "video_prompt_kling.txt",
+        "prompts/flow_prompt.txt": folder / "video_prompt_flow.txt",
+        "prompts/thumbnail_prompt.txt": folder / "thumbnail_prompt.txt",
+        "creator/hook_summary.txt": folder / "hook_summary.txt",
+        "creator/hook_emotion.json": folder / "hook_emotion.json",
+        "creator/mood_summary.txt": folder / "mood_summary.txt",
+        "creator/scene_breakdown.txt": folder / "scene_breakdown.txt",
+        "creator/shot_list.json": folder / "shot_list.json",
+        "creator/subtitle.srt": folder / "subtitle.srt",
+        "creator/tiktok_caption.txt": folder / "tiktok_caption.txt",
+        "creator/youtube_description.txt": folder / "youtube_description.txt",
+        "creator/hashtags.txt": folder / "hashtags.txt",
+        "creator/upload_checklist.txt": folder / "upload_checklist.txt",
+        "manifest/creator_package_manifest.json": folder / "creator_package_manifest.json",
+        "manifest/mastering_report.json": Path(str(remaster.get("report_path") or "")),
+    }
+    copied = []
+    missing = []
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for archive_name, path in mapping.items():
+            if path.is_file():
+                archive.write(path, archive_name)
+                copied.append(archive_name)
+            else:
+                missing.append(archive_name)
+    return {
+        "ok": bool(zip_path.is_file()) and not missing,
+        "message": "Final creator ZIP ready" if not missing else "Final creator ZIP has missing files",
+        "data": {"zip_path": str(zip_path), "files": copied, "missing_files": missing},
+        "error": "" if not missing else "missing_creator_package_files",
+    }

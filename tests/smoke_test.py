@@ -60,7 +60,7 @@ from core.visual_presets import list_camera_presets, list_lighting_presets, list
 from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.hook_detector import detect_hook_section
-from core.hook_package_generator import generate_full_hook_creator_package
+from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
 from core.remaster_engine import REMASTER_STYLES, remaster_song_audio
 from core.automatic_hook_clip import quick_generate_hook_clip
@@ -471,6 +471,7 @@ def main():
     assert_true("Artist Preset Manager" in FULL_MENU_GROUPS["SONG"], "Artist Preset Manager missing from SONG group")
     assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
+    assert_true("One Click Creator Flow" in song_only_pages and "Remaster Studio" in song_only_pages, "Song Studio Only missing creator/remaster flow")
     assert_true(set(song_only_pages) == SONG_ONLY_ALLOWED_PAGES, "Song Studio Only allowed page set mismatch")
     assert_true(len(full_pages) == len(set(full_pages)) and len(song_only_pages) == len(set(song_only_pages)), "duplicate navigation pages found")
     assert_true(PAGE_LABELS.get("Creator Wizard") == "Release Workflow Wizard" and PAGE_LABELS.get("Smart Clip Factory") == "Clip Factory" and PAGE_LABELS.get("Production Audit") == "Quality Audit", "menu label polish failed")
@@ -1084,7 +1085,7 @@ def main():
         assert_true(Path(detected_data.get("report_path", "")).exists(), "hook detection report missing")
         report = json.loads(Path(detected_data["report_path"]).read_text(encoding="utf-8"))
         assert_true(report.get("veo_called") is False and report.get("confidence", 0) > 0 and report.get("reason"), "hook detector report missing local/no-Veo proof")
-        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Spotify Clean", ffmpeg_path=find_ffmpeg())
+        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Spotify Balanced", ffmpeg_path=find_ffmpeg())
         remaster_data = remaster.get("data", {})
         mastered_wav = Path(remaster_data.get("mastered_wav", ""))
         mastered_probe = probe_media(mastered_wav, ffmpeg_path=find_ffmpeg()) if mastered_wav.is_file() else {}
@@ -1094,6 +1095,7 @@ def main():
         assert_true(remaster_report.get("no_clipping_above_0db") is True and remaster_report.get("external_api_used") is False, "remaster clipping/API validation failed")
         assert_true(Path(remaster_data.get("mp3_preview", "")).exists(), "remaster MP3 preview missing")
         assert_true(Path(remaster_data.get("zip_path", "")).exists(), "remaster package ZIP missing")
+        assert_true(Path(remaster_data.get("report_path", "")).name == "mastering_report.json", "mastering_report.json output missing")
         package_lyrics = """[Verse]
 คืนนี้ยังเงียบเหมือนเดิม
 ฉันเดินผ่านฝนคนเดียว
@@ -1145,6 +1147,40 @@ def main():
             names = set(package_zip.namelist())
         assert_true(set(required_creator_files).issubset(names), "creator package ZIP contents missing")
         assert_true(creator_manifest.get("veo_called") is False, "creator package generation should not call Veo/render providers")
+        final_creator_zip = build_final_creator_zip(
+            package_dir=creator_data["package_dir"],
+            original_audio_path=long_hook_source,
+            remaster_data=remaster_data,
+            output_zip_path=out / "hook_clip_projects" / "final_creator_package.zip",
+        )
+        assert_true(final_creator_zip["ok"] and Path(final_creator_zip["data"]["zip_path"]).exists(), "unified final creator ZIP failed")
+        with zipfile.ZipFile(final_creator_zip["data"]["zip_path"], "r") as unified_zip:
+            unified_names = set(unified_zip.namelist())
+        required_unified_files = {
+            "audio/original_song.mp3",
+            "audio/hook_audio.mp3",
+            "audio/mastered_song.wav",
+            "audio/mastered_preview.mp3",
+            "prompts/image_prompt.txt",
+            "prompts/veo_prompt.txt",
+            "prompts/runway_prompt.txt",
+            "prompts/kling_prompt.txt",
+            "prompts/flow_prompt.txt",
+            "prompts/thumbnail_prompt.txt",
+            "creator/hook_summary.txt",
+            "creator/hook_emotion.json",
+            "creator/mood_summary.txt",
+            "creator/scene_breakdown.txt",
+            "creator/shot_list.json",
+            "creator/subtitle.srt",
+            "creator/tiktok_caption.txt",
+            "creator/youtube_description.txt",
+            "creator/hashtags.txt",
+            "creator/upload_checklist.txt",
+            "manifest/creator_package_manifest.json",
+            "manifest/mastering_report.json",
+        }
+        assert_true(required_unified_files.issubset(unified_names), "unified creator ZIP missing nested files")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
@@ -1538,6 +1574,9 @@ def main():
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Generate Mastered WAV" in main_source and "Download Mastered WAV" in main_source, "Remaster Studio UI missing")
+        assert_true("One Click Creator Flow" in main_source and "Generate Final Creator ZIP" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")
+        assert_true("analyzing song" in main_source and "detecting hook" in main_source and "generating prompts" in main_source and "remastering" in main_source and "exporting package" in main_source and "complete" in main_source, "one-click progress stages missing")
+        assert_true("Play Original" in main_source and "Play Mastered" in main_source and "A/B Compare" in main_source, "before/after comparison player missing")
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
