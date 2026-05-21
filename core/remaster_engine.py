@@ -23,14 +23,14 @@ REMASTER_STYLES = [
 
 
 STYLE_FILTERS = {
-    "Spotify Balanced": "highpass=f=28,lowpass=f=18500,loudnorm=I=-14:TP=-1.2:LRA=11,alimiter=limit=0.96",
-    "Spotify Clean": "highpass=f=28,lowpass=f=18500,loudnorm=I=-14:TP=-1.2:LRA=11,alimiter=limit=0.96",
-    "TikTok Loud": "highpass=f=35,equalizer=f=2500:t=q:w=1.1:g=1.5,acompressor=threshold=-16dB:ratio=2.2:attack=8:release=120,loudnorm=I=-10:TP=-1.0:LRA=8,alimiter=limit=0.95",
-    "YouTube Clean": "highpass=f=30,lowpass=f=19000,equalizer=f=3000:t=q:w=1.0:g=1.0,loudnorm=I=-13:TP=-1.2:LRA=10,alimiter=limit=0.96",
-    "Warm Vocal": "highpass=f=32,equalizer=f=180:t=q:w=0.8:g=1.2,equalizer=f=3200:t=q:w=1.0:g=1.4,loudnorm=I=-13:TP=-1.1:LRA=10,alimiter=limit=0.96",
-    "Cinematic Wide": "highpass=f=25,equalizer=f=120:t=q:w=0.9:g=1.0,aecho=0.55:0.45:18:0.12,loudnorm=I=-15:TP=-1.4:LRA=12,alimiter=limit=0.96",
+    "Spotify Balanced": "highpass=f=28,lowpass=f=18500,equalizer=f=3200:t=q:w=1.0:g=0.8,acompressor=threshold=-18dB:ratio=1.7:attack=12:release=160,loudnorm=I=-14:TP=-1.2:LRA=10,alimiter=level_in=1:level_out=0.93:limit=0.93",
+    "Spotify Clean": "highpass=f=28,lowpass=f=18500,equalizer=f=3200:t=q:w=1.0:g=0.8,acompressor=threshold=-18dB:ratio=1.7:attack=12:release=160,loudnorm=I=-14:TP=-1.2:LRA=10,alimiter=level_in=1:level_out=0.93:limit=0.93",
+    "TikTok Loud": "highpass=f=35,equalizer=f=2500:t=q:w=1.1:g=1.8,equalizer=f=9000:t=q:w=1.1:g=0.8,acompressor=threshold=-16dB:ratio=2.4:attack=8:release=120,loudnorm=I=-10:TP=-1.0:LRA=8,alimiter=level_in=1:level_out=0.92:limit=0.92",
+    "YouTube Clean": "highpass=f=30,lowpass=f=19000,equalizer=f=3000:t=q:w=1.0:g=1.1,acompressor=threshold=-18dB:ratio=1.8:attack=10:release=150,loudnorm=I=-13:TP=-1.2:LRA=10,alimiter=level_in=1:level_out=0.93:limit=0.93",
+    "Warm Vocal": "highpass=f=32,equalizer=f=180:t=q:w=0.8:g=1.2,equalizer=f=3200:t=q:w=1.0:g=1.8,equalizer=f=7200:t=q:w=1.1:g=0.7,acompressor=threshold=-19dB:ratio=1.6:attack=14:release=170,loudnorm=I=-13:TP=-1.1:LRA=10,alimiter=level_out=0.93:limit=0.93",
+    "Cinematic Wide": "highpass=f=25,equalizer=f=120:t=q:w=0.9:g=1.0,equalizer=f=4500:t=q:w=1.1:g=0.7,aecho=0.45:0.35:16:0.10,loudnorm=I=-15:TP=-1.4:LRA=12,alimiter=level_out=0.94:limit=0.94",
     "Bass Boost": "highpass=f=28,bass=g=4:f=95,acompressor=threshold=-18dB:ratio=2.0:attack=10:release=160,loudnorm=I=-12:TP=-1.1:LRA=9,alimiter=limit=0.95",
-    "Emotional Soft": "highpass=f=24,equalizer=f=800:t=q:w=1.2:g=-0.8,equalizer=f=4500:t=q:w=1.0:g=0.8,loudnorm=I=-16:TP=-1.5:LRA=13,alimiter=limit=0.97",
+    "Emotional Soft": "highpass=f=24,equalizer=f=800:t=q:w=1.2:g=-0.8,equalizer=f=4500:t=q:w=1.0:g=0.9,acompressor=threshold=-20dB:ratio=1.4:attack=18:release=220,loudnorm=I=-16:TP=-1.5:LRA=13,alimiter=level_out=0.94:limit=0.94",
     "Soft Emotional": "highpass=f=24,equalizer=f=800:t=q:w=1.2:g=-0.8,equalizer=f=4500:t=q:w=1.0:g=0.8,loudnorm=I=-16:TP=-1.5:LRA=13,alimiter=limit=0.97",
 }
 

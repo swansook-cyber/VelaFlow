@@ -1674,6 +1674,31 @@ def _read_creator_file(path: Path) -> str:
 
 def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
     _page_header("One Click Creator Flow", "Finish lyrics, hook prompts, remaster, and creator ZIP in one stable local workflow.", project)
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stVerticalBlockBorderWrapper"] { border-color: rgba(255,255,255,0.10); border-radius: 14px; }
+        .velaflow-creator-hero { padding: 1rem 1.1rem; border-radius: 16px; background: linear-gradient(135deg, rgba(34,34,46,.92), rgba(18,18,24,.94)); border: 1px solid rgba(255,255,255,.10); }
+        .velaflow-creator-hero h3 { margin: 0 0 .35rem 0; }
+        .velaflow-pill { display: inline-block; padding: .24rem .55rem; border-radius: 999px; background: rgba(255,255,255,.08); margin-right: .35rem; font-size: .78rem; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    beta_profile = load_beta_access()
+    st.markdown(
+        f"""
+        <div class="velaflow-creator-hero">
+          <span class="velaflow-pill">VelaFlow Closed Beta</span>
+          <span class="velaflow-pill">Founding Member</span>
+          <span class="velaflow-pill">Local FFmpeg Workflow</span>
+          <h3>Upload song → receive creator package</h3>
+          <p style="margin:.15rem 0 0 0;color:rgba(255,255,255,.72)">Built for Flow, Veo, Runway, Kling, CapCut, TikTok, Shorts, and Spotify promo workflows.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.caption(f"Founding Creator: {beta_profile.get('creator_name', 'Founding Creator')} · Exports: {beta_profile.get('total_renders', 0)}")
     st.markdown("### Quick Start")
     with st.container(border=True):
         st.markdown(
@@ -1691,6 +1716,13 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
                 {"Workflow": "Cinematic MV preview", "Target": "30s", "Export Mode": "Cinematic MV", "Remaster": "Cinematic Wide"},
                 {"Workflow": "Sad short", "Target": "20s", "Export Mode": "Sad Emotional", "Remaster": "Emotional Soft"},
             ]
+        )
+    with st.expander("Creator tips", expanded=False):
+        st.markdown(
+            "- Use 20s for emotional TikTok hooks.  \n"
+            "- Use 15s for aggressive short hooks.  \n"
+            "- Use 30s for cinematic MV teasers.  \n"
+            "- Copy Flow/Kling prompts first for fast external video generation."
         )
     flow_state = project.setdefault("one_click_creator", {})
     lyrics_source = str((project.get("song", {}) or {}).get("complete_lyrics") or (project.get("song", {}) or {}).get("normalized_song_output") or "")
@@ -1742,7 +1774,7 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
                 st.caption(f"{card['tone']} · {card['platform']} · {card['duration']}")
         rec = _creator_package_recommendations(full_hook, detection, str((project.get("song", {}) or {}).get("mood") or ""))
         st.info(f"Recommended: {rec['export_mode']} · {rec['prompt_style']} · {rec['ai_tool']} · {rec['hook_duration']}s")
-    if st.button("Generate Final Creator ZIP", type="primary", use_container_width=True, disabled=not bool(source_path), key="one_click_generate_final_zip"):
+    if st.button("Generate Creator Package", type="primary", use_container_width=True, disabled=not bool(source_path), key="one_click_generate_creator_package"):
         progress = st.progress(0, text="analyzing song")
         debug_dir = resolve_project_folder(project.get("title") or "one_click_creator", "song") / "exports" / "debug"
         detected = detect_hook_section(source_path, output_dir=debug_dir, quota_saving_mode=False, min_hook_duration=target_duration, max_hook_duration=target_duration, ffmpeg_path=settings.ffmpeg_path)
@@ -1773,14 +1805,14 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
         if not remaster.get("ok"):
             st.error(remaster.get("error") or "Remaster failed")
             return
-        progress.progress(70, text="remastering")
+        progress.progress(70, text="remastering audio")
         final_zip = build_final_creator_zip(
             package_dir=package["data"]["package_dir"],
             original_audio_path=source_path,
             remaster_data=remaster["data"],
             output_zip_path=resolve_project_folder(project.get("title") or "one_click_creator", "song") / "exports" / "final_creator_package.zip",
         )
-        progress.progress(90, text="exporting package")
+        progress.progress(90, text="building creator package")
         flow_state["hook_detection"] = data
         flow_state["creator_package"] = package.get("data", {})
         flow_state["remaster"] = remaster.get("data", {})
@@ -1789,6 +1821,8 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
         flow_state["last_error"] = final_zip.get("error", "")
         project["one_click_creator"] = flow_state
         _save_project()
+        if final_zip.get("ok"):
+            register_beta_activity(1)
         progress.progress(100, text="complete")
         if final_zip.get("ok"):
             st.success("Final Creator ZIP ready")
@@ -1818,16 +1852,27 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
         d1, d2, d3 = st.columns(3)
         d1.success("Subtitle Ready")
         d2.success("Thumbnail Prompt Ready")
-        d3.success("ZIP Ready")
-        st.download_button("Download ZIP", data=final_zip_path.read_bytes(), file_name="velaflow_final_creator_package.zip", mime="application/zip", use_container_width=True, key="one_click_download_final_zip")
+        d3.success("Creator ZIP Ready")
+        st.download_button("Download Creator ZIP", data=final_zip_path.read_bytes(), file_name="velaflow_final_creator_package.zip", mime="application/zip", use_container_width=True, key="one_click_download_final_zip")
         if package_dir.is_dir():
-            copy_cols = st.columns(3)
+            copy_cols = st.columns(2)
             with copy_cols[0]:
-                st.text_area("Copy Veo Prompt", value=_read_creator_file(package_dir / "video_prompt_veo.txt"), height=120, key="one_click_copy_veo_prompt")
-            with copy_cols[1]:
                 st.text_area("Copy Flow Prompt", value=_read_creator_file(package_dir / "video_prompt_flow.txt"), height=120, key="one_click_copy_flow_prompt")
-            with copy_cols[2]:
+            with copy_cols[1]:
+                st.text_area("Copy Veo Prompt", value=_read_creator_file(package_dir / "video_prompt_veo.txt"), height=120, key="one_click_copy_veo_prompt")
+            copy_cols = st.columns(2)
+            with copy_cols[0]:
                 st.text_area("Copy TikTok Caption", value=_read_creator_file(package_dir / "tiktok_caption.txt"), height=120, key="one_click_copy_tiktok_caption")
+            with copy_cols[1]:
+                st.text_area("Copy Thumbnail Prompt", value=_read_creator_file(package_dir / "thumbnail_prompt.txt"), height=120, key="one_click_copy_thumbnail_prompt")
+        with st.expander("Send beta feedback", expanded=False):
+            feedback_text = st.text_area("What felt confusing or useful?", value="", height=90, key="one_click_feedback_text")
+            if st.button("Send Feedback", use_container_width=True, key="one_click_send_feedback"):
+                feedback = _export_beta_feedback(project, feedback_text)
+                if feedback.get("ok"):
+                    st.success("Feedback saved for the beta team.")
+                else:
+                    st.warning(friendly_error_message(feedback.get("error") or feedback.get("message")))
     elif (flow_state.get("creator_package") or {}).get("package_dir") and (flow_state.get("remaster") or {}).get("mastered_wav"):
         if st.button("Retry Export ZIP", use_container_width=True, key="one_click_retry_export_zip"):
             retry = build_final_creator_zip(
