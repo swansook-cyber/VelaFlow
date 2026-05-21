@@ -143,6 +143,7 @@ from core.project_manager import (
     archive_project,
     create_project as create_managed_project,
     delete_project,
+    ensure_creator_project_folders,
     filter_visible_projects,
     get_project_summary,
     is_test_project_name,
@@ -178,7 +179,7 @@ from core.render_queue import (
     start_render_job as start_creator_render_job,
 )
 from core.storage_cleanup import cleanup_project_storage
-from core.real_clip_pipeline import ensure_parent_dir, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
+from core.real_clip_pipeline import ensure_parent_dir, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.remaster_engine import REMASTER_STYLES, remaster_song_audio
@@ -1459,6 +1460,7 @@ def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = 
     if not uploaded:
         return {"ok": False, "message": "No audio uploaded", "data": {}, "error": "missing_upload"}
     try:
+        ensure_creator_project_folders(project_name or "project", workflow_type)
         folder = resolve_project_folder(project_name or "project", workflow_type) / "assets" / "audio"
         folder.mkdir(parents=True, exist_ok=True)
         suffix = Path(uploaded.name).suffix.lower() if getattr(uploaded, "name", "") else ".mp3"
@@ -1663,6 +1665,13 @@ def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_dur
     ]
 
 
+def _read_creator_file(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8-sig") if path.is_file() else ""
+    except Exception:
+        return ""
+
+
 def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
     _page_header("One Click Creator Flow", "Finish lyrics, hook prompts, remaster, and creator ZIP in one stable local workflow.", project)
     st.markdown("### Quick Start")
@@ -1699,7 +1708,12 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
             st.warning(upload_result.get("error") or upload_result.get("message"))
     source_path = str((flow_state.get("source_audio") or {}).get("path") or "")
     if source_path and Path(source_path).is_file():
-        st.audio(source_path)
+        source_probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
+        if not source_probe.get("ok") or not source_probe.get("has_audio", True):
+            st.error("Invalid audio file. Please upload a playable WAV/MP3/M4A.")
+            source_path = ""
+        else:
+            st.audio(source_path)
     c1, c2, c3 = st.columns(3)
     target_duration = float(c1.selectbox("Target Hook", [15, 20, 30], index=1, key="one_click_target_hook_duration"))
     remaster_style = c2.selectbox("Remaster Preset", REMASTER_STYLES, index=0, key="one_click_remaster_style")
@@ -1795,7 +1809,39 @@ def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
             st.audio(str(mastered))
             st.caption("A/B Compare: play each preview above and switch between them.")
     if final_zip_path.is_file():
-        st.download_button("Download Final Creator ZIP", data=final_zip_path.read_bytes(), file_name="velaflow_final_creator_package.zip", mime="application/zip", use_container_width=True, key="one_click_download_final_zip")
+        package_dir = Path(str((flow_state.get("creator_package") or {}).get("package_dir") or ""))
+        st.markdown("### Creator Delivery")
+        d1, d2, d3 = st.columns(3)
+        d1.success("Hook Ready")
+        d2.success("Prompt Package Ready")
+        d3.success("Remastered Audio Ready")
+        d1, d2, d3 = st.columns(3)
+        d1.success("Subtitle Ready")
+        d2.success("Thumbnail Prompt Ready")
+        d3.success("ZIP Ready")
+        st.download_button("Download ZIP", data=final_zip_path.read_bytes(), file_name="velaflow_final_creator_package.zip", mime="application/zip", use_container_width=True, key="one_click_download_final_zip")
+        if package_dir.is_dir():
+            copy_cols = st.columns(3)
+            with copy_cols[0]:
+                st.text_area("Copy Veo Prompt", value=_read_creator_file(package_dir / "video_prompt_veo.txt"), height=120, key="one_click_copy_veo_prompt")
+            with copy_cols[1]:
+                st.text_area("Copy Flow Prompt", value=_read_creator_file(package_dir / "video_prompt_flow.txt"), height=120, key="one_click_copy_flow_prompt")
+            with copy_cols[2]:
+                st.text_area("Copy TikTok Caption", value=_read_creator_file(package_dir / "tiktok_caption.txt"), height=120, key="one_click_copy_tiktok_caption")
+    elif (flow_state.get("creator_package") or {}).get("package_dir") and (flow_state.get("remaster") or {}).get("mastered_wav"):
+        if st.button("Retry Export ZIP", use_container_width=True, key="one_click_retry_export_zip"):
+            retry = build_final_creator_zip(
+                package_dir=(flow_state.get("creator_package") or {}).get("package_dir", ""),
+                original_audio_path=source_path,
+                remaster_data=flow_state.get("remaster") or {},
+                output_zip_path=resolve_project_folder(project.get("title") or "one_click_creator", "song") / "exports" / "final_creator_package.zip",
+            )
+            flow_state["final_zip"] = retry.get("data", {})
+            flow_state["last_ok"] = bool(retry.get("ok"))
+            flow_state["last_error"] = retry.get("error", "")
+            project["one_click_creator"] = flow_state
+            _save_project()
+            st.rerun()
 
 
 def _image_provider_controls(key_prefix: str) -> tuple[str, dict[str, Any]]:
@@ -3865,12 +3911,25 @@ with st.sidebar:
     current_session_label = session_label_for_mode(current_workflow_mode)
     all_managed_projects = list_managed_projects(workflow_mode=current_workflow_mode)
     managed_projects = filter_visible_projects(all_managed_projects, developer_mode=bool(developer_mode))
+    prefs = load_user_preferences()
+    favorite_paths = set(prefs.get("favorite_project_paths", []) or [])
+    favorite_projects = [item for item in managed_projects if item.get("path") in favorite_paths]
+    recent_projects = managed_projects[:5]
     if not developer_mode and not managed_projects and is_test_project_name(str((st.session_state.project or {}).get("title", ""))):
         clean_name = "เพลงใหม่ของฉัน"
         st.session_state.project = new_project(clean_name, DEFAULT_ARTIST, workflow_type_for_mode(current_workflow_mode))
         st.session_state.current_project = ""
         project = st.session_state.project
     selected_recent = current_session_label
+    st.caption("Clean Project List")
+    if favorite_projects:
+        with st.expander("Favorite Projects", expanded=False):
+            for item in favorite_projects[:5]:
+                st.caption(f"{item.get('display_name')} · {item.get('last_modified', '')}")
+    if recent_projects:
+        with st.expander("Recent Projects", expanded=False):
+            for item in recent_projects:
+                st.caption(f"{item.get('display_name')} · {item.get('last_modified', '')}")
     if managed_projects:
         recent_options = [current_session_label] + [item["path"] for item in managed_projects]
         selected_recent = st.selectbox(
@@ -3884,6 +3943,15 @@ with st.sidebar:
             if isinstance(loaded_project, dict) and loaded_project.get("title"):
                 st.session_state.project = loaded_project
                 st.session_state.current_project = selected_recent
+                st.rerun()
+        if selected_recent != current_session_label:
+            fav_label = "Unfavorite Project" if selected_recent in favorite_paths else "Favorite Project"
+            if st.button(fav_label, use_container_width=True, key="sidebar_favorite_project_btn"):
+                if selected_recent in favorite_paths:
+                    favorite_paths.remove(selected_recent)
+                else:
+                    favorite_paths.add(selected_recent)
+                save_user_preferences({"favorite_project_paths": sorted(favorite_paths)})
                 st.rerun()
     else:
         if current_workflow_mode == "Seller Studio (Beta)":
@@ -3935,6 +4003,13 @@ with st.sidebar:
                     st.session_state.current_project = result["data"]["folder"]
                     st.success("Project renamed")
                     st.toast("Project renamed")
+                    st.rerun()
+                else:
+                    st.error(result.get("error") or result.get("message"))
+            if st.button("Duplicate Project", use_container_width=True, key="sidebar_duplicate_project_btn"):
+                result = duplicate_project(st.session_state.project if st.session_state.get("current_project") == selected_recent else _safe("Load project", _load_managed_project, selected_recent), f"{selected_project_name} Copy")
+                if result.get("ok"):
+                    st.success("Project duplicated")
                     st.rerun()
                 else:
                     st.error(result.get("error") or result.get("message"))

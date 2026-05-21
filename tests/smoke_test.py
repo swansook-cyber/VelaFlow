@@ -124,6 +124,7 @@ from core.project_manager import (
     archive_project,
     create_project as create_managed_project,
     delete_project,
+    ensure_creator_project_folders,
     filter_visible_projects,
     is_test_project_name,
     list_archived_projects,
@@ -621,6 +622,8 @@ def main():
     managed_create = create_managed_project(managed_name)
     assert_true(managed_create["ok"] and project_exists(managed_name), "managed project create failed")
     assert_true(any(item["project_name"] == managed_name.replace(" ", "_") for item in list_managed_projects()), "managed project list failed")
+    folder_check = ensure_creator_project_folders(managed_name, "song")
+    assert_true(folder_check["ok"] and all(Path(path).exists() for path in folder_check["data"]["folders"]), "creator project folder organization failed")
     project_filter_rows = [
         {"project_name": "Smoke_Full_Hook_Package", "display_name": "Smoke_Full_Hook_Package", "path": "smoke", "last_modified_ts": 5},
         {"project_name": "Test_Project", "display_name": "Test_Project", "path": "test", "last_modified_ts": 4},
@@ -1139,6 +1142,7 @@ def main():
         assert_true(all({"shot_id", "start_time", "end_time", "duration", "hook_line", "visual_focus", "camera_motion", "lighting", "emotion", "prompt"}.issubset(set(item.keys())) for item in shot_list), "shot_list.json missing required fields")
         flow_prompt = (Path(creator_data["package_dir"]) / "video_prompt_flow.txt").read_text(encoding="utf-8-sig").lower()
         assert_true("emotional progression" in flow_prompt and "vertical 9:16" in flow_prompt and "no text" in flow_prompt and "no watermark" in flow_prompt and "no subtitles" in flow_prompt, "creator package prompts missing required platform safety/style language")
+        assert_true("shot diversity" in flow_prompt and "bottom-safe subtitle space" in flow_prompt and "does not feel repetitive" in flow_prompt, "creator prompts missing stabilization quality language")
         fast_package = build_prompt_director_package(selected_hook_text, song_title="Smoke Hook", mood="cinematic emotional thai pop", export_mode="TikTok Fast Hook", prompt_style="Viral", hook_duration=20)
         safe_package = build_prompt_director_package(selected_hook_text, song_title="Smoke Hook", mood="cinematic emotional thai pop", export_mode="Spotify Canvas", prompt_style="Safe", hook_duration=20)
         assert_true(fast_package["video_prompt_flow"] != safe_package["video_prompt_flow"] and "TikTok Fast Hook" in fast_package["video_prompt_flow"] and "Spotify Canvas" in safe_package["video_prompt_flow"], "prompts do not adapt by export_mode")
@@ -1576,6 +1580,8 @@ def main():
         assert_true("Remaster Studio" in main_source and "Generate Mastered WAV" in main_source and "Download Mastered WAV" in main_source, "Remaster Studio UI missing")
         assert_true("One Click Creator Flow" in main_source and "Generate Final Creator ZIP" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")
         assert_true("analyzing song" in main_source and "detecting hook" in main_source and "generating prompts" in main_source and "remastering" in main_source and "exporting package" in main_source and "complete" in main_source, "one-click progress stages missing")
+        assert_true("Clean Project List" in main_source and "Favorite Projects" in main_source and "Recent Projects" in main_source and "Duplicate Project" in main_source, "clean/favorite/recent project UI missing")
+        assert_true("Retry Export ZIP" in main_source and "Creator Delivery" in main_source and "Hook Ready" in main_source and "Prompt Package Ready" in main_source and "Remastered Audio Ready" in main_source, "creator delivery/retry UX missing")
         assert_true("Play Original" in main_source and "Play Mastered" in main_source and "A/B Compare" in main_source, "before/after comparison player missing")
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")

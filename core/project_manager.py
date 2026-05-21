@@ -61,6 +61,7 @@ WORKFLOW_MODE_SESSION_LABEL = {
 }
 
 TEST_PROJECT_PREFIXES = ("Smoke_", "Test_", "Demo_Debug_", "Debug_", "Internal_")
+CREATOR_PROJECT_FOLDERS = ("audio", "hooks", "prompts", "remaster", "exports", "subtitles")
 
 PROTECTED_ROOTS = {
     (ROOT / "backups").resolve(),
@@ -116,6 +117,19 @@ def filter_visible_projects(projects: List[Dict[str, Any]], *, developer_mode: b
             row["display_name"] = f"[TEST] {row.get('display_name') or project_name}"
         rows.append(row)
     return sorted(rows, key=lambda item: (bool(item.get("is_test_project")), -float(item.get("last_modified_ts", 0) or 0), str(item.get("display_name") or item.get("project_name") or "").lower()))
+
+
+def ensure_creator_project_folders(project_name: str, workflow_type: str | None = "song") -> Dict[str, Any]:
+    try:
+        folder = resolve_project_folder(project_name or "project", workflow_type or "song")
+        created = []
+        for name in CREATOR_PROJECT_FOLDERS:
+            target = folder / name
+            target.mkdir(parents=True, exist_ok=True)
+            created.append(str(target))
+        return {"ok": True, "message": "Creator folders ready", "data": {"project_folder": str(folder), "folders": created}, "error": ""}
+    except Exception as exc:
+        return {"ok": False, "message": "Creator folders failed", "data": {}, "error": str(exc)}
 
 
 def _active_path(project_name: str) -> Path:
@@ -187,6 +201,7 @@ def _project_summary_from_folder(folder: Path) -> Dict[str, Any]:
     lyrics_path = folder / "lyrics.txt"
     render_root = ROOT / "outputs" / "renders" / sanitize_project_name(project.get("title") or project_name if isinstance(project, dict) else project_name)
     exports_folder = folder / "exports"
+    thumbnail = next(exports_folder.rglob("thumbnail.jpg"), None) if exports_folder.exists() else None
     suno_full = next(exports_folder.glob("*_full_pipeline.txt"), None) if exports_folder.exists() else None
     if suno_full is None and exports_folder.exists():
         suno_full = next(exports_folder.glob("*_song_only.txt"), None)
@@ -207,6 +222,7 @@ def _project_summary_from_folder(folder: Path) -> Dict[str, Any]:
         "selected_hook": _selected_hook_text(song),
         "last_modified": datetime.fromtimestamp(modified).isoformat(timespec="seconds") if modified else "",
         "last_modified_ts": modified,
+        "thumbnail": str(thumbnail) if thumbnail and thumbnail.is_file() else "",
         "has_lyrics": bool((song.get("normalized_song_output") or song.get("complete_lyrics") or "").strip()) or (lyrics_path.is_file() and bool(lyrics_path.read_text(encoding="utf-8").strip())),
         "has_storyboard": bool(storyboard),
         "has_render": bool(render_root.exists() and any(render_root.rglob("final_*.mp4"))),
@@ -299,6 +315,7 @@ def create_project(project_name: str, workflow_type: str | None = None) -> Dict[
         project["workflow_type"] = workflow_type or "music_pipeline"
         project["project_type"] = project["workflow_type"]
         folder = save_project_folder(project, workflow_project_root(project["workflow_type"]))
+        ensure_creator_project_folders(project_name or name, project["workflow_type"])
         return {"ok": True, "message": "Project created", "data": {"project": project, "folder": str(folder)}, "error": ""}
     except Exception as exc:
         return {"ok": False, "message": "Create project failed", "data": {}, "error": str(exc)}

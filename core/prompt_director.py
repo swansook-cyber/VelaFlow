@@ -157,10 +157,10 @@ def build_scene_breakdown(
     mode = _mode_profile(export_mode)
     style = _style_profile(prompt_style)
     emotion = summarize_hook_emotion(full_hook_section, mood=mood)
-    shot_types = ["wide establishing shot", "medium emotional shot", "profile shot", "close-up face and eyes", "emotional release shot", "quiet ending frame"]
-    camera_moves = ["slow cinematic drift", "slow push-in", "subtle handheld sway", "emotional close-up push", "soft dissolve-ready movement", "slow pull-out"]
-    lighting_steps = ["soft natural window light", "warmer isolated shadows", "stronger contrast on the hook peak", "deep emotional rim light", "soft release glow", "quiet fading light"]
-    emotions = ["loneliness", "longing", "realization", "emotional climax", "release", "afterglow"]
+    shot_types = ["wide isolation shot", "medium profile shot", "over-shoulder reflection shot", "close-up face and eyes", "hands-detail emotional shot", "quiet release wide shot"]
+    camera_moves = ["slow cinematic drift", "gentle push-in on the lyric", "subtle handheld sway", "close-up emotional push", "soft lateral move", "slow pull-out"]
+    lighting_steps = ["soft natural window light", "warmer isolated shadows", "rainy reflected street light", "stronger contrast on the hook peak", "soft release glow", "quiet fading light"]
+    emotions = ["loneliness", "longing", "memory flash", "realization", "emotional climax", "release"]
     shots = []
     text_blocks = []
     for idx in range(scene_count):
@@ -174,8 +174,9 @@ def build_scene_breakdown(
         if idx == scene_count - 1:
             scene_emotion = "emotional release"
         prompt = (
-            f"{shot_type} for a vertical 9:16 cinematic music video, same character and same room, "
+            f"{shot_type} for a vertical 9:16 cinematic music video, same character, same wardrobe, same room, "
             f"{lighting}, {scene_emotion}, {camera}, {mode['mood']}, {style['detail']}, "
+            "TikTok-native framing with face-safe lower subtitle space, distinct shot composition, no repeated pose, "
             "no text, no logo, no watermark, no subtitles inside the image or video."
         )
         shot = {
@@ -233,12 +234,13 @@ def build_prompt_director_package(
     )
     continuity = (
         "Maintain the same character, same apartment room, same wardrobe, same warm rainy-night lighting palette, "
-        "and a continuous emotional arc across the full hook section."
+        "consistent facial identity, and a continuous emotional arc across the full hook section. "
+        "Each scene must change camera distance, angle, or body language so the sequence does not feel repetitive."
     )
     safety = "No text inside video, no logo, no watermark, no subtitles, no subtitle inside AI video."
     scene_language = (
         "Use cinematic pacing, slow emotional camera movement, wide-to-medium-to-close-up scene progression, "
-        "natural acting, and clear vertical 9:16 framing."
+        "natural acting, shot diversity, TikTok-native vertical framing, and bottom-safe subtitle space."
     )
     return {
         "hook_summary": f"{title} by {artist}: {emotion['emotional_tone']} hook sequence about {hook_clean[:180]}",
