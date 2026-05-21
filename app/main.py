@@ -83,9 +83,10 @@ from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
 from core.hook_detector import detect_hook_section
-from core.hook_package_generator import generate_full_hook_creator_package
+from core.hook_package_generator import extract_full_hook_section, generate_full_hook_creator_package
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
+from core.prompt_director import CREATOR_EXPORT_MODES, PROMPT_STYLES
 from core.licensing import get_license_service
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.clip_studio_v2 import generate_clip_studio_v2
@@ -2840,8 +2841,45 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             "shot_count": 6,
         }
         song_audio_path = str(((song.get("short_clip") or {}).get("song_audio") or {}).get("path") or "")
+        full_hook_preview = extract_full_hook_section(
+            str(song.get("complete_lyrics") or song.get("normalized_song_output") or ""),
+            fallback_hook=str(best_hook.get("section_text") or best_hook.get("hook_text") or ""),
+        )
+        detection_preview = (song.get("short_clip") or {}).get("hook_detection") or {}
+        st.markdown("### Hook Preview")
+        with st.container(border=True):
+            hp1, hp2, hp3, hp4 = st.columns(4)
+            hp1.metric("Hook Start", f"{float((song.get('short_clip') or {}).get('hook_start_time', detection_preview.get('hook_start_time', 15.0))):.1f}s")
+            hp2.metric("Hook End", f"{float((song.get('short_clip') or {}).get('hook_end_time', detection_preview.get('hook_end_time', 30.0))):.1f}s")
+            hook_duration_preview = float((song.get("short_clip") or {}).get("hook_end_time", detection_preview.get("hook_end_time", 30.0))) - float((song.get("short_clip") or {}).get("hook_start_time", detection_preview.get("hook_start_time", 15.0)))
+            hp3.metric("Hook Duration", f"{max(0.0, hook_duration_preview):.1f}s")
+            hp4.metric("Confidence Score", f"{int(detection_preview.get('confidence_score', detection_preview.get('confidence', 0)) or 0)}%")
+            if detection_preview:
+                st.caption(f"Detection Reason: {detection_preview.get('detection_reason') or detection_preview.get('reason') or '-'}")
+                st.caption(f"Energy Summary: {detection_preview.get('energy_profile_summary') or '-'}")
+                st.caption(f"Suggested Use: {detection_preview.get('suggested_use') or '-'}")
+            st.text_area(
+                "Full Hook Lyrics Preview",
+                value=full_hook_preview,
+                height=150,
+                disabled=True,
+                key="song_full_hook_lyrics_preview",
+            )
         st.markdown("### Full Hook Creator Package")
         st.caption("Detects the full hook section, exports hook_audio.mp3, prompt files, captions, hashtags, subtitles, and a ZIP for Flow/Veo/Runway/Kling/Pika/CapCut workflows.")
+        mode_col, style_col = st.columns(2)
+        creator_export_mode = mode_col.selectbox(
+            "Creator Export Mode",
+            CREATOR_EXPORT_MODES,
+            index=0,
+            key="song_creator_export_mode",
+        )
+        prompt_style = style_col.selectbox(
+            "Prompt Style",
+            PROMPT_STYLES,
+            index=1,
+            key="song_creator_prompt_style",
+        )
         if st.button("Generate Creator Package", type="primary", use_container_width=True, key="song_generate_creator_hook_package", disabled=not bool(song_audio_path)):
             package_result = generate_full_hook_creator_package(
                 project_name=project.get("title") or song.get("title") or title,
@@ -2851,6 +2889,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 song_title=str(song.get("title") or title or ""),
                 artist_name=str(song.get("artist_name") or artist or ""),
                 mood=str(song.get("mood") or mood or ""),
+                export_mode=creator_export_mode,
+                prompt_style=prompt_style,
                 hook_start_time=float((song.get("short_clip") or {}).get("hook_start_time", 15.0)),
                 hook_end_time=float((song.get("short_clip") or {}).get("hook_end_time", 30.0)),
                 ffmpeg_path=settings.ffmpeg_path,
@@ -2870,6 +2910,25 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             manifest_files = list((creator_package.get("manifest") or {}).get("generated_files", {}).keys())
             if manifest_files:
                 st.caption("Package files: " + ", ".join(manifest_files))
+        package_dir_value = str(creator_package.get("package_dir") or "")
+        package_dir = Path(package_dir_value) if package_dir_value else None
+        prompt_files = [
+            ("Flow Prompt", "video_prompt_flow.txt"),
+            ("Veo Prompt", "video_prompt_veo.txt"),
+            ("Runway Prompt", "video_prompt_runway.txt"),
+            ("Kling Prompt", "video_prompt_kling.txt"),
+            ("Image Prompt", "image_prompt.txt"),
+            ("Thumbnail Prompt", "thumbnail_prompt.txt"),
+        ]
+        if package_dir and package_dir.is_dir():
+            st.markdown("#### Ready-to-Copy Prompts")
+            for idx, (label, filename) in enumerate(prompt_files):
+                prompt_path = package_dir / filename
+                if prompt_path.is_file():
+                    prompt_text = prompt_path.read_text(encoding="utf-8-sig")
+                    st.text_area(label, value=prompt_text, height=120, key=f"song_creator_copy_prompt_{idx}_{filename}")
+                    if st.button(f"Copy {label}", key=f"song_creator_copy_button_{idx}_{filename}", use_container_width=True):
+                        st.info(f"{label} is ready above. Select the text box and copy it.")
         if creator_package.get("zip_path") and Path(str(creator_package.get("zip_path"))).is_file():
             zip_path = Path(str(creator_package.get("zip_path")))
             st.download_button(

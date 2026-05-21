@@ -70,6 +70,8 @@ def generate_full_hook_creator_package(
     song_title: str = "",
     artist_name: str = "",
     mood: str = "",
+    export_mode: str = "TikTok Emotional",
+    prompt_style: str = "Balanced",
     hook_start_time: float | None = None,
     hook_end_time: float | None = None,
     ffmpeg_path: str = "",
@@ -102,14 +104,22 @@ def generate_full_hook_creator_package(
         return {"ok": False, "message": "Hook audio export failed", "data": {"detection": detected}, "error": audio.get("error", "")}
 
     hook_section = extract_full_hook_section(lyrics_text, fallback_hook=fallback_hook)
-    prompt_package = build_prompt_director_package(hook_section, song_title=song_title, artist_name=artist_name, mood=mood)
+    duration = max(1.0, end - start)
+    prompt_package = build_prompt_director_package(
+        hook_section,
+        song_title=song_title,
+        artist_name=artist_name,
+        mood=mood,
+        export_mode=export_mode,
+        prompt_style=prompt_style,
+        hook_duration=duration,
+    )
     files = {}
     files["hook_audio.mp3"] = str(hook_audio_path)
     files["selected_hook_section.txt"] = _write_text(package_dir / "selected_hook_section.txt", hook_section)
     files.update(export_prompt_director_files(prompt_package, package_dir))
     subtitle_lines = [line.strip() for line in hook_section.splitlines() if line.strip()]
     subtitle_timing = []
-    duration = max(1.0, end - start)
     if subtitle_lines:
         slot = duration / len(subtitle_lines)
         for idx, line in enumerate(subtitle_lines):
@@ -139,6 +149,9 @@ def generate_full_hook_creator_package(
         "emotional_tone": prompt_package.get("hook_emotion", {}).get("emotional_tone"),
         "selected_hook_section_line_count": len(subtitle_lines),
         "hook_section_warning": warning,
+        "export_mode": export_mode,
+        "prompt_style": prompt_style,
+        "scene_count": int(prompt_package.get("scene_count") or 0),
         "generated_files": files,
         "target_platforms": ["Flow", "Veo", "Runway", "Kling", "Pika", "CapCut"],
         "detection_report": detected.get("report_path", ""),

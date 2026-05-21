@@ -61,6 +61,7 @@ from core.clip_combine import combine_scene_clips
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, extract_best_hook, hook_clip_package_to_text
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import generate_full_hook_creator_package
+from core.prompt_director import build_prompt_director_package
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_engine import apply_character_consistency, create_character_profile
 from core.beat_timing_engine import create_beat_timing_plan
@@ -1088,6 +1089,8 @@ def main():
             song_title="Smoke Hook",
             artist_name="VelaFlow",
             mood="cinematic emotional thai pop",
+            export_mode="TikTok Emotional",
+            prompt_style="Cinematic",
             ffmpeg_path=find_ffmpeg(),
         )
         creator_data = creator_package.get("data", {})
@@ -1096,13 +1099,26 @@ def main():
         assert_true(15 <= float(creator_manifest.get("hook_duration", 0)) <= 30, "creator package hook duration out of range")
         assert_true(int(creator_manifest.get("selected_hook_section_line_count", 0)) >= 3, "creator package did not use full hook section")
         assert_true(creator_manifest.get("package_version") and creator_manifest.get("confidence_score") and creator_manifest.get("detection_reason") and creator_manifest.get("target_platforms"), "creator package manifest missing required creator fields")
-        for filename in ["hook_audio.mp3", "selected_hook_section.txt", "hook_summary.txt", "hook_emotion.json", "image_prompt.txt", "video_prompt_flow.txt", "video_prompt_veo.txt", "video_prompt_runway.txt", "video_prompt_kling.txt", "thumbnail_prompt.txt", "cinematic_direction.txt", "mood_summary.txt", "subtitle.srt", "tiktok_caption.txt", "youtube_description.txt", "hashtags.txt", "upload_checklist.txt", "creator_package_manifest.json"]:
+        assert_true(creator_manifest.get("export_mode") == "TikTok Emotional" and creator_manifest.get("prompt_style") == "Cinematic" and int(creator_manifest.get("scene_count", 0)) >= 2, "creator package manifest missing prompt mode fields")
+        selected_hook_text = (Path(creator_data["package_dir"]) / "selected_hook_section.txt").read_text(encoding="utf-8-sig")
+        assert_true(len([line for line in selected_hook_text.splitlines() if line.strip()]) >= 3, "selected_hook_section.txt is not a full multi-line hook")
+        required_creator_files = ["hook_audio.mp3", "selected_hook_section.txt", "hook_summary.txt", "hook_emotion.json", "scene_breakdown.txt", "shot_list.json", "image_prompt.txt", "video_prompt_flow.txt", "video_prompt_veo.txt", "video_prompt_runway.txt", "video_prompt_kling.txt", "thumbnail_prompt.txt", "cinematic_direction.txt", "mood_summary.txt", "subtitle.srt", "tiktok_caption.txt", "youtube_description.txt", "hashtags.txt", "upload_checklist.txt", "creator_package_manifest.json"]
+        for filename in required_creator_files:
             assert_true((Path(creator_data["package_dir"]) / filename).exists(), f"creator package missing {filename}")
+        scene_breakdown = (Path(creator_data["package_dir"]) / "scene_breakdown.txt").read_text(encoding="utf-8-sig")
+        shot_list = json.loads((Path(creator_data["package_dir"]) / "shot_list.json").read_text(encoding="utf-8-sig"))
+        assert_true("Scene 01" in scene_breakdown and "Visual:" in scene_breakdown and "Camera:" in scene_breakdown and len(shot_list) >= 2, "creator scene breakdown/shot list missing")
+        assert_true(all({"shot_id", "start_time", "end_time", "duration", "hook_line", "visual_focus", "camera_motion", "lighting", "emotion", "prompt"}.issubset(set(item.keys())) for item in shot_list), "shot_list.json missing required fields")
         flow_prompt = (Path(creator_data["package_dir"]) / "video_prompt_flow.txt").read_text(encoding="utf-8-sig").lower()
         assert_true("emotional progression" in flow_prompt and "vertical 9:16" in flow_prompt and "no text" in flow_prompt and "no watermark" in flow_prompt and "no subtitles" in flow_prompt, "creator package prompts missing required platform safety/style language")
+        fast_package = build_prompt_director_package(selected_hook_text, song_title="Smoke Hook", mood="cinematic emotional thai pop", export_mode="TikTok Fast Hook", prompt_style="Viral", hook_duration=20)
+        safe_package = build_prompt_director_package(selected_hook_text, song_title="Smoke Hook", mood="cinematic emotional thai pop", export_mode="Spotify Canvas", prompt_style="Safe", hook_duration=20)
+        assert_true(fast_package["video_prompt_flow"] != safe_package["video_prompt_flow"] and "TikTok Fast Hook" in fast_package["video_prompt_flow"] and "Spotify Canvas" in safe_package["video_prompt_flow"], "prompts do not adapt by export_mode")
+        assert_true("faster" in fast_package["mood_summary"].lower() or "retention" in fast_package["mood_summary"].lower(), "prompts do not adapt by prompt_style")
         with zipfile.ZipFile(creator_data["zip_path"], "r") as package_zip:
             names = set(package_zip.namelist())
-        assert_true("creator_package_manifest.json" in names and "video_prompt_flow.txt" in names and "video_prompt_veo.txt" in names and "video_prompt_kling.txt" in names and "hook_audio.mp3" in names, "creator package ZIP contents missing")
+        assert_true(set(required_creator_files).issubset(names), "creator package ZIP contents missing")
+        assert_true(creator_manifest.get("veo_called") is False, "creator package generation should not call Veo/render providers")
         cloud_scene = render_placeholder_scene({"scene_id": "scene_01", "duration": 0.8}, cloud_style_scene, aspect_ratio="9:16")
         assert_true(cloud_scene["ok"] and cloud_style_scene.exists(), "cloud-style scene parent creation failed")
         motion_scene_path = out / "hook_clip_projects" / "scenes" / "motion_scene_01.mp4"
@@ -1489,6 +1505,8 @@ def main():
         assert_true('"Save"' in main_source and '"Copy"' in main_source and '"Lyrics TXT"' in main_source and '"Suno TXT"' in main_source and '"Release Package"' in main_source, "creator lyric quick action bar buttons missing")
         assert_true('"Generate Viral Hooks"' in main_source and '"Try New Hooks"' in main_source and '"Reset Hooks"' in main_source, "creator hook button labels missing")
         assert_true("Full Hook Creator Package" in main_source and "song_creator_lyrics_editor" in main_source, "creator lyrics/package sections missing")
+        assert_true("Hook Preview" in main_source and "Full Hook Lyrics Preview" in main_source and "Creator Export Mode" in main_source and "Prompt Style" in main_source, "creator hook preview/mode controls missing")
+        assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source, "developer-style hook labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
         legacy_button_pos = main_source.find('"Quick Generate TikTok Hook"')
