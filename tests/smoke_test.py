@@ -1598,6 +1598,9 @@ def main():
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
+        assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")
+        assert_true("Could not extract product automatically" in main_source and "Checking product page" in main_source, "affiliate extraction warning/loading UI missing")
+        assert_true("Founding Member build" in main_source and "Creator actions" in main_source and "Hooks Ready" in main_source and "Creator ZIP Ready" in main_source, "affiliate closed beta delivery UI missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
         legacy_button_pos = main_source.find('"Quick Generate TikTok Hook"')
@@ -1622,10 +1625,14 @@ def main():
         }
         affiliate_link = analyze_product_link("https://www.amazon.com/example-product", "warm desk lamp, price 399, rating 4.8", fetch=False)
         assert_true(affiliate_link["ok"] and affiliate_link["data"]["platform"] == "amazon" and affiliate_link["data"]["keywords"], "affiliate URL parsing failed")
+        unsupported_link = analyze_product_link("https://example.invalid/item", "manual fallback", fetch=False)
+        assert_true(unsupported_link["data"]["extraction_status"] in {"manual_fallback", "unsupported_domain"} and unsupported_link["data"]["supported_domain"] is False, "affiliate unsupported domain handling failed")
+        invalid_link = analyze_product_link("not-a-url", "manual fallback", fetch=True)
+        assert_true(invalid_link["data"]["extraction_status"] == "invalid_url" and invalid_link["data"]["manual_fallback_message"], "affiliate invalid URL handling failed")
         affiliate_manual = analyze_product_link("", "manual fallback product", fetch=False)
         assert_true(not affiliate_manual["ok"] and affiliate_manual["data"]["platform"] == "unknown", "affiliate manual fallback state failed")
         affiliate_analysis = analyze_affiliate_product(affiliate_product)
-        assert_true(all(0 <= int(score) <= 100 for score in affiliate_analysis["scores"].values()) and affiliate_analysis["recommended_content_style"], "affiliate product intelligence failed")
+        assert_true(all(0 <= int(score) <= 100 for score in affiliate_analysis["scores"].values()) and affiliate_analysis["recommended_content_style"] and affiliate_analysis["recommendation_labels"], "affiliate product intelligence failed")
         affiliate_hooks = generate_affiliate_hooks(affiliate_product, "TikTok Affiliate")
         assert_true(AFFILIATE_MODES[0] == "TikTok Affiliate" and len(affiliate_hooks) >= 7 and {item["hook_type"] for item in affiliate_hooks} >= {"shock", "curiosity", "pain_point", "problem_solution", "emotional", "social_proof", "urgency"} and affiliate_hooks[0]["hook_strength"] > 0, "affiliate hooks failed")
         assert_true({item["hook_type"] for item in affiliate_hooks} >= {"pov", "before_after", "tiktok_opener"}, "affiliate MVP hook categories missing")
@@ -1657,18 +1664,22 @@ def main():
             "scripts/review_script.txt",
             "creator/captions.txt",
             "creator/hashtags.txt",
+            "captions/captions.txt",
+            "captions/hashtags.txt",
+            "captions/cta_variants.txt",
             "creator/shot_list.json",
             "creator/scene_breakdown.txt",
             "creator/thumbnail_prompt.txt",
             "creator/creator_tips.txt",
+            "README_START_HERE.txt",
             "manifest/affiliate_package_manifest.json",
         ]
         assert_true(affiliate_export["ok"] and affiliate_zip.exists() and all((affiliate_dir / name).exists() for name in required_affiliate_files), "affiliate creator package structure failed")
         with zipfile.ZipFile(affiliate_zip) as archive:
             assert_true(all(name in archive.namelist() for name in required_affiliate_files), "affiliate ZIP contents failed")
         affiliate_manifest = json.loads((affiliate_dir / "manifest/affiliate_package_manifest.json").read_text(encoding="utf-8"))
-        assert_true(affiliate_manifest["automation_policy"].startswith("No posting automation") and affiliate_manifest["package_version"] == "affiliate_mvp_1", "affiliate manifest failed")
-        assert_true({item["category"] for item in TRENDING_AFFILIATE_IDEAS} >= {"Beauty", "Home gadgets", "Kitchen", "Pet products", "Fashion", "Organization", "Wellness"}, "affiliate trending ideas failed")
+        assert_true(affiliate_manifest["automation_policy"].startswith("No posting automation") and affiliate_manifest["package_version"] == "affiliate_mvp_1" and affiliate_manifest["export_status"] == "complete", "affiliate manifest failed")
+        assert_true({item["category"] for item in TRENDING_AFFILIATE_IDEAS} >= {"Beauty", "Home", "Kitchen", "Pet", "Fashion", "Wellness", "Gadgets", "Organization"} and all("easy_to_shoot" in item and "emotional_sell" in item and "before_after_strength" in item for item in TRENDING_AFFILIATE_IDEAS), "affiliate trending ideas failed")
         assert_true(len(list_shorts_variations()) == 5 and list_shorts_variations()[0]["variation_id"] == "v1_emotional", "shorts variation list failed")
         shorts_result = generate_shorts_factory(
             "Smoke Shorts Factory",

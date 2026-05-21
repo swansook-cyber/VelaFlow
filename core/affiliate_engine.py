@@ -17,13 +17,14 @@ from core.real_clip_pipeline import ensure_parent_dir
 
 AFFILIATE_MODES = ["TikTok Affiliate", "Seller Product Clip", "Viral Product Hook"]
 TRENDING_AFFILIATE_IDEAS = [
-    {"category": "Beauty", "idea": "กันแดด/เซรั่มที่เห็นผลในชีวิตประจำวัน", "viral_potential": 88, "content_difficulty": "Easy", "recommended_style": "before/after + close-up texture"},
-    {"category": "Home gadgets", "idea": "ของช่วยประหยัดเวลาตอนเช้า", "viral_potential": 84, "content_difficulty": "Easy", "recommended_style": "problem/solution demo"},
-    {"category": "Kitchen", "idea": "อุปกรณ์ครัวที่ทำให้เมนูดูโปรขึ้น", "viral_potential": 82, "content_difficulty": "Medium", "recommended_style": "satisfying b-roll"},
-    {"category": "Pet products", "idea": "ของเล็กๆ ที่ทำให้สัตว์เลี้ยงสบายขึ้น", "viral_potential": 86, "content_difficulty": "Medium", "recommended_style": "cute reaction + proof"},
-    {"category": "Fashion", "idea": "ไอเท็มเปลี่ยนลุคใน 10 วินาที", "viral_potential": 80, "content_difficulty": "Medium", "recommended_style": "transition outfit reveal"},
-    {"category": "Organization", "idea": "ของจัดบ้านที่แก้ความรกแบบเห็นชัด", "viral_potential": 83, "content_difficulty": "Easy", "recommended_style": "messy-to-clean reveal"},
-    {"category": "Wellness", "idea": "ไอเท็มทำให้ routine ผ่อนคลายขึ้น", "viral_potential": 78, "content_difficulty": "Easy", "recommended_style": "soft emotional lifestyle"},
+    {"category": "Beauty", "idea": "Everyday serum or sunscreen proof", "viral_potential": 88, "easy_to_shoot": 86, "emotional_sell": 82, "before_after_strength": 84, "content_difficulty": "Easy", "recommended_style": "before/after + close-up texture"},
+    {"category": "Home", "idea": "Small home item that saves morning time", "viral_potential": 84, "easy_to_shoot": 90, "emotional_sell": 76, "before_after_strength": 80, "content_difficulty": "Easy", "recommended_style": "problem/solution demo"},
+    {"category": "Kitchen", "idea": "Kitchen tool that makes food look cleaner", "viral_potential": 82, "easy_to_shoot": 78, "emotional_sell": 70, "before_after_strength": 88, "content_difficulty": "Medium", "recommended_style": "satisfying b-roll"},
+    {"category": "Pet", "idea": "Small comfort product for pets", "viral_potential": 86, "easy_to_shoot": 72, "emotional_sell": 90, "before_after_strength": 76, "content_difficulty": "Medium", "recommended_style": "cute reaction + proof"},
+    {"category": "Fashion", "idea": "One accessory that changes the whole look", "viral_potential": 80, "easy_to_shoot": 74, "emotional_sell": 75, "before_after_strength": 86, "content_difficulty": "Medium", "recommended_style": "outfit reveal"},
+    {"category": "Wellness", "idea": "Low-cost item that makes a routine feel calmer", "viral_potential": 78, "easy_to_shoot": 88, "emotional_sell": 86, "before_after_strength": 68, "content_difficulty": "Easy", "recommended_style": "soft lifestyle review"},
+    {"category": "Gadgets", "idea": "Tiny gadget that solves one daily annoyance", "viral_potential": 87, "easy_to_shoot": 82, "emotional_sell": 72, "before_after_strength": 90, "content_difficulty": "Easy", "recommended_style": "quick demo + reaction"},
+    {"category": "Organization", "idea": "Messy-to-clean desk or room fix", "viral_potential": 83, "easy_to_shoot": 84, "emotional_sell": 78, "before_after_strength": 92, "content_difficulty": "Easy", "recommended_style": "messy-to-clean reveal"},
 ]
 
 
@@ -41,6 +42,8 @@ def normalize_affiliate_product(product: dict[str, Any]) -> dict[str, Any]:
         "pain_point": _field(product, "pain_point", "ปัญหาที่เจอบ่อย"),
         "cta_style": _field(product, "cta_style", "soft sell"),
         "description": _field(product, "description", _field(product, "product_description", "")),
+        "benefits": _field(product, "benefits", ""),
+        "creator_notes": _field(product, "creator_notes", ""),
         "price": _field(product, "price", _field(product, "pricing", "")),
         "rating": _field(product, "rating", ""),
         "category": _field(product, "category", ""),
@@ -52,7 +55,7 @@ def normalize_affiliate_product(product: dict[str, Any]) -> dict[str, Any]:
 
 def analyze_affiliate_product(product: dict[str, Any]) -> dict[str, Any]:
     product = normalize_affiliate_product(product)
-    text = " ".join(str(product.get(key, "")) for key in ["product_name", "product_type", "description", "pain_point", "emotional_angle"]).lower()
+    text = " ".join(str(product.get(key, "")) for key in ["product_name", "product_type", "description", "benefits", "creator_notes", "pain_point", "emotional_angle"]).lower()
     useful_terms = ["clean", "easy", "quick", "portable", "ช่วย", "ง่าย", "ประหยัด", "สบาย", "รีวิว", "แก้"]
     visual_terms = ["beauty", "fashion", "kitchen", "pet", "home", "สี", "ดีไซน์", "แสง", "แต่ง"]
     emotional_terms = ["เหนื่อย", "มั่นใจ", "สบาย", "ชีวิต", "เจ็บ", "เครียด", "รัก", "ดูแล"]
@@ -61,6 +64,19 @@ def analyze_affiliate_product(product: dict[str, Any]) -> dict[str, Any]:
     emotional = sum(1 for term in emotional_terms if term in text)
     base = min(100, 64 + utility * 5 + visual * 4 + emotional * 5)
     creator_difficulty = max(20, 62 - visual * 5 + (8 if len(product.get("description", "")) < 30 else 0))
+    labels = []
+    if creator_difficulty <= 52:
+        labels.append("Beginner Friendly")
+    if base >= 78:
+        labels.append("Viral Friendly")
+    if creator_difficulty >= 68:
+        labels.append("Hard To Shoot")
+    if emotional >= 1:
+        labels.append("Strong Emotional Sell")
+    if visual >= 1 or "before" in text or "after" in text:
+        labels.append("Strong Before/After")
+    if not labels:
+        labels.append("Simple Review Angle")
     return {
         "generated_by": "VelaFlow",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -73,6 +89,7 @@ def analyze_affiliate_product(product: dict[str, Any]) -> dict[str, Any]:
             "tiktok_compatibility": min(100, base + 10),
         },
         "recommended_content_style": "UGC review with close-up proof" if creator_difficulty < 55 else "simple product demo with clear before/after",
+        "recommendation_labels": labels,
         "selling_angle": f"{product['product_name']} ช่วยให้{product['emotional_angle']} สำหรับคนที่เจอ{product['pain_point']}",
         "product": product,
     }
@@ -85,16 +102,16 @@ def generate_affiliate_hooks(product: dict[str, Any], mode: str = "TikTok Affili
     pain = product["pain_point"]
     angle = product["emotional_angle"]
     hooks = [
-        ("shock", f"ก่อนซื้อคิดว่าไร้สาระ...แต่ {name} แก้เรื่องนี้ได้จริง"),
-        ("curiosity", f"ทำไมคนที่เจอ{pain}ถึงเริ่มใช้ {name}?"),
-        ("pain_point", f"ถ้า{pain}อยู่ทุกวัน คลิปนี้ช่วยตัดสินใจได้"),
-        ("problem_solution", f"ปัญหา{pain} แก้ง่ายกว่าที่คิดด้วย {name}"),
-        ("emotional", f"{audience}ที่เหนื่อยกับ{pain} น่าจะเข้าใจสิ่งนี้"),
-        ("social_proof", f"อันนี้คือของที่ TikTok ป้ายยาถูกจริง: {name}"),
-        ("urgency", f"ถ้าอยากให้{angle} รีบเช็ก {name} ก่อนพลาด"),
-        ("pov", f"POV: คุณเจอ{pain}ทุกวัน แล้วลอง {name} ครั้งแรก"),
-        ("before_after", f"ก่อนใช้กับหลังใช้ {name} ต่างกันตรงนี้"),
-        ("tiktok_opener", f"99 บาทก็ยังต้องถามว่า...ทำไม {name} ดีขนาดนี้?"),
+        ("shock", f"I thought {name} was overhyped until it fixed this one thing."),
+        ("curiosity", f"Why are people with {pain} starting to use {name}?"),
+        ("pain_point", f"If {pain} keeps happening, this is worth checking."),
+        ("problem_solution", f"{pain} is easier to handle when {name} fits your routine."),
+        ("emotional", f"If you are tired of {pain}, this small fix might make sense."),
+        ("social_proof", f"This is the kind of TikTok recommendation that actually feels useful: {name}."),
+        ("urgency", f"If you want {angle}, check {name} before you forget."),
+        ("pov", f"POV: you deal with {pain} every day, then try {name} once."),
+        ("before_after", f"Before vs after using {name}: this is the difference."),
+        ("tiktok_opener", f"I did not expect {name} to be this useful."),
     ]
     boosted = 6 if mode == "Viral Product Hook" else 0
     rows: list[dict[str, Any]] = []
@@ -139,14 +156,14 @@ def build_affiliate_scripts(product: dict[str, Any], hooks: list[dict[str, Any]]
     top_hook = (hooks or generate_affiliate_hooks(product))[0]["hook_text"]
     name = product["product_name"]
     pain = product["pain_point"]
-    cta = "ลองดูรายละเอียดก่อนตัดสินใจ" if product["cta_style"] == "soft sell" else "เช็กโปรตอนนี้"
+    cta = "Check the details before you decide" if product["cta_style"] == "soft sell" else "Check the deal while it is still live"
     return {
-        "tiktok_script_15s": f"0-3s: {top_hook}\n3-8s: โชว์ {name} แบบใกล้ๆ ว่าแก้ {pain} ยังไง\n8-12s: ให้เห็นผลลัพธ์หรือ before/after\n12-15s: {cta}",
-        "tiktok_script_30s": f"0-3s: {top_hook}\n3-10s: เล่าปัญหา {pain} แบบ relatable\n10-20s: สาธิต {name} ด้วยมือและ close-up\n20-26s: สรุปข้อดี 2-3 ข้อ\n26-30s: {cta}",
-        "pov_script": f"POV: คุณเบื่อกับ{pain} แล้วลอง {name} ครั้งแรก\nพูดให้เหมือนเล่าให้เพื่อนฟัง สั้น จริง และไม่ขายแข็ง",
-        "review_script": f"รีวิวจริง: {name}\nชอบตรงที่ช่วยให้{product['emotional_angle']}\nเหมาะกับ{product['target_audience']}\nปิดด้วย CTA: {cta}",
-        "emotional_sell_script": f"ถ้า{pain}ทำให้วันของคุณยากขึ้น {name} อาจเป็นตัวช่วยเล็กๆ ที่ทำให้{product['emotional_angle']}",
-        "aesthetic_script": f"เปิดด้วย close-up สวยๆ ของ {name}\nตัดไป lifestyle usage\nจบด้วย hero shot และ CTA นุ่มๆ",
+        "tiktok_script_15s": f"0-3s: {top_hook}\n3-8s: Show {name} close-up and the real problem: {pain}\n8-12s: Show one proof moment or before/after\n12-15s: {cta}",
+        "tiktok_script_30s": f"0-3s: {top_hook}\n3-10s: Tell the problem in a casual creator voice\n10-20s: Demo {name} with hands and close-up b-roll\n20-26s: Name 2 clear benefits without sounding spammy\n26-30s: {cta}",
+        "pov_script": f"POV: you are tired of {pain}, then try {name} for the first time.\nKeep it conversational, short, and honest.",
+        "review_script": f"Real review: {name}\nWhat I like: it helps with {product['emotional_angle']}\nBest for: {product['target_audience']}\nCTA: {cta}",
+        "emotional_sell_script": f"If {pain} makes your day harder, {name} is a small helper that can make things feel more manageable.",
+        "aesthetic_script": f"Open with a clean close-up of {name}\nCut to lifestyle use\nEnd with a simple hero shot and soft CTA",
     }
 
 
@@ -246,7 +263,7 @@ def export_affiliate_package(project_name: str, brief: dict[str, Any], quick_dat
         )
         files = {
             "analysis/product_summary.txt": f"Product: {product['product_name']}\nType: {product['product_type']}\nAudience: {product['target_audience']}\nPain point: {product['pain_point']}\nAngle: {product['emotional_angle']}\nPrice: {product.get('price', '')}\nRating: {product.get('rating', '')}\nURL: {product.get('url', '')}\n",
-            "analysis/viral_analysis.txt": f"Recommended style: {analysis.get('recommended_content_style')}\nSelling angle: {analysis.get('selling_angle')}\nScores: {json.dumps(analysis.get('scores', {}), ensure_ascii=False)}\n",
+        "analysis/viral_analysis.txt": f"Recommended style: {analysis.get('recommended_content_style')}\nLabels: {', '.join(analysis.get('recommendation_labels', []))}\nSelling angle: {analysis.get('selling_angle')}\nScores: {json.dumps(analysis.get('scores', {}), ensure_ascii=False)}\n",
             "hooks/viral_hooks.txt": "\n".join(item["hook_text"] for item in hooks),
             "hooks/emotional_hooks.txt": "\n".join(item["hook_text"] for item in hooks if item["hook_type"] in {"emotional", "pov", "before_after"}),
             "hooks/curiosity_hooks.txt": "\n".join(item["hook_text"] for item in hooks if item["hook_type"] in {"curiosity", "shock", "tiktok_opener"}),
@@ -254,11 +271,15 @@ def export_affiliate_package(project_name: str, brief: dict[str, Any], quick_dat
             "scripts/tiktok_script_30s.txt": scripts["tiktok_script_30s"],
             "scripts/pov_script.txt": scripts["pov_script"],
             "scripts/review_script.txt": scripts["review_script"],
+            "captions/captions.txt": "\n\n".join(captions.get("captions", [])),
+            "captions/hashtags.txt": " ".join(captions.get("hashtags", [])),
+            "captions/cta_variants.txt": "\n".join(captions.get("cta_variants", [])),
             "creator/captions.txt": "\n\n".join(captions.get("captions", [])),
             "creator/hashtags.txt": " ".join(captions.get("hashtags", [])),
             "creator/scene_breakdown.txt": shots["scene_breakdown"],
             "creator/thumbnail_prompt.txt": thumbnail_prompt,
-            "creator/creator_tips.txt": "ถ่ายให้เห็นมือใช้จริง\nเปิด 2 วินาทีแรกด้วยปัญหาหรือผลลัพธ์\nอย่าขายแข็งเกินไป\nปิดด้วย CTA เดียวที่ชัดเจน\n",
+            "creator/creator_tips.txt": "Show real hands using the product.\nOpen with the pain point or result in the first 2 seconds.\nAvoid hard-selling in every line.\nEnd with one clear CTA.\n",
+            "README_START_HERE.txt": "VelaFlow Affiliate Creator Package\n\n1. Open hooks/viral_hooks.txt and choose one opening line.\n2. Use creator/scene_breakdown.txt and creator/shot_list.json to film or generate the video.\n3. Copy captions/captions.txt and captions/hashtags.txt for your post.\n4. Use creator/thumbnail_prompt.txt if you need a cover image.\n5. Upload manually to TikTok, Reels, or Shorts. VelaFlow does not automate posting.\n",
         }
         for filename, content in files.items():
             _write_text(final_dir / filename, content)
@@ -277,6 +298,7 @@ def export_affiliate_package(project_name: str, brief: dict[str, Any], quick_dat
             "scores": analysis.get("scores", {}),
             "best_hook": score.get("best_hook", {}),
             "automation_policy": "No posting automation, no account automation, no browser botting.",
+            "export_status": "complete",
         }
         _write_json(final_dir / "manifest/affiliate_package_manifest.json", manifest)
         if quick_data.get("final_mp4"):
