@@ -1468,6 +1468,40 @@ def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = 
         return {"ok": False, "message": "Audio upload failed", "data": {}, "error": str(exc)}
 
 
+def _creator_package_recommendations(full_hook: str, detection: dict[str, Any], mood: str = "") -> dict[str, Any]:
+    text = f"{full_hook}\n{mood}\n{detection.get('energy_profile_summary', '')}".lower()
+    duration = float(detection.get("hook_duration") or 0)
+    confidence = float(detection.get("confidence_score", detection.get("confidence", 0)) or 0)
+    if "dark" in text or "เหงา" in text:
+        export_mode = "Dark Storytelling"
+        prompt_style = "Cinematic"
+        ai_tool = "Kling or Flow"
+    elif "pop" in text or "viral" in text:
+        export_mode = "Pop Viral"
+        prompt_style = "Viral"
+        ai_tool = "Flow or Veo"
+    elif duration and duration <= 16:
+        export_mode = "TikTok Fast Hook"
+        prompt_style = "Viral"
+        ai_tool = "Flow or Kling"
+    elif "เศร้า" in text or "ลืม" in text or "คิดถึง" in text or "miss" in text:
+        export_mode = "Sad Emotional"
+        prompt_style = "Cinematic"
+        ai_tool = "Kling or Runway"
+    else:
+        export_mode = "TikTok Emotional"
+        prompt_style = "Cinematic" if confidence >= 60 else "Balanced"
+        ai_tool = "Flow or Kling"
+    suggested_duration = duration if duration else 22.0
+    suggested_duration = min(30.0, max(15.0, suggested_duration))
+    return {
+        "export_mode": export_mode,
+        "prompt_style": prompt_style,
+        "ai_tool": ai_tool,
+        "hook_duration": round(suggested_duration, 1),
+    }
+
+
 def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_prefix: str, workflow_type: str = "song") -> dict[str, Any]:
     st.markdown("**Hook Audio**")
     uploaded = st.file_uploader("Upload Song Audio", type=["mp3", "wav", "m4a"], key=f"{key_prefix}_song_audio_upload", help="อัปโหลดเพลงเต็ม แล้วตัดเฉพาะช่วง hook ไปใช้เป็นเสียงคลิป")
@@ -2841,11 +2875,32 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             "shot_count": 6,
         }
         song_audio_path = str(((song.get("short_clip") or {}).get("song_audio") or {}).get("path") or "")
+        st.markdown("### Quick Start")
+        with st.container(border=True):
+            st.markdown(
+                "1. Generate lyrics  \n"
+                "2. Upload finished song  \n"
+                "3. Detect full hook  \n"
+                "4. Generate creator package  \n"
+                "5. Copy prompts into Flow / Veo / Kling  \n"
+                "6. Download final AI clips externally"
+            )
+        with st.expander("Example Creator Workflows", expanded=False):
+            st.table(
+                [
+                    {"Workflow": "Sad emotional TikTok", "Export Mode": "Sad Emotional", "Prompt Style": "Cinematic", "Recommended Tool": "Kling", "Hook Duration": "20-24s"},
+                    {"Workflow": "Viral heartbreak clip", "Export Mode": "TikTok Fast Hook", "Prompt Style": "Viral", "Recommended Tool": "Flow", "Hook Duration": "15-20s"},
+                    {"Workflow": "Spotify Canvas", "Export Mode": "Spotify Canvas", "Prompt Style": "Safe", "Recommended Tool": "Runway", "Hook Duration": "15s loop"},
+                    {"Workflow": "Cinematic MV teaser", "Export Mode": "Cinematic MV", "Prompt Style": "Cinematic", "Recommended Tool": "Veo or Kling", "Hook Duration": "24-30s"},
+                    {"Workflow": "Dark storytelling short", "Export Mode": "Dark Storytelling", "Prompt Style": "Cinematic", "Recommended Tool": "Kling", "Hook Duration": "20-30s"},
+                ]
+            )
         full_hook_preview = extract_full_hook_section(
             str(song.get("complete_lyrics") or song.get("normalized_song_output") or ""),
             fallback_hook=str(best_hook.get("section_text") or best_hook.get("hook_text") or ""),
         )
         detection_preview = (song.get("short_clip") or {}).get("hook_detection") or {}
+        recommendations = _creator_package_recommendations(full_hook_preview, detection_preview, str(song.get("mood") or mood or ""))
         st.markdown("### Hook Preview")
         with st.container(border=True):
             hp1, hp2, hp3, hp4 = st.columns(4)
@@ -2861,26 +2916,33 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             st.text_area(
                 "Full Hook Lyrics Preview",
                 value=full_hook_preview,
-                height=150,
+                height=130,
                 disabled=True,
                 key="song_full_hook_lyrics_preview",
             )
+        st.markdown("### Recommended Setup")
+        with st.container(border=True):
+            rec1, rec2, rec3, rec4 = st.columns(4)
+            rec1.metric("Export Mode", recommendations["export_mode"])
+            rec2.metric("Prompt Style", recommendations["prompt_style"])
+            rec3.metric("Best Tool", recommendations["ai_tool"])
+            rec4.metric("Suggested Hook", f"{recommendations['hook_duration']}s")
         st.markdown("### Full Hook Creator Package")
-        st.caption("Detects the full hook section, exports hook_audio.mp3, prompt files, captions, hashtags, subtitles, and a ZIP for Flow/Veo/Runway/Kling/Pika/CapCut workflows.")
+        st.caption("One package for Flow, Veo, Runway, Kling, Pika, CapCut, captions, subtitles, and scene planning.")
         mode_col, style_col = st.columns(2)
         creator_export_mode = mode_col.selectbox(
             "Creator Export Mode",
             CREATOR_EXPORT_MODES,
-            index=0,
+            index=CREATOR_EXPORT_MODES.index(recommendations["export_mode"]) if recommendations["export_mode"] in CREATOR_EXPORT_MODES else 0,
             key="song_creator_export_mode",
         )
         prompt_style = style_col.selectbox(
             "Prompt Style",
             PROMPT_STYLES,
-            index=1,
+            index=PROMPT_STYLES.index(recommendations["prompt_style"]) if recommendations["prompt_style"] in PROMPT_STYLES else 1,
             key="song_creator_prompt_style",
         )
-        if st.button("Generate Creator Package", type="primary", use_container_width=True, key="song_generate_creator_hook_package", disabled=not bool(song_audio_path)):
+        if st.button("Generate Full Creator Package", type="primary", use_container_width=True, key="song_generate_creator_hook_package", disabled=not bool(song_audio_path)):
             package_result = generate_full_hook_creator_package(
                 project_name=project.get("title") or song.get("title") or title,
                 uploaded_mp3_path=song_audio_path,
@@ -2901,7 +2963,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             project["song"] = song
             _save_project()
             if package_result.get("ok"):
-                st.success("Creator package ready.")
+                st.success("Creator Package Ready")
             else:
                 st.error(package_result.get("error") or package_result.get("message") or "Creator package failed")
             st.rerun()
@@ -2909,7 +2971,18 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         if creator_package.get("manifest"):
             manifest_files = list((creator_package.get("manifest") or {}).get("generated_files", {}).keys())
             if manifest_files:
-                st.caption("Package files: " + ", ".join(manifest_files))
+                st.markdown("#### Creator Package Ready")
+                ready_cols = st.columns(3)
+                ready_cols[0].success("Full Hook Audio")
+                ready_cols[1].success("AI Video Prompts")
+                ready_cols[2].success("Scene Breakdown")
+                ready_cols = st.columns(3)
+                ready_cols[0].success("Subtitles")
+                ready_cols[1].success("Captions")
+                ready_cols[2].success("Thumbnail Prompt")
+                st.info("Recommended next step: use Flow or Kling for best cinematic vertical clips.")
+                with st.expander("Included creator files", expanded=False):
+                    st.caption(", ".join(manifest_files))
         package_dir_value = str(creator_package.get("package_dir") or "")
         package_dir = Path(package_dir_value) if package_dir_value else None
         prompt_files = [
@@ -2921,14 +2994,24 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             ("Thumbnail Prompt", "thumbnail_prompt.txt"),
         ]
         if package_dir and package_dir.is_dir():
-            st.markdown("#### Ready-to-Copy Prompts")
+            scene_breakdown_path = package_dir / "scene_breakdown.txt"
+            if scene_breakdown_path.is_file():
+                with st.expander("Scene Breakdown", expanded=False):
+                    st.text_area(
+                        "Cinematic Scene Plan",
+                        value=scene_breakdown_path.read_text(encoding="utf-8-sig"),
+                        height=180,
+                        key="song_creator_scene_breakdown_preview",
+                    )
+            st.markdown("#### Copy Prompts")
             for idx, (label, filename) in enumerate(prompt_files):
                 prompt_path = package_dir / filename
                 if prompt_path.is_file():
                     prompt_text = prompt_path.read_text(encoding="utf-8-sig")
-                    st.text_area(label, value=prompt_text, height=120, key=f"song_creator_copy_prompt_{idx}_{filename}")
-                    if st.button(f"Copy {label}", key=f"song_creator_copy_button_{idx}_{filename}", use_container_width=True):
-                        st.info(f"{label} is ready above. Select the text box and copy it.")
+                    with st.expander(label, expanded=idx == 0):
+                        st.text_area(label, value=prompt_text, height=150, key=f"song_creator_copy_prompt_{idx}_{filename}")
+                        if st.button(f"Copy {label}", key=f"song_creator_copy_button_{idx}_{filename}", use_container_width=True):
+                            st.info(f"{label} is ready above. Select the text box and copy it.")
         if creator_package.get("zip_path") and Path(str(creator_package.get("zip_path"))).is_file():
             zip_path = Path(str(creator_package.get("zip_path")))
             st.download_button(
