@@ -222,15 +222,22 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
                 if attempt + 1 >= attempts:
                     break
 
-    title = meta.get("title") or _slug_title(resolved_url or cleaned)
-    description = meta.get("description") or _clean_text(notes)
+    extracted_title = _clean_text(str(meta.get("title") or ""))
+    extracted_description = _clean_text(str(meta.get("description") or ""))
+    extracted_image = _clean_text(str(meta.get("image") or ""))
+    extracted_success = bool(extracted_title or extracted_description or extracted_image)
+    title = extracted_title
+    description = extracted_description or _clean_text(notes)
     category = meta.get("category") or ("affiliate product" if platform != "unknown" else "manual product")
     price = meta.get("price") or ""
     rating = meta.get("rating") or ""
-    image = meta.get("image") or ""
+    image = extracted_image
+    failure_reason = ""
+    if cleaned and not extracted_success:
+        failure_reason = fetch_error or "empty_metadata"
     return {
         "ok": bool(cleaned),
-        "message": "Product metadata checked. Manual fallback is available." if cleaned else "Paste a product URL or enter product details manually.",
+        "message": "Product metadata extracted." if extracted_success else "Automatic extraction unavailable. Please enter product details manually.",
         "data": {
             "url": cleaned,
             "original_url": cleaned,
@@ -238,8 +245,13 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
             "platform": platform,
             "valid_url": valid_url,
             "supported_domain": platform != "unknown",
+            "extracted_success": extracted_success,
+            "extracted_title_exists": bool(extracted_title),
+            "extracted_description_exists": bool(extracted_description),
+            "extracted_image_exists": bool(extracted_image),
             "title": title,
             "product_title": title,
+            "fallback_title_guess": _slug_title(resolved_url or cleaned) if cleaned else "",
             "description": description,
             "product_description": description,
             "image": image,
@@ -256,8 +268,9 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
             "extraction_source": meta.get("sources", {}),
             "response_status": response_status,
             "missing_fields": [key for key, value in {"title": title, "description": description, "image": image, "price": price, "category": category}.items() if not value],
+            "failure_reason": failure_reason,
             "fetch_error": fetch_error,
-            "manual_fallback_message": "Could not extract product automatically. Paste product title and description manually." if fetch_error or extraction_status != "metadata_extracted" else "",
+            "manual_fallback_message": "ไม่สามารถดึงข้อมูลจากลิงก์นี้ได้ กรุณาวางชื่อสินค้า/รายละเอียดสินค้าเอง" if not extracted_success else "",
             "created_at": datetime.now().isoformat(timespec="seconds"),
         },
         "error": fetch_error,

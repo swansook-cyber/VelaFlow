@@ -1602,7 +1602,8 @@ def main():
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")
-        assert_true("Automatic extraction unavailable" in main_source and "Checking product page" in main_source and "Developer extraction details" in main_source and "Resolved URL" in main_source, "affiliate extraction warning/loading UI missing")
+        assert_true("ไม่สามารถดึงข้อมูลจากลิงก์นี้ได้ กรุณาวางชื่อสินค้า/รายละเอียดสินค้าเอง" in main_source and "Checking product page" in main_source and "Developer extraction details" in main_source and "resolved_url" in main_source, "affiliate extraction warning/loading UI missing")
+        assert_true("ลิงก์ Shopee แบบย่อบางรายการ" in main_source and "extracted_title_exists" in main_source and "failure_reason" in main_source and "Manual Product Mode is ready" in main_source, "affiliate manual fallback/debug UX missing")
         assert_true("Founding Member build" in main_source and "Creator actions" in main_source and "Hooks Ready" in main_source and "Creator ZIP Ready" in main_source, "affiliate closed beta delivery UI missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
@@ -1640,6 +1641,12 @@ def main():
 
         saved_get = product_link_analyzer.requests.get
         try:
+            def fake_get_empty(url, **kwargs):
+                return FakeResponse(url, "<html><head></head><body></body></html>")
+            product_link_analyzer.requests.get = fake_get_empty
+            empty_result = analyze_product_link("https://www.amazon.com/empty-product", fetch=True)
+            assert_true(empty_result["data"]["extracted_success"] is False and not empty_result["data"]["title"] and empty_result["data"]["manual_fallback_message"], "affiliate empty extraction false success failed")
+
             def fake_get_redirect(url, **kwargs):
                 return FakeResponse(
                     "https://shopee.co.th/final-product",
@@ -1647,13 +1654,13 @@ def main():
                 )
             product_link_analyzer.requests.get = fake_get_redirect
             redirected = analyze_product_link("https://s.shopee.co.th/short", fetch=True)
-            assert_true(redirected["data"]["original_url"].startswith("https://s.shopee") and redirected["data"]["resolved_url"].endswith("final-product") and redirected["data"]["title"] == "Redirected Shopee Bottle" and redirected["data"]["price"] == "199", "affiliate short URL redirect extraction failed")
+            assert_true(redirected["data"]["original_url"].startswith("https://s.shopee") and redirected["data"]["resolved_url"].endswith("final-product") and redirected["data"]["title"] == "Redirected Shopee Bottle" and redirected["data"]["price"] == "199" and redirected["data"]["extracted_success"] is True, "affiliate short URL redirect extraction failed")
 
             def fake_get_title(url, **kwargs):
                 return FakeResponse(url, "<html><head><title>Plain Title Product</title></head><body>sample</body></html>")
             product_link_analyzer.requests.get = fake_get_title
             title_fallback = analyze_product_link("https://www.amazon.com/plain-title", fetch=True)
-            assert_true(title_fallback["data"]["title"] == "Plain Title Product" and title_fallback["data"]["extraction_status"] == "partial_metadata", "affiliate HTML title fallback failed")
+            assert_true(title_fallback["data"]["title"] == "Plain Title Product" and title_fallback["data"]["extraction_status"] == "partial_metadata" and title_fallback["data"]["extracted_success"] is True, "affiliate HTML title fallback failed")
 
             def fake_get_jsonld(url, **kwargs):
                 return FakeResponse(url, '<script type="application/ld+json">{"@type":"Product","name":"Schema Product","description":"Schema description","image":"https://img.example/schema.jpg","offers":{"price":"299"},"category":"Beauty"}</script>')
@@ -1718,6 +1725,9 @@ def main():
             "manifest/affiliate_package_manifest.json",
         ]
         assert_true(affiliate_export["ok"] and affiliate_zip.exists() and all((affiliate_dir / name).exists() for name in required_affiliate_files), "affiliate creator package structure failed")
+        manual_product = {**affiliate_product, "product_name": "Manual Smoke Product", "description": "manual description", "benefits": "simple benefit"}
+        manual_export = export_affiliate_package("Smoke Manual Affiliate", build_affiliate_clip_brief(manual_product, "TikTok Affiliate"), {})
+        assert_true(manual_export["ok"] and Path((manual_export.get("data") or {}).get("zip_path", "")).exists(), "manual affiliate package export failed")
         with zipfile.ZipFile(affiliate_zip) as archive:
             assert_true(all(name in archive.namelist() for name in required_affiliate_files), "affiliate ZIP contents failed")
         affiliate_manifest = json.loads((affiliate_dir / "manifest/affiliate_package_manifest.json").read_text(encoding="utf-8"))

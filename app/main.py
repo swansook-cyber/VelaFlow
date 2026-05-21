@@ -1177,6 +1177,7 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
                     state["product_name"] = link_data.get("title") or state.get("product_name", "")
                     state["product_type"] = link_data.get("category") or state.get("product_type", "")
                     state["manual_description"] = link_data.get("description") or state.get("manual_description", "")
+                    state["manual_attention"] = not bool(link_data.get("extracted_success"))
                     state["price"] = link_data.get("price") or link_data.get("pricing") or state.get("price", "")
                     state["rating"] = link_data.get("rating") or state.get("rating", "")
                     beta["activity_count"] = int(beta.get("activity_count", 0)) + 1
@@ -1188,22 +1189,32 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
             st.caption(f"Detected: {link_analysis.get('platform', 'unknown')} • {link_analysis.get('extraction_status', 'manual fallback')}")
             extracted = [label for label, key in [("Title", "title"), ("Description", "description"), ("Image", "image"), ("Price", "price"), ("Category", "category")] if link_analysis.get(key)]
             missing = [label for label, key in [("Title", "title"), ("Description", "description"), ("Image", "image"), ("Price", "price"), ("Category", "category")] if not link_analysis.get(key)]
-            if extracted:
+            if link_analysis.get("extracted_success") and extracted:
                 st.success("Extracted: " + ", ".join(extracted))
             if missing:
                 st.caption("Missing: " + ", ".join(missing))
             if link_analysis.get("manual_fallback_message"):
-                st.warning("Automatic extraction unavailable. Please enter product details manually.")
+                st.warning("ไม่สามารถดึงข้อมูลจากลิงก์นี้ได้ กรุณาวางชื่อสินค้า/รายละเอียดสินค้าเอง")
+            original_url = str(link_analysis.get("original_url") or link_analysis.get("url") or "")
+            if "s.shopee.co.th" in original_url:
+                st.info("ลิงก์ Shopee แบบย่อบางรายการอาจไม่เปิดข้อมูลสินค้าโดยตรง ให้เปิดสินค้าในแอป Shopee แล้วคัดลอกชื่อสินค้า/รายละเอียดมาวางแทน")
             if st.session_state.get("developer_mode"):
                 with st.expander("Developer extraction details", expanded=False):
-                    st.write(f"Resolved URL: {link_analysis.get('resolved_url', '')}")
-                    st.write(f"Extraction source: {link_analysis.get('extraction_source', {})}")
-                    st.write(f"Detected platform: {link_analysis.get('platform', 'unknown')}")
+                    st.write(f"original_url: {link_analysis.get('original_url', '')}")
+                    st.write(f"resolved_url: {link_analysis.get('resolved_url', '')}")
+                    st.write(f"platform: {link_analysis.get('platform', 'unknown')}")
+                    st.write(f"extraction_source: {link_analysis.get('extraction_source', {})}")
+                    st.write(f"extracted_title_exists: {link_analysis.get('extracted_title_exists', False)}")
+                    st.write(f"extracted_description_exists: {link_analysis.get('extracted_description_exists', False)}")
+                    st.write(f"extracted_image_exists: {link_analysis.get('extracted_image_exists', False)}")
+                    st.write(f"failure_reason: {link_analysis.get('failure_reason', '')}")
                     st.write(f"Status: {link_analysis.get('extraction_status', '')}")
                     if link_analysis.get("fetch_error"):
                         st.write(f"Error: {link_analysis.get('fetch_error')}")
 
         with st.container(border=True):
+            if state.get("manual_attention"):
+                st.info("Manual Product Mode is ready. Fill these fields to continue.")
             mode = st.selectbox("Affiliate Mode", AFFILIATE_MODES, index=AFFILIATE_MODES.index(state.get("mode", AFFILIATE_MODES[0])) if state.get("mode") in AFFILIATE_MODES else 0, key="affiliate_mode")
             product_name = st.text_input("Product Title", value=state.get("product_name", ""), key="affiliate_product_name")
             product_type = st.text_input("Product Category", value=state.get("product_type", ""), key="affiliate_product_type")
