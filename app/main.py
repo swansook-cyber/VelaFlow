@@ -200,6 +200,15 @@ from core.scene_scoring import score_project_scenes, smart_tiktok_recommendation
 from core.scene_story_engine import build_subtitle_timing
 from core.subtitle_engine import list_viral_subtitle_presets
 from core.thumbnail_selector import score_affiliate_thumbnail_candidates
+from core.trend_finder import (
+    TREND_AUDIENCES,
+    TREND_CATEGORIES,
+    TREND_CONTENT_STYLES,
+    TREND_PLATFORMS,
+    TREND_PRICE_RANGES,
+    export_trend_package,
+    find_affiliate_trends,
+)
 from core.seller_content import HOOK_STYLES, TONE_GUIDES, build_seller_dashboard_status, export_seller_content, generate_seller_content, seller_content_to_text
 from core.shorts_factory import generate_shorts_factory, list_shorts_variations
 from core.voiceover_engine import VOICEOVER_STYLES, build_voiceover_plan, export_voiceover_plan, generate_voiceover_audio
@@ -1145,7 +1154,7 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
     badge_cols[2].caption(f"Creator actions: {beta.get('activity_count', 0)}")
     st.markdown("#### Simple flow")
     st.write("Paste Product URL -> Analyze Product -> Generate Hooks + Scripts -> Export Creator Package")
-    tabs = st.tabs(["Product Analyzer", "Viral Hook Generator", "TikTok Script Studio", "Creator Package Export", "Trending Ideas"])
+    tabs = st.tabs(["Product Analyzer", "🔥 Affiliate Trend Finder", "Viral Hook Generator", "TikTok Script Studio", "Creator Package Export", "Trending Ideas"])
 
     with tabs[0]:
         st.markdown("### Product Analyzer")
@@ -1260,6 +1269,63 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         shot_plan = build_affiliate_shot_list(product_for_preview, hooks)
 
     with tabs[1]:
+        st.markdown("### 🔥 Affiliate Trend Finder")
+        st.write("Discover creator-friendly product ideas before you pick a product link.")
+        tf1, tf2 = st.columns(2)
+        trend_platform = tf1.selectbox("Platform", TREND_PLATFORMS, index=TREND_PLATFORMS.index(state.get("trend_platform", "TikTok Shop")) if state.get("trend_platform") in TREND_PLATFORMS else 0, key="affiliate_trend_platform")
+        trend_category = tf2.selectbox("Category", TREND_CATEGORIES, index=TREND_CATEGORIES.index(state.get("trend_category", "Beauty")) if state.get("trend_category") in TREND_CATEGORIES else 0, key="affiliate_trend_category")
+        tf3, tf4 = st.columns(2)
+        trend_style = tf3.selectbox("Content Style", TREND_CONTENT_STYLES, index=TREND_CONTENT_STYLES.index(state.get("trend_style", "Problem/Solution")) if state.get("trend_style") in TREND_CONTENT_STYLES else 4, key="affiliate_trend_style")
+        trend_audience = tf4.selectbox("Audience", TREND_AUDIENCES, index=TREND_AUDIENCES.index(state.get("trend_audience", "Office Workers")) if state.get("trend_audience") in TREND_AUDIENCES else 1, key="affiliate_trend_audience")
+        trend_price = st.selectbox("Price Range", TREND_PRICE_RANGES, index=TREND_PRICE_RANGES.index(state.get("trend_price", "Budget")) if state.get("trend_price") in TREND_PRICE_RANGES else 0, key="affiliate_trend_price")
+        b1, b2 = st.columns(2)
+        generate_trends = b1.button("Generate Trend Ideas", type="primary", use_container_width=True, key="affiliate_generate_trends")
+        regenerate_trends = b2.button("Regenerate", use_container_width=True, key="affiliate_regenerate_trends")
+        if generate_trends or regenerate_trends:
+            trend_result = find_affiliate_trends(trend_platform, trend_category, trend_style, trend_audience, trend_price, count=5)
+            state["trend_platform"] = trend_platform
+            state["trend_category"] = trend_category
+            state["trend_style"] = trend_style
+            state["trend_audience"] = trend_audience
+            state["trend_price"] = trend_price
+            state["trend_result"] = trend_result
+            beta["activity_count"] = int(beta.get("activity_count", 0)) + 1
+            project["affiliate_studio"] = state
+            _save_project()
+            st.rerun()
+
+        trend_result = state.get("trend_result") or find_affiliate_trends(trend_platform, trend_category, trend_style, trend_audience, trend_price, count=3)
+        for idea in (trend_result.get("ideas") or [])[:5]:
+            with st.container(border=True):
+                top_cols = st.columns([2.2, 1, 1])
+                top_cols[0].markdown(f"**{idea['product_name']}**")
+                top_cols[1].metric("Trend", idea["trend_score"])
+                top_cols[2].caption(f"{idea['best_platform']} • {idea['competition_level']}")
+                st.write("Why it may convert: " + " • ".join(idea["why_it_may_convert"][:2]))
+                with st.expander("Hooks, shots, and thumbnail ideas", expanded=False):
+                    st.write("Hooks")
+                    st.write("\n".join(f"- {hook}" for hook in idea["viral_hooks"]))
+                    st.write("Shot ideas")
+                    st.write("\n".join(f"- {shot}" for shot in idea["shot_ideas"]))
+                    st.write("Thumbnail")
+                    st.write("\n".join(f"- {thumb}" for thumb in idea["thumbnail_ideas"]))
+        if st.button("Export Trend Package ZIP", use_container_width=True, key="affiliate_export_trend_package"):
+            trend_export = export_trend_package(project.get("title") or "Affiliate Trends", trend_result)
+            state["trend_package"] = trend_export.get("data", {})
+            if trend_export.get("ok"):
+                beta["export_count"] = int(beta.get("export_count", 0)) + 1
+                st.success("Trend package ready.")
+            else:
+                st.warning(friendly_error_message(trend_export.get("error", "Trend export failed")))
+            project["affiliate_studio"] = state
+            _save_project()
+            st.rerun()
+        trend_package = state.get("trend_package") or {}
+        trend_zip = Path(str(trend_package.get("zip_path") or ""))
+        if trend_zip.is_file():
+            st.download_button("Download Trend Package ZIP", data=trend_zip.read_bytes(), file_name="affiliate_trend_package.zip", mime="application/zip", use_container_width=True, key="affiliate_trend_package_zip")
+
+    with tabs[2]:
         st.markdown("### Viral Hook Generator")
         for item in hooks[:8]:
             with st.container(border=True):
@@ -1270,7 +1336,7 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
                 m2.metric("CTA", item["cta_strength"])
                 m3.metric("Scroll Stop", item["scroll_stop_score"])
 
-    with tabs[2]:
+    with tabs[3]:
         st.markdown("### TikTok Script Studio")
         for label, key in [("15s Script", "tiktok_script_15s"), ("30s Script", "tiktok_script_30s"), ("POV Version", "pov_script"), ("Review Version", "review_script"), ("Emotional Sell Version", "emotional_sell_script"), ("Aesthetic Version", "aesthetic_script")]:
             with st.expander(label, expanded=label == "15s Script"):
@@ -1278,7 +1344,7 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         st.markdown("#### Shot List")
         st.text_area("Scene Breakdown", value=shot_plan["scene_breakdown"], height=220, key="affiliate_scene_breakdown_preview")
 
-    with tabs[3]:
+    with tabs[4]:
         st.markdown("### Creator Package Export")
         package = state.get("affiliate_package") or {}
         if package:
@@ -1319,7 +1385,7 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         else:
             st.info("Analyze a product and generate the creator package first.")
 
-    with tabs[4]:
+    with tabs[5]:
         st.markdown("### Trending Affiliate Ideas")
         for idea in TRENDING_AFFILIATE_IDEAS:
             with st.container(border=True):

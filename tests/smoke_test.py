@@ -83,6 +83,7 @@ from core.hook_intelligence import analyze_opening_hook
 from core.preset_engine import get_preset, list_presets, preset_to_render_settings
 from core.product_prompt_engine import build_product_scene_prompts
 from core.thumbnail_selector import score_affiliate_thumbnail_candidates
+from core.trend_finder import export_trend_package, find_affiliate_trends
 from core.podcast_content import (
     EPISODE_LENGTHS,
     NARRATION_STYLES,
@@ -1597,6 +1598,7 @@ def main():
         assert_true("Download Creator ZIP" in main_source and "Copy Thumbnail Prompt" in main_source, "premium delivery buttons missing")
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
+        assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")
@@ -1721,6 +1723,19 @@ def main():
         affiliate_manifest = json.loads((affiliate_dir / "manifest/affiliate_package_manifest.json").read_text(encoding="utf-8"))
         assert_true(affiliate_manifest["automation_policy"].startswith("No posting automation") and affiliate_manifest["package_version"] == "affiliate_mvp_1" and affiliate_manifest["export_status"] == "complete", "affiliate manifest failed")
         assert_true({item["category"] for item in TRENDING_AFFILIATE_IDEAS} >= {"Beauty", "Home", "Kitchen", "Pet", "Fashion", "Wellness", "Gadgets", "Organization"} and all("easy_to_shoot" in item and "emotional_sell" in item and "before_after_strength" in item for item in TRENDING_AFFILIATE_IDEAS), "affiliate trending ideas failed")
+        trend_result = find_affiliate_trends("TikTok Shop", "Gadget", "Problem/Solution", "Office Workers", "Budget", count=5)
+        trend_ideas = trend_result.get("ideas", [])
+        assert_true(trend_result["ok"] and len(trend_ideas) == 5 and all(0 <= item["trend_score"] <= 100 for item in trend_ideas), "affiliate trend generation failed")
+        assert_true(all(key in trend_ideas[0] for key in ["product_name", "competition_level", "why_it_may_convert", "viral_hooks", "cta_lines", "thumbnail_ideas", "shot_ideas", "creator_notes"]), "affiliate trend output structure failed")
+        empty_trend = find_affiliate_trends("", "", "", "", "", count=1)
+        assert_true(empty_trend["filters"]["platform"] == "Multi Platform" and empty_trend["ideas"], "affiliate trend empty-input fallback failed")
+        trend_export = export_trend_package("Smoke Affiliate Trends", trend_result)
+        trend_dir = Path((trend_export.get("data") or {}).get("final_dir", ""))
+        trend_zip = Path((trend_export.get("data") or {}).get("zip_path", ""))
+        required_trend_files = ["trend_report.txt", "viral_hooks.txt", "cta_lines.txt", "thumbnail_ideas.txt", "shot_ideas.txt", "creator_notes.txt", "trend_manifest.json"]
+        assert_true(trend_export["ok"] and trend_zip.exists() and all((trend_dir / name).exists() for name in required_trend_files), "affiliate trend ZIP export failed")
+        trend_manifest = json.loads((trend_dir / "trend_manifest.json").read_text(encoding="utf-8"))
+        assert_true(trend_manifest["local_first"] is True and trend_manifest["automation_policy"].startswith("No scraping automation"), "affiliate trend manifest failed")
         assert_true(len(list_shorts_variations()) == 5 and list_shorts_variations()[0]["variation_id"] == "v1_emotional", "shorts variation list failed")
         shorts_result = generate_shorts_factory(
             "Smoke Shorts Factory",
