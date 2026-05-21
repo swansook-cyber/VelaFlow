@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import json
 from datetime import datetime
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -14,11 +15,12 @@ except Exception:
 
 
 SUPPORTED_PRODUCT_DOMAINS = {
-    "shopee": ["shopee.co.th", "shopee.com", "shopee.ph", "shopee.sg"],
-    "tiktok_shop": ["shop.tiktok.com", "tiktok.com"],
+    "shopee": ["shopee.co.th", "shopee.com", "shopee.ph", "shopee.sg", "s.shopee.co.th"],
+    "tiktok_shop": ["shop.tiktok.com", "tiktok.com", "vt.tiktok.com"],
     "lazada": ["lazada.co.th", "lazada.com", "lazada.sg", "lazada.ph"],
     "amazon": ["amazon.com", "amazon.co.jp", "amazon.co.uk"],
 }
+SHORT_LINK_DOMAINS = ["s.shopee.co.th", "vt.tiktok.com", "tinyurl.com", "bit.ly", "cutt.ly", "shorturl.at", "t.co"]
 
 
 def detect_product_platform(url: str) -> str:
@@ -34,6 +36,21 @@ def _clean_text(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def _request_headers() -> dict[str, str]:
+    return {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "th-TH,th;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+
+
+def _is_short_link(url: str) -> bool:
+    host = urlparse(str(url or "").strip()).netloc.lower()
+    return any(domain in host for domain in SHORT_LINK_DOMAINS)
+
+
 def _slug_title(url: str) -> str:
     parsed = urlparse(str(url or "").strip())
     path_bits = [unquote(bit) for bit in parsed.path.split("/") if bit.strip()]
@@ -44,7 +61,46 @@ def _slug_title(url: str) -> str:
     return _clean_text(guess)[:120] or "Product from link"
 
 
+def _json_ld_values(html: str) -> dict[str, str]:
+    values = {"title": "", "description": "", "image": "", "price": "", "rating": "", "category": ""}
+    blocks = re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html or "", flags=re.IGNORECASE | re.DOTALL)
+    for block in blocks:
+        try:
+            payload = json.loads(block.strip())
+        except Exception:
+            continue
+        candidates = payload if isinstance(payload, list) else [payload]
+        for item in candidates:
+            if isinstance(item, dict) and "@graph" in item and isinstance(item["@graph"], list):
+                candidates.extend(item["@graph"])
+            if not isinstance(item, dict):
+                continue
+            item_type = item.get("@type", "")
+            if isinstance(item_type, list):
+                item_type = " ".join(str(value) for value in item_type)
+            if "Product" not in str(item_type) and not any(key in item for key in ["offers", "aggregateRating", "brand"]):
+                continue
+            values["title"] = values["title"] or _clean_text(str(item.get("name", "")))
+            values["description"] = values["description"] or _clean_text(str(item.get("description", "")))
+            image = item.get("image", "")
+            if isinstance(image, list):
+                image = image[0] if image else ""
+            values["image"] = values["image"] or _clean_text(str(image))
+            values["category"] = values["category"] or _clean_text(str(item.get("category", "")))
+            offers = item.get("offers", {})
+            if isinstance(offers, list):
+                offers = offers[0] if offers else {}
+            if isinstance(offers, dict):
+                values["price"] = values["price"] or _clean_text(str(offers.get("price") or offers.get("lowPrice") or ""))
+            rating = item.get("aggregateRating", {})
+            if isinstance(rating, dict):
+                values["rating"] = values["rating"] or _clean_text(str(rating.get("ratingValue", "")))
+    return values
+
+
 def _extract_meta(html: str) -> dict[str, Any]:
+    sources = {key: "" for key in ["title", "description", "image", "price", "rating", "category"]}
+    json_ld = _json_ld_values(html)
     if BeautifulSoup is None:
         def raw_meta(*keys: str) -> str:
             for key in keys:
@@ -59,7 +115,7 @@ def _extract_meta(html: str) -> dict[str, Any]:
             return ""
 
         title_match = re.search(r"<title[^>]*>(.*?)</title>", html or "", flags=re.IGNORECASE | re.DOTALL)
-        return {
+        extracted = {
             "title": raw_meta("og:title", "twitter:title") or (_clean_text(title_match.group(1)) if title_match else ""),
             "description": raw_meta("og:description", "description", "twitter:description"),
             "image": raw_meta("og:image", "twitter:image"),
@@ -67,6 +123,14 @@ def _extract_meta(html: str) -> dict[str, Any]:
             "rating": raw_meta("product:rating:value", "rating"),
             "category": raw_meta("product:category", "article:section"),
         }
+        for key, value in list(extracted.items()):
+            if value:
+                sources[key] = "meta_or_title"
+            elif json_ld.get(key):
+                extracted[key] = json_ld[key]
+                sources[key] = "json_ld"
+        extracted["sources"] = sources
+        return extracted
 
     soup = BeautifulSoup(html or "", "html.parser")
 
@@ -85,7 +149,7 @@ def _extract_meta(html: str) -> dict[str, Any]:
     price = meta_value("product:price:amount", "og:price:amount", "twitter:data1")
     category = meta_value("product:category", "article:section")
     rating = meta_value("product:rating:value", "rating")
-    return {
+    extracted = {
         "title": title,
         "description": description,
         "image": image,
@@ -93,6 +157,14 @@ def _extract_meta(html: str) -> dict[str, Any]:
         "rating": rating,
         "category": category,
     }
+    for key, value in list(extracted.items()):
+        if value:
+            sources[key] = "opengraph_twitter_or_title"
+        elif json_ld.get(key):
+            extracted[key] = json_ld[key]
+            sources[key] = "json_ld"
+    extracted["sources"] = sources
+    return extracted
 
 
 def _keywords(*values: str) -> list[str]:
@@ -110,16 +182,18 @@ def _keywords(*values: str) -> list[str]:
 
 def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 5.0, fetch: bool = True, retry_count: int = 1) -> dict[str, Any]:
     cleaned = str(url or "").strip()
-    platform = detect_product_platform(cleaned)
     parsed = urlparse(cleaned)
     valid_url = bool(parsed.scheme in {"http", "https"} and parsed.netloc)
+    platform = detect_product_platform(cleaned)
     extraction_status = "manual_fallback"
     fetch_error = ""
     meta: dict[str, Any] = {}
+    resolved_url = cleaned
+    response_status = 0
     if cleaned and not valid_url:
         extraction_status = "invalid_url"
         fetch_error = "Invalid URL. Paste a full product link starting with https://"
-    elif cleaned and platform == "unknown":
+    elif cleaned and platform == "unknown" and not _is_short_link(cleaned):
         extraction_status = "unsupported_domain"
         fetch_error = "Unsupported domain. Use manual product details instead."
     elif cleaned and fetch:
@@ -129,16 +203,18 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
                 response = requests.get(
                     cleaned,
                     timeout=timeout_seconds,
-                    headers={
-                        "User-Agent": "VelaFlow/1.0 creator metadata preview",
-                        "Accept": "text/html,application/xhtml+xml",
-                    },
+                    headers=_request_headers(),
                     allow_redirects=True,
                 )
+                response_status = int(getattr(response, "status_code", 0) or 0)
+                resolved_url = str(getattr(response, "url", "") or cleaned)
+                platform = detect_product_platform(resolved_url) if detect_product_platform(resolved_url) != "unknown" else platform
                 response.raise_for_status()
                 meta = _extract_meta(response.text)
-                extraction_status = "metadata_extracted" if any(meta.values()) else "metadata_empty"
-                fetch_error = "" if any(meta.values()) else "No public metadata found on this product page."
+                field_values = {key: value for key, value in meta.items() if key != "sources"}
+                found_count = sum(1 for value in field_values.values() if value)
+                extraction_status = "metadata_extracted" if found_count >= 2 else "partial_metadata" if found_count == 1 else "metadata_empty"
+                fetch_error = "" if found_count else "No public metadata found on this product page."
                 break
             except Exception as exc:
                 fetch_error = f"{type(exc).__name__}: {_clean_text(str(exc))[:180]}"
@@ -146,7 +222,7 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
                 if attempt + 1 >= attempts:
                     break
 
-    title = meta.get("title") or _slug_title(cleaned)
+    title = meta.get("title") or _slug_title(resolved_url or cleaned)
     description = meta.get("description") or _clean_text(notes)
     category = meta.get("category") or ("affiliate product" if platform != "unknown" else "manual product")
     price = meta.get("price") or ""
@@ -157,6 +233,8 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
         "message": "Product metadata checked. Manual fallback is available." if cleaned else "Paste a product URL or enter product details manually.",
         "data": {
             "url": cleaned,
+            "original_url": cleaned,
+            "resolved_url": resolved_url,
             "platform": platform,
             "valid_url": valid_url,
             "supported_domain": platform != "unknown",
@@ -175,6 +253,9 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
             "pain_points": ["ลังเลว่าคุ้มไหม", "อยากเห็นการใช้งานจริง", "อยากรู้จุดเด่นแบบสั้นๆ"],
             "cta_direction": "creator-style soft CTA",
             "extraction_status": extraction_status,
+            "extraction_source": meta.get("sources", {}),
+            "response_status": response_status,
+            "missing_fields": [key for key, value in {"title": title, "description": description, "image": image, "price": price, "category": category}.items() if not value],
             "fetch_error": fetch_error,
             "manual_fallback_message": "Could not extract product automatically. Paste product title and description manually." if fetch_error or extraction_status != "metadata_extracted" else "",
             "created_at": datetime.now().isoformat(timespec="seconds"),

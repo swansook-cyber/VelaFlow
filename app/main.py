@@ -1177,8 +1177,22 @@ def _render_affiliate_studio(project: dict[str, Any]) -> None:
         link_analysis = state.get("link_analysis") or {}
         if link_analysis:
             st.caption(f"Detected: {link_analysis.get('platform', 'unknown')} • {link_analysis.get('extraction_status', 'manual fallback')}")
+            extracted = [label for label, key in [("Title", "title"), ("Description", "description"), ("Image", "image"), ("Price", "price"), ("Category", "category")] if link_analysis.get(key)]
+            missing = [label for label, key in [("Title", "title"), ("Description", "description"), ("Image", "image"), ("Price", "price"), ("Category", "category")] if not link_analysis.get(key)]
+            if extracted:
+                st.success("Extracted: " + ", ".join(extracted))
+            if missing:
+                st.caption("Missing: " + ", ".join(missing))
             if link_analysis.get("manual_fallback_message"):
-                st.warning("Could not extract product automatically. Paste product title and description manually.")
+                st.warning("Automatic extraction unavailable. Please enter product details manually.")
+            if st.session_state.get("developer_mode"):
+                with st.expander("Developer extraction details", expanded=False):
+                    st.write(f"Resolved URL: {link_analysis.get('resolved_url', '')}")
+                    st.write(f"Extraction source: {link_analysis.get('extraction_source', {})}")
+                    st.write(f"Detected platform: {link_analysis.get('platform', 'unknown')}")
+                    st.write(f"Status: {link_analysis.get('extraction_status', '')}")
+                    if link_analysis.get("fetch_error"):
+                        st.write(f"Error: {link_analysis.get('fetch_error')}")
 
         with st.container(border=True):
             mode = st.selectbox("Affiliate Mode", AFFILIATE_MODES, index=AFFILIATE_MODES.index(state.get("mode", AFFILIATE_MODES[0])) if state.get("mode") in AFFILIATE_MODES else 0, key="affiliate_mode")

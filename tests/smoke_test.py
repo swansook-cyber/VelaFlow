@@ -231,6 +231,7 @@ from core.render_engine import run_render
 from core.scene_scoring import score_project_scenes, smart_tiktok_recommendations
 from core.seller_content import HOOK_STYLES, build_seller_dashboard_status, compress_selling_points, export_seller_content, generate_seller_content, seller_content_to_text
 from core.product_link_analyzer import analyze_product_link, detect_product_platform
+import core.product_link_analyzer as product_link_analyzer
 from core.scene_story_engine import build_scene_sequence, build_subtitle_timing
 from core.style_consistency import build_style_consistency_report
 from core.subtitle_engine import generate_subtitles
@@ -1599,7 +1600,7 @@ def main():
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")
-        assert_true("Could not extract product automatically" in main_source and "Checking product page" in main_source, "affiliate extraction warning/loading UI missing")
+        assert_true("Automatic extraction unavailable" in main_source and "Checking product page" in main_source and "Developer extraction details" in main_source and "Resolved URL" in main_source, "affiliate extraction warning/loading UI missing")
         assert_true("Founding Member build" in main_source and "Creator actions" in main_source and "Hooks Ready" in main_source and "Creator ZIP Ready" in main_source, "affiliate closed beta delivery UI missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
@@ -1625,6 +1626,46 @@ def main():
         }
         affiliate_link = analyze_product_link("https://www.amazon.com/example-product", "warm desk lamp, price 399, rating 4.8", fetch=False)
         assert_true(affiliate_link["ok"] and affiliate_link["data"]["platform"] == "amazon" and affiliate_link["data"]["keywords"], "affiliate URL parsing failed")
+        assert_true(detect_product_platform("https://s.shopee.co.th/abc") == "shopee" and detect_product_platform("https://vt.tiktok.com/abc") == "tiktok_shop", "affiliate short platform detection failed")
+        class FakeResponse:
+            def __init__(self, url, text, status_code=200):
+                self.url = url
+                self.text = text
+                self.status_code = status_code
+            def raise_for_status(self):
+                if self.status_code >= 400:
+                    raise product_link_analyzer.requests.HTTPError(f"HTTP {self.status_code}")
+
+        saved_get = product_link_analyzer.requests.get
+        try:
+            def fake_get_redirect(url, **kwargs):
+                return FakeResponse(
+                    "https://shopee.co.th/final-product",
+                    '<html><head><meta property="og:title" content="Redirected Shopee Bottle"><meta property="og:description" content="Keeps drinks cold"><meta property="og:image" content="https://img.example/bottle.jpg"><meta property="product:price:amount" content="199"></head></html>',
+                )
+            product_link_analyzer.requests.get = fake_get_redirect
+            redirected = analyze_product_link("https://s.shopee.co.th/short", fetch=True)
+            assert_true(redirected["data"]["original_url"].startswith("https://s.shopee") and redirected["data"]["resolved_url"].endswith("final-product") and redirected["data"]["title"] == "Redirected Shopee Bottle" and redirected["data"]["price"] == "199", "affiliate short URL redirect extraction failed")
+
+            def fake_get_title(url, **kwargs):
+                return FakeResponse(url, "<html><head><title>Plain Title Product</title></head><body>sample</body></html>")
+            product_link_analyzer.requests.get = fake_get_title
+            title_fallback = analyze_product_link("https://www.amazon.com/plain-title", fetch=True)
+            assert_true(title_fallback["data"]["title"] == "Plain Title Product" and title_fallback["data"]["extraction_status"] == "partial_metadata", "affiliate HTML title fallback failed")
+
+            def fake_get_jsonld(url, **kwargs):
+                return FakeResponse(url, '<script type="application/ld+json">{"@type":"Product","name":"Schema Product","description":"Schema description","image":"https://img.example/schema.jpg","offers":{"price":"299"},"category":"Beauty"}</script>')
+            product_link_analyzer.requests.get = fake_get_jsonld
+            schema_result = analyze_product_link("https://www.amazon.com/schema-product", fetch=True)
+            assert_true(schema_result["data"]["title"] == "Schema Product" and schema_result["data"]["category"] == "Beauty" and schema_result["data"]["extraction_source"]["title"] == "json_ld", "affiliate JSON-LD extraction failed")
+
+            def fake_get_timeout(url, **kwargs):
+                raise product_link_analyzer.requests.Timeout("timed out")
+            product_link_analyzer.requests.get = fake_get_timeout
+            timeout_result = analyze_product_link("https://www.amazon.com/timeout", fetch=True, timeout_seconds=0.01, retry_count=1)
+            assert_true(timeout_result["data"]["extraction_status"] == "metadata_unavailable" and timeout_result["data"]["manual_fallback_message"], "affiliate timeout fallback failed")
+        finally:
+            product_link_analyzer.requests.get = saved_get
         unsupported_link = analyze_product_link("https://example.invalid/item", "manual fallback", fetch=False)
         assert_true(unsupported_link["data"]["extraction_status"] in {"manual_fallback", "unsupported_domain"} and unsupported_link["data"]["supported_domain"] is False, "affiliate unsupported domain handling failed")
         invalid_link = analyze_product_link("not-a-url", "manual fallback", fetch=True)
