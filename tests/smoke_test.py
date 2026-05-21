@@ -13,7 +13,16 @@ sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
-from core.affiliate_engine import AFFILIATE_MODES, build_affiliate_clip_brief, export_affiliate_package, generate_affiliate_hooks
+from core.affiliate_engine import (
+    AFFILIATE_MODES,
+    TRENDING_AFFILIATE_IDEAS,
+    analyze_affiliate_product,
+    build_affiliate_clip_brief,
+    build_affiliate_scripts,
+    build_affiliate_shot_list,
+    export_affiliate_package,
+    generate_affiliate_hooks,
+)
 from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
@@ -1586,6 +1595,9 @@ def main():
         assert_true("Play Original" in main_source and "Play Mastered" in main_source and "A/B Compare" in main_source, "before/after comparison player missing")
         assert_true("Download Creator ZIP" in main_source and "Copy Thumbnail Prompt" in main_source, "premium delivery buttons missing")
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
+        assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
+        assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
+        assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')
         legacy_button_pos = main_source.find('"Quick Generate TikTok Hook"')
@@ -1608,33 +1620,55 @@ def main():
             "pain_point": "ปวดคอหลังตื่นนอน",
             "cta_style": "soft sell",
         }
+        affiliate_link = analyze_product_link("https://www.amazon.com/example-product", "warm desk lamp, price 399, rating 4.8", fetch=False)
+        assert_true(affiliate_link["ok"] and affiliate_link["data"]["platform"] == "amazon" and affiliate_link["data"]["keywords"], "affiliate URL parsing failed")
+        affiliate_manual = analyze_product_link("", "manual fallback product", fetch=False)
+        assert_true(not affiliate_manual["ok"] and affiliate_manual["data"]["platform"] == "unknown", "affiliate manual fallback state failed")
+        affiliate_analysis = analyze_affiliate_product(affiliate_product)
+        assert_true(all(0 <= int(score) <= 100 for score in affiliate_analysis["scores"].values()) and affiliate_analysis["recommended_content_style"], "affiliate product intelligence failed")
         affiliate_hooks = generate_affiliate_hooks(affiliate_product, "TikTok Affiliate")
         assert_true(AFFILIATE_MODES[0] == "TikTok Affiliate" and len(affiliate_hooks) >= 7 and {item["hook_type"] for item in affiliate_hooks} >= {"shock", "curiosity", "pain_point", "problem_solution", "emotional", "social_proof", "urgency"} and affiliate_hooks[0]["hook_strength"] > 0, "affiliate hooks failed")
+        assert_true({item["hook_type"] for item in affiliate_hooks} >= {"pov", "before_after", "tiktok_opener"}, "affiliate MVP hook categories missing")
         product_prompts = build_product_scene_prompts(affiliate_product, "TikTok Affiliate")
         assert_true(len(product_prompts["scene_prompts"]) == 3 and "vertical 9:16" in product_prompts["scene_prompts"][0]["prompt"] and "hand interaction" in product_prompts["scene_prompts"][0]["prompt"], "product prompt engine failed")
         affiliate_captions = build_affiliate_caption_package(affiliate_product, affiliate_hooks)
         assert_true(affiliate_captions["captions"] and affiliate_captions["hashtags"] and affiliate_captions["cta_variants"] and affiliate_captions["cta_optimization"].get("fomo_cta"), "affiliate captions failed")
+        affiliate_scripts = build_affiliate_scripts(affiliate_product, affiliate_hooks)
+        assert_true(all(affiliate_scripts.get(key) for key in ["tiktok_script_15s", "tiktok_script_30s", "pov_script", "review_script", "emotional_sell_script", "aesthetic_script"]), "affiliate scripts failed")
+        affiliate_shots = build_affiliate_shot_list(affiliate_product, affiliate_hooks)
+        assert_true(affiliate_shots["shot_list"] and "scene_01" not in affiliate_shots["scene_breakdown"] and "Visual:" in affiliate_shots["scene_breakdown"], "affiliate shot list failed")
         affiliate_timing = create_affiliate_retention_timing(duration=20, hook_type="urgency")
         assert_true(affiliate_timing["first_3_seconds"]["cut_at"] <= 2.2 and affiliate_timing["cta_timing"]["start"] > 0 and affiliate_timing["retention_estimate"] > 0, "affiliate retention timing failed")
         affiliate_brief = build_affiliate_clip_brief(affiliate_product, "TikTok Affiliate")
         assert_true(affiliate_brief["viral_score"]["conversion_potential"] > 0 and affiliate_brief["retention_timing"]["cta_timing"]["start"] > 0, "affiliate viral score failed")
-        affiliate_clip = quick_generate_hook_clip(
-            "Smoke Affiliate Clip",
-            affiliate_brief["prompt"],
-            source_workflow="seller",
-            duration_seconds=15,
-            image_provider="offline",
-            preset_id="affiliate_sell",
-            subtitle_preset="Affiliate CTA",
-        )
-        affiliate_data = affiliate_clip.get("data", {})
-        assert_true(affiliate_clip["ok"] and Path(affiliate_data["final_mp4"]).exists() and validate_mp4(affiliate_data["final_mp4"])["valid_mp4"], "affiliate final MP4 failed")
-        thumbnail_analysis = score_affiliate_thumbnail_candidates(affiliate_data.get("package", {}), affiliate_data.get("image_results", []))
-        affiliate_brief["thumbnail_analysis"] = thumbnail_analysis
-        assert_true(thumbnail_analysis["thumbnail_set"] and thumbnail_analysis["scroll_stop_score"] > 0 and thumbnail_analysis["mobile_visibility_score"] > 0, "affiliate thumbnail analysis failed")
-        affiliate_export = export_affiliate_package("Smoke Affiliate Clip", affiliate_brief, affiliate_data)
+        affiliate_export = export_affiliate_package("Smoke Affiliate Clip", affiliate_brief, {})
         affiliate_dir = Path((affiliate_export.get("data") or {}).get("final_dir", ""))
-        assert_true(affiliate_export["ok"] and (affiliate_dir / "final_hook_clip.mp4").exists() and (affiliate_dir / "cta_text.txt").exists() and (affiliate_dir / "cta_variants.json").exists() and (affiliate_dir / "affiliate_thumbnail_analysis.json").exists() and (affiliate_dir / "viral_score_report.json").exists() and (affiliate_dir / "affiliate_scene_prompts.json").exists(), "affiliate export package failed")
+        affiliate_zip = Path((affiliate_export.get("data") or {}).get("zip_path", ""))
+        required_affiliate_files = [
+            "analysis/product_summary.txt",
+            "analysis/viral_analysis.txt",
+            "analysis/hook_scores.json",
+            "hooks/viral_hooks.txt",
+            "hooks/emotional_hooks.txt",
+            "hooks/curiosity_hooks.txt",
+            "scripts/tiktok_script_15s.txt",
+            "scripts/tiktok_script_30s.txt",
+            "scripts/pov_script.txt",
+            "scripts/review_script.txt",
+            "creator/captions.txt",
+            "creator/hashtags.txt",
+            "creator/shot_list.json",
+            "creator/scene_breakdown.txt",
+            "creator/thumbnail_prompt.txt",
+            "creator/creator_tips.txt",
+            "manifest/affiliate_package_manifest.json",
+        ]
+        assert_true(affiliate_export["ok"] and affiliate_zip.exists() and all((affiliate_dir / name).exists() for name in required_affiliate_files), "affiliate creator package structure failed")
+        with zipfile.ZipFile(affiliate_zip) as archive:
+            assert_true(all(name in archive.namelist() for name in required_affiliate_files), "affiliate ZIP contents failed")
+        affiliate_manifest = json.loads((affiliate_dir / "manifest/affiliate_package_manifest.json").read_text(encoding="utf-8"))
+        assert_true(affiliate_manifest["automation_policy"].startswith("No posting automation") and affiliate_manifest["package_version"] == "affiliate_mvp_1", "affiliate manifest failed")
+        assert_true({item["category"] for item in TRENDING_AFFILIATE_IDEAS} >= {"Beauty", "Home gadgets", "Kitchen", "Pet products", "Fashion", "Organization", "Wellness"}, "affiliate trending ideas failed")
         assert_true(len(list_shorts_variations()) == 5 and list_shorts_variations()[0]["variation_id"] == "v1_emotional", "shorts variation list failed")
         shorts_result = generate_shorts_factory(
             "Smoke Shorts Factory",

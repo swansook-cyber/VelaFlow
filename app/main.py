@@ -42,7 +42,17 @@ from core.artist_presets import (
     set_default_artist_preset,
 )
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
-from core.affiliate_engine import AFFILIATE_MODES, build_affiliate_clip_brief, export_affiliate_package
+from core.affiliate_engine import (
+    AFFILIATE_MODES,
+    TRENDING_AFFILIATE_IDEAS,
+    analyze_affiliate_product,
+    build_affiliate_clip_brief,
+    build_affiliate_scripts,
+    build_affiliate_shot_list,
+    export_affiliate_package,
+    generate_affiliate_hooks,
+    normalize_affiliate_product,
+)
 from core.automatic_hook_clip import export_tiktok_package, quick_generate_hook_clip
 from core.character_engine import CHARACTER_TYPES, PERSONALITY_PROMPTS, STYLE_PROMPTS, random_viral_character_idea
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_provider_credentials
@@ -1123,103 +1133,134 @@ def _run_affiliate_one_click_clip(project_name: str, brief: dict[str, Any], pres
 
 
 def _render_affiliate_studio(project: dict[str, Any]) -> None:
-    _page_header("Affiliate Studio", "One-click TikTok affiliate and seller product clips.", project)
-    st.caption("Phase 2: product idea → hook intelligence → conversion scenes → MP4 → affiliate package. No scraping or auto posting.")
+    _page_header("Affiliate Studio", "Create TikTok affiliate hooks, scripts, shot lists, and export packages.", project)
+    st.caption("Paste a product link or enter product details manually. No posting bots, no login automation, no heavy scraping.")
     state = project.setdefault("affiliate_studio", {})
-    with st.container(border=True):
-        mode = st.selectbox("Mode", AFFILIATE_MODES, index=0, key="affiliate_mode")
-        product_name = st.text_input("Product Name", value=state.get("product_name", ""), key="affiliate_product_name", help="ชื่อสินค้า เช่น หมอนสุขภาพ, เซรั่ม, แก้วเก็บความเย็น")
-        product_type = st.text_input("Product Type", value=state.get("product_type", ""), key="affiliate_product_type", help="ประเภทสินค้า เช่น home item, skincare, gadget")
-        target_audience = st.text_input("Target Audience", value=state.get("target_audience", ""), key="affiliate_target_audience", help="กลุ่มคนที่น่าจะซื้อสินค้า")
-        emotional_angle = st.text_input("Emotional Angle", value=state.get("emotional_angle", "ชีวิตง่ายขึ้น"), key="affiliate_emotional_angle", help="มุมอารมณ์ เช่น ประหยัดเวลา, สบายขึ้น, มั่นใจขึ้น")
-        pain_point = st.text_input("Pain Point", value=state.get("pain_point", ""), key="affiliate_pain_point", help="ปัญหาที่สินค้าช่วยแก้")
-        cta_style = st.selectbox("CTA Style", ["soft sell", "urgent deal", "review first", "creator recommendation"], index=0, key="affiliate_cta_style")
-        generate = st.button("Generate Viral Affiliate Clip", type="primary", use_container_width=True, disabled=not bool(product_name.strip()), key="affiliate_generate_clip")
-    variation = st.session_state.pop("affiliate_variation", "")
-    if variation:
-        generate = True
-    if generate:
+    tabs = st.tabs(["Product Analyzer", "Viral Hook Generator", "TikTok Script Studio", "Creator Package Export", "Trending Ideas"])
+
+    with tabs[0]:
+        st.markdown("### Product Analyzer")
+        product_url = st.text_input("Paste Product URL", value=state.get("product_url", ""), key="affiliate_product_url", placeholder="Shopee, TikTok Shop, Lazada, or Amazon link")
+        analyze_url = st.button("Analyze Product URL", use_container_width=True, key="affiliate_analyze_product_url")
+        if analyze_url and product_url.strip():
+            link_result = analyze_product_link(product_url, state.get("manual_description", ""))
+            link_data = link_result.get("data", {}) or {}
+            state["product_url"] = product_url
+            state["link_analysis"] = link_data
+            state["product_name"] = link_data.get("title") or state.get("product_name", "")
+            state["product_type"] = link_data.get("category") or state.get("product_type", "")
+            state["manual_description"] = link_data.get("description") or state.get("manual_description", "")
+            state["price"] = link_data.get("price") or link_data.get("pricing") or state.get("price", "")
+            state["rating"] = link_data.get("rating") or state.get("rating", "")
+            _save_project()
+            st.rerun()
+
+        link_analysis = state.get("link_analysis") or {}
+        if link_analysis:
+            st.caption(f"Detected: {link_analysis.get('platform', 'unknown')} • {link_analysis.get('extraction_status', 'manual fallback')}")
+            if link_analysis.get("fetch_error"):
+                st.info("Metadata was limited, so you can finish the product details manually below.")
+
+        with st.container(border=True):
+            mode = st.selectbox("Affiliate Mode", AFFILIATE_MODES, index=AFFILIATE_MODES.index(state.get("mode", AFFILIATE_MODES[0])) if state.get("mode") in AFFILIATE_MODES else 0, key="affiliate_mode")
+            product_name = st.text_input("Product Name", value=state.get("product_name", ""), key="affiliate_product_name")
+            product_type = st.text_input("Product Type", value=state.get("product_type", ""), key="affiliate_product_type")
+            manual_description = st.text_area("Product Description", value=state.get("manual_description", ""), height=90, key="affiliate_product_description")
+            target_audience = st.text_input("Target Audience", value=state.get("target_audience", "TikTok shoppers"), key="affiliate_target_audience")
+            emotional_angle = st.text_input("Emotional Angle", value=state.get("emotional_angle", "ชีวิตง่ายขึ้น"), key="affiliate_emotional_angle")
+            pain_point = st.text_input("Pain Point", value=state.get("pain_point", ""), key="affiliate_pain_point")
+            cta_style = st.selectbox("CTA Style", ["soft sell", "urgent deal", "review first", "creator recommendation"], index=0, key="affiliate_cta_style")
+            generate = st.button("Generate Affiliate Creator Package", type="primary", use_container_width=True, disabled=not bool(product_name.strip()), key="affiliate_generate_package")
+
         product = {
             "product_name": product_name,
             "product_type": product_type,
+            "description": manual_description,
             "target_audience": target_audience,
             "emotional_angle": emotional_angle,
             "pain_point": pain_point,
             "cta_style": cta_style,
+            "url": product_url,
+            "platform": link_analysis.get("platform", "manual"),
+            "price": state.get("price", ""),
+            "rating": state.get("rating", ""),
         }
-        active_variation = variation or "default"
-        brief = build_affiliate_clip_brief(product, mode, variation=active_variation)
-        project_name = project.get("title") or product_name or "Affiliate Clip"
-        with st.status("Generating affiliate clip...", expanded=True) as status:
-            st.write("Generating hooks")
-            st.write("Creating product scenes")
-            st.write("Optimizing timing and CTA")
-            st.write("Rendering final MP4")
-            result = _run_affiliate_one_click_clip(project_name, brief, variation=active_variation)
-            if result.get("data"):
-                brief["thumbnail_analysis"] = score_affiliate_thumbnail_candidates((result.get("data") or {}).get("package", {}), (result.get("data") or {}).get("image_results", []))
-            package_result = export_affiliate_package(project_name, brief, result.get("data", {}) or {}) if result.get("data") else {"ok": False, "data": {}, "error": result.get("error", "")}
-            status.update(label="Affiliate clip ready" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message")), state="complete" if result.get("ok") else "error", expanded=False)
-        state.update(product)
-        state["mode"] = mode
-        state["variation"] = active_variation
-        state["brief"] = brief
-        state["quick_generate"] = result.get("data", {})
-        state["affiliate_package"] = package_result.get("data", {})
-        state["ok"] = bool(result.get("ok"))
-        state["safe_error_message"] = "" if result.get("ok") else friendly_error_message(result.get("error") or result.get("message"))
-        project["affiliate_studio"] = state
-        _save_project()
-        st.rerun()
+        analysis = analyze_affiliate_product(product)
+        score_cols = st.columns(3)
+        score_cols[0].metric("Viral Potential", analysis["scores"]["viral_potential"])
+        score_cols[1].metric("Hook Potential", analysis["scores"]["hook_potential"])
+        score_cols[2].metric("TikTok Fit", analysis["scores"]["tiktok_compatibility"])
+        st.caption(f"Recommended style: {analysis['recommended_content_style']}")
 
-    package = state.get("affiliate_package") or {}
-    quick_data = state.get("quick_generate") or {}
-    if package and Path(str(package.get("final_mp4") or "")).is_file():
-        st.markdown("## Affiliate Export Package")
-        _render_final_downloads("affiliate_studio", {"final_mp4": package.get("final_mp4"), "status": "completed", "duration": (quick_data.get("render") or {}).get("duration", 0)})
-        score = package.get("viral_score") or ((state.get("brief") or {}).get("viral_score") or {})
-        cols = st.columns(6)
-        cols[0].metric("Hook Power", score.get("hook_power", score.get("hook_strength", 0)))
-        cols[1].metric("CTA Power", score.get("cta_power", score.get("cta_strength", 0)))
-        cols[2].metric("Conversion", score.get("conversion_potential", 0))
-        cols[3].metric("Retention", score.get("retention_estimate", 0))
-        cols[4].metric("Replay", score.get("replay_score", score.get("replay_potential", 0)))
-        cols[5].metric("Scroll Stop", score.get("scroll_stop_score", 0))
-        thumb = package.get("thumbnail_analysis") or ((state.get("brief") or {}).get("thumbnail_analysis") or {})
-        if thumb:
-            t1, t2, t3, t4 = st.columns(4)
-            t1.metric("Thumbnail", thumb.get("thumbnail_score", 0))
-            t2.metric("Mobile", thumb.get("mobile_visibility_score", 0))
-            t3.metric("Readable", thumb.get("emotional_readability", 0))
-            t4.metric("Scroll", thumb.get("scroll_stop_score", 0))
-        r1, r2, r3, r4, r5 = st.columns(5)
-        if r1.button("Generate Stronger Hook", use_container_width=True, key="affiliate_stronger_hook"):
-            st.session_state["affiliate_variation"] = "stronger_hook"
+        if generate:
+            brief = build_affiliate_clip_brief(product, mode)
+            package_result = export_affiliate_package(project.get("title") or product_name or "Affiliate Product", brief, {})
+            state.update(normalize_affiliate_product(product))
+            state["product_url"] = product_url
+            state["manual_description"] = manual_description
+            state["mode"] = mode
+            state["brief"] = brief
+            state["affiliate_package"] = package_result.get("data", {})
+            state["ok"] = bool(package_result.get("ok"))
+            state["safe_error_message"] = "" if package_result.get("ok") else friendly_error_message(package_result.get("error") or package_result.get("message"))
+            project["affiliate_studio"] = state
+            _save_project()
             st.rerun()
-        if r2.button("Faster TikTok Pace", use_container_width=True, key="affiliate_faster_pace"):
-            st.session_state["affiliate_variation"] = "faster_tiktok"
-            st.rerun()
-        if r3.button("More Emotional Version", use_container_width=True, key="affiliate_more_emotional"):
-            st.session_state["affiliate_variation"] = "more_emotional"
-            st.rerun()
-        if r4.button("More Aggressive CTA", use_container_width=True, key="affiliate_aggressive_cta"):
-            st.session_state["affiliate_variation"] = "aggressive_cta"
-            st.rerun()
-        if r5.button("Alternative Thumbnail Set", use_container_width=True, key="affiliate_alt_thumbnail"):
-            st.session_state["affiliate_variation"] = "alternate_thumbnail"
-            st.rerun()
-        final_dir = Path(str(package.get("final_dir") or ""))
-        if final_dir.exists():
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-                for path in final_dir.iterdir():
-                    if path.is_file():
-                        archive.write(path, path.name)
-            st.download_button("Download Affiliate Package ZIP", data=zip_buffer.getvalue(), file_name="velaflow_affiliate_package.zip", mime="application/zip", use_container_width=True)
-    elif state.get("safe_error_message"):
-        st.warning(state.get("safe_error_message"))
-    else:
-        st.info("Enter a product idea and click Generate Viral Affiliate Clip.")
+
+    brief = state.get("brief") or {}
+    product_for_preview = normalize_affiliate_product(brief.get("product") or state)
+    hooks = brief.get("hooks") or generate_affiliate_hooks(product_for_preview, state.get("mode", AFFILIATE_MODES[0]))
+    scripts = brief.get("scripts") or build_affiliate_scripts(product_for_preview, hooks)
+    shot_plan = {"shot_list": brief.get("shot_list") or [], "scene_breakdown": brief.get("scene_breakdown") or ""}
+    if not shot_plan["shot_list"]:
+        shot_plan = build_affiliate_shot_list(product_for_preview, hooks)
+
+    with tabs[1]:
+        st.markdown("### Viral Hook Generator")
+        for item in hooks[:8]:
+            with st.container(border=True):
+                st.caption(item["hook_type"].replace("_", " ").title())
+                st.write(item["hook_text"])
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Hook", item["hook_strength"])
+                m2.metric("CTA", item["cta_strength"])
+                m3.metric("Scroll Stop", item["scroll_stop_score"])
+
+    with tabs[2]:
+        st.markdown("### TikTok Script Studio")
+        for label, key in [("15s Script", "tiktok_script_15s"), ("30s Script", "tiktok_script_30s"), ("POV Version", "pov_script"), ("Review Version", "review_script"), ("Emotional Sell Version", "emotional_sell_script"), ("Aesthetic Version", "aesthetic_script")]:
+            with st.expander(label, expanded=label == "15s Script"):
+                st.text_area(label, value=scripts.get(key, ""), height=140, key=f"affiliate_script_preview_{key}")
+        st.markdown("#### Shot List")
+        st.text_area("Scene Breakdown", value=shot_plan["scene_breakdown"], height=220, key="affiliate_scene_breakdown_preview")
+
+    with tabs[3]:
+        st.markdown("### Creator Package Export")
+        package = state.get("affiliate_package") or {}
+        if package:
+            st.success("Affiliate Creator Package Ready")
+            st.write("Includes product analysis, hook scores, TikTok scripts, shot list, captions, hashtags, thumbnail prompt, and creator tips.")
+            zip_path = Path(str(package.get("zip_path") or ""))
+            if zip_path.is_file():
+                st.download_button("Download Affiliate Creator Package ZIP", data=zip_path.read_bytes(), file_name="affiliate_creator_package.zip", mime="application/zip", use_container_width=True, key="affiliate_creator_package_zip")
+            final_dir = Path(str(package.get("final_dir") or ""))
+            if final_dir.exists():
+                st.caption("Package structure")
+                st.write("\n".join(sorted(str(path.relative_to(final_dir)).replace("\\", "/") for path in final_dir.rglob("*") if path.is_file())))
+        elif state.get("safe_error_message"):
+            st.warning(state.get("safe_error_message"))
+        else:
+            st.info("Analyze a product and generate the creator package first.")
+
+    with tabs[4]:
+        st.markdown("### Trending Affiliate Ideas")
+        for idea in TRENDING_AFFILIATE_IDEAS:
+            with st.container(border=True):
+                cols = st.columns([1.4, 2.4, 1, 1.4])
+                cols[0].markdown(f"**{idea['category']}**")
+                cols[1].write(idea["idea"])
+                cols[2].metric("Viral", idea["viral_potential"])
+                cols[3].caption(f"{idea['content_difficulty']} • {idea['recommended_style']}")
 
 
 def _render_shorts_factory(project: dict[str, Any]) -> None:
