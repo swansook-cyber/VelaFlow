@@ -123,6 +123,8 @@ from core.project_manager import (
     archive_project,
     create_project as create_managed_project,
     delete_project,
+    filter_visible_projects,
+    is_test_project_name,
     list_archived_projects,
     list_projects as list_managed_projects,
     load_autosave_project_state,
@@ -617,6 +619,19 @@ def main():
     managed_create = create_managed_project(managed_name)
     assert_true(managed_create["ok"] and project_exists(managed_name), "managed project create failed")
     assert_true(any(item["project_name"] == managed_name.replace(" ", "_") for item in list_managed_projects()), "managed project list failed")
+    project_filter_rows = [
+        {"project_name": "Smoke_Full_Hook_Package", "display_name": "Smoke_Full_Hook_Package", "path": "smoke", "last_modified_ts": 5},
+        {"project_name": "Test_Project", "display_name": "Test_Project", "path": "test", "last_modified_ts": 4},
+        {"project_name": "Debug_Project", "display_name": "Debug_Project", "path": "debug", "last_modified_ts": 3},
+        {"project_name": "Internal_Project", "display_name": "Internal_Project", "path": "internal", "last_modified_ts": 2},
+        {"project_name": "เพลงใหม่ของฉัน", "display_name": "เพลงใหม่ของฉัน", "path": "real", "last_modified_ts": 1},
+    ]
+    normal_visible_projects = filter_visible_projects(project_filter_rows, developer_mode=False)
+    developer_visible_projects = filter_visible_projects(project_filter_rows, developer_mode=True)
+    assert_true(all(not is_test_project_name(item["project_name"]) for item in normal_visible_projects), "normal mode project list includes smoke/test/debug projects")
+    assert_true(any(item["project_name"].startswith("Smoke_") for item in developer_visible_projects), "developer mode cannot access smoke projects")
+    assert_true(any(str(item["display_name"]).startswith("[TEST] Smoke_") for item in developer_visible_projects), "developer mode test project labels missing")
+    assert_true(normal_visible_projects and normal_visible_projects[0]["project_name"] == "เพลงใหม่ของฉัน", "default visible project should not be smoke/test")
     seller_managed_name = f"Smoke Seller Managed {project_suffix}"
     seller_managed_create = create_managed_project(seller_managed_name, workflow_type="seller")
     assert_true(seller_managed_create["ok"] and project_exists(seller_managed_name), "seller managed project create failed")
@@ -1510,6 +1525,7 @@ def main():
         assert_true("Recommended Setup" in main_source and "Best Tool" in main_source and "Suggested Hook" in main_source, "creator recommendation block missing")
         assert_true("Creator Package Ready" in main_source and "Recommended next step: use Flow or Kling" in main_source, "creator success summary missing")
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
+        assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')

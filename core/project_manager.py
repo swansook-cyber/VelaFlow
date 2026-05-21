@@ -60,6 +60,8 @@ WORKFLOW_MODE_SESSION_LABEL = {
     "MV Workflow": "Current MV Session",
 }
 
+TEST_PROJECT_PREFIXES = ("Smoke_", "Test_", "Demo_Debug_", "Debug_", "Internal_")
+
 PROTECTED_ROOTS = {
     (ROOT / "backups").resolve(),
     (ROOT / "config").resolve(),
@@ -93,6 +95,27 @@ def _write_json(path: Path, data: Any) -> None:
 
 def sanitize_project_name(name: str) -> str:
     return safe_name(name or "untitled_project")
+
+
+def is_test_project_name(name: str) -> bool:
+    normalized = safe_name(str(name or "").strip())
+    display = str(name or "").strip()
+    return any(normalized.startswith(prefix) or display.startswith(prefix) for prefix in TEST_PROJECT_PREFIXES)
+
+
+def filter_visible_projects(projects: List[Dict[str, Any]], *, developer_mode: bool = False) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for item in projects:
+        project_name = str(item.get("project_name") or item.get("display_name") or "")
+        is_test = is_test_project_name(project_name)
+        if is_test and not developer_mode:
+            continue
+        row = dict(item)
+        row["is_test_project"] = is_test
+        if developer_mode and is_test and not str(row.get("display_name", "")).startswith("[TEST] "):
+            row["display_name"] = f"[TEST] {row.get('display_name') or project_name}"
+        rows.append(row)
+    return sorted(rows, key=lambda item: (bool(item.get("is_test_project")), -float(item.get("last_modified_ts", 0) or 0), str(item.get("display_name") or item.get("project_name") or "").lower()))
 
 
 def _active_path(project_name: str) -> Path:

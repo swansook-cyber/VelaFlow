@@ -143,7 +143,9 @@ from core.project_manager import (
     archive_project,
     create_project as create_managed_project,
     delete_project,
+    filter_visible_projects,
     get_project_summary,
+    is_test_project_name,
     project_health_summary,
     list_archived_projects,
     list_projects as list_managed_projects,
@@ -3628,7 +3630,13 @@ with st.sidebar:
     st.write("Current Project")
     current_workflow_mode = st.session_state.get("workflow_mode", "Full Pipeline")
     current_session_label = session_label_for_mode(current_workflow_mode)
-    managed_projects = list_managed_projects(workflow_mode=current_workflow_mode)
+    all_managed_projects = list_managed_projects(workflow_mode=current_workflow_mode)
+    managed_projects = filter_visible_projects(all_managed_projects, developer_mode=bool(developer_mode))
+    if not developer_mode and not managed_projects and is_test_project_name(str((st.session_state.project or {}).get("title", ""))):
+        clean_name = "เพลงใหม่ของฉัน"
+        st.session_state.project = new_project(clean_name, DEFAULT_ARTIST, workflow_type_for_mode(current_workflow_mode))
+        st.session_state.current_project = ""
+        project = st.session_state.project
     selected_recent = current_session_label
     if managed_projects:
         recent_options = [current_session_label] + [item["path"] for item in managed_projects]
@@ -4656,7 +4664,7 @@ elif page == "Song Studio":
 
 elif page == "Song Library":
     _page_header("Song Library", "Browse song projects, drafts, and Suno export readiness.", project)
-    projects = list_managed_projects(workflow_mode="Song Studio Only")
+    projects = filter_visible_projects(list_managed_projects(workflow_mode="Song Studio Only"), developer_mode=bool(st.session_state.get("developer_mode")))
     rows = [
         {
             "project_name": item.get("project_name", ""),
