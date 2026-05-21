@@ -62,6 +62,7 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
+from core.remaster_engine import REMASTER_STYLES, remaster_song_audio
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_engine import apply_character_consistency, create_character_profile
 from core.beat_timing_engine import create_beat_timing_plan
@@ -151,7 +152,7 @@ from core.render_connector import (
     mark_render_queue_item,
     send_render_job,
 )
-from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, render_image_motion_scene, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, validate_mp4, write_subtitles
+from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media, render_image_motion_scene, render_placeholder_scene, render_real_hook_clip, trim_audio_clip, validate_mp4, write_subtitles
 from core.render_cache import load_render_cache
 from core.render_queue import active_render_job, complete_render_job, load_creator_render_queue, release_stale_render_jobs, start_render_job
 from core.error_recovery import build_recovery_plan, friendly_error_message, recover_partial_render
@@ -1083,6 +1084,16 @@ def main():
         assert_true(Path(detected_data.get("report_path", "")).exists(), "hook detection report missing")
         report = json.loads(Path(detected_data["report_path"]).read_text(encoding="utf-8"))
         assert_true(report.get("veo_called") is False and report.get("confidence", 0) > 0 and report.get("reason"), "hook detector report missing local/no-Veo proof")
+        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Spotify Clean", ffmpeg_path=find_ffmpeg())
+        remaster_data = remaster.get("data", {})
+        mastered_wav = Path(remaster_data.get("mastered_wav", ""))
+        mastered_probe = probe_media(mastered_wav, ffmpeg_path=find_ffmpeg()) if mastered_wav.is_file() else {}
+        remaster_report = remaster_data.get("report") or {}
+        assert_true(remaster["ok"] and mastered_wav.exists(), "Remaster Studio did not produce mastered WAV")
+        assert_true(mastered_probe.get("ok") and mastered_probe.get("has_audio") and abs(float(mastered_probe.get("duration") or 0) - 30.0) < 0.5, "mastered WAV ffprobe validation failed")
+        assert_true(remaster_report.get("no_clipping_above_0db") is True and remaster_report.get("external_api_used") is False, "remaster clipping/API validation failed")
+        assert_true(Path(remaster_data.get("mp3_preview", "")).exists(), "remaster MP3 preview missing")
+        assert_true(Path(remaster_data.get("zip_path", "")).exists(), "remaster package ZIP missing")
         package_lyrics = """[Verse]
 คืนนี้ยังเงียบเหมือนเดิม
 ฉันเดินผ่านฝนคนเดียว
@@ -1526,6 +1537,7 @@ def main():
         assert_true("Creator Package Ready" in main_source and "Recommended next step: use Flow or Kling" in main_source, "creator success summary missing")
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
+        assert_true("Remaster Studio" in main_source and "Generate Mastered WAV" in main_source and "Download Mastered WAV" in main_source, "Remaster Studio UI missing")
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("**Step 1-2: Hook Candidates**" not in main_source and "Generate Hook Candidates" not in main_source and "Regenerate Hooks" not in main_source and "Clear Hook Cache" not in main_source and "Package files:" not in main_source, "developer-style hook/package labels still visible")
         v2_button_pos = main_source.find('"Generate Real AI Video Clip"')

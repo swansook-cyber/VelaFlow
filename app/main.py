@@ -181,6 +181,7 @@ from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
+from core.remaster_engine import REMASTER_STYLES, remaster_song_audio
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -1563,6 +1564,90 @@ def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_pr
         st.audio(hook_audio)
         st.download_button("Download hook_audio.mp3", data=Path(hook_audio).read_bytes(), file_name="hook_audio.mp3", mime="audio/mpeg", key=f"{key_prefix}_download_hook_audio", use_container_width=True)
     return state
+
+
+def _render_remaster_studio(project: dict[str, Any]) -> None:
+    _page_header("Remaster Studio", "Upload a finished AI song and export a cleaner mastered WAV.", project)
+    remaster_state = project.setdefault("remaster_studio", {})
+    uploaded = st.file_uploader(
+        "Upload song WAV/MP3",
+        type=["wav", "mp3", "m4a"],
+        key="remaster_audio_upload",
+        help="Local FFmpeg processing only. No paid AI APIs are used.",
+    )
+    if uploaded:
+        upload_result = _save_uploaded_audio(project.get("title") or "remaster_project", uploaded, "song")
+        if upload_result.get("ok"):
+            remaster_state["source_audio"] = upload_result["data"]
+            project["remaster_studio"] = remaster_state
+            _save_project()
+            st.success("Original song uploaded")
+        else:
+            st.warning(upload_result.get("error") or upload_result.get("message"))
+    source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
+    style = st.selectbox("Select Remaster Style", REMASTER_STYLES, index=0, key="remaster_style")
+    if source_path and Path(source_path).is_file():
+        st.markdown("**Preview original**")
+        st.audio(source_path)
+    st.caption("Processing: WAV conversion, loudness normalization, clipping protection, light EQ, optional stereo widening, high-quality WAV export.")
+    if st.button("Generate Mastered WAV", type="primary", use_container_width=True, disabled=not bool(source_path), key="generate_mastered_wav"):
+        with st.spinner("Generating mastered WAV locally..."):
+            result = remaster_song_audio(
+                source_path,
+                project_name=project.get("title") or "remaster_project",
+                remaster_style=style,
+                ffmpeg_path=settings.ffmpeg_path,
+            )
+        remaster_state["last_result"] = result.get("data", {})
+        remaster_state["last_ok"] = bool(result.get("ok"))
+        remaster_state["last_error"] = result.get("error", "")
+        project["remaster_studio"] = remaster_state
+        _save_project()
+        if result.get("ok"):
+            st.success("Mastered WAV ready")
+        else:
+            st.error(result.get("error") or result.get("message") or "Remaster failed")
+        st.rerun()
+    result_data = remaster_state.get("last_result") or {}
+    mastered_wav = Path(str(result_data.get("mastered_wav") or ""))
+    mp3_preview = Path(str(result_data.get("mp3_preview") or ""))
+    zip_path = Path(str(result_data.get("zip_path") or ""))
+    report = result_data.get("report") or {}
+    if mastered_wav.is_file():
+        st.markdown("**Preview mastered**")
+        st.audio(str(mastered_wav))
+        c1, c2 = st.columns(2)
+        c1.metric("Duration Match", "Yes" if report.get("duration_matches_original") else "Review")
+        c2.metric("Clipping", "Protected" if report.get("no_clipping_above_0db") else "Check")
+        st.download_button(
+            "Download Mastered WAV",
+            data=mastered_wav.read_bytes(),
+            file_name="mastered_song.wav",
+            mime="audio/wav",
+            use_container_width=True,
+            key="download_mastered_wav",
+        )
+    if mp3_preview.is_file():
+        st.download_button(
+            "Download MP3 Preview",
+            data=mp3_preview.read_bytes(),
+            file_name="mastered_preview.mp3",
+            mime="audio/mpeg",
+            use_container_width=True,
+            key="download_mastered_mp3_preview",
+        )
+    if zip_path.is_file():
+        st.download_button(
+            "Download Remaster Package ZIP",
+            data=zip_path.read_bytes(),
+            file_name="remaster_package.zip",
+            mime="application/zip",
+            use_container_width=True,
+            key="download_remaster_package_zip",
+        )
+    if st.session_state.get("developer_mode") and result_data.get("report_path"):
+        with st.expander("Remaster Report", expanded=False):
+            st.json(report, expanded=False)
 
 
 def _image_provider_controls(key_prefix: str) -> tuple[str, dict[str, Any]]:
@@ -4661,6 +4746,9 @@ elif page == "Creator Wizard":
 
 elif page == "Song Studio":
     _render_song_studio(project)
+
+elif page == "Remaster Studio":
+    _render_remaster_studio(project)
 
 elif page == "Song Library":
     _page_header("Song Library", "Browse song projects, drafts, and Suno export readiness.", project)
