@@ -98,6 +98,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.prompt_director import CREATOR_EXPORT_MODES, PROMPT_STYLES
 from core.licensing import get_license_service
+from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.clip_studio_v2 import generate_clip_studio_v2
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard
@@ -3269,6 +3270,43 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         )
         if song_result.get("ok") is False and "title" not in song_result:
             st.stop()
+        raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
+        completeness = ensure_full_song_structure(raw_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset if use_preset else get_artist_preset("vela_moon"))
+        if not completeness["before"].get("ok") and active_api_key:
+            strict_idea = (
+                f"{idea_with_hook}\n\n"
+                "CRITICAL FULL SONG REQUIREMENTS:\n"
+                "- Write a complete commercial-length Thai song, not a short demo.\n"
+                "- Must include [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Pre-Chorus], [Chorus], [Bridge], [Final Chorus], [Outro].\n"
+                "- Minimum 24 lyric lines, minimum 120 total words, chorus minimum 4 lines.\n"
+                "- No empty sections and no one-line chorus.\n"
+            )
+            retry_result = _safe(
+                "Regenerate complete song",
+                generate_song_with_gemini,
+                active_api_key,
+                active_model,
+                strict_idea,
+                genre,
+                mood,
+                vocal,
+                viral,
+                artist_preset=preset if use_preset else get_artist_preset("vela_moon"),
+                music_style_override=final_style_prompt,
+                force_english_instrument_tags=force_tags,
+                provider=active_provider,
+            )
+            retry_lyrics = str(retry_result.get("normalized_song_output") or retry_result.get("complete_lyrics") or retry_result.get("original_song_output") or "")
+            retry_completeness = ensure_full_song_structure(retry_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset if use_preset else get_artist_preset("vela_moon"))
+            if retry_completeness["before"].get("score", 0) > completeness["before"].get("score", 0):
+                song_result = retry_result
+                completeness = retry_completeness
+        if completeness.get("expanded"):
+            song_result["local_expansion_applied"] = True
+        song_result["complete_lyrics"] = completeness["lyrics"]
+        song_result["normalized_song_output"] = completeness["lyrics"]
+        song_result["song_completeness"] = completeness["after"]
+        song_result["song_completeness_before_expansion"] = completeness["before"]
         song_result["hook_candidates"] = candidates
         song_result["candidate_hooks"] = candidates
         song_result["selected_hook"] = hook
@@ -3364,6 +3402,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             song["complete_lyrics"] = edited_creator_lyrics
             song["normalized_song_output"] = edited_creator_lyrics
             project["song"] = song
+            completeness_view = analyze_song_completeness(edited_creator_lyrics)
+            st.markdown("### Song Completeness Score")
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            sc1.metric("Score", completeness_view.get("score", 0))
+            sc2.metric("Lyric Lines", completeness_view.get("line_count", 0))
+            sc3.metric("Chorus Quality", completeness_view.get("chorus_quality", 0))
+            sc4.metric("Est. Duration", f"{completeness_view.get('estimated_duration_seconds', 0)}s")
+            if not completeness_view.get("ok"):
+                st.warning("Song structure is still short. Full generation should include verses, pre-chorus, chorus, bridge, final chorus, and outro.")
             _render_creator_lyrics_action_bar(project, song, edited_creator_lyrics, key_prefix="song_creator_action_bar")
         st.divider()
         best_hook = detect_best_song_hook(song)

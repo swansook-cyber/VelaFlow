@@ -32,6 +32,7 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
+from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
 from core.clip_studio_v2 import build_clip_studio_v2_shot_prompts, generate_clip_studio_v2, split_veo_shot_durations
@@ -298,6 +299,13 @@ def main():
     thai_tag_lyrics = "[Intro]\n(กีต้าร์โปร่งคลอเบาๆ คลอด้วยแพดนุ่มๆ)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(ดนตรีค่อยๆ เฟด)"
     normalized_tags = normalize_lyrics_tags(thai_tag_lyrics, vela_moon)
     tag_validation = validate_english_only_tags(normalized_tags)
+    short_song = "[Intro]\nคืนฝนพรำ\n\n[Verse 1]\nยังคิดถึงเธอ\n\n[Chorus]\nยังรักเธอ"
+    expanded_song = ensure_full_song_structure(short_song, hook_text="ยังรักเธอ", idea="เพลงเศร้าที่ลืมคนรักไม่ได้", artist_preset=vela_moon)
+    expanded_report = analyze_song_completeness(expanded_song["lyrics"])
+    assert_true(expanded_song["expanded"] and expanded_report["ok"], "lyrics expander did not repair short song")
+    for section in ["[Intro]", "[Verse 1]", "[Pre-Chorus]", "[Chorus]", "[Verse 2]", "[Bridge]", "[Final Chorus]", "[Outro]"]:
+        assert_true(section in expanded_song["lyrics"], f"expanded lyrics missing {section}")
+    assert_true(expanded_report["line_count"] >= 24 and expanded_report["chorus_line_count"] >= 4 and expanded_report["total_words"] >= 120, "expanded lyrics thresholds failed")
     project["song"]["artist_preset"] = "vela_moon"
     project["song"]["artist_preset_data"] = vela_moon
     project["song"]["complete_lyrics"] = thai_tag_lyrics
@@ -1584,6 +1592,7 @@ def main():
         assert_true('"Save"' in main_source and '"Copy"' in main_source and '"Lyrics TXT"' in main_source and '"Suno TXT"' in main_source and '"Release Package"' in main_source, "creator lyric quick action bar buttons missing")
         assert_true('"Generate Viral Hooks"' in main_source and '"Try New Hooks"' in main_source and '"Reset Hooks"' in main_source, "creator hook button labels missing")
         assert_true("Full Hook Creator Package" in main_source and "song_creator_lyrics_editor" in main_source, "creator lyrics/package sections missing")
+        assert_true("Song Completeness Score" in main_source and "Lyric Lines" in main_source and "Chorus Quality" in main_source and "Est. Duration" in main_source, "song completeness UI missing")
         assert_true("Hook Preview" in main_source and "Full Hook Lyrics Preview" in main_source and "Creator Export Mode" in main_source and "Prompt Style" in main_source, "creator hook preview/mode controls missing")
         assert_true("Quick Start" in main_source and "Example Creator Workflows" in main_source and "Generate Full Creator Package" in main_source, "closed-beta quick start/package button missing")
         assert_true("Recommended Setup" in main_source and "Best Tool" in main_source and "Suggested Hook" in main_source, "creator recommendation block missing")
