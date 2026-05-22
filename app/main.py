@@ -98,7 +98,8 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.prompt_director import CREATOR_EXPORT_MODES, PROMPT_STYLES
 from core.licensing import get_license_service
-from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure
+from core.lyrics_expander import analyze_song_completeness, apply_music_direction_tags, ensure_full_song_structure
+from core.music_direction_engine import build_music_direction
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.clip_studio_v2 import generate_clip_studio_v2
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard
@@ -3271,7 +3272,17 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         if song_result.get("ok") is False and "title" not in song_result:
             st.stop()
         raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
-        completeness = ensure_full_song_structure(raw_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset if use_preset else get_artist_preset("vela_moon"))
+        active_artist_preset = preset if use_preset else get_artist_preset("vela_moon")
+        completeness = ensure_full_song_structure(
+            raw_lyrics,
+            hook_text=str(hook.get("hook_text", "")),
+            idea=idea,
+            artist_preset=active_artist_preset,
+            genre=genre,
+            mood=mood,
+            vocal=vocal,
+            style_preset=selected_music_preset,
+        )
         if not completeness["before"].get("ok") and active_api_key:
             strict_idea = (
                 f"{idea_with_hook}\n\n"
@@ -3297,7 +3308,16 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 provider=active_provider,
             )
             retry_lyrics = str(retry_result.get("normalized_song_output") or retry_result.get("complete_lyrics") or retry_result.get("original_song_output") or "")
-            retry_completeness = ensure_full_song_structure(retry_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset if use_preset else get_artist_preset("vela_moon"))
+            retry_completeness = ensure_full_song_structure(
+                retry_lyrics,
+                hook_text=str(hook.get("hook_text", "")),
+                idea=idea,
+                artist_preset=active_artist_preset,
+                genre=genre,
+                mood=mood,
+                vocal=vocal,
+                style_preset=selected_music_preset,
+            )
             if retry_completeness["before"].get("score", 0) > completeness["before"].get("score", 0):
                 song_result = retry_result
                 completeness = retry_completeness
@@ -3307,6 +3327,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["normalized_song_output"] = completeness["lyrics"]
         song_result["song_completeness"] = completeness["after"]
         song_result["song_completeness_before_expansion"] = completeness["before"]
+        song_result["music_direction"] = completeness.get("music_direction") or build_music_direction(
+            genre=genre,
+            mood=mood,
+            vocal=vocal,
+            artist_preset=active_artist_preset,
+            style_preset=selected_music_preset,
+        )
+        song_result["music_style_prompt"] = song_result["music_direction"].get("master_music_style_prompt") or final_style_prompt
+        song_result["bpm"] = song_result["music_direction"].get("bpm")
         song_result["hook_candidates"] = candidates
         song_result["candidate_hooks"] = candidates
         song_result["selected_hook"] = hook
@@ -3349,6 +3378,14 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         )
         if st.button("Use Pasted Lyrics for Hook Clip", use_container_width=True, disabled=not bool(pasted_lyrics.strip()), key="song_use_pasted_lyrics"):
             fixed = normalize_lyrics_tags(pasted_lyrics, preset)
+            pasted_music_direction = build_music_direction(
+                genre=genre,
+                mood=mood,
+                vocal=vocal,
+                artist_preset=preset,
+                style_preset=selected_music_preset,
+            )
+            fixed = apply_music_direction_tags(fixed, pasted_music_direction)
             pasted_song = normalize_song_metadata(
                 {
                     "title": title,
@@ -3361,7 +3398,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     "music_preset_data": selected_music_preset,
                     "vocal_direction": selected_vocal_direction_name,
                     "vocal_direction_data": selected_vocal_direction,
-                    "music_style_prompt": _music_style_with_preset(style_override if use_preset else preset.get("default_music_style_prompt", ""), selected_music_preset, selected_vocal_direction),
+                    "music_direction": pasted_music_direction,
+                    "music_style_prompt": pasted_music_direction.get("master_music_style_prompt"),
                     "instrument_tags_language": "English only",
                 },
                 preset,
@@ -3411,6 +3449,24 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             sc4.metric("Est. Duration", f"{completeness_view.get('estimated_duration_seconds', 0)}s")
             if not completeness_view.get("ok"):
                 st.warning("Song structure is still short. Full generation should include verses, pre-chorus, chorus, bridge, final chorus, and outro.")
+            music_direction_view = song.get("music_direction") or build_music_direction(
+                genre=str(song.get("genre") or ""),
+                mood=str(song.get("mood") or ""),
+                vocal=str(song.get("vocal") or song.get("vocal_direction") or ""),
+                artist_preset=get_artist_preset(song.get("artist_preset", "vela_moon")),
+                style_preset=song.get("music_preset_data") if isinstance(song.get("music_preset_data"), dict) else {},
+            )
+            song["music_direction"] = music_direction_view
+            st.markdown("### Music Direction Preview")
+            md1, md2, md3 = st.columns(3)
+            md1.metric("BPM", music_direction_view.get("bpm", "-"))
+            md2.metric("Genre Fusion", str(music_direction_view.get("genre_fusion", "-"))[:28])
+            md3.metric("Vocal Tone", str(music_direction_view.get("vocal_tone", "-"))[:28])
+            st.caption(f"Instrument Palette: {', '.join(music_direction_view.get('instrument_palette', []))}")
+            st.caption(f"Energy Curve: {music_direction_view.get('mood_progression', '')}")
+            with st.expander("Arrangement Map", expanded=False):
+                for row in music_direction_view.get("arrangement_map", []):
+                    st.markdown(f"**{row.get('section', '')}** {row.get('arrangement_tag', '')}")
             _render_creator_lyrics_action_bar(project, song, edited_creator_lyrics, key_prefix="song_creator_action_bar")
         st.divider()
         best_hook = detect_best_song_hook(song)

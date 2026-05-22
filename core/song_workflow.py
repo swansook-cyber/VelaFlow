@@ -10,6 +10,7 @@ from typing import Any, Dict, Iterable, List
 
 from core.artist_presets import get_artist_preset
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
+from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.project_io import safe_name
 from core.paths import resolve_project_folder, workflow_project_root
 from core.suno_export import export_suno_files
@@ -341,7 +342,18 @@ def normalize_song_metadata(song: Dict[str, Any], artist_preset: Dict[str, Any] 
     normalized["selected_hook_text"] = selected_obj.get("hook_text", "") if selected_obj else ""
     normalized.setdefault("artist_preset", preset.get("artist_id", "vela_moon"))
     normalized.setdefault("artist_preset_data", preset)
-    normalized.setdefault("music_style_prompt", preset.get("default_music_style_prompt", ""))
+    music_direction = normalized.get("music_direction") if isinstance(normalized.get("music_direction"), dict) else {}
+    if not music_direction:
+        music_direction = build_music_direction(
+            genre=str(normalized.get("genre") or ""),
+            mood=str(normalized.get("mood") or preset.get("mood") or ""),
+            vocal=str(normalized.get("vocal") or normalized.get("vocal_direction") or ""),
+            artist_preset=preset,
+            style_preset=normalized.get("music_preset_data") if isinstance(normalized.get("music_preset_data"), dict) else {},
+        )
+    normalized["music_direction"] = music_direction
+    normalized["bpm"] = normalized.get("bpm") or music_direction.get("bpm")
+    normalized["music_style_prompt"] = normalized.get("music_style_prompt") or music_direction.get("master_music_style_prompt") or preset.get("default_music_style_prompt", "")
     settings = preset.get("suno_advanced_settings") or {}
     normalized.setdefault("advanced_settings", settings)
     normalized["weirdness"] = normalized.get("weirdness") or settings.get("weirdness", "")
@@ -363,6 +375,7 @@ def save_song_state(project_name: str, song: Dict[str, Any], base_dir: str | Pat
         normalized["saved_at"] = _now()
         (folder / "song.json").write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
         (folder / "lyrics.txt").write_text(normalized.get("normalized_song_output", ""), encoding="utf-8")
+        music_direction_export = export_music_direction_files(folder / "exports", normalized.get("music_direction", {}))
         normalized["workflow_mode"] = workflow_mode
         suno_export = export_suno_files(project_name, normalized, base_dir, workflow_mode=workflow_mode)
         draft_path = ""
@@ -372,7 +385,7 @@ def save_song_state(project_name: str, song: Dict[str, Any], base_dir: str | Pat
             draft = drafts / f"song_draft_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             draft.write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
             draft_path = str(draft)
-        return {"ok": True, "message": "Lyrics saved", "data": {"song": normalized, "folder": str(folder), "draft_path": draft_path, "suno_export": suno_export.get("data", {})}, "error": ""}
+        return {"ok": True, "message": "Lyrics saved", "data": {"song": normalized, "folder": str(folder), "draft_path": draft_path, "suno_export": suno_export.get("data", {}), "music_direction_export": music_direction_export}, "error": ""}
     except Exception as exc:
         return {"ok": False, "message": "Save lyrics failed", "data": {}, "error": str(exc)}
 

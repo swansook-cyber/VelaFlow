@@ -33,6 +33,7 @@ from core.final_package import build_final_release_package, inspect_final_packag
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
 from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure
+from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
 from core.clip_studio_v2 import build_clip_studio_v2_shot_prompts, generate_clip_studio_v2, split_veo_shot_durations
@@ -306,6 +307,21 @@ def main():
     for section in ["[Intro]", "[Verse 1]", "[Pre-Chorus]", "[Chorus]", "[Verse 2]", "[Bridge]", "[Final Chorus]", "[Outro]"]:
         assert_true(section in expanded_song["lyrics"], f"expanded lyrics missing {section}")
     assert_true(expanded_report["line_count"] >= 24 and expanded_report["chorus_line_count"] >= 4 and expanded_report["total_words"] >= 120, "expanded lyrics thresholds failed")
+    music_direction = build_music_direction(
+        genre="Modern Thai pop rock",
+        mood="lonely emotional cinematic",
+        vocal="smooth emotional male vocal",
+        artist_preset=vela_moon,
+    )
+    assert_true(music_direction.get("bpm"), "music direction BPM missing")
+    assert_true(len(music_direction.get("master_music_style_prompt", "")) >= 160, "music direction style prompt too short")
+    for section in ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]:
+        assert_true(music_direction.get("section_tags", {}).get(section), f"music direction tag missing for {section}")
+    assert_true("full band energy" in music_direction["section_tags"]["Chorus"], "chorus arrangement guidance missing")
+    assert_true("full band energy" in expanded_song["lyrics"] and "ambient reverb tail" in expanded_song["lyrics"], "expanded lyrics missing rich arrangement tags")
+    direction_export = export_music_direction_files(out / "music_direction_exports", music_direction)
+    for filename in ["music_style_prompt.txt", "arrangement_map.txt", "vocal_direction.txt", "instrument_palette.txt", "energy_curve.json"]:
+        assert_true(Path(direction_export[filename]).exists(), f"music direction export missing {filename}")
     project["song"]["artist_preset"] = "vela_moon"
     project["song"]["artist_preset_data"] = vela_moon
     project["song"]["complete_lyrics"] = thai_tag_lyrics
@@ -770,6 +786,8 @@ def main():
     assert_true((song_folder / "exports" / "lyrics_only.txt").exists(), "lyrics_only.txt was not written")
     assert_true((song_folder / "exports" / "song_structure_plan.json").exists(), "song_structure_plan.json was not exported")
     assert_true((song_folder / "exports" / "song_structure_plan.md").exists(), "song_structure_plan.md was not exported")
+    for filename in ["music_style_prompt.txt", "arrangement_map.txt", "vocal_direction.txt", "instrument_palette.txt", "energy_curve.json"]:
+        assert_true((song_folder / "exports" / filename).exists(), f"music direction save export missing {filename}")
     assert_true(saved_song.get("normalized_song_output") == (song_folder / "lyrics.txt").read_text(encoding="utf-8"), "normalized song output was not used for lyrics.txt")
     full_suno_text = (song_folder / "exports" / full_pipeline_name).read_text(encoding="utf-8")
     lyrics_only_text = (song_folder / "exports" / "lyrics_only.txt").read_text(encoding="utf-8")
@@ -1593,6 +1611,7 @@ def main():
         assert_true('"Generate Viral Hooks"' in main_source and '"Try New Hooks"' in main_source and '"Reset Hooks"' in main_source, "creator hook button labels missing")
         assert_true("Full Hook Creator Package" in main_source and "song_creator_lyrics_editor" in main_source, "creator lyrics/package sections missing")
         assert_true("Song Completeness Score" in main_source and "Lyric Lines" in main_source and "Chorus Quality" in main_source and "Est. Duration" in main_source, "song completeness UI missing")
+        assert_true("Music Direction Preview" in main_source and "Instrument Palette" in main_source and "Energy Curve" in main_source and "Arrangement Map" in main_source, "music direction preview UI missing")
         assert_true("Hook Preview" in main_source and "Full Hook Lyrics Preview" in main_source and "Creator Export Mode" in main_source and "Prompt Style" in main_source, "creator hook preview/mode controls missing")
         assert_true("Quick Start" in main_source and "Example Creator Workflows" in main_source and "Generate Full Creator Package" in main_source, "closed-beta quick start/package button missing")
         assert_true("Recommended Setup" in main_source and "Best Tool" in main_source and "Suggested Hook" in main_source, "creator recommendation block missing")
