@@ -246,7 +246,7 @@ from core.song_structure_intelligence import (
     structure_plan_prompt,
     validate_structure_plan,
 )
-from core.song_title_engine import generate_song_title_from_idea, is_placeholder_song_title
+from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
 from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
@@ -3065,6 +3065,24 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         title = st.text_input("Project / Song Title", value=project.get("title", "เพลงใหม่ของฉัน"), help="ใส่ชื่อเพลงที่ต้องการ หรือเว้นว่างให้ระบบช่วยคิดชื่อเพลง")
         artist = st.text_input("Artist", value=project.get("artist", DEFAULT_ARTIST), help="ชื่อศิลปินที่จะแสดงในแพ็กเกจเพลง เช่น Vela Moon")
         idea = st.text_area("Song Idea / Story", height=160, key="song_idea", help="เล่าเรื่องเพลงสั้น ๆ เช่น เพลงเกี่ยวกับคิดถึงแฟนเก่าในคืนฝนตก")
+        current_hook_for_title = (song.get("selected_hook") or {}).get("hook_text") if isinstance(song.get("selected_hook"), dict) else song.get("selected_hook_text", "")
+        title_candidates = generate_song_title_candidates(idea=idea, hook_text=str(current_hook_for_title or ""), lyrics=str(song.get("normalized_song_output") or song.get("complete_lyrics") or ""))
+        if title_candidates and is_placeholder_song_title(title):
+            suggested_title = st.session_state.get("suggested_song_title") or title_candidates[0]["title"]
+            st.caption(f"Suggested Song Title: {suggested_title}")
+            tc1, tc2 = st.columns(2)
+            if tc1.button("Accept Title", key="song_accept_suggested_title", use_container_width=True):
+                project["title"] = suggested_title
+                project.setdefault("song", {})["title"] = suggested_title
+                project["song"]["generated_title"] = suggested_title
+                st.session_state.suggested_song_title = suggested_title
+                _save_project()
+                st.rerun()
+            if tc2.button("Regenerate Title", key="song_regenerate_suggested_title", use_container_width=True):
+                index = int(st.session_state.get("suggested_song_title_index", 0)) + 1
+                st.session_state.suggested_song_title_index = index
+                st.session_state.suggested_song_title = title_candidates[index % len(title_candidates)]["title"]
+                st.rerun()
         genre_options = ["Pop Rock", "Heartbreak Ballad", "T-Pop", "Night Drive", "Isaan Indie"]
         direction_genre = creative_direction.get("music_direction", "")
         genre_index = next((idx for idx, item in enumerate(genre_options) if item.lower() in direction_genre.lower() or direction_genre.lower() in item.lower()), 0)

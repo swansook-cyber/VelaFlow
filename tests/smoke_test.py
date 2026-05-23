@@ -130,7 +130,7 @@ from core.song_structure_intelligence import (
     save_structure_plan,
     validate_structure_plan,
 )
-from core.song_title_engine import generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title
+from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import load_project, new_project, save_project, save_project_folder
@@ -455,8 +455,14 @@ def main():
     idea_return_ex = "\u0e23\u0e31\u0e01\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
     title_return_ex = "\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
     manual_title_ex = "\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e15\u0e31\u0e49\u0e07\u0e40\u0e2d\u0e07"
-    assert_true(generate_song_title_from_idea(idea_forget_ex) == title_forget_ex, "idea-only title generation failed")
+    assert_true(generate_song_title_from_idea(idea_forget_ex) in {title_forget_ex, "\u0e25\u0e37\u0e21\u0e44\u0e21\u0e48\u0e25\u0e07"}, "idea-only title generation failed")
     assert_true(generate_song_title_from_idea(idea_return_ex) == title_return_ex, "emotional title generation failed")
+    long_hook_title = generate_song_title_from_idea(hook_text="\u0e22\u0e31\u0e07\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07\u0e40\u0e18\u0e2d\u0e17\u0e38\u0e01\u0e04\u0e37\u0e19 \u0e41\u0e21\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e32\u0e07\u0e22\u0e49\u0e2d\u0e19\u0e21\u0e32")
+    assert_true(long_hook_title != "\u0e22\u0e31\u0e07\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07\u0e40\u0e18\u0e2d\u0e17\u0e38\u0e01\u0e04\u0e37\u0e19\u0e41\u0e21\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e32\u0e07\u0e22\u0e49\u0e2d\u0e19\u0e21\u0e32", "title copied full hook")
+    assert_true(len(long_hook_title.replace(" ", "")) <= 20 and title_is_valid(long_hook_title), "generated title is too long or invalid")
+    title_candidates = generate_song_title_candidates(hook_text="\u0e22\u0e31\u0e07\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07\u0e40\u0e18\u0e2d\u0e17\u0e38\u0e01\u0e04\u0e37\u0e19 \u0e41\u0e21\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e32\u0e07\u0e22\u0e49\u0e2d\u0e19\u0e21\u0e32")
+    assert_true(title_candidates and title_candidates[0]["score"] >= title_candidates[-1]["score"], "title candidates not scored")
+    assert_true(score_song_title_candidate("\u0e25\u0e37\u0e21\u0e44\u0e21\u0e48\u0e25\u0e07")["commercial_feel"] >= 70, "title commercial scoring failed")
     assert_true(resolve_song_title({"title": manual_title_ex, "idea": idea_forget_ex}) == manual_title_ex, "manual song title was overwritten")
     assert_true(is_placeholder_song_title("Demo Song") and is_placeholder_song_title("เพลงใหม่ของฉัน"), "placeholder title detection failed")
     duplicate_probe = out / "duplicate_filename_test.txt"
