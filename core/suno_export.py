@@ -11,6 +11,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags
 from core.project_io import safe_name
 from core.paths import resolve_project_folder
 from core.song_structure_intelligence import export_structure_plan_files
+from core.song_title_engine import is_placeholder_song_title, resolve_song_title
 from core.version import build_label
 
 
@@ -43,7 +44,7 @@ def _clean_hashtag(value: str) -> str:
 
 
 def _song_title(song: Dict[str, Any], project_name: str = "") -> str:
-    return str(song.get("title") or project_name or "Untitled Song")
+    return resolve_song_title({**(song or {}), "idea": song.get("idea") or song.get("song_idea") or project_name}, project_name)
 
 
 def safe_txt_filename(song_title: str | None, suffix: str) -> str:
@@ -51,6 +52,7 @@ def safe_txt_filename(song_title: str | None, suffix: str) -> str:
 
 
 def _is_placeholder_title(value: str | None) -> bool:
+    return is_placeholder_song_title(value)
     normalized = str(value or "").strip().lower()
     return normalized in {"", "untitled song", "project", "current session", "เพลงใหม่ของฉัน"}
 

@@ -4,6 +4,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from core.song_title_engine import is_placeholder_song_title
+
 
 INVALID_FILENAME_CHARS = r'\\/:*?"<>|'
 
@@ -32,7 +34,7 @@ def _normalize_type(export_type: str | None) -> str:
 
 
 def build_export_filename(song_title: str | None, artist_name: str | None, export_type: str | None, ext: str | None) -> str:
-    title = sanitize_filename(song_title)
+    title = sanitize_filename("Untitled Song" if is_placeholder_song_title(song_title) else song_title)
     artist = sanitize_filename(artist_name or "Vela_Moon")
     kind = _normalize_type(export_type)
     suffix = str(ext or "").lstrip(".") or "txt"

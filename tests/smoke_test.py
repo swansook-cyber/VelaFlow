@@ -130,6 +130,7 @@ from core.song_structure_intelligence import (
     save_structure_plan,
     validate_structure_plan,
 )
+from core.song_title_engine import generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import load_project, new_project, save_project, save_project_folder
@@ -449,6 +450,15 @@ def main():
     assert_true(sanitize_filename("My Song / demo:night?") == "My_Song_demonight", "English filename sanitization failed")
     assert_true(sanitize_filename("คิดถึง เธอ / demo:night?") == "คิดถึง_เธอ_demonight", "Thai filename sanitization failed")
     assert_true(build_export_filename("My Song", "Vela Moon", "Suno Export", "txt") == "My_Song_Vela_Moon_Suno_Export.txt", "professional export filename failed")
+    idea_forget_ex = "\u0e22\u0e31\u0e07\u0e25\u0e37\u0e21\u0e41\u0e1f\u0e19\u0e40\u0e01\u0e48\u0e32\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49"
+    title_forget_ex = "\u0e25\u0e37\u0e21\u0e40\u0e18\u0e2d\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49"
+    idea_return_ex = "\u0e23\u0e31\u0e01\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
+    title_return_ex = "\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
+    manual_title_ex = "\u0e0a\u0e37\u0e48\u0e2d\u0e17\u0e35\u0e48\u0e15\u0e31\u0e49\u0e07\u0e40\u0e2d\u0e07"
+    assert_true(generate_song_title_from_idea(idea_forget_ex) == title_forget_ex, "idea-only title generation failed")
+    assert_true(generate_song_title_from_idea(idea_return_ex) == title_return_ex, "emotional title generation failed")
+    assert_true(resolve_song_title({"title": manual_title_ex, "idea": idea_forget_ex}) == manual_title_ex, "manual song title was overwritten")
+    assert_true(is_placeholder_song_title("Demo Song") and is_placeholder_song_title("เพลงใหม่ของฉัน"), "placeholder title detection failed")
     duplicate_probe = out / "duplicate_filename_test.txt"
     duplicate_probe.write_text("x", encoding="utf-8")
     assert_true(ensure_unique_path(duplicate_probe).name.startswith("duplicate_filename_test_"), "duplicate filename timestamp handling failed")
@@ -836,6 +846,16 @@ def main():
     assert_true("Complete Lyrics with Tags" in song_only_text and "Hook Information" in song_only_text, "Song Only export missing lyrics/hook")
     assert_true("STYLE PROMPT FOR SUNO" in song_only_text and "OPTIONAL NEGATIVE STYLE" in song_only_text, "Song Only creator Suno format missing style sections")
     assert_true("CREATOR RELEASE PACKAGE" in song_only_text and "COVER ART PROMPTS" in song_only_text and "RELEASE ASSETS" in song_only_text, "Song Only creator export missing release-ready sections")
+    idea_only_song = dict(workflow_song)
+    idea_only_song["title"] = ""
+    idea_only_song["idea"] = "พอได้แล้วใจ"
+    idea_only_song["selected_hook"] = {"hook_text": "พอได้แล้วใจ", "emotional_score": 90, "catchy_score": 88, "tiktok_potential": 87}
+    idea_only_save = save_song_state("", idea_only_song, out / "idea_only_song_projects", workflow_mode="Full Pipeline")
+    idea_only_saved = idea_only_save["data"]["song"]
+    idea_only_export = Path(idea_only_save["data"]["suno_export"]["suno_full_package"])
+    assert_true(idea_only_saved["title"] == "พอได้แล้วใจ", "idea-only save did not generate song title")
+    assert_true("พอได้แล้วใจ" in idea_only_export.name and "Untitled_Song" not in idea_only_export.name and "Demo_Song" not in idea_only_export.name, "generated title did not propagate to export filename")
+    assert_true("Song title: พอได้แล้วใจ" in idea_only_export.read_text(encoding="utf-8-sig"), "generated title did not propagate to Suno TXT")
     project["song"].update(saved_song)
     project["song"]["title"] = "Smoke Song Workflow"
     project["song"]["genre"] = "Modern Pop / Pop Rock"

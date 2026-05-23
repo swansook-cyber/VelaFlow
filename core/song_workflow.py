@@ -13,6 +13,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.project_io import safe_name
 from core.paths import resolve_project_folder, workflow_project_root
+from core.song_title_engine import resolve_song_title
 from core.suno_export import export_suno_files
 from providers.provider_manager import generate_text
 
@@ -340,6 +341,10 @@ def normalize_song_metadata(song: Dict[str, Any], artist_preset: Dict[str, Any] 
         selected_obj = select_best_hook(hooks) if hooks else {}
     normalized["selected_hook"] = selected_obj
     normalized["selected_hook_text"] = selected_obj.get("hook_text", "") if selected_obj else ""
+    resolved_title = resolve_song_title(normalized)
+    normalized["title"] = resolved_title
+    normalized["song_title"] = resolved_title
+    normalized["generated_title"] = resolved_title
     normalized.setdefault("artist_preset", preset.get("artist_id", "vela_moon"))
     normalized.setdefault("artist_preset_data", preset)
     music_direction = normalized.get("music_direction") if isinstance(normalized.get("music_direction"), dict) else {}

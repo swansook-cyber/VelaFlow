@@ -246,6 +246,7 @@ from core.song_structure_intelligence import (
     structure_plan_prompt,
     validate_structure_plan,
 )
+from core.song_title_engine import generate_song_title_from_idea, is_placeholder_song_title
 from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
@@ -3246,6 +3247,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         if not hook:
             hook = select_best_hook(candidates)
             st.info(f"ยังไม่ได้เลือก hook ระบบเลือกคะแนนรวมสูงสุดให้: {hook.get('hook_text', '')}")
+        resolved_title = title.strip()
+        generated_title_used = False
+        if is_placeholder_song_title(resolved_title):
+            resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
+            generated_title_used = True
         idea_with_hook = (
             f"{_song_idea_with_vocal_direction(_music_preset_for_song_idea(_structure_for_song_idea(_direction_for_song_idea(idea, creative_direction), structure_plan, use_structure_plan), selected_music_preset), selected_vocal_direction)}\n\nSelected Hook: {hook.get('hook_text', '')}\n"
             "Use this selected hook as the main chorus or strongest memorable line. "
@@ -3340,6 +3346,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["candidate_hooks"] = candidates
         song_result["selected_hook"] = hook
         song_result["selected_hook_text"] = hook.get("hook_text", "")
+        song_result["idea"] = idea
+        song_result["title"] = resolved_title
+        song_result["song_title"] = resolved_title
+        song_result["generated_title"] = resolved_title
+        song_result["title_generated_from_idea"] = generated_title_used
         song_result["artist_preset"] = preset.get("artist_id", "vela_moon")
         song_result["artist_preset_data"] = preset
         song_result["music_preset"] = selected_music_preset_name
@@ -3352,7 +3363,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["instrument_tags_language"] = "English only"
         song_result["song_structure_plan"] = structure_plan
         song_result = normalize_song_metadata(song_result, preset)
-        project["title"] = song_result.get("title") or title
+        project["title"] = resolved_title
         project["artist"] = artist
         project["song"] = song_result
         st.session_state.generated_song = song_result
@@ -3386,9 +3397,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 style_preset=selected_music_preset,
             )
             fixed = apply_music_direction_tags(fixed, pasted_music_direction)
+            pasted_title = title.strip()
+            if is_placeholder_song_title(pasted_title):
+                pasted_title = generate_song_title_from_idea(idea=idea, hook_text=selected_hook_text, lyrics=fixed)
             pasted_song = normalize_song_metadata(
                 {
-                    "title": title,
+                    "title": pasted_title,
+                    "song_title": pasted_title,
+                    "generated_title": pasted_title,
+                    "idea": idea,
                     "artist": artist,
                     "complete_lyrics": fixed,
                     "normalized_song_output": fixed,
@@ -3413,7 +3430,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 "suggested_usage": best.get("section", "chorus"),
             }
             pasted_song["selected_hook_text"] = best.get("hook_text", "")
-            project["title"] = title
+            project["title"] = pasted_title
             project["artist"] = artist
             project["song"] = normalize_song_metadata(pasted_song, preset)
             st.session_state.generated_song = project["song"]
