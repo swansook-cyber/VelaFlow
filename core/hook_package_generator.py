@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.file_naming import build_export_filename, ensure_unique_path
 from core.hook_detector import detect_hook_section
 from core.prompt_director import build_prompt_director_package, export_prompt_director_files
 from core.project_io import safe_name
@@ -161,7 +162,7 @@ def generate_full_hook_creator_package(
     manifest_path = package_dir / "creator_package_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     files["creator_package_manifest.json"] = str(manifest_path)
-    zip_path = exports_dir / "creator_package.zip"
+    zip_path = ensure_unique_path(exports_dir / build_export_filename(song_title or project_name, artist_name or "Vela_Moon", "Creator_Package", "zip"))
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in files.values():
             file_path = Path(path)
@@ -192,7 +193,8 @@ def build_final_creator_zip(
     folder = Path(package_dir)
     original = Path(original_audio_path)
     remaster = remaster_data or {}
-    zip_path = ensure_parent_dir(output_zip_path)
+    base = Path(output_zip_path)
+    zip_path = ensure_parent_dir(ensure_unique_path(base))
     mapping = {
         "audio/original_song.mp3": original,
         "audio/hook_audio.mp3": folder / "hook_audio.mp3",

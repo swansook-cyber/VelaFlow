@@ -16,6 +16,7 @@ from core.version import identity_payload
 from core.export_policy import load_export_policy
 from core.artist_presets import get_artist_preset
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
+from core.file_naming import build_export_filename
 from core.suno_export import build_suno_full_package, export_txt_filename
 
 
@@ -157,7 +158,9 @@ def build_final_release_package(
     _write(package_dir / "song" / "lyrics.txt", normalized_lyrics, copied, "song/lyrics.txt")
     full_txt_name = export_txt_filename(song, project.get("title", "project"), "Full Pipeline")
     _write(package_dir / "exports" / full_txt_name, build_suno_full_package(song, project.get("title", "project"), workflow_mode="Full Pipeline"), copied, f"exports/{full_txt_name}")
-    _write(package_dir / "exports" / "lyrics_only.txt", normalized_lyrics, copied, "exports/lyrics_only.txt")
+    artist_name = str(song.get("artist") or song.get("artist_name") or "Vela_Moon")
+    lyrics_export_name = build_export_filename(song.get("title") or project.get("title", "project"), artist_name, "Lyrics_Only", "txt")
+    _write(package_dir / "exports" / lyrics_export_name, normalized_lyrics, copied, f"exports/{lyrics_export_name}")
     _write(package_dir / "song" / "suno_style_prompt.txt", song.get("music_style_prompt", ""), copied, "song/suno_style_prompt.txt")
     _write(package_dir / "song" / "artist_preset.json", json.dumps(song.get("artist_preset_data") or artist_preset, ensure_ascii=False, indent=2), copied, "song/artist_preset.json")
     _write(package_dir / "song" / "hook_candidates.json", json.dumps(song.get("hook_candidates") or song.get("candidate_hooks", []), ensure_ascii=False, indent=2), copied, "song/hook_candidates.json")

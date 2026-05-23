@@ -14,6 +14,7 @@ from core.project_io import safe_name
 from core.branding import PROGRAM_NAME
 from core.artist_presets import get_artist_preset
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
+from core.file_naming import build_export_filename
 from core.suno_export import build_suno_full_package, export_txt_filename
 from core.song_structure_intelligence import structure_plan_markdown
 
@@ -123,7 +124,8 @@ def export_package(base_dir: str, title: str, result: Dict[str, Any], lyrics: st
         _write(folder / "project_files" / "song.json", json.dumps(song_result, ensure_ascii=False, indent=2))
         _write(folder / "spotify" / "suno_lyrics.txt", normalized_lyrics)
         _write(folder / "exports" / export_txt_filename(song_result, title, "Full Pipeline"), build_suno_full_package(song_result, title, workflow_mode="Full Pipeline"))
-        _write(folder / "exports" / "lyrics_only.txt", normalized_lyrics)
+        artist_name = str(song_result.get("artist") or song_result.get("artist_name") or "Vela_Moon")
+        _write(folder / "exports" / build_export_filename(song_result.get("title") or title, artist_name, "Lyrics_Only", "txt"), normalized_lyrics)
         _write(folder / "spotify" / "suno_style_prompt.txt", song_result.get("music_style_prompt", ""))
         _write(folder / "spotify" / "suno_settings.json", json.dumps({
             "advanced_settings": song_result.get("advanced_settings", {}),

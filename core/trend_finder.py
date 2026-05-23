@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.file_naming import build_export_filename, ensure_unique_path
 from core.paths import workflow_project_root
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir
@@ -192,10 +193,7 @@ def export_trend_package(project_name: str, trend_result: dict[str, Any]) -> dic
             "automation_policy": "No scraping automation, no browser automation, no account automation.",
         }
         (out_dir / "trend_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        zip_path = project_dir / "exports" / "affiliate_trend_package.zip"
-        ensure_parent_dir(zip_path)
-        if zip_path.exists():
-            zip_path.unlink()
+        zip_path = ensure_parent_dir(ensure_unique_path(project_dir / "exports" / build_export_filename(project_name or "Affiliate Trends", "VelaFlow", "Affiliate_Trend_Package", "zip")))
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in out_dir.rglob("*"):
                 if path.is_file():

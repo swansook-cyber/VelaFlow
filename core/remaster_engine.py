@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.file_naming import build_export_filename, ensure_unique_path
 from core.paths import workflow_project_root
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media
@@ -71,7 +72,7 @@ def remaster_song_audio(
     mp3_path = output_dir / "mastered_preview.mp3"
     report_path = output_dir / "mastering_report.json"
     legacy_report_path = output_dir / "remaster_report.json"
-    zip_path = output_dir / "remaster_package.zip"
+    zip_path = ensure_unique_path(output_dir / build_export_filename(project_name, "Vela_Moon", "Remaster_Package", "zip"))
     converted_path = output_dir / "source_converted.wav"
     output_dir.mkdir(parents=True, exist_ok=True)
     style = remaster_style if remaster_style in STYLE_FILTERS else "Spotify Balanced"

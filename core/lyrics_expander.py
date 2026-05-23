@@ -3,13 +3,22 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from core.music_direction_engine import build_music_direction
+from core.music_direction_engine import build_music_direction, has_rich_music_direction, normalize_section_direction_layout
 
 
 REQUIRED_SECTIONS = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]
 MIN_LYRIC_LINES = 24
 MIN_CHORUS_LINES = 4
 MIN_TOTAL_WORDS = 120
+SECTION_MIN_LINES = {
+    "Verse 1": 4,
+    "Verse 2": 4,
+    "Pre-Chorus": 2,
+    "Chorus": 5,
+    "Bridge": 3,
+    "Final Chorus": 6,
+    "Outro": 2,
+}
 
 
 def _section_name(line: str) -> str:
@@ -67,6 +76,14 @@ def analyze_song_completeness(lyrics: str) -> dict[str, Any]:
     total_words = len(_words("\n".join(line for lines in sections.values() for line in lines)))
     missing = [name for name in REQUIRED_SECTIONS if not any(name.lower() == existing.lower() for existing in sections)]
     repeated_identical_lines = max(0, lyric_lines - len(unique_lines))
+    source = str(lyrics or "").lower()
+    has_bpm = "bpm" in source
+    has_vocal_direction = "vocal" in source
+    has_arrangement_tags = bool(re.search(r"\[[^\]]+\]\s*\n\s*\([^)]{20,}\)", str(lyrics or ""), flags=re.IGNORECASE))
+    has_emotional_arc = any(term in source for term in ["emotional", "cinematic", "lift", "release", "vulnerable"])
+    has_dynamic_progression = any(term in source for term in ["building", "rising", "final chorus", "energy", "wide"])
+    has_cinematic_transition = any(term in source for term in ["fade", "breakdown", "reverb tail", "cinematic"])
+    structure = validate_song_structure(lyrics)
     chorus_quality = min(100, 35 + len(chorus_lines) * 10 + min(25, len(unique_lines)))
     estimated_duration = max(30, round(lyric_lines * 4.2))
     score = 100
@@ -78,17 +95,53 @@ def analyze_song_completeness(lyrics: str) -> dict[str, Any]:
         score -= min(35, (MIN_TOTAL_WORDS - total_words) // 4)
     score -= len(missing) * 5
     score -= repeated_identical_lines * 3
+    if not has_bpm:
+        score -= 5
+    if not has_vocal_direction:
+        score -= 5
+    if not has_arrangement_tags:
+        score -= 10
+    if not has_emotional_arc:
+        score -= 5
+    if not has_dynamic_progression:
+        score -= 5
+    if not has_cinematic_transition:
+        score -= 5
+    score -= len(structure.get("underfilled_sections", [])) * 6
+    score_label = "commercial-ready" if score >= 90 else "strong" if score >= 75 else "usable" if score >= 60 else "incomplete"
     return {
         "score": max(0, min(100, score)),
+        "score_label": score_label,
         "line_count": lyric_lines,
         "chorus_line_count": len(chorus_lines),
         "total_words": total_words,
         "required_sections_present": not missing,
         "missing_sections": missing,
+        "section_structure": structure,
+        "bpm_style_exists": has_bpm,
+        "vocal_direction_exists": has_vocal_direction,
+        "arrangement_tags_exist": has_arrangement_tags,
+        "emotional_arc_exists": has_emotional_arc,
+        "dynamic_progression_exists": has_dynamic_progression,
+        "cinematic_transition_exists": has_cinematic_transition,
         "repeated_identical_lines": repeated_identical_lines,
         "chorus_quality": max(0, min(100, chorus_quality)),
         "estimated_duration_seconds": estimated_duration,
-        "ok": lyric_lines >= MIN_LYRIC_LINES and len(chorus_lines) >= MIN_CHORUS_LINES and total_words >= MIN_TOTAL_WORDS and not missing and repeated_identical_lines <= 10,
+        "ok": lyric_lines >= MIN_LYRIC_LINES and len(chorus_lines) >= MIN_CHORUS_LINES and total_words >= MIN_TOTAL_WORDS and not missing and not structure.get("underfilled_sections") and repeated_identical_lines <= 10,
+    }
+
+
+def validate_song_structure(lyrics: str) -> dict[str, Any]:
+    sections = parse_lyric_sections(lyrics)
+    underfilled = []
+    for section, minimum in SECTION_MIN_LINES.items():
+        count = len(sections.get(section, []))
+        if count < minimum:
+            underfilled.append({"section": section, "line_count": count, "minimum": minimum})
+    return {
+        "ok": not underfilled,
+        "section_line_counts": {section: len(lines) for section, lines in sections.items()},
+        "underfilled_sections": underfilled,
     }
 
 
@@ -193,12 +246,8 @@ def expand_lyrics_to_full_song(
         source = existing.get(section) or existing.get(section.upper()) or []
         merged = _dedupe([*source, *defaults.get(section, [])])
         min_lines = 1
-        if section in {"Verse 1", "Verse 2"}:
-            min_lines = 4
-        elif section in {"Pre-Chorus", "Bridge"}:
-            min_lines = 2
-        elif section in {"Chorus", "Final Chorus"}:
-            min_lines = 4
+        if section in SECTION_MIN_LINES:
+            min_lines = SECTION_MIN_LINES[section]
         final[section] = merged[: max(min_lines, len(merged))]
 
     text = _render_sections(final)
@@ -212,7 +261,7 @@ def expand_lyrics_to_full_song(
             "แม้ความรักจะจบลงตรงวันที่เราห่างไกล",
             "แต่เสียงเพลงจะพาฉันกลับมาหายใจได้อีกครั้ง",
         ])
-    return _render_sections(final)
+    return normalize_section_direction_layout(_render_sections(final), music_direction).strip()
 
 
 def _render_sections(sections: dict[str, list[str]]) -> str:
@@ -227,28 +276,7 @@ def _render_sections(sections: dict[str, list[str]]) -> str:
 
 
 def apply_music_direction_tags(lyrics: str, music_direction: dict[str, Any]) -> str:
-    tags = music_direction.get("section_tags") or {}
-    output: list[str] = []
-    pending_section = ""
-    skip_next_tag = False
-    for raw in str(lyrics or "").replace("\r\n", "\n").splitlines():
-        section = _section_name(raw)
-        stripped = raw.strip()
-        if section:
-            output.append(raw.rstrip())
-            pending_section = section
-            skip_next_tag = True
-            tag = tags.get(section)
-            if tag:
-                output.append(str(tag).strip())
-            continue
-        if skip_next_tag:
-            skip_next_tag = False
-            if stripped.startswith("(") and stripped.endswith(")"):
-                continue
-        output.append(raw.rstrip())
-        pending_section = ""
-    return "\n".join(output).strip()
+    return normalize_section_direction_layout(lyrics, music_direction).strip()
 
 
 def ensure_full_song_structure(
@@ -265,7 +293,10 @@ def ensure_full_song_structure(
     before = analyze_song_completeness(lyrics)
     music_direction = build_music_direction(genre=genre, mood=mood, vocal=vocal, artist_preset=artist_preset, style_preset=style_preset)
     if before["ok"]:
-        enriched = apply_music_direction_tags(lyrics.strip(), music_direction)
+        if has_rich_music_direction(lyrics, music_direction.get("master_music_style_prompt", "")):
+            enriched = normalize_section_direction_layout(lyrics.strip(), music_direction)
+        else:
+            enriched = apply_music_direction_tags(lyrics.strip(), music_direction)
         after = analyze_song_completeness(enriched)
         return {"lyrics": enriched, "expanded": enriched != lyrics.strip(), "before": before, "after": after, "music_direction": music_direction}
     expanded = expand_lyrics_to_full_song(

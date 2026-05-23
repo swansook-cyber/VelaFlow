@@ -32,7 +32,8 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
-from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure
+from core.file_naming import build_export_filename, ensure_unique_path, sanitize_filename
+from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
@@ -319,6 +320,11 @@ def main():
         assert_true(music_direction.get("section_tags", {}).get(section), f"music direction tag missing for {section}")
     assert_true("full band energy" in music_direction["section_tags"]["Chorus"], "chorus arrangement guidance missing")
     assert_true("full band energy" in expanded_song["lyrics"] and "ambient reverb tail" in expanded_song["lyrics"], "expanded lyrics missing rich arrangement tags")
+    malformed_direction_layout = "[Chorus]\nทำไมยังรัก\n(full band energy, layered harmony, cinematic strings, emotional singalong hook, strong emotional release)\nยังไม่ลืม\n\n[Bridge]\nเจ็บอยู่"
+    normalized_layout = ensure_full_song_structure(malformed_direction_layout, hook_text="ทำไมยังรัก", artist_preset=vela_moon)["lyrics"]
+    assert_true("[Chorus]\n(full band energy" in normalized_layout, "section direction tag was not moved under header")
+    assert_true("\nยังไม่ลืม\n(full band energy" not in normalized_layout, "mid-lyric direction tag was not removed")
+    assert_true(validate_song_structure(expanded_song["lyrics"])["ok"], "expanded song structure guard failed")
     direction_export = export_music_direction_files(out / "music_direction_exports", music_direction)
     for filename in ["music_style_prompt.txt", "arrangement_map.txt", "vocal_direction.txt", "instrument_palette.txt", "energy_curve.json"]:
         assert_true(Path(direction_export[filename]).exists(), f"music direction export missing {filename}")
@@ -440,11 +446,18 @@ def main():
     assert_true("general release" in default_music_preset["prompt_suffix"], "default music preset content failed")
     assert_true("hook within first 10 seconds" in tiktok_music_preset["arrangement"], "TikTok music preset content failed")
     assert_true("Music Preset:" in music_preset_prompt(tiktok_music_preset) and "TikTok or Shorts" in music_preset_prompt(tiktok_music_preset), "music preset prompt failed")
-    assert_true(safe_txt_filename('เดินต่อ / demo:night?', 'full_pipeline') == 'เดินต่อ_demonight_full_pipeline.txt', "safe Thai TXT filename failed")
-    assert_true(safe_txt_filename('', 'song_only') == 'velaflow_export.txt', "empty title TXT fallback failed")
+    assert_true(sanitize_filename("My Song / demo:night?") == "My_Song_demonight", "English filename sanitization failed")
+    assert_true(sanitize_filename("คิดถึง เธอ / demo:night?") == "คิดถึง_เธอ_demonight", "Thai filename sanitization failed")
+    assert_true(build_export_filename("My Song", "Vela Moon", "Suno Export", "txt") == "My_Song_Vela_Moon_Suno_Export.txt", "professional export filename failed")
+    duplicate_probe = out / "duplicate_filename_test.txt"
+    duplicate_probe.write_text("x", encoding="utf-8")
+    assert_true(ensure_unique_path(duplicate_probe).name.startswith("duplicate_filename_test_"), "duplicate filename timestamp handling failed")
+    assert_true("Demo_Song_song_only" not in safe_txt_filename("Demo Song", "song_only"), "legacy Demo Song filename leaked")
+    assert_true(safe_txt_filename('เดินต่อ / demo:night?', 'full_pipeline') == 'เดินต่อ_demonight_Vela_Moon_Suno_Export.txt', "safe Thai TXT filename failed")
+    assert_true(safe_txt_filename('', 'song_only') == 'Untitled_Song_Vela_Moon_Lyrics_Only.txt', "empty title TXT fallback failed")
     export_text_with_title = "====================\nSONG METADATA\n====================\n\nSong title: เดินต่อ\n"
     assert_true(extract_song_title_from_export_text(export_text_with_title) == "เดินต่อ", "export title parser failed")
-    assert_true(resolve_export_txt_filename({}, "", "Full Pipeline", export_text_with_title) == "เดินต่อ_full_pipeline.txt", "export filename parser fallback failed")
+    assert_true(resolve_export_txt_filename({}, "", "Full Pipeline", export_text_with_title) == "เดินต่อ_Vela_Moon_Suno_Export.txt", "export filename parser fallback failed")
     default_controls = [get_recommended_ai_controls("VelaFlow Default") for _ in range(5)]
     default_pairs = {(item["weirdness"], item["style_influence"]) for item in default_controls}
     assert_true(len(default_pairs) > 1, "recommended AI controls did not vary")
@@ -782,15 +795,17 @@ def main():
     assert_true(song_save["ok"] and len(hook_candidates) >= 3, "offline hook candidate generation failed")
     assert_true(saved_song.get("hook_candidates") and saved_song.get("selected_hook"), "selected hook was not saved")
     assert_true((song_folder / "lyrics.txt").exists(), "lyrics.txt was not written")
-    assert_true((song_folder / "exports" / full_pipeline_name).exists(), "dynamic full pipeline TXT was not written")
-    assert_true((song_folder / "exports" / "lyrics_only.txt").exists(), "lyrics_only.txt was not written")
+    full_pipeline_path = Path(song_save["data"]["suno_export"].get("suno_full_package", ""))
+    assert_true(full_pipeline_path.exists() and full_pipeline_path.name.startswith(full_pipeline_name.removesuffix(".txt")), "dynamic full pipeline TXT was not written")
+    lyrics_only_path = Path(song_save["data"]["suno_export"].get("lyrics_only", ""))
+    assert_true(lyrics_only_path.exists() and "Lyrics_Only" in lyrics_only_path.name and lyrics_only_path.suffix == ".txt", "professional lyrics TXT was not written")
     assert_true((song_folder / "exports" / "song_structure_plan.json").exists(), "song_structure_plan.json was not exported")
     assert_true((song_folder / "exports" / "song_structure_plan.md").exists(), "song_structure_plan.md was not exported")
     for filename in ["music_style_prompt.txt", "arrangement_map.txt", "vocal_direction.txt", "instrument_palette.txt", "energy_curve.json"]:
         assert_true((song_folder / "exports" / filename).exists(), f"music direction save export missing {filename}")
     assert_true(saved_song.get("normalized_song_output") == (song_folder / "lyrics.txt").read_text(encoding="utf-8"), "normalized song output was not used for lyrics.txt")
-    full_suno_text = (song_folder / "exports" / full_pipeline_name).read_text(encoding="utf-8")
-    lyrics_only_text = (song_folder / "exports" / "lyrics_only.txt").read_text(encoding="utf-8")
+    full_suno_text = full_pipeline_path.read_text(encoding="utf-8-sig")
+    lyrics_only_text = lyrics_only_path.read_text(encoding="utf-8")
     release_data = build_release_package_data(saved_song, "Smoke Song Workflow")
     assert_true("ยังคิดถึงเธอทุกคืน" in full_suno_text and "Selected Hook:" in full_suno_text and "Hook Scores:" in full_suno_text and "Song Structure Summary" in full_suno_text, "Suno full package metadata failed")
     for section in ["SONG METADATA", "LYRICS", "SEO CAPTION", "TIKTOK CAPTION", "YOUTUBE DESCRIPTION", "HASHTAGS", "SHORTS HOOKS", "COVER ART PROMPTS", "CANVAS PROMPT", "RELEASE ASSETS"]:
@@ -807,16 +822,17 @@ def main():
     assert_true("TikTok Caption" in song_save["data"]["suno_export"].get("export_sections", []), "Full Pipeline export sections missing TikTok Caption")
     debug_path = Path(song_save["data"]["suno_export"].get("debug_log", ""))
     assert_true(debug_path.exists(), "Suno export debug log missing")
-    assert_true(lyrics_only_text == saved_song.get("normalized_song_output"), "lyrics_only.txt did not use normalized output")
-    assert_true(song_save["data"]["suno_export"].get("suno_full_package", "").endswith(full_pipeline_name), "dynamic full pipeline path was not returned after save")
-    assert_true(song_save["data"]["suno_export"].get("suno_full_filename") == full_pipeline_name, "dynamic download filename missing from export data")
+    assert_true(lyrics_only_text == saved_song.get("normalized_song_output"), "lyrics TXT did not use normalized output")
+    assert_true(Path(song_save["data"]["suno_export"].get("suno_full_package", "")).name == song_save["data"]["suno_export"].get("suno_full_filename"), "dynamic full pipeline path was not returned after save")
+    assert_true(song_save["data"]["suno_export"].get("suno_full_filename", "").startswith(full_pipeline_name.removesuffix(".txt")), "dynamic download filename missing from export data")
     assert_true(validate_english_only_tags(saved_song["normalized_song_output"])["ok"], "saved song tags are not English only")
     assert_true(contains_thai(saved_song["normalized_song_output"]), "Thai lyrics were not preserved in saved song")
     assert_true((song_folder / "song_drafts").exists(), "song draft history was not created")
     song_only_save = save_song_state("Smoke Song Only Workflow", workflow_song, out / "song_only_workflow_projects", workflow_mode="Song Studio Only")
     song_only_name = export_txt_filename(song_only_save["data"]["song"], "Smoke Song Only Workflow", "Song Studio Only")
-    song_only_text = (Path(song_only_save["data"]["folder"]) / "exports" / song_only_name).read_text(encoding="utf-8")
-    assert_true(song_only_name.endswith("_song_only.txt"), "Song Only dynamic filename failed")
+    song_only_export_path = Path(song_only_save["data"]["suno_export"].get("suno_full_package", ""))
+    song_only_text = song_only_export_path.read_text(encoding="utf-8-sig")
+    assert_true(song_only_export_path.name.startswith(song_only_name.removesuffix(".txt")) and "Suno_Export" in song_only_export_path.name and "Demo_Song_song_only" not in song_only_export_path.name, "Song Only dynamic filename failed")
     assert_true("Complete Lyrics with Tags" in song_only_text and "Hook Information" in song_only_text, "Song Only export missing lyrics/hook")
     assert_true("STYLE PROMPT FOR SUNO" in song_only_text and "OPTIONAL NEGATIVE STYLE" in song_only_text, "Song Only creator Suno format missing style sections")
     assert_true("CREATOR RELEASE PACKAGE" in song_only_text and "COVER ART PROMPTS" in song_only_text and "RELEASE ASSETS" in song_only_text, "Song Only creator export missing release-ready sections")
@@ -2197,8 +2213,8 @@ def main():
     assert_true((final_folder / "mv" / "final_16x9.mp4").exists(), "final package mv missing")
     assert_true((final_folder / "clips" / "hook_clip_9x16.mp4").exists(), "final package clip missing")
     assert_true((final_folder / "marketing_package" / "youtube.txt").exists(), "final package marketing missing")
-    assert_true(any((final_folder / "exports").glob("*_full_pipeline.txt")), "final package dynamic Suno export missing")
-    assert_true((final_folder / "exports" / "lyrics_only.txt").exists(), "final package lyrics-only export missing")
+    assert_true(any((final_folder / "exports").glob("*_Suno_Export*.txt")), "final package dynamic Suno export missing")
+    assert_true(any((final_folder / "exports").glob("*_Lyrics_Only*.txt")), "final package lyrics-only export missing")
     assert_true((final_folder / "project_report.md").exists(), "final package report missing")
     assert_true((final_folder / "upload_checklist.md").exists(), "final package checklist missing")
     final_manifest = json.loads((final_folder / "final_package_manifest.json").read_text(encoding="utf-8"))
@@ -2270,8 +2286,8 @@ def main():
     assert_true((export_dir / "spotify" / "artist_preset.json").exists(), "export artist_preset.json missing")
     assert_true((export_dir / "spotify" / "hook_candidates.json").exists(), "export hook_candidates.json missing")
     assert_true((export_dir / "spotify" / "selected_hook.json").exists(), "export selected_hook.json missing")
-    assert_true(any((export_dir / "exports").glob("*_full_pipeline.txt")), "export dynamic Suno TXT missing")
-    assert_true((export_dir / "exports" / "lyrics_only.txt").exists(), "export lyrics_only.txt missing")
+    assert_true(any((export_dir / "exports").glob("*_Suno_Export*.txt")), "export dynamic Suno TXT missing")
+    assert_true(any((export_dir / "exports").glob("*_Lyrics_Only*.txt")), "export lyrics TXT missing")
     assert_true((export_dir / "spotify" / "instrument_tag_validation.json").exists(), "export instrument tag validation missing")
     exported_lyrics = (export_dir / "spotify" / "suno_lyrics.txt").read_text(encoding="utf-8")
     assert_true(validate_english_only_tags(exported_lyrics)["ok"] and "ยังคิดถึงเธอทุกคืน" in exported_lyrics, "exported Suno lyrics normalization failed")

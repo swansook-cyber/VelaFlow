@@ -6,6 +6,7 @@ from typing import Any, Dict
 import re
 
 from core.artist_presets import get_artist_preset
+from core.file_naming import build_export_filename, ensure_unique_path
 from core.instrument_tag_normalizer import normalize_lyrics_tags
 from core.project_io import safe_name
 from core.paths import resolve_project_folder
@@ -46,9 +47,7 @@ def _song_title(song: Dict[str, Any], project_name: str = "") -> str:
 
 
 def safe_txt_filename(song_title: str | None, suffix: str) -> str:
-    cleaned = re.sub(r'[\\/:*?"<>|]+', "", str(song_title or "")).strip()
-    cleaned = re.sub(r"\s+", "_", cleaned)
-    return f"{cleaned}_{suffix}.txt" if cleaned else "velaflow_export.txt"
+    return build_export_filename(song_title or "Untitled Song", "Vela_Moon", suffix, "txt")
 
 
 def _is_placeholder_title(value: str | None) -> bool:
@@ -73,7 +72,8 @@ def resolve_export_txt_filename(
     workflow_mode: str = "Full Pipeline",
     export_text: str = "",
 ) -> str:
-    suffix = "song_only" if workflow_mode == "Song Studio Only" else "full_pipeline"
+    suffix = "Suno_Export"
+    artist = _artist_name(song)
     candidates = [
         song.get("title"),
         song.get("song_title"),
@@ -83,8 +83,8 @@ def resolve_export_txt_filename(
     ]
     for candidate in candidates:
         if not _is_placeholder_title(candidate):
-            return safe_txt_filename(str(candidate), suffix)
-    return "velaflow_export.txt"
+            return build_export_filename(str(candidate), artist, suffix, "txt")
+    return build_export_filename("Untitled Song", artist, suffix, "txt")
 
 
 def export_txt_filename(song: Dict[str, Any], project_name: str = "", workflow_mode: str = "Full Pipeline") -> str:
@@ -420,9 +420,9 @@ def export_suno_files(
         folder.mkdir(parents=True, exist_ok=True)
         preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
         lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
-        lyrics_path = folder / "lyrics_only.txt"
+        lyrics_path = ensure_unique_path(folder / build_export_filename(song.get("title") or project_name, _artist_name(song), "Lyrics_Only", "txt"))
         full_text = build_suno_full_package(song, project_name, workflow_mode=workflow_mode)
-        full_path = folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text)
+        full_path = ensure_unique_path(folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text))
         full_path.write_text(full_text, encoding="utf-8")
         lyrics_path.write_text(lyrics, encoding="utf-8")
         release = build_release_package_data(song, project_name)
@@ -813,9 +813,9 @@ def export_suno_files(
         folder.mkdir(parents=True, exist_ok=True)
         preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
         lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
-        lyrics_path = folder / "lyrics_only.txt"
+        lyrics_path = ensure_unique_path(folder / build_export_filename(song.get("title") or project_name, _artist_name(song), "Lyrics_Only", "txt"))
         full_text = build_suno_full_package(song, project_name, workflow_mode=workflow_mode)
-        full_path = folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text)
+        full_path = ensure_unique_path(folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text))
         full_path.write_text(full_text, encoding="utf-8-sig")
         lyrics_path.write_text(lyrics, encoding="utf-8")
         release = build_release_package_data(song, project_name)

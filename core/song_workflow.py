@@ -373,10 +373,10 @@ def save_song_state(project_name: str, song: Dict[str, Any], base_dir: str | Pat
         folder.mkdir(parents=True, exist_ok=True)
         normalized = normalize_song_metadata(song)
         normalized["saved_at"] = _now()
+        normalized["workflow_mode"] = workflow_mode
         (folder / "song.json").write_text(json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8")
         (folder / "lyrics.txt").write_text(normalized.get("normalized_song_output", ""), encoding="utf-8")
         music_direction_export = export_music_direction_files(folder / "exports", normalized.get("music_direction", {}))
-        normalized["workflow_mode"] = workflow_mode
         suno_export = export_suno_files(project_name, normalized, base_dir, workflow_mode=workflow_mode)
         draft_path = ""
         if create_draft:

@@ -9,6 +9,7 @@ from typing import Any
 
 from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beat_timing_engine import create_affiliate_retention_timing
+from core.file_naming import build_export_filename, ensure_unique_path
 from core.paths import workflow_project_root
 from core.product_prompt_engine import build_product_scene_prompts
 from core.project_io import safe_name
@@ -305,10 +306,7 @@ def export_affiliate_package(project_name: str, brief: dict[str, Any], quick_dat
             src = Path(str(quick_data.get("final_mp4")))
             if src.is_file():
                 shutil.copy2(src, ensure_parent_dir(final_dir / "final_hook_clip.mp4"))
-        zip_path = project_dir / "exports" / "affiliate_creator_package.zip"
-        ensure_parent_dir(zip_path)
-        if zip_path.exists():
-            zip_path.unlink()
+        zip_path = ensure_parent_dir(ensure_unique_path(project_dir / "exports" / build_export_filename(product["product_name"] or project_name, "VelaFlow", "Affiliate_Package", "zip")))
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in final_dir.rglob("*"):
                 if path.is_file():

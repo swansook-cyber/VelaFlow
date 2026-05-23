@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
 SECTION_ORDER = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]
+PRESERVE_ORIGINAL_MUSIC_DIRECTION = True
 
 
 def _text(value: Any, default: str = "") -> str:
@@ -164,3 +166,78 @@ def export_music_direction_files(base_dir: str | Path, direction: dict[str, Any]
         path.write_text(content, encoding="utf-8")
         written[filename] = str(path)
     return written
+
+
+def has_rich_music_direction(text: str, style_prompt: str = "") -> bool:
+    source = f"{text or ''}\n{style_prompt or ''}".lower()
+    signals = [
+        "bpm",
+        "vocal",
+        "instrument",
+        "palette",
+        "arrangement",
+        "cinematic",
+        "full band",
+        "layered harmony",
+        "emotional",
+        "energy curve",
+        "ambient",
+        "piano",
+        "guitar",
+        "drums",
+    ]
+    return sum(1 for signal in signals if signal in source) >= 4
+
+
+def _split_tag_lines(tag: str) -> list[str]:
+    clean = str(tag or "").strip()
+    if not clean:
+        return []
+    return [clean]
+
+
+def normalize_section_direction_layout(lyrics: str, music_direction: dict[str, Any]) -> str:
+    """Place arrangement tags directly below headers and remove mid-lyric duplicate tags."""
+    generated_tags = music_direction.get("section_tags") or {}
+    existing_tags: dict[str, str] = {}
+    scan_section = ""
+    for raw in str(lyrics or "").replace("\r\n", "\n").splitlines():
+        line = raw.strip()
+        section_match = re.match(r"^\[([^\]]+)\]$", line)
+        if section_match:
+            scan_section = section_match.group(1).strip()
+            continue
+        if scan_section and line.startswith("(") and line.endswith(")") and len(line) > 12 and scan_section not in existing_tags:
+            existing_tags[scan_section] = line
+    tags = {**generated_tags, **existing_tags}
+    output: list[str] = []
+    current_section = ""
+    inserted_for_section = False
+    for raw in str(lyrics or "").replace("\r\n", "\n").splitlines():
+        line = raw.strip()
+        if not line:
+            if output and output[-1] != "":
+                output.append("")
+            continue
+        section_match = re.match(r"^\[([^\]]+)\]$", line)
+        if section_match:
+            current_section = section_match.group(1).strip()
+            inserted_for_section = False
+            if output and output[-1] != "":
+                output.append("")
+            output.append(f"[{current_section}]")
+            for tag_line in _split_tag_lines(tags.get(current_section, "")):
+                output.append(tag_line)
+            if tags.get(current_section):
+                output.append("")
+                inserted_for_section = True
+            continue
+        is_direction_tag = line.startswith("(") and line.endswith(")")
+        if is_direction_tag and current_section:
+            if not inserted_for_section:
+                output.append(line)
+                output.append("")
+                inserted_for_section = True
+            continue
+        output.append(raw.rstrip())
+    return "\n".join(output).strip() + "\n"
