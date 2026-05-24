@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from core import agent_tools
+from core.agent_brain import think
 from core.agent_memory import load_agent_memory
 from core.agent_studio import PROJECT_TYPES, generate_agent_package
 from core.agent_workflows import WORKFLOW_MODES
@@ -71,23 +72,32 @@ def run_agent_workflow(
     project_type: str | None = None,
     language: str = "Thai",
     tone: str = "Emotional",
+    provider_name: str = "Auto",
+    auto_workflow: bool | None = None,
 ) -> dict[str, Any]:
     actions: list[str] = []
     generated_files: list[str] = []
     errors: list[str] = []
-    workflow_mode = workflow_mode if workflow_mode in WORKFLOW_MODES else "Quick Generate"
+    workflow_mode = workflow_mode if workflow_mode in WORKFLOW_MODES else "Auto"
+    if auto_workflow is True:
+        workflow_mode = "Auto"
     selected_project_type = _infer_project_type(user_input, workflow_mode, project_type)
     actions.append("analyzing idea")
-    actions.append(f"selecting workflow: {workflow_mode}")
+    brain = think(user_input, workflow_mode, selected_project_type, use_memory=use_memory, provider_name=provider_name)
+    selected_workflow = brain.get("selected_workflow") or ("Quick Generate" if workflow_mode == "Auto" else workflow_mode)
+    selected_project_type = _infer_project_type(user_input, selected_workflow, project_type)
+    actions.append(f"selecting workflow: {selected_workflow}")
 
     output = generate_agent_package(
         user_input,
         selected_project_type,
         language,
         tone,
-        workflow_mode,
+        selected_workflow,
         use_memory=use_memory,
     )
+    if brain.get("creative_strategy"):
+        output["Agent Strategy"] = f"{output.get('Agent Strategy', '')}\n\nBrain Strategy:\n{brain['creative_strategy']}".strip()
     actions.append("generating package")
 
     try:
@@ -106,7 +116,7 @@ def run_agent_workflow(
         errors.append(f"Could not save package TXT: {exc}")
 
     try:
-        filename, text_payload = _workflow_export_text(output, workflow_mode)
+        filename, text_payload = _workflow_export_text(output, selected_workflow)
         workflow_file = agent_tools.export_txt(text_payload, filename)
         generated_files.append(str(workflow_file))
         actions.append(f"exported workflow file: {filename}")
@@ -139,10 +149,15 @@ def run_agent_workflow(
         "actions_performed": actions,
         "generated_files": unique_files,
         "workflow_summary": (
-            f"VelaFlow Agent ran {workflow_mode} for {selected_project_type}. "
+            f"VelaFlow Agent ran {selected_workflow} for {selected_project_type}. "
             f"Generated {len(unique_files)} file(s)."
         ),
         "memory_summary": memory_summary,
+        "brain_analysis": brain,
+        "execution_plan": brain.get("execution_plan", []),
+        "selected_workflow": selected_workflow,
+        "selected_workflow_reason": brain.get("selected_workflow_reason", ""),
+        "provider_warning": brain.get("warning", ""),
         "errors": errors,
         "success": not errors,
     }

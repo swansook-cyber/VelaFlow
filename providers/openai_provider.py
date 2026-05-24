@@ -1,48 +1,42 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
-from typing import Any
+
+from providers.base_provider import BaseTextProvider
 
 
-def generate_text(
-    prompt: str,
-    system_prompt: str | None = None,
-    temperature: float = 0.7,
-    *,
-    api_key: str = "",
-    model_name: str = "gpt-4.1-mini",
-    timeout: int = 60,
-    **_: Any,
-) -> str:
-    if not api_key:
-        raise RuntimeError("Missing OPENAI_API_KEY in .env")
+class OpenAITextProvider(BaseTextProvider):
+    name = "openai"
 
-    messages = []
-    if system_prompt:
-        messages.append({"role": "system", "content": system_prompt})
-    messages.append({"role": "user", "content": prompt})
-    payload = {
-        "model": model_name or "gpt-4.1-mini",
-        "messages": messages,
-        "temperature": temperature,
-    }
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI API error {exc.code}: {detail}") from exc
-    choice = (data.get("choices") or [{}])[0]
-    message = choice.get("message", {}) if isinstance(choice, dict) else {}
-    return str(message.get("content") or "").strip()
+    def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
+        super().__init__(api_key or os.getenv("OPENAI_API_KEY"), model or os.getenv("OPENAI_TEXT_MODEL") or "gpt-4o-mini")
+
+    def generate_text(self, prompt: str) -> str:
+        if not self.api_key:
+            self.last_error = "OPENAI_API_KEY missing"
+            return ""
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": "You are VelaFlow Agent Studio, a concise creator workflow strategist."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.7,
+        }
+        try:
+            request = urllib.request.Request(
+                "https://api.openai.com/v1/chat/completions",
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"},
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=25) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return str(text or "").strip()
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, Exception) as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            return ""

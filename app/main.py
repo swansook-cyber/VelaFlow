@@ -43,6 +43,7 @@ from core.artist_presets import (
 )
 from core.agent_memory import load_agent_memory, save_agent_memory
 from core.agent_executor import run_agent_workflow
+from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
@@ -4593,6 +4594,9 @@ elif page == "VelaFlow Agent Studio":
         c4, c5 = st.columns([2, 1])
         workflow_mode = c4.selectbox("Workflow mode", AGENT_WORKFLOW_MODES, index=AGENT_WORKFLOW_MODES.index(state.get("workflow_mode", "Quick Generate")) if state.get("workflow_mode") in AGENT_WORKFLOW_MODES else 0, key="agent_studio_workflow_mode")
         use_memory = c5.checkbox("Use Agent Memory", value=bool(state.get("use_memory", True)), key="agent_studio_use_memory")
+        c6, c7 = st.columns([2, 1])
+        ai_provider = c6.selectbox("AI Provider", AGENT_AI_PROVIDERS, index=AGENT_AI_PROVIDERS.index(state.get("ai_provider", "Auto")) if state.get("ai_provider") in AGENT_AI_PROVIDERS else 0, key="agent_studio_ai_provider")
+        auto_workflow = c7.checkbox("Auto Workflow", value=bool(state.get("auto_workflow", workflow_mode == "Auto")), key="agent_studio_auto_workflow")
         with st.expander("Agent Memory", expanded=False):
             st.caption("VelaFlow remembers recent creative direction locally on this machine.")
             st.write(
@@ -4621,6 +4625,8 @@ elif page == "VelaFlow Agent Studio":
                 project_type=project_type,
                 language=language,
                 tone=tone,
+                provider_name=ai_provider,
+                auto_workflow=auto_workflow,
             )
             st.write("exporting files")
             st.write("finalizing project")
@@ -4633,12 +4639,14 @@ elif page == "VelaFlow Agent Studio":
             "tone": tone,
             "workflow_mode": workflow_mode,
             "use_memory": use_memory,
+            "ai_provider": ai_provider,
+            "auto_workflow": auto_workflow,
             "package": package,
             "agent_result": result,
         })
         project["agent_studio"] = state
         _save_project()
-        _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type, "workflow_mode": workflow_mode})
+        _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type, "workflow_mode": workflow_mode, "ai_provider": ai_provider})
         st.rerun()
     agent_package = state.get("package") or {}
     agent_result = state.get("agent_result") or {}
@@ -4646,6 +4654,23 @@ elif page == "VelaFlow Agent Studio":
         st.success("Agent package ready.")
         if agent_result.get("workflow_summary"):
             st.info(agent_result["workflow_summary"])
+        if agent_result.get("provider_warning"):
+            st.warning(agent_result["provider_warning"])
+        if agent_result.get("brain_analysis"):
+            with st.expander("Brain Analysis", expanded=False):
+                brain_analysis = agent_result.get("brain_analysis", {})
+                st.write(
+                    {
+                        "provider": (brain_analysis.get("provider") or {}).get("provider"),
+                        "selected_workflow": agent_result.get("selected_workflow"),
+                        "selected_workflow_reason": agent_result.get("selected_workflow_reason"),
+                        "goal": brain_analysis.get("goal", {}),
+                    }
+                )
+        if agent_result.get("execution_plan"):
+            with st.expander("Execution Plan", expanded=False):
+                for step in agent_result.get("execution_plan", []):
+                    st.write(f"- {step}")
         if agent_result.get("actions_performed"):
             with st.container(border=True):
                 st.markdown("### Agent Actions")

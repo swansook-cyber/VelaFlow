@@ -4,6 +4,7 @@ from typing import Any
 
 
 WORKFLOW_MODES = [
+    "Auto",
     "Quick Generate",
     "Professional Release",
     "TikTok Viral Mode",
@@ -14,6 +15,13 @@ WORKFLOW_MODES = [
 
 
 WORKFLOW_PROFILES: dict[str, dict[str, Any]] = {
+    "Auto": {
+        "strategy": "Let the agent choose the strongest workflow from the user idea, memory, and project intent.",
+        "length": "adaptive",
+        "focus": ["intent detection", "workflow choice", "creator-ready output"],
+        "caption_style": "adaptive",
+        "checklist_depth": "adaptive",
+    },
     "Quick Generate": {
         "strategy": "Fast creator draft with concise outputs and clear next steps.",
         "length": "short",
@@ -60,7 +68,7 @@ WORKFLOW_PROFILES: dict[str, dict[str, Any]] = {
 
 
 def get_workflow_profile(workflow_mode: str) -> dict[str, Any]:
-    mode = workflow_mode if workflow_mode in WORKFLOW_MODES else "Quick Generate"
+    mode = workflow_mode if workflow_mode in WORKFLOW_PROFILES else "Quick Generate"
     profile = dict(WORKFLOW_PROFILES[mode])
     profile["workflow_mode"] = mode
     return profile
