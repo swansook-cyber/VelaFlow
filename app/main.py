@@ -4286,11 +4286,22 @@ with st.sidebar:
     if not st.session_state.get(workflow_log_key):
         _log_beta_event("workflow_usage", _workflow_analytics_key(selected_mode), metadata={"workflow_mode": selected_mode})
         st.session_state[workflow_log_key] = True
+    st.markdown("**Creator Navigation**")
+    if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio"):
+        go_to_page("MUSIC", "Song Studio")
+    if st.button("Clip Studio", use_container_width=True, key="sidebar_nav_clip_studio"):
+        go_to_page("MUSIC", "Hook Clip Studio")
+    if st.button("Remaster Studio", use_container_width=True, key="sidebar_nav_remaster_studio"):
+        go_to_page("MUSIC", "Remaster Studio")
+    if st.button("🤖 VelaFlow Agent Studio", use_container_width=True, key="sidebar_nav_agent_studio"):
+        go_to_page("START", "VelaFlow Agent Studio")
     group = st.selectbox("Section", list(MENU_GROUPS), key="selected_section")
     group_pages = MENU_GROUPS[group]
     if st.session_state.selected_page not in group_pages:
         st.session_state.selected_page = group_pages[0]
     page = st.radio("Menu", group_pages, label_visibility="collapsed", key="selected_page", format_func=page_label)
+    if page == "VelaFlow Agent Studio":
+        st.caption("Agent Studio Loaded")
     st.divider()
     st.write("Current Project")
     current_workflow_mode = st.session_state.get("workflow_mode", "Full Pipeline")

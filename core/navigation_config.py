@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 PAGE_LABELS = {
-    "VelaFlow Agent Studio": "VelaFlow Agent Studio",
+    "VelaFlow Agent Studio": "🤖 VelaFlow Agent Studio",
     "Creator Wizard": "Release Workflow Wizard",
     "Hook Clip Studio": "Clip Studio",
     "Smart Clip Factory": "Clip Factory",
@@ -20,7 +20,7 @@ FULL_MENU_GROUPS = {
 }
 
 SONG_ONLY_MENU_GROUPS = {
-    "START": ["Dashboard", "One Click Creator Flow"],
+    "START": ["Dashboard", "One Click Creator Flow", "VelaFlow Agent Studio"],
     "MUSIC": ["Song Studio", "Hook Clip Studio", "Remaster Studio"],
     "SYSTEM": ["AI Settings", "System Health"],
 }
