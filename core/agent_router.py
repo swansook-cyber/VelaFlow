@@ -12,6 +12,15 @@ ROUTABLE_TASKS = [
     "podcast structure",
 ]
 
+TASK_AGENT_MAP = {
+    "lyrics generation": "Music Agent",
+    "title generation": "Music Agent",
+    "TikTok hook generation": "TikTok Agent",
+    "release package": "Release Agent",
+    "MV storyboard": "MV Agent",
+    "podcast structure": "Podcast Agent",
+}
+
 
 def route_agent_tasks(user_input: str, project_type: str, workflow_mode: str) -> list[dict[str, Any]]:
     text = f"{user_input} {project_type} {workflow_mode}".lower()
@@ -39,6 +48,7 @@ def route_agent_tasks(user_input: str, project_type: str, workflow_mode: str) ->
     unique: list[dict[str, Any]] = []
     for task in tasks:
         if task["task"] not in seen:
+            task["agent"] = TASK_AGENT_MAP.get(task["task"], "Release Agent")
             unique.append(task)
             seen.add(task["task"])
     return unique

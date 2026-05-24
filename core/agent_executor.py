@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any
 
 from core import agent_tools
-from core.agent_brain import think
+from core.agent_brain import resolve_agent_provider, think
+from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_memory import load_agent_memory
 from core.agent_studio import PROJECT_TYPES, generate_agent_package
 from core.agent_workflows import WORKFLOW_MODES
@@ -74,6 +75,7 @@ def run_agent_workflow(
     tone: str = "Emotional",
     provider_name: str = "Auto",
     auto_workflow: bool | None = None,
+    multi_agent: bool = False,
 ) -> dict[str, Any]:
     actions: list[str] = []
     generated_files: list[str] = []
@@ -88,14 +90,29 @@ def run_agent_workflow(
     selected_project_type = _infer_project_type(user_input, selected_workflow, project_type)
     actions.append(f"selecting workflow: {selected_workflow}")
 
-    output = generate_agent_package(
-        user_input,
-        selected_project_type,
-        language,
-        tone,
-        selected_workflow,
-        use_memory=use_memory,
-    )
+    multi_agent_result: dict[str, Any] = {}
+    if multi_agent:
+        actions.append("Director Agent → analyzing project")
+        multi_agent_result = run_multi_agent_workflow(
+            user_input,
+            selected_workflow,
+            selected_project_type,
+            language,
+            tone,
+            use_memory=use_memory,
+            provider=resolve_agent_provider(provider_name),
+        )
+        output = multi_agent_result.get("output_package", {})
+        actions.extend(multi_agent_result.get("collaboration_log", []))
+    else:
+        output = generate_agent_package(
+            user_input,
+            selected_project_type,
+            language,
+            tone,
+            selected_workflow,
+            use_memory=use_memory,
+        )
     if brain.get("creative_strategy"):
         output["Agent Strategy"] = f"{output.get('Agent Strategy', '')}\n\nBrain Strategy:\n{brain['creative_strategy']}".strip()
     actions.append("generating package")
@@ -158,6 +175,12 @@ def run_agent_workflow(
         "selected_workflow": selected_workflow,
         "selected_workflow_reason": brain.get("selected_workflow_reason", ""),
         "provider_warning": brain.get("warning", ""),
+        "multi_agent": multi_agent,
+        "active_agents": multi_agent_result.get("active_agents", []),
+        "collaboration_log": multi_agent_result.get("collaboration_log", []),
+        "director_decisions": multi_agent_result.get("director_decisions", []),
+        "section_sources": multi_agent_result.get("section_sources", {}),
+        "agent_failures": multi_agent_result.get("failures", []),
         "errors": errors,
         "success": not errors,
     }

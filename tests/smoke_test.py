@@ -15,12 +15,14 @@ from core.asset_manager import clear_rejected_images
 import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
 from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, select_best_workflow, think
+from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
 from core.agent_memory import load_agent_memory, save_agent_memory, update_agent_memory
 from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
 from core.agent_tools import build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
+from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from providers.base_provider import LocalFallbackProvider
 from providers.gemini_provider import GeminiTextProvider
 from providers.openai_provider import OpenAITextProvider
@@ -623,7 +625,12 @@ def main():
     goal = analyze_user_goal("ทำคลิป affiliate สินค้า", provider=local_provider)
     assert_true(goal["goal_type"] == "affiliate", "agent goal analysis failed")
     routed_tasks = route_agent_tasks("ทำ MV เพลงเศร้า", "AI Music Video Prompt", "MV Director Mode")
-    assert_true(any(task["task"] == "MV storyboard" for task in routed_tasks), "agent router task selection failed")
+    assert_true(any(task["task"] == "MV storyboard" and task.get("agent") == "MV Agent" for task in routed_tasks), "agent router task selection failed")
+    initialized_agents = [DirectorAgent(), MusicAgent(), TikTokAgent(), MVAgent(), PodcastAgent(), ReleaseAgent()]
+    assert_true(all(agent.name and agent.role and callable(agent.execute_task) for agent in initialized_agents), "multi-agent initialization failed")
+    coordinator_result = run_multi_agent_workflow("เพลงเศร้าทำ MV ลง TikTok", workflow_mode="MV Director Mode", project_type="AI Music Video Prompt", use_memory=False, provider=local_provider)
+    assert_true(coordinator_result["output_package"] and "Director Agent" in coordinator_result["active_agents"] and coordinator_result["collaboration_log"], "multi-agent coordinator failed")
+    assert_true(coordinator_result["section_sources"] and any("Agent" in value for value in coordinator_result["section_sources"].values()), "multi-agent section source tracking failed")
     old_memory_path = agent_memory_module.MEMORY_PATH
     agent_memory_module.MEMORY_PATH = ROOT / "outputs" / "smoke_agent_memory.json"
     if agent_memory_module.MEMORY_PATH.exists():
@@ -661,9 +668,9 @@ def main():
     assert_true("Podcast Episode Idea" in memory_summary, "agent memory summary failed")
     release_package = build_release_package(agent_package)
     assert_true(Path(release_package["zip_path"]).exists() and release_package["files"], "agent release package build failed")
-    executor_result = run_agent_workflow("เพลงเศร้าเกี่ยวกับคนที่ไม่กลับมา", "Auto", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Viral", provider_name="Local Template", auto_workflow=True)
+    executor_result = run_agent_workflow("เพลงเศร้าเกี่ยวกับคนที่ไม่กลับมา", "Auto", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Viral", provider_name="Local Template", auto_workflow=True, multi_agent=True)
     assert_true(executor_result["output_package"] and executor_result["actions_performed"] and executor_result["generated_files"] and "workflow_summary" in executor_result and executor_result["brain_analysis"], "agent executor return structure failed")
-    assert_true(executor_result["selected_workflow"] == "Spotify Commercial Mode" and executor_result["execution_plan"], "agent executor brain routing failed")
+    assert_true(executor_result["selected_workflow"] == "Spotify Commercial Mode" and executor_result["execution_plan"] and executor_result["active_agents"] and executor_result["collaboration_log"], "agent executor brain/multi-agent routing failed")
     assert_true(any(Path(path).exists() for path in executor_result["generated_files"]), "agent executor generated files missing")
     agent_tools_module.AGENT_EXPORT_ROOT = old_agent_export_root
     agent_memory_module.MEMORY_PATH = old_memory_path
@@ -1741,7 +1748,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
-        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
+        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
