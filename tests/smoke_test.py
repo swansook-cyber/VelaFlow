@@ -12,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
-from core.agent_studio import REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
+import core.agent_memory as agent_memory_module
+from core.agent_memory import load_agent_memory, save_agent_memory, update_agent_memory
+from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
+from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
     AFFILIATE_MODES,
@@ -599,11 +602,27 @@ def main():
     assert_true(project["creative_direction"]["music_direction"] == "Emotional Pop Rock", "Song Studio project creative direction state failed")
     assert_true(TARGET_PLATFORM_OPTIONS and "Full Pipeline" in TARGET_PLATFORM_OPTIONS, "creator wizard target platforms failed")
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
+    assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")
+    old_memory_path = agent_memory_module.MEMORY_PATH
+    agent_memory_module.MEMORY_PATH = ROOT / "outputs" / "smoke_agent_memory.json"
+    if agent_memory_module.MEMORY_PATH.exists():
+        agent_memory_module.MEMORY_PATH.unlink()
+    memory = load_agent_memory()
+    assert_true(memory["last_user_ideas"] == [] and agent_memory_module.MEMORY_PATH.exists(), "agent memory default load failed")
+    saved_memory = save_agent_memory({"recent_project_type": "Spotify Song Release", "last_user_ideas": ["idea a"]})
+    assert_true(saved_memory["recent_project_type"] == "Spotify Song Release" and load_agent_memory()["last_user_ideas"] == ["idea a"], "agent memory save failed")
     thai_agent_idea = "\u0e40\u0e1e\u0e25\u0e07\u0e40\u0e28\u0e23\u0e49\u0e32\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e01\u0e31\u0e1a\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
-    agent_package = generate_agent_package(thai_agent_idea, "Spotify Song Release", "Thai", "Emotional")
+    agent_package = generate_agent_package(thai_agent_idea, "Spotify Song Release", "Thai", "Emotional", "Professional Release", use_memory=True)
     assert_true(all(key in agent_package and str(agent_package[key]).strip() for key in REQUIRED_AGENT_SECTIONS), "agent package missing required non-empty sections")
-    assert_true(thai_agent_idea in agent_package["Project Summary"] and "Suno" in agent_package["Suno / Music Style Prompt"], "agent package Thai/music output failed")
+    assert_true(thai_agent_idea in agent_package["Project Summary"] and "Suno" in agent_package["Suno / Music Style Prompt"] and "Professional Release" in agent_package["Agent Strategy"], "agent package Thai/music output failed")
     assert_true("Project Summary" in agent_package_to_text(agent_package) and "Next Action Checklist" in agent_package_to_text(agent_package), "agent package TXT export failed")
+    updated_memory = update_agent_memory("Podcast Episode Idea", "Thai", "Soft Pop", "episode idea", agent_package)
+    assert_true(updated_memory["recent_project_type"] == "Podcast Episode Idea" and updated_memory["last_generated_titles"], "agent memory update failed")
+    for workflow_mode in WORKFLOW_MODES:
+        profile = get_workflow_profile(workflow_mode)
+        workflow_package = generate_agent_package("ทดสอบไอเดีย", "General Creative Package", "Thai", "Viral", workflow_mode, use_memory=False)
+        assert_true(profile["workflow_mode"] == workflow_mode and all(workflow_package.get(key) for key in REQUIRED_AGENT_SECTIONS), f"agent workflow output failed: {workflow_mode}")
+    agent_memory_module.MEMORY_PATH = old_memory_path
     structure_presets = load_structure_presets()
     assert_true("vela_moon_pop_rock" in structure_presets and "tiktok_hook_first" in structure_presets, "song structure presets failed")
     structure_plan = create_structure_plan(
@@ -1678,7 +1697,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
-        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source, "Agent Studio UI missing")
+        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")

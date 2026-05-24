@@ -41,7 +41,8 @@ from core.artist_presets import (
     save_artist_preset,
     set_default_artist_preset,
 )
-from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, agent_package_to_text, generate_agent_package
+from core.agent_memory import load_agent_memory, save_agent_memory
+from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
     AFFILIATE_MODES,
@@ -4581,19 +4582,38 @@ elif page == "VelaFlow Agent Studio":
     _page_header("VelaFlow Agent Studio", "Turn one raw idea into a complete creator package.", project)
     st.caption("Beginner-friendly creative assistant. No prompt engineering required.")
     state = project.setdefault("agent_studio", {})
+    agent_memory = load_agent_memory()
     with st.container(border=True):
         user_idea = st.text_area("พิมพ์ไอเดียของคุณ", value=state.get("user_idea", ""), height=180, key="agent_studio_user_idea", help="ใส่ไอเดียเพลง สินค้า คลิป พอดแคสต์ หรือคอนเซ็ปต์สั้น ๆ")
         c1, c2, c3 = st.columns(3)
         project_type = c1.selectbox("Project type", AGENT_PROJECT_TYPES, index=AGENT_PROJECT_TYPES.index(state.get("project_type", AGENT_PROJECT_TYPES[0])) if state.get("project_type") in AGENT_PROJECT_TYPES else 0, key="agent_studio_project_type")
         language = c2.selectbox("Language", AGENT_LANGUAGES, index=AGENT_LANGUAGES.index(state.get("language", "Thai")) if state.get("language") in AGENT_LANGUAGES else 0, key="agent_studio_language")
         tone = c3.selectbox("Tone", AGENT_TONES, index=AGENT_TONES.index(state.get("tone", "Emotional")) if state.get("tone") in AGENT_TONES else 0, key="agent_studio_tone")
+        c4, c5 = st.columns([2, 1])
+        workflow_mode = c4.selectbox("Workflow mode", AGENT_WORKFLOW_MODES, index=AGENT_WORKFLOW_MODES.index(state.get("workflow_mode", "Quick Generate")) if state.get("workflow_mode") in AGENT_WORKFLOW_MODES else 0, key="agent_studio_workflow_mode")
+        use_memory = c5.checkbox("Use Agent Memory", value=bool(state.get("use_memory", True)), key="agent_studio_use_memory")
+        with st.expander("Agent Memory", expanded=False):
+            st.caption("VelaFlow remembers recent creative direction locally on this machine.")
+            st.write(
+                {
+                    "recent_project_type": agent_memory.get("recent_project_type") or "-",
+                    "recent_tone": agent_memory.get("recent_tone") or "-",
+                    "recent_language": agent_memory.get("recent_language") or "-",
+                    "recent_ideas": agent_memory.get("last_user_ideas", [])[-3:],
+                    "recent_titles": agent_memory.get("last_generated_titles", [])[-3:],
+                }
+            )
+            if st.button("Clear Agent Memory", use_container_width=True, key="agent_studio_clear_memory"):
+                save_agent_memory({})
+                st.success("Agent memory cleared.")
+                st.rerun()
         generate_agent = st.button("Generate Agent Package", type="primary", use_container_width=True, disabled=not bool(user_idea.strip()), key="agent_studio_generate")
     if generate_agent:
-        package = generate_agent_package(user_idea, project_type, language, tone)
-        state.update({"user_idea": user_idea, "project_type": project_type, "language": language, "tone": tone, "package": package})
+        package = generate_agent_package(user_idea, project_type, language, tone, workflow_mode, use_memory=use_memory)
+        state.update({"user_idea": user_idea, "project_type": project_type, "language": language, "tone": tone, "workflow_mode": workflow_mode, "use_memory": use_memory, "package": package})
         project["agent_studio"] = state
         _save_project()
-        _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type})
+        _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type, "workflow_mode": workflow_mode})
         st.rerun()
     agent_package = state.get("package") or {}
     if agent_package:
