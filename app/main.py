@@ -4654,45 +4654,56 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
                 st.success("Agent memory cleared.")
                 st.rerun()
         generate_agent = st.button("Generate Agent Package", type="primary", use_container_width=True, disabled=not bool(user_idea.strip()), key="agent_studio_generate")
-    if generate_agent:
-        with st.status("Agent is working...", expanded=True) as agent_status:
-            st.write("analyzing idea")
-            st.write("selecting workflow")
-            st.write("generating package")
-            result = run_agent_workflow(
-                user_idea,
-                workflow_mode,
-                use_memory=use_memory,
-                project_type=project_type,
-                language=language,
-                tone=tone,
-                provider_name=ai_provider,
-                auto_workflow=auto_workflow,
-                multi_agent=multi_agent,
-                project_name=state.get("workspace_project") or workspace_project_name,
-            )
-            st.write("exporting files")
-            st.write("finalizing project")
-            agent_status.update(label="Agent workflow complete", state="complete")
-        package = result.get("output_package", {})
-        state.update({
-            "user_idea": user_idea,
-            "project_type": project_type,
-            "language": language,
-            "tone": tone,
-            "workflow_mode": workflow_mode,
-            "use_memory": use_memory,
-            "ai_provider": ai_provider,
-            "auto_workflow": auto_workflow,
-            "multi_agent": multi_agent,
-            "workspace_project": (result.get("workspace_project") or {}).get("project_name") or state.get("workspace_project") or workspace_project_name,
-            "package": package,
-            "agent_result": result,
-        })
-        project["agent_studio"] = state
-        _save_project()
-        _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type, "workflow_mode": workflow_mode, "ai_provider": ai_provider, "multi_agent": multi_agent})
-        st.rerun()
+        if generate_agent:
+            agent_provider_keys = {
+                "gemini": _user_api_key("gemini") or getattr(settings, "gemini_api_key", ""),
+                "openai": _user_api_key("openai") or getattr(settings, "openai_api_key", ""),
+            }
+            selected_provider_key = ""
+            if ai_provider == "Gemini":
+                selected_provider_key = agent_provider_keys.get("gemini", "")
+            elif ai_provider == "OpenAI":
+                selected_provider_key = agent_provider_keys.get("openai", "")
+            with st.status("Agent is working...", expanded=True) as agent_status:
+                st.write("analyzing idea")
+                st.write("selecting workflow")
+                st.write("generating package")
+                result = run_agent_workflow(
+                    user_idea,
+                    workflow_mode,
+                    use_memory=use_memory,
+                    project_type=project_type,
+                    language=language,
+                    tone=tone,
+                    provider_name=ai_provider,
+                    provider_api_key=selected_provider_key,
+                    provider_api_keys=agent_provider_keys,
+                    auto_workflow=auto_workflow,
+                    multi_agent=multi_agent,
+                    project_name=state.get("workspace_project") or workspace_project_name,
+                )
+                st.write("exporting files")
+                st.write("finalizing project")
+                agent_status.update(label="Agent workflow complete", state="complete")
+            package = result.get("output_package", {})
+            state.update({
+                "user_idea": user_idea,
+                "project_type": project_type,
+                "language": language,
+                "tone": tone,
+                "workflow_mode": workflow_mode,
+                "use_memory": use_memory,
+                "ai_provider": ai_provider,
+                "auto_workflow": auto_workflow,
+                "multi_agent": multi_agent,
+                "workspace_project": (result.get("workspace_project") or {}).get("project_name") or state.get("workspace_project") or workspace_project_name,
+                "package": package,
+                "agent_result": result,
+            })
+            project["agent_studio"] = state
+            _save_project()
+            _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type, "workflow_mode": workflow_mode, "ai_provider": ai_provider, "multi_agent": multi_agent})
+            st.rerun()
     agent_package = state.get("package") or {}
     agent_result = state.get("agent_result") or {}
     if agent_package:
@@ -4703,12 +4714,17 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
             st.caption(f"Workspace: {agent_result['workspace_project'].get('project_name')}")
         if agent_result.get("provider_warning"):
             st.warning(agent_result["provider_warning"])
+        provider_diag = (agent_result.get("brain_analysis") or {}).get("provider") or {}
+        if st.session_state.get("developer_mode") and provider_diag.get("provider") == "gemini" and provider_diag.get("last_error"):
+            st.warning(f"Gemini error: {provider_diag.get('last_error')}")
         if agent_result.get("brain_analysis"):
             with st.expander("Brain Analysis", expanded=False):
                 brain_analysis = agent_result.get("brain_analysis", {})
                 st.write(
                     {
                         "provider": (brain_analysis.get("provider") or {}).get("provider"),
+                        "model": (brain_analysis.get("provider") or {}).get("model"),
+                        "api_response_status": (brain_analysis.get("provider") or {}).get("api_response_status"),
                         "selected_workflow": agent_result.get("selected_workflow"),
                         "selected_workflow_reason": agent_result.get("selected_workflow_reason"),
                         "goal": brain_analysis.get("goal", {}),

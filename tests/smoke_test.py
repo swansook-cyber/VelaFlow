@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 from core.asset_manager import attach_asset_to_project, clear_rejected_images, generate_asset_metadata, import_asset, list_assets as list_registered_assets, register_asset, safe_asset_filename
 import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
-from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, select_best_workflow, think
+from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, resolve_agent_provider, select_best_workflow, think
 from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
 from core.agent_memory import load_agent_memory, save_agent_memory, update_agent_memory
@@ -29,7 +29,7 @@ from core.project_assets import approve_cover, cover_prompt_history, get_project
 from core.storyboard_manager import add_scene, create_storyboard, export_storyboard_json, export_storyboard_txt
 import core.asset_manager as asset_manager_module
 from providers.base_provider import LocalFallbackProvider
-from providers.gemini_provider import GeminiTextProvider
+from providers.gemini_provider import GeminiProvider, GeminiTextProvider
 from providers.openai_provider import OpenAITextProvider
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
@@ -623,7 +623,13 @@ def main():
     assert_true("Auto" in AGENT_WORKFLOW_MODES and "Auto" in AGENT_AI_PROVIDERS, "agent auto mode/provider missing")
     local_provider = LocalFallbackProvider()
     assert_true(local_provider.generate_text("test") and local_provider.available, "local fallback provider failed")
-    assert_true(GeminiTextProvider(api_key="").generate_text("test") == "", "gemini missing-key fallback failed")
+    gemini_provider = GeminiProvider(api_key="smoke-test-key")
+    assert_true(gemini_provider.available and gemini_provider.model == "gemini-2.5-flash", "GeminiProvider key/model init failed")
+    assert_true(gemini_provider.diagnostics().get("api_key_detected") is True, "GeminiProvider diagnostics missing key state")
+    missing_gemini = GeminiTextProvider(api_key="")
+    assert_true(missing_gemini.generate_text("test") == "" and "missing" in missing_gemini.last_error.lower(), "gemini missing-key fallback failed")
+    resolved_gemini = resolve_agent_provider("Gemini", provider_api_key="smoke-test-key")
+    assert_true(resolved_gemini.available and resolved_gemini.name == "gemini", "agent Gemini provider explicit key failed")
     assert_true(OpenAITextProvider(api_key="").generate_text("test") == "", "openai missing-key fallback failed")
     brain_result = think("เพลงเศร้าเกี่ยวกับแฟนเก่า", "Auto", "General Creative Package", use_memory=False, provider_name="Local Template")
     assert_true(brain_result["selected_workflow"] == "Spotify Commercial Mode" and brain_result["execution_plan"], "agent brain auto workflow failed")

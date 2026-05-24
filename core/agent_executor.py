@@ -75,6 +75,8 @@ def run_agent_workflow(
     language: str = "Thai",
     tone: str = "Emotional",
     provider_name: str = "Auto",
+    provider_api_key: str | None = None,
+    provider_api_keys: dict[str, str] | None = None,
     auto_workflow: bool | None = None,
     multi_agent: bool = False,
     project_name: str | None = None,
@@ -91,7 +93,15 @@ def run_agent_workflow(
         workspace_project = create_project(project_name)
         actions.append(f"loaded workspace project: {workspace_project.get('project_name')}")
     actions.append("analyzing idea")
-    brain = think(user_input, workflow_mode, selected_project_type, use_memory=use_memory, provider_name=provider_name)
+    brain = think(
+        user_input,
+        workflow_mode,
+        selected_project_type,
+        use_memory=use_memory,
+        provider_name=provider_name,
+        provider_api_key=provider_api_key,
+        provider_api_keys=provider_api_keys,
+    )
     selected_workflow = brain.get("selected_workflow") or ("Quick Generate" if workflow_mode == "Auto" else workflow_mode)
     selected_project_type = _infer_project_type(user_input, selected_workflow, project_type)
     actions.append(f"selecting workflow: {selected_workflow}")
@@ -106,7 +116,7 @@ def run_agent_workflow(
             language,
             tone,
             use_memory=use_memory,
-            provider=resolve_agent_provider(provider_name),
+            provider=resolve_agent_provider(provider_name, provider_api_key=provider_api_key, provider_api_keys=provider_api_keys),
             project_name=project_name,
         )
         output = multi_agent_result.get("output_package", {})

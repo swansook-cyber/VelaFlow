@@ -13,16 +13,23 @@ from providers.openai_provider import OpenAITextProvider
 AGENT_AI_PROVIDERS = ["Auto", "Local Template", "Gemini", "OpenAI"]
 
 
-def resolve_agent_provider(provider_name: str = "Auto") -> BaseTextProvider:
+def resolve_agent_provider(
+    provider_name: str = "Auto",
+    provider_api_key: str | None = None,
+    provider_api_keys: dict[str, str] | None = None,
+) -> BaseTextProvider:
     provider_name = provider_name if provider_name in AGENT_AI_PROVIDERS else "Auto"
+    provider_api_keys = provider_api_keys or {}
     if provider_name in ("Auto", "Gemini"):
-        gemini = GeminiTextProvider()
+        gemini_key = provider_api_key if provider_name == "Gemini" else provider_api_keys.get("gemini")
+        gemini = GeminiTextProvider(api_key=gemini_key)
         if gemini.available:
             return gemini
         if provider_name == "Gemini":
             return gemini
     if provider_name in ("Auto", "OpenAI"):
-        openai = OpenAITextProvider()
+        openai_key = provider_api_key if provider_name == "OpenAI" else provider_api_keys.get("openai")
+        openai = OpenAITextProvider(api_key=openai_key)
         if openai.available:
             return openai
         if provider_name == "OpenAI":
@@ -94,8 +101,10 @@ def think(
     project_type: str = "General Creative Package",
     use_memory: bool = True,
     provider_name: str = "Auto",
+    provider_api_key: str | None = None,
+    provider_api_keys: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    provider = resolve_agent_provider(provider_name)
+    provider = resolve_agent_provider(provider_name, provider_api_key=provider_api_key, provider_api_keys=provider_api_keys)
     memory = load_agent_memory() if use_memory else {}
     memory_summary = ""
     if memory:
