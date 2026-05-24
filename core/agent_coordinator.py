@@ -6,6 +6,7 @@ from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, Releas
 from core.agent_memory import load_agent_memory
 from core.agent_studio import REQUIRED_AGENT_SECTIONS, generate_agent_package
 from core.workspace_manager import load_project
+from core.project_assets import project_asset_summary
 from providers.base_provider import BaseTextProvider, LocalFallbackProvider
 
 
@@ -59,6 +60,7 @@ def run_multi_agent_workflow(
         "tone": tone,
         "project_name": project_name or "",
         "prior_outputs": project_state.get("generated_outputs", []),
+        "asset_summary": project_asset_summary(project_name) if project_name else {},
     }
     collaboration_log: list[str] = []
     failures: list[str] = []

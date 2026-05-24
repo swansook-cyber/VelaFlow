@@ -8,7 +8,16 @@ from typing import Any
 
 
 PROJECTS_ROOT = Path("projects")
-PROJECT_GLOBAL_FOLDERS = ["assets", "exports", "history"]
+PROJECT_GLOBAL_FOLDERS = [
+    "assets",
+    "assets/images",
+    "assets/audio",
+    "assets/video",
+    "assets/storyboards",
+    "assets/covers",
+    "exports",
+    "history",
+]
 PROJECT_SUBFOLDERS = ["outputs", "assets", "exports", "history"]
 
 

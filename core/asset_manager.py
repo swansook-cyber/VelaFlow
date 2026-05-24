@@ -1,14 +1,149 @@
+import json
+import re
 import shutil
 import time
 import zipfile
 from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, List
+
+from core.project_state import ensure_workspace_root, sanitize_project_name
 
 from core.project_io import safe_name
 from core.paths import resolve_project_folder
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PROJECTS_ROOT = ROOT / "projects"
+GLOBAL_ASSET_INDEX = PROJECTS_ROOT / "assets" / "asset_index.json"
+
+
+def _asset_now() -> str:
+    return datetime.utcnow().isoformat(timespec="seconds") + "Z"
+
+
+def safe_asset_filename(filename: str) -> str:
+    text = str(filename or "asset").strip()
+    stem = Path(text).stem or "asset"
+    suffix = Path(text).suffix.lower()
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", stem)
+    stem = re.sub(r"\s+", "_", stem)
+    stem = re.sub(r"_+", "_", stem).strip("._ ")[:80] or "asset"
+    return f"{stem}{suffix}"
+
+
+def _load_asset_index(index_path: Path = GLOBAL_ASSET_INDEX) -> dict[str, Any]:
+    try:
+        if index_path.exists():
+            with index_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, dict):
+                data.setdefault("assets", [])
+                return data
+    except Exception:
+        pass
+    return {"assets": []}
+
+
+def _save_asset_index(index: dict[str, Any], index_path: Path = GLOBAL_ASSET_INDEX) -> None:
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    with index_path.open("w", encoding="utf-8") as handle:
+        json.dump(index, handle, ensure_ascii=False, indent=2)
+
+
+def generate_asset_metadata(
+    path: str | Path,
+    asset_type: str = "file",
+    project_name: str | None = None,
+    generation_source: str = "manual",
+    linked_agent: str = "",
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    file_path = Path(path)
+    return {
+        "asset_id": f"{sanitize_project_name(project_name or 'global')}_{safe_asset_filename(file_path.name)}_{time.time_ns()}",
+        "filename": safe_asset_filename(file_path.name),
+        "path": str(file_path),
+        "asset_type": asset_type,
+        "project_name": sanitize_project_name(project_name or ""),
+        "created_at": _asset_now(),
+        "updated_at": _asset_now(),
+        "generation_source": generation_source,
+        "linked_agent": linked_agent,
+        "tags": tags or [],
+        "exists": file_path.exists(),
+        "bytes": file_path.stat().st_size if file_path.is_file() else 0,
+        "status": "draft",
+    }
+
+
+def register_asset(
+    path: str | Path,
+    asset_type: str = "file",
+    project_name: str | None = None,
+    generation_source: str = "manual",
+    linked_agent: str = "",
+    tags: list[str] | None = None,
+    index_path: str | Path | None = None,
+) -> dict[str, Any]:
+    ensure_workspace_root(PROJECTS_ROOT)
+    index_file = Path(index_path) if index_path else GLOBAL_ASSET_INDEX
+    metadata = generate_asset_metadata(path, asset_type, project_name, generation_source, linked_agent, tags)
+    index = _load_asset_index(index_file)
+    index["assets"] = [item for item in index.get("assets", []) if item.get("asset_id") != metadata["asset_id"]]
+    index["assets"].append(metadata)
+    _save_asset_index(index, index_file)
+    return metadata
+
+
+def import_asset(
+    source_path: str | Path,
+    asset_type: str,
+    project_name: str,
+    generation_source: str = "import",
+    linked_agent: str = "",
+    tags: list[str] | None = None,
+) -> dict[str, Any]:
+    source = Path(source_path)
+    safe_project = sanitize_project_name(project_name)
+    target_dir = PROJECTS_ROOT / safe_project / "assets" / asset_type
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / safe_asset_filename(source.name)
+    if source.is_file():
+        shutil.copy2(source, target)
+    else:
+        target.write_text("", encoding="utf-8")
+    return register_asset(target, asset_type, safe_project, generation_source, linked_agent, tags)
+
+
+def list_assets(project_name: str | None = None, asset_type: str | None = None, index_path: str | Path | None = None) -> list[dict[str, Any]]:
+    index_file = Path(index_path) if index_path else GLOBAL_ASSET_INDEX
+    index = _load_asset_index(index_file)
+    safe_project = sanitize_project_name(project_name or "") if project_name else ""
+    assets = []
+    for item in index.get("assets", []):
+        if safe_project and item.get("project_name") != safe_project:
+            continue
+        if asset_type and item.get("asset_type") != asset_type:
+            continue
+        if item.get("path") and not Path(item["path"]).exists():
+            item = {**item, "exists": False}
+        assets.append(item)
+    return assets
+
+
+def attach_asset_to_project(asset_id: str, project_name: str, relation: str = "reference", index_path: str | Path | None = None) -> dict[str, Any]:
+    index_file = Path(index_path) if index_path else GLOBAL_ASSET_INDEX
+    index = _load_asset_index(index_file)
+    safe_project = sanitize_project_name(project_name)
+    for item in index.get("assets", []):
+        if item.get("asset_id") == asset_id:
+            item["project_name"] = safe_project
+            item["relation"] = relation
+            item["updated_at"] = _asset_now()
+            _save_asset_index(index, index_file)
+            return item
+    return {"asset_id": asset_id, "project_name": safe_project, "relation": relation, "missing": True}
 
 
 def _size(path: Path) -> int:

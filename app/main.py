@@ -45,6 +45,10 @@ from core.agent_memory import load_agent_memory, save_agent_memory
 from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
+from core.asset_manager import list_assets as list_workspace_assets, register_asset
+from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
+from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
+from core.storyboard_manager import add_scene as add_storyboard_scene, create_storyboard, export_storyboard_json, export_storyboard_txt
 from core.workspace_manager import archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, workspace_summary
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
@@ -4612,10 +4616,53 @@ elif page == "VelaFlow Agent Studio":
             active_summary = workspace_summary(active_workspace_name)
             st.caption("Workspace Summary")
             st.write(active_summary)
+            st.caption("Project Asset Summary")
+            st.write(workspace_asset_summary(active_workspace_name))
             active_workspace = load_workspace_project(active_workspace_name)
             with st.expander("Project Timeline", expanded=False):
                 for entry in active_workspace.get("workflow_history", [])[-5:]:
                     st.write(f"- {entry.get('timestamp')} · {entry.get('event')}")
+            with st.expander("Asset Browser", expanded=False):
+                assets = list_workspace_assets(active_workspace_name)
+                if assets:
+                    for asset in assets[-20:]:
+                        st.write(f"- {asset.get('asset_type')} · {asset.get('filename')} · {', '.join(asset.get('tags', []))}")
+                else:
+                    st.caption("No assets yet. Generated prompts, covers, storyboards, and imported media will appear here.")
+            with st.expander("Media Timeline", expanded=False):
+                pipeline_items = load_media_pipeline(active_workspace_name)
+                if pipeline_items:
+                    for item in pipeline_items:
+                        st.write(f"- {item.get('pipeline_type')} · {item.get('title')} · {item.get('stage')}")
+                else:
+                    st.caption("No media pipeline items yet.")
+            with st.expander("Storyboard Viewer", expanded=False):
+                demo_storyboard = create_storyboard(active_workspace_name, "Agent Studio Storyboard", "Cinematic continuity for the current creator idea")
+                demo_storyboard = add_storyboard_scene(
+                    demo_storyboard,
+                    "Wide emotional opening shot",
+                    "slow push-in",
+                    "soft warm window light",
+                    "melancholic",
+                    4,
+                    "single cinematic vertical frame, no text, emotional subject",
+                )
+                if st.button("Save Starter Storyboard", use_container_width=True, key="agent_workspace_save_storyboard"):
+                    txt_storyboard = export_storyboard_txt(demo_storyboard, active_workspace_name)
+                    json_storyboard = export_storyboard_json(demo_storyboard, active_workspace_name)
+                    storyboard_asset = register_asset(txt_storyboard, "storyboards", active_workspace_name, "storyboard_manager", "MV Agent", ["storyboard"])
+                    current_pipeline = load_media_pipeline(active_workspace_name)
+                    current_pipeline.append({"pipeline_id": storyboard_asset["asset_id"], "pipeline_type": "storyboard", "asset_id": storyboard_asset["asset_id"], "title": "Starter Storyboard", "stage": "draft", "history": []})
+                    save_media_pipeline(active_workspace_name, current_pipeline)
+                    st.success(f"Storyboard saved: {Path(txt_storyboard).name}, {Path(json_storyboard).name}")
+                st.text_area("Storyboard Preview", value="\n".join([scene["shot_description"] for scene in demo_storyboard.get("scenes", [])]), height=90, key="agent_workspace_storyboard_preview")
+            with st.expander("Cover History", expanded=False):
+                cover_prompt = st.text_area("Cover prompt", value=state.get("last_cover_prompt", ""), height=80, key="agent_workspace_cover_prompt")
+                cover_tags = st.text_input("Asset Tags", value="cover, prompt", key="agent_workspace_cover_tags")
+                if st.button("Save Cover Prompt Version", use_container_width=True, key="agent_workspace_save_cover"):
+                    state["last_cover_prompt"] = cover_prompt
+                    cover_asset = cover_prompt_history(active_workspace_name, cover_prompt, "MV Agent")
+                    st.success(f"Cover prompt saved: {cover_asset.get('filename')}")
             export_workspace = st.button("Export ZIP", use_container_width=True, key="agent_workspace_export_zip")
             if export_workspace:
                 zip_path = export_workspace_zip(active_workspace_name)

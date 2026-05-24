@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from core.asset_manager import clear_rejected_images
+from core.asset_manager import attach_asset_to_project, clear_rejected_images, generate_asset_metadata, import_asset, list_assets as list_registered_assets, register_asset, safe_asset_filename
 import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
 from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, select_best_workflow, think
@@ -24,6 +24,10 @@ from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
+from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
+from core.project_assets import approve_cover, cover_prompt_history, get_project_asset_links, link_project_asset, project_asset_summary as workspace_project_asset_summary
+from core.storyboard_manager import add_scene, create_storyboard, export_storyboard_json, export_storyboard_txt
+import core.asset_manager as asset_manager_module
 from providers.base_provider import LocalFallbackProvider
 from providers.gemini_provider import GeminiTextProvider
 from providers.openai_provider import OpenAITextProvider
@@ -685,6 +689,45 @@ def main():
     assert_true(summary_workspace["history_count"] >= 2 and summary_workspace["file_count"] > 0, "workspace summary failed")
     zip_workspace = export_workspace_project_zip("Smoke Agent Workspace", root=workspace_root)
     assert_true(zip_workspace.exists() and zip_workspace.suffix == ".zip", "workspace zip export failed")
+    old_asset_root = asset_manager_module.PROJECTS_ROOT
+    old_asset_index = asset_manager_module.GLOBAL_ASSET_INDEX
+    asset_manager_module.PROJECTS_ROOT = ROOT / "outputs" / "smoke_visual_projects"
+    asset_manager_module.GLOBAL_ASSET_INDEX = asset_manager_module.PROJECTS_ROOT / "assets" / "asset_index.json"
+    if asset_manager_module.PROJECTS_ROOT.exists():
+        shutil.rmtree(asset_manager_module.PROJECTS_ROOT)
+    sample_asset = ROOT / "outputs" / "smoke_asset.txt"
+    sample_asset.write_text("visual asset", encoding="utf-8")
+    assert_true(safe_asset_filename("bad:name image?.jpg") == "badname_image.jpg", "safe asset filename failed")
+    metadata = generate_asset_metadata(sample_asset, "images", "Smoke Visual", "smoke", "MV Agent", ["visual"])
+    assert_true(metadata["asset_type"] == "images" and metadata["linked_agent"] == "MV Agent", "asset metadata generation failed")
+    registered = register_asset(sample_asset, "images", "Smoke Visual", "smoke", "MV Agent", ["visual"])
+    imported = import_asset(sample_asset, "images", "Smoke Visual", "import", "MV Agent", ["imported"])
+    listed_assets = list_registered_assets("Smoke Visual")
+    assert_true(registered["asset_id"] and imported["asset_id"] and len(listed_assets) >= 2, "asset registration/import/list failed")
+    attached = attach_asset_to_project(registered["asset_id"], "Smoke Visual", "song_linked_to_mv")
+    assert_true(attached.get("relation") == "song_linked_to_mv", "asset project attach failed")
+    storyboard = create_storyboard("Smoke Visual", "Smoke Storyboard", "visual continuity")
+    storyboard = add_scene(storyboard, "wide opener", "slow push", "warm light", "sad", 4, "vertical cinematic shot")
+    storyboard_txt = export_storyboard_txt(storyboard, "Smoke Visual")
+    storyboard_json = export_storyboard_json(storyboard, "Smoke Visual")
+    assert_true(storyboard_txt.exists() and storyboard_json.exists() and "wide opener" in storyboard_txt.read_text(encoding="utf-8-sig"), "storyboard export failed")
+    item = create_pipeline_item("Smoke Visual", "storyboard", registered["asset_id"], "Storyboard")
+    approved_item = transition_stage(item, "approved")
+    exported_item = transition_stage(approved_item, "exported")
+    pipeline_path = save_pipeline("Smoke Visual", [exported_item, storyboard_pipeline("Smoke Visual", "sb1"), cover_pipeline("Smoke Visual", "cover1"), mv_pipeline("Smoke Visual", "mv1"), release_package_pipeline("Smoke Visual", "pkg1")])
+    assert_true(pipeline_path.exists() and load_pipeline("Smoke Visual")[0]["stage"] == "exported", "media pipeline transition failed")
+    link = link_project_asset("Smoke Visual", registered["asset_id"], "storyboard_linked_to_scenes", "scene_01")
+    cover_asset = cover_prompt_history("Smoke Visual", "cinematic cover prompt", "MV Agent")
+    approved_cover = approve_cover("Smoke Visual", cover_asset["asset_id"])
+    asset_summary = workspace_project_asset_summary("Smoke Visual")
+    assert_true(link["relation_type"] == "storyboard_linked_to_scenes" and approved_cover["approved_cover_asset_id"] == cover_asset["asset_id"] and asset_summary["asset_count"] >= 1 and get_project_asset_links("Smoke Visual"), "project asset linking/cover workflow failed")
+    asset_manager_module.PROJECTS_ROOT = old_asset_root
+    asset_manager_module.GLOBAL_ASSET_INDEX = old_asset_index
+    smoke_visual_project = ROOT / "projects" / "Smoke_Visual"
+    if smoke_visual_project.exists():
+        shutil.rmtree(smoke_visual_project)
+    if (ROOT / "outputs" / "smoke_visual_projects").exists():
+        shutil.rmtree(ROOT / "outputs" / "smoke_visual_projects")
     (Path(workspace_project["path"]) / "project.json").write_text("{bad json", encoding="utf-8")
     recovered_workspace = load_workspace_project("Smoke Agent Workspace", root=workspace_root)
     assert_true(recovered_workspace["project_name"] == "Smoke_Agent_Workspace", "workspace corrupted project recovery failed")
@@ -1775,7 +1818,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
-        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "Project Sidebar" in main_source and "Recent Projects" in main_source and "Create Project" in main_source and "Continue Project" in main_source and "Project Timeline" in main_source and "Workspace Summary" in main_source and "Export ZIP" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
+        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "Project Sidebar" in main_source and "Recent Projects" in main_source and "Create Project" in main_source and "Continue Project" in main_source and "Project Timeline" in main_source and "Workspace Summary" in main_source and "Asset Browser" in main_source and "Storyboard Viewer" in main_source and "Media Timeline" in main_source and "Cover History" in main_source and "Asset Tags" in main_source and "Project Asset Summary" in main_source and "Export ZIP" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")

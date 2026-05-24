@@ -30,6 +30,25 @@ from core.workspace_manager import (
     save_project as save_workspace_project,
     workspace_summary as workspace_project_summary,
 )
+from core.asset_manager import (
+    attach_asset_to_project,
+    generate_asset_metadata,
+    import_asset,
+    list_assets,
+    register_asset,
+    safe_asset_filename,
+)
+from core.media_pipeline import (
+    cover_pipeline,
+    create_pipeline_item,
+    load_pipeline,
+    mv_pipeline,
+    release_package_pipeline,
+    save_pipeline,
+    storyboard_pipeline,
+    transition_stage,
+)
+from core.storyboard_manager import create_storyboard, add_scene, export_storyboard_json, export_storyboard_txt
 
 
 ROOT = Path(__file__).resolve().parents[1]
