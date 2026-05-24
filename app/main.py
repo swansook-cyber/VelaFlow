@@ -4465,127 +4465,7 @@ with st.sidebar:
         if not active_api_key:
             st.warning("Selected provider will use offline fallback")
 
-if page == "Dashboard":
-    _page_header("Dashboard", "Project overview, next step, and daily workflow shortcuts.", project)
-    workflow_mode = st.session_state.get("workflow_mode", "Full Pipeline")
-    active_provider, _, active_model = _active_text_credentials()
-    st.caption(f"{RELEASE_CHANNEL} | Build {BUILD_VERSION} | Active workflow: {workflow_mode} | Active AI provider: {provider_display_name(active_provider)} ({active_model})")
-    st.info("VelaFlow Beta 0.1.0 · AI outputs should be reviewed before publishing · Rendering jobs are currently mock/local.", icon="ℹ️")
-    is_seller_mode = workflow_mode == "Seller Studio (Beta)"
-    is_podcast_mode = workflow_mode == "Podcast Studio (Beta)"
-    is_clips_mode = workflow_mode in {"Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"}
-    if is_seller_mode:
-        status = build_seller_dashboard_status(project)
-    elif is_podcast_mode:
-        status = build_podcast_dashboard_status(project)
-    elif is_clips_mode:
-        status = build_viral_clips_dashboard_status(project)
-    else:
-        status = build_project_status(project)
-    status_data = status.get("data", {}) or {}
-    next_step = status.get("next_step", {}) or {}
-    audit = {} if (is_seller_mode or is_podcast_mode or is_clips_mode) else run_full_project_audit(project)
-    c1, c2, c3, c4 = st.columns(4)
-    if is_seller_mode:
-        c1.metric("Campaign", status_data.get("campaign_name") or _seller_campaign_name(project))
-        c2.metric("Product", status_data.get("product_name") or "No product selected")
-        c3.metric("Content Items", status_data.get("content_items", 0))
-        c4.metric("Next Step", next_step.get("stage", "Seller Content"))
-        st.caption(f"Workflow Mode: {workflow_mode} | Seller package: {status.get('message', '')} | Build {APP_VERSION}")
-    elif is_podcast_mode:
-        c1.metric("Episode", status_data.get("episode_title") or project.get("title", "ตอนใหม่ของฉัน"))
-        c2.metric("Topic", status_data.get("topic") or "No topic selected")
-        c3.metric("Content Items", status_data.get("content_items", 0))
-        c4.metric("Next Step", next_step.get("stage", "Podcast Script"))
-        st.caption(f"Workflow Mode: {workflow_mode} | Podcast package: {status.get('message', '')} | Build {APP_VERSION}")
-    elif is_clips_mode:
-        c1.metric("Clip Project", status_data.get("campaign_name") or project.get("title", "คลิปไวรัลใหม่"))
-        c2.metric("Idea", status_data.get("main_idea") or "No idea selected")
-        c3.metric("Content Items", status_data.get("content_items", 0))
-        c4.metric("Next Step", next_step.get("stage", "Viral Clips"))
-        st.caption(f"Workflow Mode: {workflow_mode} | Viral clips package: {status.get('message', '')} | Build {APP_VERSION}")
-    else:
-        c1.metric("Project", project.get("title", "project"))
-        c2.metric("Artist", project.get("artist", DEFAULT_ARTIST))
-        c3.metric("Scenes", len((project.get("mv", {}) or {}).get("storyboard", []) or []))
-        c4.metric("Next Step", next_step.get("stage", "Song"))
-        current_artist_preset = (project.get("song", {}) or {}).get("artist_preset") or st.session_state.get("selected_artist_preset") or load_default_artist_id()
-        st.caption(
-            f"Workflow Mode: {workflow_mode} | "
-            f"Artist Preset: {current_artist_preset} | Build {APP_VERSION} | {project.get('version', 'legacy project')}"
-        )
-    action_cols = st.columns([1.2, 1, 1, 1])
-    if action_cols[0].button(f"Continue: {next_step.get('label', 'Next Step')}", type="primary", use_container_width=True):
-        fallback_target = "Seller Studio" if is_seller_mode else ("Podcast Studio" if is_podcast_mode else ("Viral Clips Studio" if is_clips_mode else "Song Studio"))
-        target = next_step.get("page", fallback_target)
-        target = target if target in PAGES else fallback_target
-        go_to_page(_section_for_page(target), target)
-    if action_cols[1].button("Save Project", use_container_width=True):
-        _save_project()
-        st.success("Project saved")
-    if action_cols[2].button("Export Report", use_container_width=True):
-        st.json(export_project_report(project), expanded=False)
-    if action_cols[3].button("Clean Safe Temp", use_container_width=True):
-        st.json(clean_safe_temp_files(project), expanded=False)
-    st.write("Seller Status" if is_seller_mode else ("Podcast Status" if is_podcast_mode else ("Viral Clips Status" if is_clips_mode else "Project Status")))
-    st.dataframe(pd.DataFrame(status_data.get("stages", []) or []), use_container_width=True, height=220)
-    cols = st.columns(6)
-    if is_seller_mode:
-        navs = [("Affiliate Studio", "Affiliate Studio"), ("Shorts Factory", "Shorts Factory"), ("Seller Studio", "Seller Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
-    elif is_podcast_mode:
-        navs = [("Podcast Studio", "Podcast Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
-    elif is_clips_mode:
-        navs = [("Viral Clips Studio", "Viral Clips Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
-    else:
-        navs = [
-        ("Song Studio", "Song Studio"),
-        ("Song Library", "Song Library"),
-        ("Artist Preset Manager", "Artist Preset Manager"),
-        ("MV Director", "MV Director"),
-        ("Image Review", "Image Review"),
-        ("Render Lab", "Render Lab"),
-        ("Final Package", "Final Package"),
-        ]
-    navs = [(label, target) for label, target in navs if target in PAGES][:6]
-    for col, (label, target) in zip(cols, navs):
-        if col.button(page_label(label), use_container_width=True):
-            go_to_page(_section_for_page(target), target)
-    if is_seller_mode:
-        with st.expander("Seller Export Snapshot", expanded=False):
-            seller = (project.get("seller_studio", {}) or {}).get("content_package", {}) or {}
-            export_data = (project.get("seller_studio", {}) or {}).get("export", {}) or {}
-            st.caption(f"Caption ready: {'yes' if seller.get('caption') else 'no'}")
-            st.caption(f"TXT package: {export_data.get('txt_path') or 'not exported'}")
-    elif is_podcast_mode:
-        with st.expander("Podcast Export Snapshot", expanded=False):
-            podcast = (project.get("podcast_studio", {}) or {}).get("content_package", {}) or {}
-            export_data = (project.get("podcast_studio", {}) or {}).get("export", {}) or {}
-            st.caption(f"Episode title: {podcast.get('episode_title') or '-'}")
-            st.caption(f"TXT package: {export_data.get('txt_path') or 'not exported'}")
-    elif is_clips_mode:
-        with st.expander("Viral Clips Export Snapshot", expanded=False):
-            clips = (project.get("viral_clips_studio", {}) or {}).get("content_package", {}) or {}
-            export_data = (project.get("viral_clips_studio", {}) or {}).get("export", {}) or {}
-            st.caption(f"Main idea: {clips.get('main_idea') or '-'}")
-            st.caption(f"TXT package: {export_data.get('txt_path') or 'not exported'}")
-    else:
-        with st.expander("Recent Projects", expanded=False):
-            st.dataframe(pd.DataFrame(list_recent_projects()), use_container_width=True)
-        with st.expander("Production Audit Snapshot", expanded=False):
-            a1, a2, a3 = st.columns(3)
-            a1.metric("Audit Score", audit.get("data", {}).get("score", 0))
-            a2.metric("Verdict", audit.get("data", {}).get("verdict", ""))
-            a3.metric("Ready", "yes" if audit.get("data", {}).get("ready_for_final_render") else "no")
-            st.dataframe(pd.DataFrame(audit.get("data", {}).get("fix_first", [])), use_container_width=True, height=160)
-    with st.expander("Release Hardening Snapshot", expanded=False):
-        st.json(project_lock_status(project), expanded=False)
-        if st.button("Export Diagnostics"):
-            st.json(export_diagnostic_bundle(project), expanded=False)
-
-elif page == "Affiliate Studio":
-    _render_affiliate_studio(project)
-
-elif page == "VelaFlow Agent Studio":
+def render_agent_studio(project: dict[str, Any]) -> None:
     _page_header("VelaFlow Agent Studio", "Turn one raw idea into a complete creator package.", project)
     st.caption("Beginner-friendly creative assistant. No prompt engineering required.")
     state = project.setdefault("agent_studio", {})
@@ -4814,6 +4694,136 @@ elif page == "VelaFlow Agent Studio":
         st.download_button("Download Agent Package TXT", data=txt_payload.encode("utf-8-sig"), file_name="velaflow_agent_package.txt", mime="text/plain", use_container_width=True, key="agent_studio_download_txt")
     else:
         st.info("Start with one idea. VelaFlow will turn it into titles, script or lyrics, prompts, captions, hashtags, and next steps.")
+
+
+
+if page == "Dashboard":
+    _page_header("Dashboard", "Project overview, next step, and daily workflow shortcuts.", project)
+    workflow_mode = st.session_state.get("workflow_mode", "Full Pipeline")
+    active_provider, _, active_model = _active_text_credentials()
+    st.caption(f"{RELEASE_CHANNEL} | Build {BUILD_VERSION} | Active workflow: {workflow_mode} | Active AI provider: {provider_display_name(active_provider)} ({active_model})")
+    st.info("VelaFlow Beta 0.1.0 · AI outputs should be reviewed before publishing · Rendering jobs are currently mock/local.", icon="ℹ️")
+    is_seller_mode = workflow_mode == "Seller Studio (Beta)"
+    is_podcast_mode = workflow_mode == "Podcast Studio (Beta)"
+    is_clips_mode = workflow_mode in {"Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"}
+    if is_seller_mode:
+        status = build_seller_dashboard_status(project)
+    elif is_podcast_mode:
+        status = build_podcast_dashboard_status(project)
+    elif is_clips_mode:
+        status = build_viral_clips_dashboard_status(project)
+    else:
+        status = build_project_status(project)
+    status_data = status.get("data", {}) or {}
+    next_step = status.get("next_step", {}) or {}
+    audit = {} if (is_seller_mode or is_podcast_mode or is_clips_mode) else run_full_project_audit(project)
+    c1, c2, c3, c4 = st.columns(4)
+    if is_seller_mode:
+        c1.metric("Campaign", status_data.get("campaign_name") or _seller_campaign_name(project))
+        c2.metric("Product", status_data.get("product_name") or "No product selected")
+        c3.metric("Content Items", status_data.get("content_items", 0))
+        c4.metric("Next Step", next_step.get("stage", "Seller Content"))
+        st.caption(f"Workflow Mode: {workflow_mode} | Seller package: {status.get('message', '')} | Build {APP_VERSION}")
+    elif is_podcast_mode:
+        c1.metric("Episode", status_data.get("episode_title") or project.get("title", "ตอนใหม่ของฉัน"))
+        c2.metric("Topic", status_data.get("topic") or "No topic selected")
+        c3.metric("Content Items", status_data.get("content_items", 0))
+        c4.metric("Next Step", next_step.get("stage", "Podcast Script"))
+        st.caption(f"Workflow Mode: {workflow_mode} | Podcast package: {status.get('message', '')} | Build {APP_VERSION}")
+    elif is_clips_mode:
+        c1.metric("Clip Project", status_data.get("campaign_name") or project.get("title", "คลิปไวรัลใหม่"))
+        c2.metric("Idea", status_data.get("main_idea") or "No idea selected")
+        c3.metric("Content Items", status_data.get("content_items", 0))
+        c4.metric("Next Step", next_step.get("stage", "Viral Clips"))
+        st.caption(f"Workflow Mode: {workflow_mode} | Viral clips package: {status.get('message', '')} | Build {APP_VERSION}")
+    else:
+        c1.metric("Project", project.get("title", "project"))
+        c2.metric("Artist", project.get("artist", DEFAULT_ARTIST))
+        c3.metric("Scenes", len((project.get("mv", {}) or {}).get("storyboard", []) or []))
+        c4.metric("Next Step", next_step.get("stage", "Song"))
+        current_artist_preset = (project.get("song", {}) or {}).get("artist_preset") or st.session_state.get("selected_artist_preset") or load_default_artist_id()
+        st.caption(
+            f"Workflow Mode: {workflow_mode} | "
+            f"Artist Preset: {current_artist_preset} | Build {APP_VERSION} | {project.get('version', 'legacy project')}"
+        )
+    action_cols = st.columns([1.2, 1, 1, 1])
+    if action_cols[0].button(f"Continue: {next_step.get('label', 'Next Step')}", type="primary", use_container_width=True):
+        fallback_target = "Seller Studio" if is_seller_mode else ("Podcast Studio" if is_podcast_mode else ("Viral Clips Studio" if is_clips_mode else "Song Studio"))
+        target = next_step.get("page", fallback_target)
+        target = target if target in PAGES else fallback_target
+        go_to_page(_section_for_page(target), target)
+    if action_cols[1].button("Save Project", use_container_width=True):
+        _save_project()
+        st.success("Project saved")
+    if action_cols[2].button("Export Report", use_container_width=True):
+        st.json(export_project_report(project), expanded=False)
+    if action_cols[3].button("Clean Safe Temp", use_container_width=True):
+        st.json(clean_safe_temp_files(project), expanded=False)
+    st.write("Seller Status" if is_seller_mode else ("Podcast Status" if is_podcast_mode else ("Viral Clips Status" if is_clips_mode else "Project Status")))
+    st.dataframe(pd.DataFrame(status_data.get("stages", []) or []), use_container_width=True, height=220)
+    cols = st.columns(6)
+    if is_seller_mode:
+        navs = [("Affiliate Studio", "Affiliate Studio"), ("Shorts Factory", "Shorts Factory"), ("Seller Studio", "Seller Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
+    elif is_podcast_mode:
+        navs = [("Podcast Studio", "Podcast Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
+    elif is_clips_mode:
+        navs = [("Viral Clips Studio", "Viral Clips Studio"), ("System Health", "System Health"), ("AI Settings", "AI Settings")]
+    else:
+        navs = [
+        ("Song Studio", "Song Studio"),
+        ("Song Library", "Song Library"),
+        ("Artist Preset Manager", "Artist Preset Manager"),
+        ("MV Director", "MV Director"),
+        ("Image Review", "Image Review"),
+        ("Render Lab", "Render Lab"),
+        ("Final Package", "Final Package"),
+        ]
+    navs = [(label, target) for label, target in navs if target in PAGES][:6]
+    for col, (label, target) in zip(cols, navs):
+        if col.button(page_label(label), use_container_width=True):
+            go_to_page(_section_for_page(target), target)
+    if is_seller_mode:
+        with st.expander("Seller Export Snapshot", expanded=False):
+            seller = (project.get("seller_studio", {}) or {}).get("content_package", {}) or {}
+            export_data = (project.get("seller_studio", {}) or {}).get("export", {}) or {}
+            st.caption(f"Caption ready: {'yes' if seller.get('caption') else 'no'}")
+            st.caption(f"TXT package: {export_data.get('txt_path') or 'not exported'}")
+    elif is_podcast_mode:
+        with st.expander("Podcast Export Snapshot", expanded=False):
+            podcast = (project.get("podcast_studio", {}) or {}).get("content_package", {}) or {}
+            export_data = (project.get("podcast_studio", {}) or {}).get("export", {}) or {}
+            st.caption(f"Episode title: {podcast.get('episode_title') or '-'}")
+            st.caption(f"TXT package: {export_data.get('txt_path') or 'not exported'}")
+    elif is_clips_mode:
+        with st.expander("Viral Clips Export Snapshot", expanded=False):
+            clips = (project.get("viral_clips_studio", {}) or {}).get("content_package", {}) or {}
+            export_data = (project.get("viral_clips_studio", {}) or {}).get("export", {}) or {}
+            st.caption(f"Main idea: {clips.get('main_idea') or '-'}")
+            st.caption(f"TXT package: {export_data.get('txt_path') or 'not exported'}")
+    else:
+        with st.expander("Recent Projects", expanded=False):
+            st.dataframe(pd.DataFrame(list_recent_projects()), use_container_width=True)
+        with st.expander("Production Audit Snapshot", expanded=False):
+            a1, a2, a3 = st.columns(3)
+            a1.metric("Audit Score", audit.get("data", {}).get("score", 0))
+            a2.metric("Verdict", audit.get("data", {}).get("verdict", ""))
+            a3.metric("Ready", "yes" if audit.get("data", {}).get("ready_for_final_render") else "no")
+            st.dataframe(pd.DataFrame(audit.get("data", {}).get("fix_first", [])), use_container_width=True, height=160)
+    with st.expander("Release Hardening Snapshot", expanded=False):
+        st.json(project_lock_status(project), expanded=False)
+        if st.button("Export Diagnostics"):
+            st.json(export_diagnostic_bundle(project), expanded=False)
+
+elif page == "Affiliate Studio":
+    _render_affiliate_studio(project)
+
+elif page == "VelaFlow Agent Studio":
+    try:
+        render_agent_studio(project)
+    except Exception as exc:
+        st.error("Agent Studio failed to initialize")
+        if st.session_state.get("developer_mode"):
+            st.exception(exc)
 
 elif page == "Shorts Factory":
     _render_shorts_factory(project)

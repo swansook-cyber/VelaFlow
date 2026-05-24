@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 PAGE_LABELS = {
+    "VelaFlow Agent Studio": "VelaFlow Agent Studio",
     "Creator Wizard": "Release Workflow Wizard",
     "Hook Clip Studio": "Clip Studio",
     "Smart Clip Factory": "Clip Factory",
