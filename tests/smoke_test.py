@@ -19,7 +19,7 @@ from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
 from core.agent_memory import load_agent_memory, save_agent_memory, update_agent_memory
 from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
-from core.agent_tools import build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
+from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
@@ -675,6 +675,9 @@ def main():
     assert_true("Podcast Episode Idea" in memory_summary, "agent memory summary failed")
     release_package = build_release_package(agent_package)
     assert_true(Path(release_package["zip_path"]).exists() and release_package["files"], "agent release package build failed")
+    multi_agent_exports = build_multi_agent_creator_exports(agent_package, "Smoke Office Song")
+    exported_names = {Path(path).name for path in multi_agent_exports["files"]}
+    assert_true({"lyrics.txt", "suno_prompt.txt", "tiktok_hooks.txt", "storyboard.txt", "release_package.zip"}.issubset(exported_names), "multi-agent canonical exports missing")
     workspace_root = ROOT / "outputs" / "smoke_projects_workspace"
     if workspace_root.exists():
         shutil.rmtree(workspace_root)
@@ -738,6 +741,8 @@ def main():
     executor_result = run_agent_workflow("เพลงเศร้าเกี่ยวกับคนที่ไม่กลับมา", "Auto", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Viral", provider_name="Local Template", auto_workflow=True, multi_agent=True)
     assert_true(executor_result["output_package"] and executor_result["actions_performed"] and executor_result["generated_files"] and "workflow_summary" in executor_result and executor_result["brain_analysis"], "agent executor return structure failed")
     assert_true(executor_result["selected_workflow"] == "Spotify Commercial Mode" and executor_result["execution_plan"] and executor_result["active_agents"] and executor_result["collaboration_log"], "agent executor brain/multi-agent routing failed")
+    executor_export_names = {Path(path).name for path in executor_result["generated_files"]}
+    assert_true({"lyrics.txt", "suno_prompt.txt", "tiktok_hooks.txt", "storyboard.txt", "release_package.zip"}.issubset(executor_export_names), "agent executor did not export canonical multi-agent files")
     workspace_executor = run_agent_workflow("ทำเพลง workspace", "Auto", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Emotional", provider_name="Local Template", auto_workflow=True, multi_agent=True, project_name="Smoke Executor Workspace")
     assert_true(workspace_executor.get("workspace_project") and workspace_executor["workspace_project"]["workflow_history"], "agent executor workspace persistence failed")
     executor_workspace_path = Path(workspace_executor["workspace_project"]["path"])

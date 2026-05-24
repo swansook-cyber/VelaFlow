@@ -162,6 +162,15 @@ def run_agent_workflow(
     except Exception as exc:
         errors.append(f"Could not build release package: {exc}")
 
+    if multi_agent:
+        try:
+            title = output.get("Best Title Ideas", "multi_agent_project").splitlines()[0].strip("- ").strip()
+            deliverables = agent_tools.build_multi_agent_creator_exports(output, title or selected_project_type)
+            generated_files.extend(deliverables.get("files", []))
+            actions.append("exported multi-agent creator deliverables: lyrics.txt, suno_prompt.txt, tiktok_hooks.txt, storyboard.txt, release_package.zip")
+        except Exception as exc:
+            errors.append(f"Could not export multi-agent deliverables: {exc}")
+
     memory_summary = agent_tools.summarize_memory(load_agent_memory() if use_memory else {})
     actions.append("finalizing project")
     unique_files = []

@@ -129,3 +129,42 @@ def build_release_package(output: dict[str, str]) -> dict[str, Any]:
                 archive.write(path, arcname=path.name)
     generated_files.append(str(zip_path))
     return {"folder": str(folder), "zip_path": str(zip_path), "files": generated_files}
+
+
+def build_multi_agent_creator_exports(output: dict[str, str], project_name: str) -> dict[str, Any]:
+    """Export the canonical multi-agent creator files with stable creator-friendly names."""
+    folder = create_project_folder(project_name) / f"multi_agent_{_now_stamp()}"
+    folder.mkdir(parents=True, exist_ok=True)
+    file_map = {
+        "lyrics.txt": output.get("Lyrics or Script", ""),
+        "suno_prompt.txt": output.get("Suno / Music Style Prompt", ""),
+        "tiktok_hooks.txt": output.get("TikTok Hook Ideas", ""),
+        "storyboard.txt": "\n\n".join(
+            [
+                output.get("Main Creative Direction", ""),
+                output.get("Video Prompt", ""),
+                output.get("Cover Image Prompt", ""),
+            ]
+        ),
+    }
+    generated_files: list[str] = []
+    for filename, content in file_map.items():
+        path = folder / filename
+        path.write_text(_clean_text(content, "-"), encoding="utf-8-sig")
+        generated_files.append(str(path))
+    manifest_path = folder / "release_manifest.json"
+    manifest = {
+        "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        "project_name": project_name,
+        "exports": sorted(file_map),
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    generated_files.append(str(manifest_path))
+    zip_path = folder / "release_package.zip"
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for file_name in generated_files:
+            path = Path(file_name)
+            if path.is_file():
+                archive.write(path, arcname=path.name)
+    generated_files.append(str(zip_path))
+    return {"folder": str(folder), "zip_path": str(zip_path), "files": generated_files}
