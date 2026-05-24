@@ -23,6 +23,7 @@ from core.agent_tools import build_release_package, create_project_folder, expor
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
+from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from providers.base_provider import LocalFallbackProvider
 from providers.gemini_provider import GeminiTextProvider
 from providers.openai_provider import OpenAITextProvider
@@ -668,9 +669,35 @@ def main():
     assert_true("Podcast Episode Idea" in memory_summary, "agent memory summary failed")
     release_package = build_release_package(agent_package)
     assert_true(Path(release_package["zip_path"]).exists() and release_package["files"], "agent release package build failed")
+    workspace_root = ROOT / "outputs" / "smoke_projects_workspace"
+    if workspace_root.exists():
+        shutil.rmtree(workspace_root)
+    workspace_project = create_workspace_project("Smoke Agent Workspace", root=workspace_root)
+    assert_true(Path(workspace_project["path"]).exists() and (Path(workspace_project["path"]) / "project.json").exists(), "workspace project create failed")
+    saved_workspace = save_workspace_project("Smoke Agent Workspace", {"user_goals": ["goal one"]}, root=workspace_root)
+    loaded_workspace = load_workspace_project("Smoke Agent Workspace", root=workspace_root)
+    assert_true(saved_workspace["user_goals"] == ["goal one"] and loaded_workspace["user_goals"] == ["goal one"], "workspace save/load failed")
+    history_workspace = append_history("Smoke Agent Workspace", "smoke_event", {"ok": True}, root=workspace_root)
+    assert_true(history_workspace["workflow_history"] and (Path(history_workspace["path"]) / "history" / "v1.json").exists(), "workspace history logging failed")
+    generation_workspace = append_generation_run("Smoke Agent Workspace", {"output_package": agent_package, "active_agents": ["Music Agent"], "generated_files": [str(txt_path)], "memory_summary": "memory", "actions_performed": ["action"]}, user_goal="goal two", root=workspace_root)
+    assert_true(generation_workspace["generated_outputs"] and generation_workspace["active_agents"] == ["Music Agent"], "workspace generation append failed")
+    summary_workspace = workspace_summary("Smoke Agent Workspace", root=workspace_root)
+    assert_true(summary_workspace["history_count"] >= 2 and summary_workspace["file_count"] > 0, "workspace summary failed")
+    zip_workspace = export_workspace_project_zip("Smoke Agent Workspace", root=workspace_root)
+    assert_true(zip_workspace.exists() and zip_workspace.suffix == ".zip", "workspace zip export failed")
+    (Path(workspace_project["path"]) / "project.json").write_text("{bad json", encoding="utf-8")
+    recovered_workspace = load_workspace_project("Smoke Agent Workspace", root=workspace_root)
+    assert_true(recovered_workspace["project_name"] == "Smoke_Agent_Workspace", "workspace corrupted project recovery failed")
+    archive_result = archive_workspace_project("Smoke Agent Workspace", root=workspace_root)
+    assert_true(archive_result["archived"] is True and not any(item["project_name"] == "Smoke_Agent_Workspace" for item in list_workspace_projects(root=workspace_root)), "workspace archive/list failed")
     executor_result = run_agent_workflow("เพลงเศร้าเกี่ยวกับคนที่ไม่กลับมา", "Auto", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Viral", provider_name="Local Template", auto_workflow=True, multi_agent=True)
     assert_true(executor_result["output_package"] and executor_result["actions_performed"] and executor_result["generated_files"] and "workflow_summary" in executor_result and executor_result["brain_analysis"], "agent executor return structure failed")
     assert_true(executor_result["selected_workflow"] == "Spotify Commercial Mode" and executor_result["execution_plan"] and executor_result["active_agents"] and executor_result["collaboration_log"], "agent executor brain/multi-agent routing failed")
+    workspace_executor = run_agent_workflow("ทำเพลง workspace", "Auto", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Emotional", provider_name="Local Template", auto_workflow=True, multi_agent=True, project_name="Smoke Executor Workspace")
+    assert_true(workspace_executor.get("workspace_project") and workspace_executor["workspace_project"]["workflow_history"], "agent executor workspace persistence failed")
+    executor_workspace_path = Path(workspace_executor["workspace_project"]["path"])
+    if executor_workspace_path.exists():
+        shutil.rmtree(executor_workspace_path)
     assert_true(any(Path(path).exists() for path in executor_result["generated_files"]), "agent executor generated files missing")
     agent_tools_module.AGENT_EXPORT_ROOT = old_agent_export_root
     agent_memory_module.MEMORY_PATH = old_memory_path
@@ -1748,7 +1775,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
-        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
+        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "Project Sidebar" in main_source and "Recent Projects" in main_source and "Create Project" in main_source and "Continue Project" in main_source and "Project Timeline" in main_source and "Workspace Summary" in main_source and "Export ZIP" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")

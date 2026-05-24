@@ -5,6 +5,7 @@ from typing import Any
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.agent_memory import load_agent_memory
 from core.agent_studio import REQUIRED_AGENT_SECTIONS, generate_agent_package
+from core.workspace_manager import load_project
 from providers.base_provider import BaseTextProvider, LocalFallbackProvider
 
 
@@ -40,15 +41,24 @@ def run_multi_agent_workflow(
     tone: str = "Emotional",
     use_memory: bool = True,
     provider: BaseTextProvider | None = None,
+    project_name: str | None = None,
 ) -> dict[str, Any]:
     provider = provider or LocalFallbackProvider()
-    memory = load_agent_memory() if use_memory else {}
+    project_state: dict[str, Any] = {}
+    if project_name:
+        project_state = load_project(project_name)
+        project_memory_path = f"{project_state.get('path')}/memory.json"
+        memory = load_agent_memory(project_memory_path) if use_memory else {}
+    else:
+        memory = load_agent_memory() if use_memory else {}
     context = {
         "user_goal": user_goal,
         "workflow_mode": workflow_mode,
         "project_type": project_type,
         "language": language,
         "tone": tone,
+        "project_name": project_name or "",
+        "prior_outputs": project_state.get("generated_outputs", []),
     }
     collaboration_log: list[str] = []
     failures: list[str] = []

@@ -9,6 +9,7 @@ from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_memory import load_agent_memory
 from core.agent_studio import PROJECT_TYPES, generate_agent_package
 from core.agent_workflows import WORKFLOW_MODES
+from core.workspace_manager import append_generation_run, create_project, load_project
 
 
 def _infer_project_type(user_input: str, workflow_mode: str, project_type: str | None) -> str:
@@ -76,6 +77,7 @@ def run_agent_workflow(
     provider_name: str = "Auto",
     auto_workflow: bool | None = None,
     multi_agent: bool = False,
+    project_name: str | None = None,
 ) -> dict[str, Any]:
     actions: list[str] = []
     generated_files: list[str] = []
@@ -84,6 +86,10 @@ def run_agent_workflow(
     if auto_workflow is True:
         workflow_mode = "Auto"
     selected_project_type = _infer_project_type(user_input, workflow_mode, project_type)
+    workspace_project: dict[str, Any] = {}
+    if project_name:
+        workspace_project = create_project(project_name)
+        actions.append(f"loaded workspace project: {workspace_project.get('project_name')}")
     actions.append("analyzing idea")
     brain = think(user_input, workflow_mode, selected_project_type, use_memory=use_memory, provider_name=provider_name)
     selected_workflow = brain.get("selected_workflow") or ("Quick Generate" if workflow_mode == "Auto" else workflow_mode)
@@ -101,6 +107,7 @@ def run_agent_workflow(
             tone,
             use_memory=use_memory,
             provider=resolve_agent_provider(provider_name),
+            project_name=project_name,
         )
         output = multi_agent_result.get("output_package", {})
         actions.extend(multi_agent_result.get("collaboration_log", []))
@@ -161,7 +168,7 @@ def run_agent_workflow(
     for file_name in generated_files:
         if file_name not in unique_files and Path(file_name).exists():
             unique_files.append(file_name)
-    return {
+    result = {
         "output_package": output,
         "actions_performed": actions,
         "generated_files": unique_files,
@@ -184,3 +191,12 @@ def run_agent_workflow(
         "errors": errors,
         "success": not errors,
     }
+    if project_name:
+        try:
+            saved_project = append_generation_run(project_name, result, user_goal=user_input)
+            result["workspace_project"] = saved_project
+            actions.append("saved workspace history")
+        except Exception as exc:
+            result.setdefault("errors", []).append(f"Could not save workspace history: {exc}")
+            result["success"] = False
+    return result

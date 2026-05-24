@@ -21,6 +21,15 @@ from core.paths import (
 from providers.ai_provider import normalize_provider
 from core.api_keys import api_mode_label, API_MODE_OWN_KEY
 from core.project_io import new_project, safe_name, save_project_folder
+from core.workspace_manager import (
+    append_generation_run as append_workspace_generation_run,
+    append_history as append_workspace_history,
+    create_project as create_workspace_project,
+    export_project_zip as export_workspace_project_zip,
+    load_project as load_workspace_project,
+    save_project as save_workspace_project,
+    workspace_summary as workspace_project_summary,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]

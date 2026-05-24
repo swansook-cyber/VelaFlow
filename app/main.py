@@ -45,6 +45,7 @@ from core.agent_memory import load_agent_memory, save_agent_memory
 from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
+from core.workspace_manager import archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, workspace_summary
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
     AFFILIATE_MODES,
@@ -4585,6 +4586,46 @@ elif page == "VelaFlow Agent Studio":
     st.caption("Beginner-friendly creative assistant. No prompt engineering required.")
     state = project.setdefault("agent_studio", {})
     agent_memory = load_agent_memory()
+    with st.sidebar.expander("Project Sidebar", expanded=True):
+        recent_projects = list_workspace_projects()
+        project_names = [item.get("project_name", "") for item in recent_projects if item.get("project_name")]
+        default_workspace_name = state.get("workspace_project") or (project_names[0] if project_names else "My_Creator_Project")
+        workspace_project_name = st.text_input("Workspace Project", value=default_workspace_name, key="agent_workspace_project_name")
+        if st.button("Create Project", use_container_width=True, key="agent_workspace_create"):
+            created_workspace = create_workspace_project(workspace_project_name)
+            state["workspace_project"] = created_workspace["project_name"]
+            project["agent_studio"] = state
+            _save_project()
+            st.success("Project workspace created.")
+            st.rerun()
+        if project_names:
+            selected_recent_project = st.selectbox("Recent Projects", project_names, index=project_names.index(default_workspace_name) if default_workspace_name in project_names else 0, key="agent_workspace_recent")
+            if st.button("Continue Project", use_container_width=True, key="agent_workspace_continue"):
+                loaded_workspace = load_workspace_project(selected_recent_project)
+                state["workspace_project"] = loaded_workspace["project_name"]
+                project["agent_studio"] = state
+                _save_project()
+                st.success("Project loaded.")
+                st.rerun()
+        active_workspace_name = state.get("workspace_project") or workspace_project_name
+        try:
+            active_summary = workspace_summary(active_workspace_name)
+            st.caption("Workspace Summary")
+            st.write(active_summary)
+            active_workspace = load_workspace_project(active_workspace_name)
+            with st.expander("Project Timeline", expanded=False):
+                for entry in active_workspace.get("workflow_history", [])[-5:]:
+                    st.write(f"- {entry.get('timestamp')} · {entry.get('event')}")
+            export_workspace = st.button("Export ZIP", use_container_width=True, key="agent_workspace_export_zip")
+            if export_workspace:
+                zip_path = export_workspace_zip(active_workspace_name)
+                st.download_button("Download Workspace ZIP", data=Path(zip_path).read_bytes(), file_name=Path(zip_path).name, mime="application/zip", use_container_width=True, key="agent_workspace_download_zip")
+            if st.button("Archive Project", use_container_width=True, key="agent_workspace_archive"):
+                archive_workspace_project(active_workspace_name)
+                st.success("Project archived.")
+                st.rerun()
+        except Exception:
+            st.caption("Workspace will be created when you generate or save.")
     with st.container(border=True):
         user_idea = st.text_area("พิมพ์ไอเดียของคุณ", value=state.get("user_idea", ""), height=180, key="agent_studio_user_idea", help="ใส่ไอเดียเพลง สินค้า คลิป พอดแคสต์ หรือคอนเซ็ปต์สั้น ๆ")
         c1, c2, c3 = st.columns(3)
@@ -4629,6 +4670,7 @@ elif page == "VelaFlow Agent Studio":
                 provider_name=ai_provider,
                 auto_workflow=auto_workflow,
                 multi_agent=multi_agent,
+                project_name=state.get("workspace_project") or workspace_project_name,
             )
             st.write("exporting files")
             st.write("finalizing project")
@@ -4644,6 +4686,7 @@ elif page == "VelaFlow Agent Studio":
             "ai_provider": ai_provider,
             "auto_workflow": auto_workflow,
             "multi_agent": multi_agent,
+            "workspace_project": (result.get("workspace_project") or {}).get("project_name") or state.get("workspace_project") or workspace_project_name,
             "package": package,
             "agent_result": result,
         })
@@ -4657,6 +4700,8 @@ elif page == "VelaFlow Agent Studio":
         st.success("Agent package ready.")
         if agent_result.get("workflow_summary"):
             st.info(agent_result["workflow_summary"])
+        if agent_result.get("workspace_project"):
+            st.caption(f"Workspace: {agent_result['workspace_project'].get('project_name')}")
         if agent_result.get("provider_warning"):
             st.warning(agent_result["provider_warning"])
         if agent_result.get("brain_analysis"):

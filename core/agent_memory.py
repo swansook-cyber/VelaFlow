@@ -45,29 +45,31 @@ def _normalize_memory(memory: Any) -> dict[str, Any]:
     return base
 
 
-def load_agent_memory() -> dict[str, Any]:
+def load_agent_memory(memory_path: str | Path | None = None) -> dict[str, Any]:
     """Load local Agent Studio memory, creating a safe default when needed."""
+    path = Path(memory_path) if memory_path else MEMORY_PATH
     try:
-        MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-        if not MEMORY_PATH.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
             memory = _default_memory()
-            save_agent_memory(memory)
+            save_agent_memory(memory, path)
             return memory
-        with MEMORY_PATH.open("r", encoding="utf-8") as handle:
+        with path.open("r", encoding="utf-8") as handle:
             return _normalize_memory(json.load(handle))
     except Exception:
         memory = _default_memory()
         try:
-            save_agent_memory(memory)
+            save_agent_memory(memory, path)
         except Exception:
             pass
         return memory
 
 
-def save_agent_memory(memory: dict[str, Any]) -> dict[str, Any]:
+def save_agent_memory(memory: dict[str, Any], memory_path: str | Path | None = None) -> dict[str, Any]:
+    path = Path(memory_path) if memory_path else MEMORY_PATH
     safe_memory = _normalize_memory(memory)
-    MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with MEMORY_PATH.open("w", encoding="utf-8") as handle:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
         json.dump(safe_memory, handle, ensure_ascii=False, indent=2)
     return safe_memory
 
