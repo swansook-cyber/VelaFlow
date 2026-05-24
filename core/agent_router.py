@@ -25,11 +25,14 @@ TASK_AGENT_MAP = {
 def route_agent_tasks(user_input: str, project_type: str, workflow_mode: str) -> list[dict[str, Any]]:
     text = f"{user_input} {project_type} {workflow_mode}".lower()
     tasks: list[dict[str, Any]] = []
-    if "spotify" in text or "song" in text or "lyrics" in text or "suno" in text or "เพลง" in text:
+    music_request = any(word in text for word in ["spotify", "song", "lyrics", "suno", "\u0e40\u0e1e\u0e25\u0e07", "\u0e40\u0e28\u0e23\u0e49\u0e32", "\u0e2d\u0e2d\u0e1f\u0e1f\u0e34\u0e28"])
+    if music_request:
         tasks.extend(
             [
                 {"task": "title generation", "reason": "music release needs a strong title"},
                 {"task": "lyrics generation", "reason": "song workflow needs lyrics or hook lines"},
+                {"task": "TikTok hook generation", "reason": "music release needs short-form hook ideas"},
+                {"task": "MV storyboard", "reason": "music release needs a visual storyboard"},
                 {"task": "release package", "reason": "creator needs export-ready release assets"},
             ]
         )

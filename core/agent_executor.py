@@ -16,7 +16,7 @@ def _infer_project_type(user_input: str, workflow_mode: str, project_type: str |
     if project_type in PROJECT_TYPES:
         return str(project_type)
     lowered = str(user_input or "").lower()
-    if workflow_mode == "Spotify Commercial Mode" or any(word in lowered for word in ["song", "lyrics", "suno", "เพลง"]):
+    if workflow_mode == "Spotify Commercial Mode" or any(word in lowered for word in ["song", "lyrics", "suno", "\u0e40\u0e1e\u0e25\u0e07", "\u0e40\u0e28\u0e23\u0e49\u0e32", "\u0e2d\u0e2d\u0e1f\u0e1f\u0e34\u0e28"]):
         return "Spotify Song Release"
     if workflow_mode == "Podcast Episode Mode" or any(word in lowered for word in ["podcast", "episode", "พอดแคสต์"]):
         return "Podcast Episode Idea"

@@ -34,7 +34,7 @@ def analyze_user_goal(user_input: str, memory_summary: str = "", provider: BaseT
     text = str(user_input or "")
     lowered = text.lower()
     goal_type = "general"
-    if any(token in lowered for token in ["song", "lyrics", "suno", "spotify", "เพลง"]):
+    if any(token in lowered for token in ["song", "lyrics", "suno", "spotify", "\u0e40\u0e1e\u0e25\u0e07", "\u0e40\u0e28\u0e23\u0e49\u0e32", "\u0e2d\u0e2d\u0e1f\u0e1f\u0e34\u0e28"]):
         goal_type = "music"
     elif any(token in lowered for token in ["affiliate", "product", "shop", "สินค้า"]):
         goal_type = "affiliate"

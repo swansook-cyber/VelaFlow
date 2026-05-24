@@ -4476,43 +4476,38 @@ with st.sidebar:
         if not active_api_key:
             st.warning("Selected provider will use offline fallback")
 
-def render_agent_studio(project: dict[str, Any]) -> None:
-    _page_header("VelaFlow Agent Studio", "Turn one raw idea into a complete creator package.", project)
-    st.caption("Beginner-friendly creative assistant. No prompt engineering required.")
-    state = project.setdefault("agent_studio", {})
-    agent_memory = load_agent_memory()
-    with st.sidebar.expander("Project Sidebar", expanded=True):
-        recent_projects = list_workspace_projects()
-        project_names = [item.get("project_name", "") for item in recent_projects if item.get("project_name")]
-        default_workspace_name = state.get("workspace_project") or (project_names[0] if project_names else "My_Creator_Project")
-        workspace_project_name = st.text_input("Workspace Project", value=default_workspace_name, key="agent_workspace_project_name")
-        if st.button("Create Project", use_container_width=True, key="agent_workspace_create"):
-            created_workspace = create_workspace_project(workspace_project_name)
-            state["workspace_project"] = created_workspace["project_name"]
-            project["agent_studio"] = state
-            _save_project()
-            st.success("Project workspace created.")
-            st.rerun()
-        if project_names:
-            selected_recent_project = st.selectbox("Recent Projects", project_names, index=project_names.index(default_workspace_name) if default_workspace_name in project_names else 0, key="agent_workspace_recent")
-            if st.button("Continue Project", use_container_width=True, key="agent_workspace_continue"):
-                loaded_workspace = load_workspace_project(selected_recent_project)
-                state["workspace_project"] = loaded_workspace["project_name"]
-                project["agent_studio"] = state
-                _save_project()
-                st.success("Project loaded.")
-                st.rerun()
-        active_workspace_name = state.get("workspace_project") or workspace_project_name
+def _render_agent_workspace_panel(active_workspace_name: str, state: dict[str, Any]) -> None:
+    with st.container(border=True):
+        st.markdown("### Project Workspace")
         try:
             active_summary = workspace_summary(active_workspace_name)
             st.caption("Workspace Summary")
             st.write(active_summary)
+        except Exception as exc:
+            st.caption("Workspace summary unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+        try:
             st.caption("Project Asset Summary")
             st.write(workspace_asset_summary(active_workspace_name))
+        except Exception as exc:
+            st.caption("Project asset summary unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+        try:
             active_workspace = load_workspace_project(active_workspace_name)
             with st.expander("Project Timeline", expanded=False):
-                for entry in active_workspace.get("workflow_history", [])[-5:]:
-                    st.write(f"- {entry.get('timestamp')} · {entry.get('event')}")
+                entries = active_workspace.get("workflow_history", [])[-5:]
+                if entries:
+                    for entry in entries:
+                        st.write(f"- {entry.get('timestamp')} · {entry.get('event')}")
+                else:
+                    st.caption("No project history yet.")
+        except Exception as exc:
+            st.caption("Project timeline unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+        try:
             with st.expander("Asset Browser", expanded=False):
                 assets = list_workspace_assets(active_workspace_name)
                 if assets:
@@ -4520,6 +4515,11 @@ def render_agent_studio(project: dict[str, Any]) -> None:
                         st.write(f"- {asset.get('asset_type')} · {asset.get('filename')} · {', '.join(asset.get('tags', []))}")
                 else:
                     st.caption("No assets yet. Generated prompts, covers, storyboards, and imported media will appear here.")
+        except Exception as exc:
+            st.caption("Asset Browser unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+        try:
             with st.expander("Media Timeline", expanded=False):
                 pipeline_items = load_media_pipeline(active_workspace_name)
                 if pipeline_items:
@@ -4527,6 +4527,11 @@ def render_agent_studio(project: dict[str, Any]) -> None:
                         st.write(f"- {item.get('pipeline_type')} · {item.get('title')} · {item.get('stage')}")
                 else:
                     st.caption("No media pipeline items yet.")
+        except Exception as exc:
+            st.caption("Media Timeline unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+        try:
             with st.expander("Storyboard Viewer", expanded=False):
                 demo_storyboard = create_storyboard(active_workspace_name, "Agent Studio Storyboard", "Cinematic continuity for the current creator idea")
                 demo_storyboard = add_storyboard_scene(
@@ -4547,23 +4552,79 @@ def render_agent_studio(project: dict[str, Any]) -> None:
                     save_media_pipeline(active_workspace_name, current_pipeline)
                     st.success(f"Storyboard saved: {Path(txt_storyboard).name}, {Path(json_storyboard).name}")
                 st.text_area("Storyboard Preview", value="\n".join([scene["shot_description"] for scene in demo_storyboard.get("scenes", [])]), height=90, key="agent_workspace_storyboard_preview")
+        except Exception as exc:
+            st.caption("Storyboard Viewer unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+        try:
             with st.expander("Cover History", expanded=False):
                 cover_prompt = st.text_area("Cover prompt", value=state.get("last_cover_prompt", ""), height=80, key="agent_workspace_cover_prompt")
-                cover_tags = st.text_input("Asset Tags", value="cover, prompt", key="agent_workspace_cover_tags")
+                st.text_input("Asset Tags", value="cover, prompt", key="agent_workspace_cover_tags")
                 if st.button("Save Cover Prompt Version", use_container_width=True, key="agent_workspace_save_cover"):
                     state["last_cover_prompt"] = cover_prompt
                     cover_asset = cover_prompt_history(active_workspace_name, cover_prompt, "MV Agent")
                     st.success(f"Cover prompt saved: {cover_asset.get('filename')}")
-            export_workspace = st.button("Export ZIP", use_container_width=True, key="agent_workspace_export_zip")
-            if export_workspace:
+        except Exception as exc:
+            st.caption("Cover History unavailable.")
+            if st.session_state.get("developer_mode"):
+                st.exception(exc)
+
+
+def render_agent_studio(project: dict[str, Any] | None) -> None:
+    if not isinstance(project, dict):
+        project = new_project("Agent Studio Project", DEFAULT_ARTIST, workflow_type_for_mode(st.session_state.get("workflow_mode", "Song Studio Only")))
+        st.session_state.project = project
+    _page_header("VelaFlow Agent Studio", "Turn one raw idea into a complete creator package.", project)
+    st.caption("Beginner-friendly creative assistant. No prompt engineering required.")
+    state = project.setdefault("agent_studio", {})
+    try:
+        agent_memory = load_agent_memory()
+    except Exception:
+        agent_memory = {}
+    with st.sidebar.expander("Project Sidebar", expanded=True):
+        try:
+            recent_projects = list_workspace_projects()
+        except Exception:
+            recent_projects = []
+        project_names = [item.get("project_name", "") for item in recent_projects if item.get("project_name")]
+        default_workspace_name = state.get("workspace_project") or (project_names[0] if project_names else "My_Creator_Project")
+        workspace_project_name = st.text_input("Workspace Project", value=default_workspace_name, key="agent_workspace_project_name")
+        if st.button("Create Project", use_container_width=True, key="agent_workspace_create"):
+            created_workspace = create_workspace_project(workspace_project_name)
+            state["workspace_project"] = created_workspace["project_name"]
+            project["agent_studio"] = state
+            _save_project()
+            st.success("Project workspace created.")
+            st.rerun()
+        if project_names:
+            selected_recent_project = st.selectbox("Recent Projects", project_names, index=project_names.index(default_workspace_name) if default_workspace_name in project_names else 0, key="agent_workspace_recent")
+            if st.button("Continue Project", use_container_width=True, key="agent_workspace_continue"):
+                loaded_workspace = load_workspace_project(selected_recent_project)
+                state["workspace_project"] = loaded_workspace["project_name"]
+                project["agent_studio"] = state
+                _save_project()
+                st.success("Project loaded.")
+                st.rerun()
+        active_workspace_name = state.get("workspace_project") or workspace_project_name
+        export_workspace = st.button("Export ZIP", use_container_width=True, key="agent_workspace_export_zip")
+        if export_workspace:
+            try:
                 zip_path = export_workspace_zip(active_workspace_name)
                 st.download_button("Download Workspace ZIP", data=Path(zip_path).read_bytes(), file_name=Path(zip_path).name, mime="application/zip", use_container_width=True, key="agent_workspace_download_zip")
-            if st.button("Archive Project", use_container_width=True, key="agent_workspace_archive"):
+            except Exception as exc:
+                st.caption("Workspace export unavailable.")
+                if st.session_state.get("developer_mode"):
+                    st.exception(exc)
+        if st.button("Archive Project", use_container_width=True, key="agent_workspace_archive"):
+            try:
                 archive_workspace_project(active_workspace_name)
                 st.success("Project archived.")
                 st.rerun()
-        except Exception:
-            st.caption("Workspace will be created when you generate or save.")
+            except Exception as exc:
+                st.caption("Project archive unavailable.")
+                if st.session_state.get("developer_mode"):
+                    st.exception(exc)
+    _render_agent_workspace_panel(active_workspace_name, state)
     with st.container(border=True):
         user_idea = st.text_area("พิมพ์ไอเดียของคุณ", value=state.get("user_idea", ""), height=180, key="agent_studio_user_idea", help="ใส่ไอเดียเพลง สินค้า คลิป พอดแคสต์ หรือคอนเซ็ปต์สั้น ๆ")
         c1, c2, c3 = st.columns(3)
