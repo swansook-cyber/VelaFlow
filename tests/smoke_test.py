@@ -13,8 +13,11 @@ sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
 import core.agent_memory as agent_memory_module
+import core.agent_tools as agent_tools_module
+from core.agent_executor import run_agent_workflow
 from core.agent_memory import load_agent_memory, save_agent_memory, update_agent_memory
 from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
+from core.agent_tools import build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
@@ -622,6 +625,28 @@ def main():
         profile = get_workflow_profile(workflow_mode)
         workflow_package = generate_agent_package("ทดสอบไอเดีย", "General Creative Package", "Thai", "Viral", workflow_mode, use_memory=False)
         assert_true(profile["workflow_mode"] == workflow_mode and all(workflow_package.get(key) for key in REQUIRED_AGENT_SECTIONS), f"agent workflow output failed: {workflow_mode}")
+    old_agent_export_root = agent_tools_module.AGENT_EXPORT_ROOT
+    agent_tools_module.AGENT_EXPORT_ROOT = ROOT / "outputs" / "smoke_agent_tools"
+    if agent_tools_module.AGENT_EXPORT_ROOT.exists():
+        shutil.rmtree(agent_tools_module.AGENT_EXPORT_ROOT)
+    safe_agent_name = generate_filename("เพลง: ทดสอบ/Agent?")
+    assert_true("เพลง" in safe_agent_name and "/" not in safe_agent_name and ":" not in safe_agent_name, "agent filename sanitization failed")
+    tool_folder = create_project_folder("Smoke Agent Project")
+    assert_true(tool_folder.exists() and tool_folder.is_dir(), "agent safe project folder creation failed")
+    txt_path = export_txt("hello agent", "agent export.txt")
+    assert_true(txt_path.exists() and "hello agent" in txt_path.read_text(encoding="utf-8-sig"), "agent txt export failed")
+    package_path = save_project_package(agent_package, "Smoke Agent Package")
+    assert_true(package_path.exists() and "Project Summary" in package_path.read_text(encoding="utf-8-sig"), "agent project package save failed")
+    checklist = generate_release_checklist("Spotify Song Release")
+    assert_true("Suno" in checklist and "cover" in checklist.lower(), "agent release checklist failed")
+    memory_summary = summarize_memory(updated_memory)
+    assert_true("Podcast Episode Idea" in memory_summary, "agent memory summary failed")
+    release_package = build_release_package(agent_package)
+    assert_true(Path(release_package["zip_path"]).exists() and release_package["files"], "agent release package build failed")
+    executor_result = run_agent_workflow("เพลงเศร้าเกี่ยวกับคนที่ไม่กลับมา", "TikTok Viral Mode", use_memory=False, project_type="Spotify Song Release", language="Thai", tone="Viral")
+    assert_true(executor_result["output_package"] and executor_result["actions_performed"] and executor_result["generated_files"] and "workflow_summary" in executor_result, "agent executor return structure failed")
+    assert_true(any(Path(path).exists() for path in executor_result["generated_files"]), "agent executor generated files missing")
+    agent_tools_module.AGENT_EXPORT_ROOT = old_agent_export_root
     agent_memory_module.MEMORY_PATH = old_memory_path
     structure_presets = load_structure_presets()
     assert_true("vela_moon_pop_rock" in structure_presets and "tiktok_hook_first" in structure_presets, "song structure presets failed")
@@ -1697,7 +1722,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
-        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source, "Agent Studio UI missing")
+        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")

@@ -42,6 +42,7 @@ from core.artist_presets import (
     set_default_artist_preset,
 )
 from core.agent_memory import load_agent_memory, save_agent_memory
+from core.agent_executor import run_agent_workflow
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
@@ -4609,15 +4610,65 @@ elif page == "VelaFlow Agent Studio":
                 st.rerun()
         generate_agent = st.button("Generate Agent Package", type="primary", use_container_width=True, disabled=not bool(user_idea.strip()), key="agent_studio_generate")
     if generate_agent:
-        package = generate_agent_package(user_idea, project_type, language, tone, workflow_mode, use_memory=use_memory)
-        state.update({"user_idea": user_idea, "project_type": project_type, "language": language, "tone": tone, "workflow_mode": workflow_mode, "use_memory": use_memory, "package": package})
+        with st.status("Agent is working...", expanded=True) as agent_status:
+            st.write("analyzing idea")
+            st.write("selecting workflow")
+            st.write("generating package")
+            result = run_agent_workflow(
+                user_idea,
+                workflow_mode,
+                use_memory=use_memory,
+                project_type=project_type,
+                language=language,
+                tone=tone,
+            )
+            st.write("exporting files")
+            st.write("finalizing project")
+            agent_status.update(label="Agent workflow complete", state="complete")
+        package = result.get("output_package", {})
+        state.update({
+            "user_idea": user_idea,
+            "project_type": project_type,
+            "language": language,
+            "tone": tone,
+            "workflow_mode": workflow_mode,
+            "use_memory": use_memory,
+            "package": package,
+            "agent_result": result,
+        })
         project["agent_studio"] = state
         _save_project()
         _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type, "workflow_mode": workflow_mode})
         st.rerun()
     agent_package = state.get("package") or {}
+    agent_result = state.get("agent_result") or {}
     if agent_package:
         st.success("Agent package ready.")
+        if agent_result.get("workflow_summary"):
+            st.info(agent_result["workflow_summary"])
+        if agent_result.get("actions_performed"):
+            with st.container(border=True):
+                st.markdown("### Agent Actions")
+                for action in agent_result.get("actions_performed", []):
+                    st.write(f"- {action}")
+        if agent_result.get("generated_files"):
+            with st.container(border=True):
+                st.markdown("### Generated Files")
+                for file_index, file_name in enumerate(agent_result.get("generated_files", [])):
+                    file_path = Path(file_name)
+                    if file_path.is_file():
+                        st.download_button(
+                            f"Download {file_path.name}",
+                            data=file_path.read_bytes(),
+                            file_name=file_path.name,
+                            mime="application/octet-stream",
+                            use_container_width=True,
+                            key=f"agent_studio_generated_file_{file_index}",
+                        )
+        if agent_result.get("errors"):
+            st.warning("Some agent actions could not finish. Your text package is still available.")
+            for error in agent_result.get("errors", []):
+                st.caption(error)
         txt_payload = agent_package_to_text(agent_package)
         for index, (section, content) in enumerate(agent_package.items()):
             with st.container(border=True):
