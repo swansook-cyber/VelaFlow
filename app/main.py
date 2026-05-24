@@ -41,6 +41,7 @@ from core.artist_presets import (
     save_artist_preset,
     set_default_artist_preset,
 )
+from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, agent_package_to_text, generate_agent_package
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
     AFFILIATE_MODES,
@@ -4575,6 +4576,36 @@ if page == "Dashboard":
 
 elif page == "Affiliate Studio":
     _render_affiliate_studio(project)
+
+elif page == "VelaFlow Agent Studio":
+    _page_header("VelaFlow Agent Studio", "Turn one raw idea into a complete creator package.", project)
+    st.caption("Beginner-friendly creative assistant. No prompt engineering required.")
+    state = project.setdefault("agent_studio", {})
+    with st.container(border=True):
+        user_idea = st.text_area("พิมพ์ไอเดียของคุณ", value=state.get("user_idea", ""), height=180, key="agent_studio_user_idea", help="ใส่ไอเดียเพลง สินค้า คลิป พอดแคสต์ หรือคอนเซ็ปต์สั้น ๆ")
+        c1, c2, c3 = st.columns(3)
+        project_type = c1.selectbox("Project type", AGENT_PROJECT_TYPES, index=AGENT_PROJECT_TYPES.index(state.get("project_type", AGENT_PROJECT_TYPES[0])) if state.get("project_type") in AGENT_PROJECT_TYPES else 0, key="agent_studio_project_type")
+        language = c2.selectbox("Language", AGENT_LANGUAGES, index=AGENT_LANGUAGES.index(state.get("language", "Thai")) if state.get("language") in AGENT_LANGUAGES else 0, key="agent_studio_language")
+        tone = c3.selectbox("Tone", AGENT_TONES, index=AGENT_TONES.index(state.get("tone", "Emotional")) if state.get("tone") in AGENT_TONES else 0, key="agent_studio_tone")
+        generate_agent = st.button("Generate Agent Package", type="primary", use_container_width=True, disabled=not bool(user_idea.strip()), key="agent_studio_generate")
+    if generate_agent:
+        package = generate_agent_package(user_idea, project_type, language, tone)
+        state.update({"user_idea": user_idea, "project_type": project_type, "language": language, "tone": tone, "package": package})
+        project["agent_studio"] = state
+        _save_project()
+        _log_beta_event("generate", workflow="agent_studio", metadata={"page": "VelaFlow Agent Studio", "project_type": project_type})
+        st.rerun()
+    agent_package = state.get("package") or {}
+    if agent_package:
+        st.success("Agent package ready.")
+        txt_payload = agent_package_to_text(agent_package)
+        for index, (section, content) in enumerate(agent_package.items()):
+            with st.container(border=True):
+                st.markdown(f"### {section}")
+                st.text_area(f"Copy {section}", value=content, height=130, key=f"agent_studio_section_{index}")
+        st.download_button("Download Agent Package TXT", data=txt_payload.encode("utf-8-sig"), file_name="velaflow_agent_package.txt", mime="text/plain", use_container_width=True, key="agent_studio_download_txt")
+    else:
+        st.info("Start with one idea. VelaFlow will turn it into titles, script or lyrics, prompts, captions, hashtags, and next steps.")
 
 elif page == "Shorts Factory":
     _render_shorts_factory(project)

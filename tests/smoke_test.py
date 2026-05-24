@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.asset_manager import clear_rejected_images
+from core.agent_studio import REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
     AFFILIATE_MODES,
@@ -533,6 +534,7 @@ def main():
     assert_true(queue_item["status"] == "Ready" and queue_item["payload"]["provider"] == "Runway", "render queue item failed")
     full_pages = flatten_pages(FULL_MENU_GROUPS)
     song_only_pages = flatten_pages(SONG_ONLY_MENU_GROUPS)
+    assert_true("VelaFlow Agent Studio" in FULL_MENU_GROUPS["START"], "Agent Studio missing from START navigation")
     assert_true(FULL_MENU_GROUPS["SONG"] == ["Song Studio", "Song Library", "Artist Preset Manager"], "SONG navigation group failed")
     assert_true("Artist Preset Manager" in FULL_MENU_GROUPS["SONG"], "Artist Preset Manager missing from SONG group")
     assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"], "Video Prompt Studio missing from VISUAL group")
@@ -597,6 +599,11 @@ def main():
     assert_true(project["creative_direction"]["music_direction"] == "Emotional Pop Rock", "Song Studio project creative direction state failed")
     assert_true(TARGET_PLATFORM_OPTIONS and "Full Pipeline" in TARGET_PLATFORM_OPTIONS, "creator wizard target platforms failed")
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
+    thai_agent_idea = "\u0e40\u0e1e\u0e25\u0e07\u0e40\u0e28\u0e23\u0e49\u0e32\u0e40\u0e01\u0e35\u0e48\u0e22\u0e27\u0e01\u0e31\u0e1a\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
+    agent_package = generate_agent_package(thai_agent_idea, "Spotify Song Release", "Thai", "Emotional")
+    assert_true(all(key in agent_package and str(agent_package[key]).strip() for key in REQUIRED_AGENT_SECTIONS), "agent package missing required non-empty sections")
+    assert_true(thai_agent_idea in agent_package["Project Summary"] and "Suno" in agent_package["Suno / Music Style Prompt"], "agent package Thai/music output failed")
+    assert_true("Project Summary" in agent_package_to_text(agent_package) and "Next Action Checklist" in agent_package_to_text(agent_package), "agent package TXT export failed")
     structure_presets = load_structure_presets()
     assert_true("vela_moon_pop_rock" in structure_presets and "tiktok_hook_first" in structure_presets, "song structure presets failed")
     structure_plan = create_structure_plan(
@@ -1671,6 +1678,7 @@ def main():
         assert_true("Flow Prompt" in main_source and "Veo Prompt" in main_source and "Runway Prompt" in main_source and "Kling Prompt" in main_source and "Image Prompt" in main_source and "Thumbnail Prompt" in main_source, "copy-ready prompt boxes missing")
         assert_true("Product Analyzer" in main_source and "Viral Hook Generator" in main_source and "TikTok Script Studio" in main_source and "Creator Package Export" in main_source and "Trending Ideas" in main_source, "Affiliate Studio MVP sections missing")
         assert_true("🔥 Affiliate Trend Finder" in main_source and "Generate Trend Ideas" in main_source and "Export Trend Package ZIP" in main_source, "Affiliate Trend Finder UI missing")
+        assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")

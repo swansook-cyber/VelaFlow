@@ -10,7 +10,7 @@ PAGE_LABELS = {
 }
 
 FULL_MENU_GROUPS = {
-    "START": ["Dashboard", "One Click Creator Flow", "Creator Wizard"],
+    "START": ["Dashboard", "One Click Creator Flow", "VelaFlow Agent Studio", "Creator Wizard"],
     "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
     "VISUAL": ["MV Director", "Video Prompt Studio", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
     "PRODUCTION": ["Hook Clip Studio", "Remaster Studio", "Affiliate Studio", "Shorts Factory", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
