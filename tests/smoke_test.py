@@ -22,6 +22,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -554,13 +555,13 @@ def main():
     song_only_pages = flatten_pages(SONG_ONLY_MENU_GROUPS)
     assert_true("VelaFlow Agent Studio" in FULL_MENU_GROUPS["START"], "Agent Studio missing from START navigation")
     assert_true(PAGE_LABELS.get("VelaFlow Agent Studio") == "🤖 VelaFlow Agent Studio" and flatten_pages(FULL_MENU_GROUPS).count("VelaFlow Agent Studio") == 1, "Agent Studio navigation label/key failed")
-    assert_true("VelaFlow Agent Studio" in flatten_pages(SONG_ONLY_MENU_GROUPS), "Agent Studio hidden from normal creator mode navigation")
+    assert_true("VelaFlow Agent Studio" not in flatten_pages(SONG_ONLY_MENU_GROUPS), "Agent Studio should be hidden from normal V1 creative pack navigation")
     assert_true(FULL_MENU_GROUPS["SONG"] == ["Song Studio", "Song Library", "Artist Preset Manager"], "SONG navigation group failed")
     assert_true("Artist Preset Manager" in FULL_MENU_GROUPS["SONG"], "Artist Preset Manager missing from SONG group")
     assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"], "Video Prompt Studio missing from VISUAL group")
     assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
-    assert_true("One Click Creator Flow" in song_only_pages and "Remaster Studio" in song_only_pages, "Song Studio Only missing creator/remaster flow")
+    assert_true(song_only_pages == ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"], "Song Studio Only missing simplified creative pack flow")
     assert_true(set(song_only_pages) == SONG_ONLY_ALLOWED_PAGES, "Song Studio Only allowed page set mismatch")
     assert_true(len(full_pages) == len(set(full_pages)) and len(song_only_pages) == len(set(song_only_pages)), "duplicate navigation pages found")
     assert_true(PAGE_LABELS.get("Creator Wizard") == "Release Workflow Wizard" and PAGE_LABELS.get("Smart Clip Factory") == "Clip Factory" and PAGE_LABELS.get("Production Audit") == "Quality Audit", "menu label polish failed")
@@ -596,7 +597,7 @@ def main():
     assert_true(normalize_navigation_state(HOOK_CLIP_MENU_GROUPS, "CLIPS", "Dashboard") == ("CLIPS", "Hook Clip Studio"), "Hook Clip Studio section selection failed")
     assert_true(workflow_type_for_mode("Hook Clip Studio (Beta)") == "hook_clip", "Hook Clip workflow type mapping failed")
     assert_true(session_label_for_mode("Hook Clip Studio (Beta)") == "Current Hook Clip Session", "Hook Clip session label failed")
-    dashboard_target = "Song Studio"
+    dashboard_target = "Idea"
     assert_true(dashboard_target in full_pages and dashboard_target in song_only_pages, "Dashboard continue target invalid")
     direction = generate_creative_direction(
         topic="Custom",
@@ -619,6 +620,14 @@ def main():
     assert_true(project["creative_direction"]["music_direction"] == "Emotional Pop Rock", "Song Studio project creative direction state failed")
     assert_true(TARGET_PLATFORM_OPTIONS and "Full Pipeline" in TARGET_PLATFORM_OPTIONS, "creator wizard target platforms failed")
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
+    assert_true(["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"] == song_only_pages, "V1 creative pack navigation should only show four creator steps")
+    release_pack = generate_creative_release_pack("เพลงเศร้าในออฟฟิศ", "Office Burnout", "Vela Moon")
+    release_export = export_creative_release_pack("Smoke Creative Pack", release_pack, "Vela Moon", base_dir=out / "creative_pack")
+    release_zip = Path((release_export.get("data") or {}).get("zip_path", ""))
+    release_txt = creative_release_pack_to_text(release_pack)
+    assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
+    assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "Music style prompt for Suno/Udio" in release_txt, "creative release pack render-free notes/text missing")
+    assert_true(release_zip.exists() and "Thai Sad Pop" in CREATIVE_PACK_PRESETS and "Dark Podcast Intro" in CREATIVE_PACK_PRESETS, "creative release pack export/presets failed")
     assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")
     assert_true("Auto" in AGENT_WORKFLOW_MODES and "Auto" in AGENT_AI_PROVIDERS, "agent auto mode/provider missing")
     local_provider = LocalFallbackProvider()
@@ -1824,6 +1833,8 @@ def main():
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Generate Mastered WAV" in main_source and "Download Mastered WAV" in main_source, "Remaster Studio UI missing")
+        assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "no video rendering" in main_source, "creative pack generator UI missing")
+        assert_true("sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source, "creative pack sidebar navigation missing")
         assert_true("One Click Creator Flow" in main_source and "Generate Creator Package" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")
         assert_true("analyzing song" in main_source and "detecting hook" in main_source and "generating prompts" in main_source and "remastering audio" in main_source and "building creator package" in main_source and "complete" in main_source, "one-click progress stages missing")
         assert_true("VelaFlow Closed Beta" in main_source and "Founding Member" in main_source and "Creator tips" in main_source and "Send beta feedback" in main_source, "closed beta premium creator elements missing")

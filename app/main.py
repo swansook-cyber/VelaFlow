@@ -94,6 +94,7 @@ from core.creator_wizard import (
     suggest_project_name,
 )
 from core.creative_suggestions import build_creative_suggestions
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack
 from core.emotional_arc import analyze_emotional_arc
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
@@ -1876,6 +1877,131 @@ def _read_creator_file(path: Path) -> str:
         return path.read_text(encoding="utf-8-sig") if path.is_file() else ""
     except Exception:
         return ""
+
+
+def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
+    _page_header("AI Creative Pack Generator", "Generate, organize, and export a complete release pack. No render pipeline.", project)
+    state = project.setdefault("creative_pack_v1", {})
+    st.info("VelaFlow V1 is focused on creative pack generation only: no video rendering, no lip sync, no timeline editor, no cloud render, no encode video.")
+    stage_cols = st.columns(4)
+    stages = ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"]
+    for idx, stage in enumerate(stages):
+        if stage == active_stage:
+            stage_cols[idx].success(stage)
+        else:
+            stage_cols[idx].caption(stage)
+
+    preset_names = list(CREATIVE_PACK_PRESETS)
+    with st.container(border=True):
+        st.markdown("### Idea")
+        c1, c2 = st.columns([2, 1])
+        idea = c1.text_area(
+            "Song idea / creative concept",
+            value=state.get("idea", str((project.get("song", {}) or {}).get("idea") or "")),
+            height=150,
+            key="creative_pack_idea",
+            help="ใส่ไอเดียสั้น ๆ เช่น เพลงเศร้าในออฟฟิศ หรือ รักคนที่ไม่กลับมา",
+        )
+        preset = c2.selectbox(
+            "Quality Preset",
+            preset_names,
+            index=preset_names.index(state.get("preset", "Thai Sad Pop")) if state.get("preset") in preset_names else 0,
+            key="creative_pack_preset",
+        )
+        artist_name = c2.text_input("Artist name", value=state.get("artist_name", str(project.get("artist") or DEFAULT_ARTIST)), key="creative_pack_artist")
+        st.caption("High-quality presets: Thai Sad Pop, Office Burnout, Lonely Night Drive, Broken Relationship, TikTok Emotional Hook, Indie Acoustic, Dark Podcast Intro.")
+
+    generate_pack = st.button(
+        "Generate Full Release Pack",
+        type="primary",
+        use_container_width=True,
+        disabled=not bool(str(idea or "").strip()),
+        key="creative_pack_generate_full_release_pack",
+    )
+    if generate_pack:
+        result = generate_creative_release_pack(idea, preset, artist_name)
+        export = export_creative_release_pack(project.get("title") or result["pack"].get("Suggested title") or "VelaFlow Release", result, artist_name)
+        state.update(
+            {
+                "idea": idea,
+                "preset": preset,
+                "artist_name": artist_name,
+                "release_pack": result,
+                "export": export.get("data", {}),
+                "last_error": export.get("error", ""),
+            }
+        )
+        project["creative_pack_v1"] = state
+        project.setdefault("song", {})["idea"] = idea
+        project["song"]["title"] = result["pack"].get("Suggested title", "")
+        project["song"]["complete_lyrics"] = result["pack"].get("Full lyrics", "")
+        project["song"]["style_prompt"] = result["pack"].get("Music style prompt for Suno/Udio", "")
+        _save_project()
+        _log_beta_event("generate", workflow="creative_pack_v1", metadata={"page": active_stage, "preset": preset})
+        if export.get("ok"):
+            st.success("Release Pack ready")
+        else:
+            st.warning(export.get("error") or "Release Pack generated, but export failed")
+        st.rerun()
+
+    result = state.get("release_pack") or {}
+    pack = result.get("pack") or {}
+    export_data = state.get("export") or {}
+    if not pack:
+        st.markdown("### Quick Start")
+        st.write("1. ใส่ไอเดียเพลงหรือคอนเซ็ปต์  \n2. เลือก preset  \n3. กด Generate Full Release Pack  \n4. Copy หรือ Download TXT/ZIP")
+        return
+
+    st.markdown("### Generate Song")
+    song_cols = st.columns(3)
+    song_cols[0].metric("Suggested Title", pack.get("Suggested title", "-"))
+    song_cols[1].metric("Preset", result.get("preset", "-"))
+    song_cols[2].metric("Mode", "No Render")
+    st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
+    st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
+    st.text_area("Full lyrics", value=pack.get("Full lyrics", ""), height=300, key="creative_pack_full_lyrics")
+    st.text_area("Music style prompt for Suno/Udio", value=pack.get("Music style prompt for Suno/Udio", ""), height=110, key="creative_pack_music_style")
+
+    st.markdown("### Generate Visual Pack")
+    visual_cols = st.columns(2)
+    with visual_cols[0]:
+        st.button("Copy Cover Prompt", use_container_width=True, key="creative_pack_copy_cover")
+        st.text_area("Cover prompt", value=pack.get("Cover prompt", ""), height=140, key="creative_pack_cover_prompt")
+        st.button("Copy MV Storyboard Prompt", use_container_width=True, key="creative_pack_copy_storyboard")
+        st.text_area("MV storyboard prompt", value=pack.get("MV storyboard prompt", ""), height=170, key="creative_pack_mv_storyboard_prompt")
+    with visual_cols[1]:
+        st.button("Copy Shorts/TikTok Ideas", use_container_width=True, key="creative_pack_copy_shorts")
+        st.text_area("Shorts/TikTok ideas", value=pack.get("Shorts/TikTok ideas", ""), height=160, key="creative_pack_shorts_ideas")
+        st.button("Copy Caption", use_container_width=True, key="creative_pack_copy_caption")
+        st.text_area("Caption", value=pack.get("Caption", ""), height=110, key="creative_pack_caption")
+        st.text_area("Hashtags", value=pack.get("Hashtags", ""), height=90, key="creative_pack_hashtags")
+
+    st.markdown("### Export Release Pack")
+    st.text_area("YouTube description", value=pack.get("YouTube description", ""), height=160, key="creative_pack_youtube_description")
+    st.text_area("Release notes", value=pack.get("Release notes", ""), height=120, key="creative_pack_release_notes")
+    txt_payload = creative_release_pack_to_text(result)
+    download_cols = st.columns(2)
+    txt_name = Path(str(export_data.get("txt_path") or "velaflow_release_pack.txt")).name
+    zip_path = Path(str(export_data.get("zip_path") or ""))
+    download_cols[0].download_button(
+        "Download TXT",
+        data=txt_payload.encode("utf-8-sig"),
+        file_name=txt_name,
+        mime="text/plain",
+        use_container_width=True,
+        key="creative_pack_download_txt",
+    )
+    if zip_path.is_file():
+        download_cols[1].download_button(
+            "Download ZIP",
+            data=zip_path.read_bytes(),
+            file_name=zip_path.name,
+            mime="application/zip",
+            use_container_width=True,
+            key="creative_pack_download_zip",
+        )
+    elif state.get("last_error"):
+        download_cols[1].warning(state.get("last_error"))
 
 
 def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
@@ -4148,6 +4274,10 @@ if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
     st.caption("☁️ Internal Cloud Mode")
 
 PAGE_MODULES = {
+    "Idea": "creative_pack",
+    "Generate Song": "creative_pack",
+    "Generate Visual Pack": "creative_pack",
+    "Export Release Pack": "creative_pack",
     "Dashboard": "core",
     "Creator Wizard": "core",
     "Song Studio": "director",
@@ -4216,7 +4346,7 @@ def go_to_page(section_name: str, page_name: str) -> None:
 _sync_navigation_state()
 
 with st.sidebar:
-    st.header("Music Flow")
+    st.header("VelaFlow V1")
     beta_profile = load_beta_access()
     st.info(
         f"VelaFlow Closed Beta\n\nFounding Creator Build\n\nVersion {APP_VERSION} · Build {BUILD_VERSION}\n\nStatus: {str(beta_profile.get('beta_status', 'active')).title()}",
@@ -4236,7 +4366,7 @@ with st.sidebar:
         "Advanced / Developer Mode",
         value=bool(st.session_state.get("developer_mode", False)),
         key="developer_mode",
-        help="เปิดเฉพาะเมื่อต้องการ Seller, Podcast, Viral, MV, Mock Queue หรือ Veo debug",
+        help="เปิดเฉพาะเมื่อต้องการ workflow เก่าหรือเครื่องมือ developer",
     )
     workflow_options = ["Song Studio Only"] if not developer_mode else ["Song Studio Only", "Full Pipeline", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"]
     current_mode_for_select = st.session_state.get("workflow_mode", "Full Pipeline")
@@ -4247,11 +4377,11 @@ with st.sidebar:
         workflow_options,
         index=workflow_options.index(current_mode_for_select),
         key="workflow_mode_selector",
-        format_func=lambda value: "Music Flow MVP" if value == "Song Studio Only" else value,
-        help="Music Flow MVP = create/paste lyrics, select hook, upload audio, generate a vertical short clip. Advanced mode reveals other beta workflows.",
+        format_func=lambda value: "AI Creative Pack Generator" if value == "Song Studio Only" else value,
+        help="V1 = generate, organize, and export creative release packs. No rendering workflow is shown in normal mode.",
     )
     if selected_mode == "Song Studio Only":
-        st.caption("Music Flow MVP: lyrics → best hook → hook audio → vertical short clip.")
+        st.caption("AI Creative Pack Generator: idea → song → visual pack → release pack.")
     elif selected_mode == "Seller Studio (Beta)":
         st.caption("Seller Studio focuses on TikTok/Reels/Shorts product content and hides music pipeline tools.")
     elif selected_mode == "Podcast Studio (Beta)":
@@ -4272,7 +4402,7 @@ with st.sidebar:
         if not st.session_state.get("current_project") and _fix_display_text((st.session_state.project or {}).get("title", "")) in SONG_DEFAULT_TITLES:
             st.session_state.project = new_project(_workflow_default_name(selected_mode), DEFAULT_ARTIST, workflow_type_for_mode(selected_mode))
         if selected_mode == "Song Studio Only" and st.session_state.selected_page not in SONG_ONLY_ALLOWED_PAGES:
-            st.session_state["pending_navigation"] = {"section": "START", "page": "Dashboard"}
+            st.session_state["pending_navigation"] = {"section": "CREATE", "page": "Idea"}
         if selected_mode == "Seller Studio (Beta)" and st.session_state.selected_page not in SELLER_STUDIO_ALLOWED_PAGES:
             st.session_state["pending_navigation"] = {"section": "SELLER", "page": "Seller Studio"}
         if selected_mode == "Podcast Studio (Beta)" and st.session_state.selected_page not in PODCAST_STUDIO_ALLOWED_PAGES:
@@ -4287,14 +4417,24 @@ with st.sidebar:
         _log_beta_event("workflow_usage", _workflow_analytics_key(selected_mode), metadata={"workflow_mode": selected_mode})
         st.session_state[workflow_log_key] = True
     st.markdown("**Creator Navigation**")
-    if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio"):
-        go_to_page("MUSIC", "Song Studio")
-    if st.button("Clip Studio", use_container_width=True, key="sidebar_nav_clip_studio"):
-        go_to_page("MUSIC", "Hook Clip Studio")
-    if st.button("Remaster Studio", use_container_width=True, key="sidebar_nav_remaster_studio"):
-        go_to_page("MUSIC", "Remaster Studio")
-    if st.button("🤖 VelaFlow Agent Studio", use_container_width=True, key="sidebar_nav_agent_studio"):
-        go_to_page("START", "VelaFlow Agent Studio")
+    if not developer_mode:
+        if st.button("Idea", use_container_width=True, key="sidebar_nav_idea"):
+            go_to_page("CREATE", "Idea")
+        if st.button("Generate Song", use_container_width=True, key="sidebar_nav_generate_song"):
+            go_to_page("CREATE", "Generate Song")
+        if st.button("Generate Visual Pack", use_container_width=True, key="sidebar_nav_generate_visual_pack"):
+            go_to_page("CREATE", "Generate Visual Pack")
+        if st.button("Export Release Pack", use_container_width=True, key="sidebar_nav_export_release_pack"):
+            go_to_page("CREATE", "Export Release Pack")
+    else:
+        if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio"):
+            go_to_page("SONG", "Song Studio")
+        if st.button("Clip Studio", use_container_width=True, key="sidebar_nav_clip_studio"):
+            go_to_page("PRODUCTION", "Hook Clip Studio")
+        if st.button("Remaster Studio", use_container_width=True, key="sidebar_nav_remaster_studio"):
+            go_to_page("PRODUCTION", "Remaster Studio")
+        if st.button("🤖 VelaFlow Agent Studio", use_container_width=True, key="sidebar_nav_agent_studio"):
+            go_to_page("START", "VelaFlow Agent Studio")
     group = st.selectbox("Section", list(MENU_GROUPS), key="selected_section")
     group_pages = MENU_GROUPS[group]
     if st.session_state.selected_page not in group_pages:
@@ -4785,7 +4925,10 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
 
 
 
-if page == "Dashboard":
+if page in {"Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"}:
+    _render_ai_creative_pack_generator(project, page)
+
+elif page == "Dashboard":
     _page_header("Dashboard", "Project overview, next step, and daily workflow shortcuts.", project)
     workflow_mode = st.session_state.get("workflow_mode", "Full Pipeline")
     active_provider, _, active_model = _active_text_credentials()
