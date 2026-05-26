@@ -1776,7 +1776,8 @@ def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_pr
 
 
 def _render_remaster_studio(project: dict[str, Any]) -> None:
-    _page_header("Remaster Studio", "Upload a finished AI song and export a cleaner mastered WAV.", project)
+    _page_header("Optional Creator Mastering", "Polish AI-generated songs for clearer vocal, better loudness, and streaming-ready export.", project)
+    st.caption("Optional tool for finished AI songs. Local FFmpeg only. No DAW, timeline, mixer, plugin chain, video render, lip sync, or encode video workflow is added.")
     remaster_state = project.setdefault("remaster_studio", {})
     uploaded = st.file_uploader(
         "Upload song WAV/MP3",
@@ -1794,7 +1795,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         else:
             st.warning(upload_result.get("error") or upload_result.get("message"))
     source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
-    style = st.selectbox("Select Remaster Style", REMASTER_STYLES, index=0, key="remaster_style")
+    style = st.selectbox("Select Mastering Preset", REMASTER_STYLES, index=0, key="remaster_style")
     if source_path and Path(source_path).is_file():
         st.markdown("**Preview original**")
         st.audio(source_path)

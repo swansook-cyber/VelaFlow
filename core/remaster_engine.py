@@ -14,16 +14,24 @@ from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media
 
 
 REMASTER_STYLES = [
-    "TikTok Loud",
+    "Vela Moon Emotional Pop Rock",
+    "Spotify Pop Loud",
+    "TikTok Loud Master",
+    "Warm Vocal",
+    "Acoustic Smooth",
+    "Podcast Voice Clean",
     "Spotify Balanced",
     "YouTube Clean",
-    "Warm Vocal",
     "Cinematic Wide",
-    "Emotional Soft",
 ]
 
 
 STYLE_FILTERS = {
+    "Vela Moon Emotional Pop Rock": "highpass=f=30,lowpass=f=18500,equalizer=f=180:t=q:w=0.9:g=0.8,equalizer=f=2800:t=q:w=1.0:g=1.4,equalizer=f=6800:t=q:w=1.1:g=0.6,acompressor=threshold=-18dB:ratio=1.8:attack=10:release=150,loudnorm=I=-13:TP=-1.1:LRA=9,alimiter=level_out=0.93:limit=0.93",
+    "Spotify Pop Loud": "highpass=f=28,lowpass=f=18500,equalizer=f=3200:t=q:w=1.0:g=1.1,acompressor=threshold=-17dB:ratio=1.9:attack=10:release=145,loudnorm=I=-12:TP=-1.1:LRA=9,alimiter=level_in=1:level_out=0.93:limit=0.93",
+    "TikTok Loud Master": "highpass=f=35,equalizer=f=2500:t=q:w=1.1:g=1.8,equalizer=f=9000:t=q:w=1.1:g=0.8,acompressor=threshold=-16dB:ratio=2.4:attack=8:release=120,loudnorm=I=-10:TP=-1.0:LRA=8,alimiter=level_in=1:level_out=0.92:limit=0.92",
+    "Acoustic Smooth": "highpass=f=26,lowpass=f=18000,equalizer=f=220:t=q:w=0.9:g=0.8,equalizer=f=3500:t=q:w=1.0:g=0.9,acompressor=threshold=-19dB:ratio=1.45:attack=16:release=190,loudnorm=I=-15:TP=-1.4:LRA=12,alimiter=level_out=0.94:limit=0.94",
+    "Podcast Voice Clean": "highpass=f=70,lowpass=f=15000,equalizer=f=1800:t=q:w=1.1:g=1.2,equalizer=f=4200:t=q:w=1.0:g=1.5,acompressor=threshold=-20dB:ratio=2.2:attack=8:release=130,loudnorm=I=-16:TP=-1.5:LRA=9,alimiter=level_out=0.93:limit=0.93",
     "Spotify Balanced": "highpass=f=28,lowpass=f=18500,equalizer=f=3200:t=q:w=1.0:g=0.8,acompressor=threshold=-18dB:ratio=1.7:attack=12:release=160,loudnorm=I=-14:TP=-1.2:LRA=10,alimiter=level_in=1:level_out=0.93:limit=0.93",
     "Spotify Clean": "highpass=f=28,lowpass=f=18500,equalizer=f=3200:t=q:w=1.0:g=0.8,acompressor=threshold=-18dB:ratio=1.7:attack=12:release=160,loudnorm=I=-14:TP=-1.2:LRA=10,alimiter=level_in=1:level_out=0.93:limit=0.93",
     "TikTok Loud": "highpass=f=35,equalizer=f=2500:t=q:w=1.1:g=1.8,equalizer=f=9000:t=q:w=1.1:g=0.8,acompressor=threshold=-16dB:ratio=2.4:attack=8:release=120,loudnorm=I=-10:TP=-1.0:LRA=8,alimiter=level_in=1:level_out=0.92:limit=0.92",
