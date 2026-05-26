@@ -1880,9 +1880,9 @@ def _read_creator_file(path: Path) -> str:
 
 
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
-    _page_header("AI Creative Pack Generator", "Generate, organize, and export a complete release pack. No render pipeline.", project)
+    _page_header("AI Creative Pack Generator", "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.", project)
     state = project.setdefault("creative_pack_v1", {})
-    st.info("VelaFlow V1 is focused on creative pack generation only: no video rendering, no lip sync, no timeline editor, no cloud render, no encode video.")
+    st.info("Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.")
     stage_cols = st.columns(4)
     stages = ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"]
     for idx, stage in enumerate(stages):
@@ -1892,6 +1892,15 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             stage_cols[idx].caption(stage)
 
     preset_names = list(CREATIVE_PACK_PRESETS)
+    with st.container(border=True):
+        st.markdown("### Quick Start")
+        q1, q2, q3 = st.columns(3)
+        q1.markdown("**1. Choose preset**")
+        q1.caption("Pick the creative direction.")
+        q2.markdown("**2. Enter song idea**")
+        q2.caption("Write one simple concept.")
+        q3.markdown("**3. Generate & Export**")
+        q3.caption("Download TXT or ZIP.")
     with st.container(border=True):
         st.markdown("### Idea")
         c1, c2 = st.columns([2, 1])
@@ -1948,8 +1957,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     pack = result.get("pack") or {}
     export_data = state.get("export") or {}
     if not pack:
-        st.markdown("### Quick Start")
-        st.write("1. ใส่ไอเดียเพลงหรือคอนเซ็ปต์  \n2. เลือก preset  \n3. กด Generate Full Release Pack  \n4. Copy หรือ Download TXT/ZIP")
+        st.caption("Ready when you are: choose a preset, enter a song idea, then click Generate Full Release Pack.")
         return
 
     st.markdown("### Generate Song")
