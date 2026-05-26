@@ -627,7 +627,20 @@ def main():
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
     assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "Music style prompt for Suno/Udio" in release_txt, "creative release pack render-free notes/text missing")
-    assert_true(release_zip.exists() and "Thai Sad Pop" in CREATIVE_PACK_PRESETS and "Dark Podcast Intro" in CREATIVE_PACK_PRESETS, "creative release pack export/presets failed")
+    signature_presets = {
+        "Vela Moon Emotional Pop Rock",
+        "Vela Moon Late Night Drive",
+        "Vela Moon Heartbroken Anthem",
+        "Vela Moon Easy Listening Pop Rock",
+        "Vela Moon Office Life Story",
+    }
+    assert_true(release_zip.exists() and "Thai Sad Pop" in CREATIVE_PACK_PRESETS and "Dark Podcast Intro" in CREATIVE_PACK_PRESETS and signature_presets.issubset(set(CREATIVE_PACK_PRESETS)), "creative release pack export/presets failed")
+    for signature_preset in signature_presets:
+        signature_pack = generate_creative_release_pack("เพลง Vela Moon สำหรับคนทำงานที่ยังคิดถึงใครบางคน", signature_preset, "Vela Moon")
+        signature_export = export_creative_release_pack(f"Smoke {signature_preset}", signature_pack, "Vela Moon", base_dir=out / sanitize_filename(signature_preset))
+        signature_text = creative_release_pack_to_text(signature_pack)
+        assert_true(signature_export["ok"] and Path(signature_export["data"]["zip_path"]).exists(), f"{signature_preset} export failed")
+        assert_true("Vela Moon" in signature_text and "Thai pop rock" in signature_text and "#VelaMoon" in signature_pack["pack"]["Hashtags"], f"{signature_preset} signature direction missing")
     assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")
     assert_true("Auto" in AGENT_WORKFLOW_MODES and "Auto" in AGENT_AI_PROVIDERS, "agent auto mode/provider missing")
     local_provider = LocalFallbackProvider()

@@ -1918,7 +1918,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             key="creative_pack_preset",
         )
         artist_name = c2.text_input("Artist name", value=state.get("artist_name", str(project.get("artist") or DEFAULT_ARTIST)), key="creative_pack_artist")
-        st.caption("High-quality presets: Thai Sad Pop, Office Burnout, Lonely Night Drive, Broken Relationship, TikTok Emotional Hook, Indie Acoustic, Dark Podcast Intro.")
+        st.caption("High-quality presets include Thai Sad Pop, Office Burnout, TikTok Emotional Hook, plus Vela Moon Signature Pop Rock presets for Spotify-friendly Thai emotional pop rock.")
 
     generate_pack = st.button(
         "Generate Full Release Pack",

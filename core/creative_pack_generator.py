@@ -47,6 +47,46 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
         "style": "dark podcast intro music, low pulse, cinematic drone, intimate narration bed",
         "visual": "dark desk setup, microphone silhouette, city night, dramatic office storytelling",
     },
+    "Vela Moon Emotional Pop Rock": {
+        "mood": "Vela Moon signature comfort, emotional Thai male vocal, warm but powerful",
+        "style": "Thai male vocal, emotional pop rock, acoustic guitar lead, clean electric guitar melody, soft piano, smooth bass, mid-tempo drum kit, warm pad, comforting mood, dynamic chorus, Spotify-friendly, TikTok hook friendly",
+        "visual": "warm rehearsal room, acoustic guitar, clean electric guitar, soft piano corner, comforting cinematic light, Vela Moon signature pop rock mood",
+        "hook_direction": "comforting emotional hook, singable first line, dynamic chorus lift, easy to remember on TikTok",
+        "lyrics_direction": "relatable Thai emotional lyrics with a warm male vocal perspective, honest pain, and a hopeful release in the final chorus",
+        "caption_direction": "Spotify-friendly Thai pop rock release with a short emotional TikTok hook",
+    },
+    "Vela Moon Late Night Drive": {
+        "mood": "lonely night drive, nostalgic, emotional but not too sad",
+        "style": "Atmospheric Thai pop rock, lonely night mood, smooth electric guitar lead, nostalgic melody, cinematic pad, warm vocal, night-drive feeling, emotional but not too sad",
+        "visual": "late night car interior, soft dashboard glow, wet street reflections, warm vocal mood, cinematic Thai night-drive palette",
+        "hook_direction": "night-drive hook with a nostalgic melody and a phrase listeners can hum after one play",
+        "lyrics_direction": "lyrics about driving through the city at night, missing someone quietly, and finding calm instead of collapse",
+        "caption_direction": "for late-night listeners, lonely drives, and emotional playlist saves",
+    },
+    "Vela Moon Heartbroken Anthem": {
+        "mood": "heartbroken anthem, slow build, dramatic emotional release",
+        "style": "Modern Thai pop rock ballad, emotional male vocal, slow build, powerful chorus, dramatic final chorus, acoustic guitar, electric guitar layers, piano, warm strings/pad",
+        "visual": "empty bedroom after heartbreak, guitar by the bed, dramatic warm shadows, cinematic final chorus energy, modern Thai pop rock ballad cover",
+        "hook_direction": "anthemic heartbreak chorus, repeatable title phrase, bigger final chorus, emotional singalong",
+        "lyrics_direction": "a broken relationship story that starts vulnerable, builds through regret, and explodes into a powerful final chorus",
+        "caption_direction": "big heartbreak chorus for people who still cannot let go",
+    },
+    "Vela Moon Easy Listening Pop Rock": {
+        "mood": "commercial easy listening, clean, catchy, mainstream",
+        "style": "Commercial Thai easy listening pop rock, catchy hook, simple melody, acoustic guitar, clean electric guitar, soft piano, radio-friendly, clean arrangement, mainstream Spotify style",
+        "visual": "clean daylight studio, acoustic guitar and soft piano, friendly mainstream Spotify cover, warm easy listening mood",
+        "hook_direction": "simple catchy hook with natural Thai phrasing, radio-friendly melody, easy to sing",
+        "lyrics_direction": "clear mainstream Thai lyrics, simple emotional images, positive forward motion, and a clean chorus",
+        "caption_direction": "easy listening Thai pop rock for daily playlists and repeat listening",
+    },
+    "Vela Moon Office Life Story": {
+        "mood": "Thai working-life storytelling, office burnout, relatable but hopeful",
+        "style": "Thai working-life storytelling pop rock, office burnout emotion, relatable lyrics, acoustic guitar, clean electric guitar, soft piano, warm vocal, hopeful final chorus, Vela Moon signature mood",
+        "visual": "late office desk, city window, tired worker with warm hope, acoustic guitar mood, cinematic working-life Thai pop rock cover",
+        "hook_direction": "relatable office-life hook, burnout emotion, warm hopeful final line, TikTok caption-ready",
+        "lyrics_direction": "Thai working-life story about being tired at the desk, feeling unseen, and recovering hope in the final chorus",
+        "caption_direction": "for office workers who are tired but still trying",
+    },
 }
 
 
@@ -80,6 +120,9 @@ def _seed_title(idea: str, preset_name: str) -> str:
 
 
 def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
+    hook_direction = str(preset.get("hook_direction") or "").strip()
+    if hook_direction:
+        return "\n".join([title, hook_direction, f"Mood: {preset['mood']}"])
     lowered = str(idea or "").strip()
     if "ออฟฟิศ" in lowered or "office" in lowered.lower():
         return "\n".join(["ทำไมใจยังติดอยู่ที่โต๊ะเดิม", "ทั้งที่ไฟในตึกดับไปนานแล้ว", "ฉันแค่เหนื่อย หรือฉันไม่เหลือใคร"])
@@ -94,10 +137,12 @@ def _lyrics(title: str, hook: str, idea: str, preset: dict[str, str]) -> str:
     hook_lines = _lines(hook)
     hook_block = "\n".join(hook_lines)
     first_hook = hook_lines[0] if hook_lines else title
+    lyrics_direction = str(preset.get("lyrics_direction") or "Thai emotional lyrics with clear story progression")
     return "\n".join(
         [
             "[Intro]",
             f"(soft cinematic intro, {preset['style']})",
+            f"(lyrics direction: {lyrics_direction})",
             f"คืนหนึ่งที่ใจยังไม่ยอมพักจากเรื่อง {idea}",
             "",
             "[Verse 1]",
@@ -147,8 +192,11 @@ def generate_creative_release_pack(
     hook = _hook_from_idea(concept, title, preset)
     lyrics = _lyrics(title, hook, concept, preset)
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
+    if preset_name.startswith("Vela Moon"):
+        hashtags.extend(["#VelaMoon", "#ThaiPopRock", "#SpotifyThailand"])
+    caption_direction = str(preset.get("caption_direction") or "เน€เธเธฅเธเธเธตเนเธชเธณเธซเธฃเธฑเธเธเธเธ—เธตเนเธขเธฑเธเธขเธดเนเธกเนเธ”เน เนเธ•เนเธเนเธฒเธเนเธเธขเธฑเธเนเธกเนเธซเธฒเธขเธ”เธต")
     pack = {
-        "Song concept": f"{concept}\nPreset: {preset_name}\nMood: {preset['mood']}",
+        "Song concept": f"{concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
         "Suggested title": title,
         "Hook": hook,
         "Full lyrics": lyrics,
@@ -157,7 +205,7 @@ def generate_creative_release_pack(
         "MV storyboard prompt": (
             f"Vertical 9:16 emotional MV storyboard for '{title}'. Scene 1: wide atmosphere. "
             "Scene 2: medium emotional action. Scene 3: close-up hook moment. Scene 4: soft release ending. "
-            f"Keep continuity: {preset['visual']}."
+            f"Keep continuity: {preset['visual']}. Hook direction: {preset.get('hook_direction', 'emotional hook moment')}."
         ),
         "Shorts/TikTok ideas": "\n".join(
             [
@@ -184,6 +232,8 @@ def generate_creative_release_pack(
             ]
         ),
     }
+    if preset_name.startswith("Vela Moon"):
+        pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\n{caption_direction}"
     return {
         "ok": True,
         "preset": preset_name,
