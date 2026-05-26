@@ -96,6 +96,8 @@ RELEASE_PACK_FILES = {
     "hook.txt": "Hook",
     "full_lyrics.txt": "Full lyrics",
     "music_style_prompt.txt": "Music style prompt for Suno/Udio",
+    "advanced_suno_settings.txt": "Advanced Suno Settings",
+    "suno_copy_ready_block.txt": "Suno Copy-Ready Block",
     "cover_prompt.txt": "Cover prompt",
     "mv_storyboard_prompt.txt": "MV storyboard prompt",
     "shorts_tiktok_ideas.txt": "Shorts/TikTok ideas",
@@ -106,8 +108,106 @@ RELEASE_PACK_FILES = {
 }
 
 
+DEFAULT_ADVANCED_SUNO_SETTINGS = {
+    "BPM": "85",
+    "Weirdness": "20%",
+    "Style Influence": "70%",
+    "Vocal Style Notes": "Thai emotional vocal, warm expressive tone, clear pronunciation",
+    "Arrangement Notes": "acoustic guitar intro, soft piano support, clean chorus lift, smooth fade outro",
+    "Commercial Direction": "Suno/Udio-ready emotional Thai pop, clean structure, memorable chorus",
+}
+
+
+ADVANCED_SUNO_SETTINGS_BY_PRESET = {
+    "Vela Moon Emotional Pop Rock": {
+        "BPM": "85",
+        "Weirdness": "20%",
+        "Style Influence": "70%",
+        "Vocal Style Notes": "Thai emotional male vocal, warm expressive tone, clear pronunciation",
+        "Arrangement Notes": "acoustic guitar intro, clean electric guitar melody, soft piano, dynamic final chorus, smooth fade outro",
+        "Commercial Direction": "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure",
+    },
+    "Vela Moon Late Night Drive": {
+        "BPM": "82",
+        "Weirdness": "25%",
+        "Style Influence": "68%",
+        "Vocal Style Notes": "Thai warm male vocal, intimate late-night delivery, soft emotional phrasing",
+        "Arrangement Notes": "smooth electric guitar lead, nostalgic melody, cinematic pad, restrained drums, soft night-drive outro",
+        "Commercial Direction": "playlist-friendly Thai pop rock for late-night listening, emotional but not too sad",
+    },
+    "Vela Moon Heartbroken Anthem": {
+        "BPM": "78",
+        "Weirdness": "22%",
+        "Style Influence": "72%",
+        "Vocal Style Notes": "Thai emotional male vocal, vulnerable verse tone, powerful chorus release",
+        "Arrangement Notes": "slow build, acoustic guitar, electric guitar layers, piano, warm strings, dramatic final chorus",
+        "Commercial Direction": "modern Thai pop rock ballad with a big singalong heartbreak chorus",
+    },
+    "Vela Moon Easy Listening Pop Rock": {
+        "BPM": "88",
+        "Weirdness": "18%",
+        "Style Influence": "75%",
+        "Vocal Style Notes": "Thai clean male vocal, easy listening phrasing, friendly commercial tone",
+        "Arrangement Notes": "acoustic guitar groove, clean electric guitar, soft piano, radio-friendly drums, clean ending",
+        "Commercial Direction": "mainstream Spotify Thai easy listening pop rock with a simple catchy hook",
+    },
+    "Vela Moon Office Life Story": {
+        "BPM": "84",
+        "Weirdness": "20%",
+        "Style Influence": "70%",
+        "Vocal Style Notes": "Thai warm male vocal, conversational storytelling, hopeful final chorus",
+        "Arrangement Notes": "acoustic guitar, clean electric guitar, soft piano, steady drums, warm pad, hopeful final chorus",
+        "Commercial Direction": "relatable Thai working-life pop rock for office listeners and emotional short clips",
+    },
+}
+
+
+INTERNAL_LYRIC_PHRASES = [
+    "hook direction",
+    "mood:",
+    "lyrics direction:",
+    "comforting emotional hook",
+    "spotify-friendly",
+    "tiktok hook friendly",
+    "dynamic chorus lift",
+    "easy to remember on tiktok",
+]
+
+
 def _lines(text: str) -> list[str]:
     return [line.strip() for line in str(text or "").splitlines() if line.strip()]
+
+
+def _advanced_settings_for_preset(preset_name: str) -> dict[str, str]:
+    settings = dict(DEFAULT_ADVANCED_SUNO_SETTINGS)
+    settings.update(ADVANCED_SUNO_SETTINGS_BY_PRESET.get(preset_name, {}))
+    return settings
+
+
+def _advanced_settings_to_text(settings: dict[str, str]) -> str:
+    return "\n".join(f"{key}: {value}" for key, value in settings.items())
+
+
+def _clean_lyric_text(text: str) -> str:
+    cleaned: list[str] = []
+    for line in str(text or "").splitlines():
+        lowered = line.strip().lower()
+        if any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES):
+            continue
+        cleaned.append(line.rstrip())
+    return "\n".join(cleaned).strip()
+
+
+def _suno_copy_ready_block(title: str, lyrics: str, music_style_prompt: str, advanced_settings: dict[str, str]) -> str:
+    return "\n\n".join(
+        [
+            "SONG TITLE\n" + title,
+            "LYRICS ONLY\n" + _clean_lyric_text(lyrics),
+            "MUSIC STYLE PROMPT\n" + music_style_prompt,
+            "ADVANCED SUNO SETTINGS\n" + _advanced_settings_to_text(advanced_settings),
+            "NOTES FOR GENERATION\nUse the full lyrics as the song body. Keep the vocal clear, preserve the emotional chorus, and generate 2-3 takes before choosing the strongest commercial version.",
+        ]
+    )
 
 
 def _seed_title(idea: str, preset_name: str) -> str:
@@ -122,7 +222,14 @@ def _seed_title(idea: str, preset_name: str) -> str:
 def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     hook_direction = str(preset.get("hook_direction") or "").strip()
     if hook_direction:
-        return "\n".join([title, hook_direction, f"Mood: {preset['mood']}"])
+        return "\n".join(
+            [
+                title,
+                "\u0e22\u0e31\u0e07\u0e14\u0e31\u0e07\u0e0b\u0e49\u0e33 \u0e46 \u0e43\u0e19\u0e2b\u0e31\u0e27\u0e43\u0e08",
+                "\u0e22\u0e34\u0e48\u0e07\u0e2b\u0e19\u0e35\u0e44\u0e01\u0e25 \u0e22\u0e34\u0e48\u0e07\u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07",
+                "\u0e04\u0e37\u0e19\u0e19\u0e35\u0e49\u0e43\u0e08\u0e22\u0e31\u0e07\u0e40\u0e23\u0e35\u0e22\u0e01\u0e2b\u0e32\u0e40\u0e18\u0e2d",
+            ]
+        )
     lowered = str(idea or "").strip()
     if "ออฟฟิศ" in lowered or "office" in lowered.lower():
         return "\n".join(["ทำไมใจยังติดอยู่ที่โต๊ะเดิม", "ทั้งที่ไฟในตึกดับไปนานแล้ว", "ฉันแค่เหนื่อย หรือฉันไม่เหลือใคร"])
@@ -190,7 +297,10 @@ def generate_creative_release_pack(
     concept = str(idea or "").strip() or preset["mood"]
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
-    lyrics = _lyrics(title, hook, concept, preset)
+    lyrics = _clean_lyric_text(_lyrics(title, hook, concept, preset))
+    advanced_settings = _advanced_settings_for_preset(preset_name)
+    advanced_settings_text = _advanced_settings_to_text(advanced_settings)
+    suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, preset["style"], advanced_settings)
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
     if preset_name.startswith("Vela Moon"):
         hashtags.extend(["#VelaMoon", "#ThaiPopRock", "#SpotifyThailand"])
@@ -201,6 +311,8 @@ def generate_creative_release_pack(
         "Hook": hook,
         "Full lyrics": lyrics,
         "Music style prompt for Suno/Udio": preset["style"],
+        "Advanced Suno Settings": advanced_settings_text,
+        "Suno Copy-Ready Block": suno_copy_ready_block,
         "Cover prompt": f"premium cover artwork for '{title}', {preset['visual']}, cinematic realism, no watermark",
         "MV storyboard prompt": (
             f"Vertical 9:16 emotional MV storyboard for '{title}'. Scene 1: wide atmosphere. "

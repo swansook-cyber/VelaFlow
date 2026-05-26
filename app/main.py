@@ -1970,6 +1970,8 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
     st.text_area("Full lyrics", value=pack.get("Full lyrics", ""), height=300, key="creative_pack_full_lyrics")
     st.text_area("Music style prompt for Suno/Udio", value=pack.get("Music style prompt for Suno/Udio", ""), height=110, key="creative_pack_music_style")
+    st.text_area("Advanced Suno Settings", value=pack.get("Advanced Suno Settings", ""), height=150, key="creative_pack_advanced_suno_settings")
+    st.text_area("Suno Copy-Ready Block", value=pack.get("Suno Copy-Ready Block", ""), height=320, key="creative_pack_suno_copy_ready_block")
 
     st.markdown("### Generate Visual Pack")
     visual_cols = st.columns(2)

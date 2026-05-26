@@ -627,6 +627,11 @@ def main():
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
     assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "Music style prompt for Suno/Udio" in release_txt, "creative release pack render-free notes/text missing")
+    assert_true("Weirdness:" in release_txt and "Style Influence:" in release_txt and "BPM:" in release_txt, "advanced Suno settings missing from release pack")
+    assert_true("Suno Copy-Ready Block" in release_txt and "LYRICS ONLY" in release_pack["pack"]["Suno Copy-Ready Block"], "Suno copy-ready block missing")
+    lyric_lower = release_pack["pack"]["Full lyrics"].lower()
+    forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
+    assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
     signature_presets = {
         "Vela Moon Emotional Pop Rock",
         "Vela Moon Late Night Drive",
@@ -641,6 +646,9 @@ def main():
         signature_text = creative_release_pack_to_text(signature_pack)
         assert_true(signature_export["ok"] and Path(signature_export["data"]["zip_path"]).exists(), f"{signature_preset} export failed")
         assert_true("Vela Moon" in signature_text and "Thai pop rock" in signature_text and "#VelaMoon" in signature_pack["pack"]["Hashtags"], f"{signature_preset} signature direction missing")
+        assert_true("Hook direction" not in signature_pack["pack"]["Hook"] and "Mood:" not in signature_pack["pack"]["Hook"], f"{signature_preset} hook contains prompt metadata")
+    emotional_settings = generate_creative_release_pack("เพลง Vela Moon สำหรับคนที่ยังลืมไม่ได้", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]
+    assert_true("BPM: 85" in emotional_settings and "Weirdness: 20%" in emotional_settings and "Style Influence: 70%" in emotional_settings, "Vela Moon Emotional Pop Rock advanced settings failed")
     assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")
     assert_true("Auto" in AGENT_WORKFLOW_MODES and "Auto" in AGENT_AI_PROVIDERS, "agent auto mode/provider missing")
     local_provider = LocalFallbackProvider()
