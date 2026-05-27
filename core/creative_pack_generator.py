@@ -210,6 +210,17 @@ def _suno_copy_ready_block(title: str, lyrics: str, music_style_prompt: str, adv
     )
 
 
+def _performance_intro_tag(preset_name: str, preset: dict[str, str]) -> str:
+    settings = _advanced_settings_for_preset(preset_name)
+    notes = settings.get("Arrangement Notes") or "acoustic guitar intro, soft piano support, clean chorus lift, smooth fade outro"
+    blocked = ["Spotify-friendly", "TikTok-ready", "TikTok hook friendly", "Commercial Direction"]
+    for word in blocked:
+        notes = notes.replace(word, "").strip(" ,")
+    if preset_name.startswith("Vela Moon"):
+        return f"soft cinematic intro, {notes}"
+    return f"soft cinematic intro, {preset.get('style', 'warm emotional pop')}"
+
+
 def _seed_title(idea: str, preset_name: str) -> str:
     title = generate_song_title_from_idea(idea, "")
     title = str(title or "").strip()
@@ -240,16 +251,14 @@ def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     return "\n".join([title, "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก", f"อารมณ์หลัก: {preset['mood']}"])
 
 
-def _lyrics(title: str, hook: str, idea: str, preset: dict[str, str]) -> str:
+def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
     hook_lines = _lines(hook)
     hook_block = "\n".join(hook_lines)
     first_hook = hook_lines[0] if hook_lines else title
-    lyrics_direction = str(preset.get("lyrics_direction") or "Thai emotional lyrics with clear story progression")
     return "\n".join(
         [
             "[Intro]",
-            f"(soft cinematic intro, {preset['style']})",
-            f"(lyrics direction: {lyrics_direction})",
+            f"({_performance_intro_tag(preset_name, preset)})",
             f"คืนหนึ่งที่ใจยังไม่ยอมพักจากเรื่อง {idea}",
             "",
             "[Verse 1]",
@@ -297,7 +306,7 @@ def generate_creative_release_pack(
     concept = str(idea or "").strip() or preset["mood"]
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
-    lyrics = _clean_lyric_text(_lyrics(title, hook, concept, preset))
+    lyrics = _clean_lyric_text(_lyrics(title, hook, concept, preset_name, preset))
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, preset["style"], advanced_settings)

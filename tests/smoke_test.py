@@ -647,6 +647,11 @@ def main():
         assert_true(signature_export["ok"] and Path(signature_export["data"]["zip_path"]).exists(), f"{signature_preset} export failed")
         assert_true("Vela Moon" in signature_text and "Thai pop rock" in signature_text and "#VelaMoon" in signature_pack["pack"]["Hashtags"], f"{signature_preset} signature direction missing")
         assert_true("Hook direction" not in signature_pack["pack"]["Hook"] and "Mood:" not in signature_pack["pack"]["Hook"], f"{signature_preset} hook contains prompt metadata")
+        signature_lyrics_lower = signature_pack["pack"]["Full lyrics"].lower()
+        signature_copy_block_lower = signature_pack["pack"]["Suno Copy-Ready Block"].lower()
+        assert_true(not any(item in signature_lyrics_lower for item in forbidden_lyric_prompts), f"{signature_preset} full lyrics leaked internal direction")
+        assert_true(not any(item in signature_copy_block_lower.split("music style prompt", 1)[0] for item in forbidden_lyric_prompts), f"{signature_preset} copy-ready lyrics leaked internal direction")
+        assert_true("(soft cinematic intro" in signature_pack["pack"]["Full lyrics"] and "spotify-friendly" not in signature_lyrics_lower and "tiktok hook friendly" not in signature_lyrics_lower, f"{signature_preset} intro tag is not clean")
     emotional_settings = generate_creative_release_pack("เพลง Vela Moon สำหรับคนที่ยังลืมไม่ได้", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]
     assert_true("BPM: 85" in emotional_settings and "Weirdness: 20%" in emotional_settings and "Style Influence: 70%" in emotional_settings, "Vela Moon Emotional Pop Rock advanced settings failed")
     assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")
