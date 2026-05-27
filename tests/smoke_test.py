@@ -655,7 +655,16 @@ def main():
         assert_true("Hook direction" not in signature_pack["pack"]["Hook"] and "Mood:" not in signature_pack["pack"]["Hook"], f"{signature_preset} hook contains prompt metadata")
         signature_lyrics_lower = signature_pack["pack"]["Full lyrics"].lower()
         signature_copy_block_lower = signature_pack["pack"]["Suno Copy-Ready Block"].lower()
+        producer_prompt = signature_pack["pack"]["Music style prompt for Suno/Udio"].lower()
+        producer_required_terms = ["core genre", "vocal direction", "instrumentation", "arrangement progression", "drum/bass direction", "chorus lift", "bridge / final chorus direction", "mix & master feel"]
+        producer_instrument_terms = ["vocal", "acoustic", "electric", "piano", "drum", "bass"]
+        arrangement_terms = ["verse", "pre-chorus", "chorus", "final chorus"]
+        assert_true(all(term in producer_prompt for term in producer_required_terms), f"{signature_preset} producer prompt sections missing")
+        assert_true(all(term in producer_prompt for term in producer_instrument_terms), f"{signature_preset} producer instrumentation missing")
+        assert_true(all(term in producer_prompt for term in arrangement_terms), f"{signature_preset} arrangement progression missing")
+        assert_true("spotify-ready" in producer_prompt or "radio feel" in producer_prompt or "radio-ready" in producer_prompt, f"{signature_preset} mix feel missing")
         assert_true(not any(item in signature_lyrics_lower for item in forbidden_lyric_prompts), f"{signature_preset} full lyrics leaked internal direction")
+        assert_true(not any(item in signature_lyrics_lower for item in ["core genre", "vocal direction", "instrumentation", "arrangement progression", "mix & master feel"]), f"{signature_preset} producer prompt leaked into full lyrics")
         assert_true(not any(item in signature_copy_block_lower.split("music style prompt", 1)[0] for item in forbidden_lyric_prompts), f"{signature_preset} copy-ready lyrics leaked internal direction")
         assert_true("(soft cinematic intro" in signature_pack["pack"]["Full lyrics"] and "spotify-friendly" not in signature_lyrics_lower and "tiktok hook friendly" not in signature_lyrics_lower, f"{signature_preset} intro tag is not clean")
     emotional_settings = generate_creative_release_pack("เพลง Vela Moon สำหรับคนที่ยังลืมไม่ได้", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]

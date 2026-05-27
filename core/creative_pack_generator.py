@@ -49,7 +49,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Emotional Pop Rock": {
         "mood": "Vela Moon signature comfort, emotional Thai male vocal, warm but powerful",
-        "style": "Thai male vocal, emotional pop rock, acoustic guitar lead, clean electric guitar melody, soft piano, smooth bass, mid-tempo drum kit, warm pad, comforting mood, dynamic chorus, Spotify-friendly, TikTok hook friendly",
+        "style": "Core Genre: Thai emotional pop rock, Spotify-friendly modern Thai radio feel. Vocal Direction: Thai male vocal, warm expressive tone, clear pronunciation, intimate verse vocal and emotional final chorus. Instrumentation: acoustic guitar-led arrangement, clean electric guitar melodic fills, soft piano support, warm cinematic pad. Arrangement Progression: acoustic intro, intimate verse, restrained pre-chorus build, wide dynamic chorus lift, bridge opens space, emotional final chorus. Drum/Bass Direction: smooth bass, mid-tempo drum kit around 85 BPM, gentle cymbal swells, steady pop rock groove. Guitar/Piano/Pad Layers: acoustic guitar pulse, electric guitar hook accents, soft piano emotional support, warm pad glue. Chorus Lift: wide singable hook with layered harmony and stronger emotional release. Bridge / Final Chorus Direction: vulnerable bridge breakdown into bigger final chorus. Mix & Master Feel: warm Spotify-ready mix, clear vocal focus, modern Thai pop rock radio feel.",
         "visual": "warm rehearsal room, acoustic guitar, clean electric guitar, soft piano corner, comforting cinematic light, Vela Moon signature pop rock mood",
         "hook_direction": "comforting emotional hook, singable first line, dynamic chorus lift, easy to remember on TikTok",
         "lyrics_direction": "relatable Thai emotional lyrics with a warm male vocal perspective, honest pain, and a hopeful release in the final chorus",
@@ -57,7 +57,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Late Night Drive": {
         "mood": "lonely night drive, nostalgic, emotional but not too sad",
-        "style": "Atmospheric Thai pop rock, lonely night mood, smooth electric guitar lead, nostalgic melody, cinematic pad, warm vocal, night-drive feeling, emotional but not too sad",
+        "style": "Core Genre: atmospheric Thai pop rock with lonely night-drive emotion. Vocal Direction: warm Thai male vocal, relaxed intimate phrasing, nostalgic but controlled emotion. Instrumentation: smooth electric guitar lead, acoustic guitar texture, soft piano shadows, cinematic pad, rounded bass. Arrangement Progression: quiet intro, reflective verse, gradual pre-chorus lift, open chorus, bridge with spacious night atmosphere, soft final chorus release. Drum/Bass Direction: 82 BPM restrained drum kit, soft kick, light snare, smooth bass movement. Guitar/Piano/Pad Layers: clean electric guitar melodies, subtle acoustic rhythm, piano color notes, wide pad ambience. Chorus Lift: emotional but not too sad, memorable night-drive melody. Bridge / Final Chorus Direction: half-time emotional space before a warmer final chorus. Mix & Master Feel: warm late-night Spotify-ready mix, clear vocal center, cinematic road-trip width.",
         "visual": "late night car interior, soft dashboard glow, wet street reflections, warm vocal mood, cinematic Thai night-drive palette",
         "hook_direction": "night-drive hook with a nostalgic melody and a phrase listeners can hum after one play",
         "lyrics_direction": "lyrics about driving through the city at night, missing someone quietly, and finding calm instead of collapse",
@@ -65,7 +65,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Heartbroken Anthem": {
         "mood": "heartbroken anthem, slow build, dramatic emotional release",
-        "style": "Modern Thai pop rock ballad, emotional male vocal, slow build, powerful chorus, dramatic final chorus, acoustic guitar, electric guitar layers, piano, warm strings/pad",
+        "style": "Core Genre: modern Thai pop rock ballad with anthem-sized heartbreak. Vocal Direction: emotional Thai male vocal, vulnerable verse tone, rising pre-chorus tension, powerful chorus delivery. Instrumentation: acoustic guitar foundation, electric guitar layers, emotional piano, warm strings and cinematic pad, supportive bass. Arrangement Progression: sparse intro, intimate verse, slow pre-chorus build, powerful chorus, stripped bridge, dramatic expanded final chorus. Drum/Bass Direction: 78 BPM slow-build drum kit, deep kick, restrained verse percussion, bigger chorus crashes, smooth bass support. Guitar/Piano/Pad Layers: acoustic guitar pulse, electric guitar swells, piano lead emotions, warm string pad underneath. Chorus Lift: big singalong hook with layered harmony and strong emotional release. Bridge / Final Chorus Direction: cinematic breakdown into the most dramatic final chorus. Mix & Master Feel: warm radio-ready ballad mix, vocal-forward, wide emotional chorus, streaming-ready loudness.",
         "visual": "empty bedroom after heartbreak, guitar by the bed, dramatic warm shadows, cinematic final chorus energy, modern Thai pop rock ballad cover",
         "hook_direction": "anthemic heartbreak chorus, repeatable title phrase, bigger final chorus, emotional singalong",
         "lyrics_direction": "a broken relationship story that starts vulnerable, builds through regret, and explodes into a powerful final chorus",
@@ -73,7 +73,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Easy Listening Pop Rock": {
         "mood": "commercial easy listening, clean, catchy, mainstream",
-        "style": "Commercial Thai easy listening pop rock, catchy hook, simple melody, acoustic guitar, clean electric guitar, soft piano, radio-friendly, clean arrangement, mainstream Spotify style",
+        "style": "Core Genre: commercial Thai easy listening pop rock, clean mainstream Spotify style. Vocal Direction: Thai male vocal, friendly clear tone, relaxed verse, bright chorus confidence. Instrumentation: acoustic guitar groove, clean electric guitar, soft piano, smooth bass, light pad texture. Arrangement Progression: clean intro, simple verse, natural pre-chorus lift, catchy chorus, short bridge, polished final chorus. Drum/Bass Direction: 88 BPM radio-friendly drum kit, tight kick/snare, smooth bass pocket, light cymbal movement. Guitar/Piano/Pad Layers: acoustic strum, clean electric counter-melody, soft piano support, subtle pad warmth. Chorus Lift: simple melodic hook, easy to sing, repeat-friendly. Bridge / Final Chorus Direction: concise bridge leading to a brighter final chorus. Mix & Master Feel: clean radio feel, Spotify-ready balance, clear vocal focus, polished mainstream finish.",
         "visual": "clean daylight studio, acoustic guitar and soft piano, friendly mainstream Spotify cover, warm easy listening mood",
         "hook_direction": "simple catchy hook with natural Thai phrasing, radio-friendly melody, easy to sing",
         "lyrics_direction": "clear mainstream Thai lyrics, simple emotional images, positive forward motion, and a clean chorus",
@@ -81,7 +81,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Office Life Story": {
         "mood": "Thai working-life storytelling, office burnout, relatable but hopeful",
-        "style": "Thai working-life storytelling pop rock, office burnout emotion, relatable lyrics, acoustic guitar, clean electric guitar, soft piano, warm vocal, hopeful final chorus, Vela Moon signature mood",
+        "style": "Core Genre: Thai working-life storytelling pop rock with hopeful emotional release. Vocal Direction: warm Thai male vocal, conversational verse delivery, tired but sincere emotion, hopeful final chorus. Instrumentation: acoustic guitar, clean electric guitar, soft piano, smooth bass, warm pad, steady drum kit. Arrangement Progression: quiet office-like intro, story verse, lifting pre-chorus, relatable chorus, reflective bridge, hopeful final chorus. Drum/Bass Direction: 84 BPM steady pop rock drums, soft verse groove, stronger chorus backbeat, smooth supportive bass. Guitar/Piano/Pad Layers: acoustic guitar pulse, clean electric guitar emotional fills, soft piano for office-night mood, warm pad glue. Chorus Lift: relatable singalong hook for tired workers, warmer and wider each repeat. Bridge / Final Chorus Direction: vulnerable bridge turns into hopeful final chorus. Mix & Master Feel: warm Spotify-ready mix, clear vocal storytelling, polished Thai pop rock comfort.",
         "visual": "late office desk, city window, tired worker with warm hope, acoustic guitar mood, cinematic working-life Thai pop rock cover",
         "hook_direction": "relatable office-life hook, burnout emotion, warm hopeful final line, TikTok caption-ready",
         "lyrics_direction": "Thai working-life story about being tired at the desk, feeling unseen, and recovering hope in the final chorus",
@@ -124,7 +124,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
         "Weirdness": "20%",
         "Style Influence": "70%",
         "Vocal Style Notes": "Thai emotional male vocal, warm expressive tone, clear pronunciation",
-        "Arrangement Notes": "acoustic guitar intro, clean electric guitar melody, soft piano, dynamic final chorus, smooth fade outro",
+        "Arrangement Notes": "acoustic guitar intro, clean electric guitar hook accents, soft piano support, gentle cymbal swells, wide dynamic chorus, emotional final chorus, smooth fade outro",
         "Commercial Direction": "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure",
     },
     "Vela Moon Late Night Drive": {
@@ -132,7 +132,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
         "Weirdness": "25%",
         "Style Influence": "68%",
         "Vocal Style Notes": "Thai warm male vocal, intimate late-night delivery, soft emotional phrasing",
-        "Arrangement Notes": "smooth electric guitar lead, nostalgic melody, cinematic pad, restrained drums, soft night-drive outro",
+        "Arrangement Notes": "quiet intro, smooth electric guitar lead, nostalgic melody, cinematic pad, restrained drums, open chorus, soft night-drive outro",
         "Commercial Direction": "playlist-friendly Thai pop rock for late-night listening, emotional but not too sad",
     },
     "Vela Moon Heartbroken Anthem": {
@@ -140,7 +140,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
         "Weirdness": "22%",
         "Style Influence": "72%",
         "Vocal Style Notes": "Thai emotional male vocal, vulnerable verse tone, powerful chorus release",
-        "Arrangement Notes": "slow build, acoustic guitar, electric guitar layers, piano, warm strings, dramatic final chorus",
+        "Arrangement Notes": "sparse intro, slow pre-chorus build, acoustic guitar, electric guitar layers, emotional piano, warm strings, dramatic expanded final chorus",
         "Commercial Direction": "modern Thai pop rock ballad with a big singalong heartbreak chorus",
     },
     "Vela Moon Easy Listening Pop Rock": {
@@ -148,7 +148,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
         "Weirdness": "18%",
         "Style Influence": "75%",
         "Vocal Style Notes": "Thai clean male vocal, easy listening phrasing, friendly commercial tone",
-        "Arrangement Notes": "acoustic guitar groove, clean electric guitar, soft piano, radio-friendly drums, clean ending",
+        "Arrangement Notes": "clean intro, acoustic guitar groove, clean electric guitar counter-melody, soft piano, radio-friendly drums, short bridge, polished final chorus",
         "Commercial Direction": "mainstream Spotify Thai easy listening pop rock with a simple catchy hook",
     },
     "Vela Moon Office Life Story": {
@@ -156,7 +156,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
         "Weirdness": "20%",
         "Style Influence": "70%",
         "Vocal Style Notes": "Thai warm male vocal, conversational storytelling, hopeful final chorus",
-        "Arrangement Notes": "acoustic guitar, clean electric guitar, soft piano, steady drums, warm pad, hopeful final chorus",
+        "Arrangement Notes": "quiet office-like intro, acoustic guitar pulse, clean electric guitar emotional fills, soft piano, steady drums, warm pad, hopeful final chorus",
         "Commercial Direction": "relatable Thai working-life pop rock for office listeners and emotional short clips",
     },
 }
