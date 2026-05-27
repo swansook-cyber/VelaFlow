@@ -629,6 +629,12 @@ def main():
     assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "Music style prompt for Suno/Udio" in release_txt, "creative release pack render-free notes/text missing")
     assert_true("Weirdness:" in release_txt and "Style Influence:" in release_txt and "BPM:" in release_txt, "advanced Suno settings missing from release pack")
     assert_true("Suno Copy-Ready Block" in release_txt and "LYRICS ONLY" in release_pack["pack"]["Suno Copy-Ready Block"], "Suno copy-ready block missing")
+    with zipfile.ZipFile(release_zip, "r") as release_archive:
+        release_zip_names = set(release_archive.namelist())
+        advanced_settings_zip_text = release_archive.read("advanced_suno_settings.txt").decode("utf-8-sig")
+        copy_ready_zip_text = release_archive.read("suno_copy_ready_block.txt").decode("utf-8-sig")
+    assert_true({"advanced_suno_settings.txt", "suno_copy_ready_block.txt"}.issubset(release_zip_names), "release ZIP missing advanced Suno files")
+    assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "ADVANCED SUNO SETTINGS" in copy_ready_zip_text, "release ZIP advanced Suno content missing")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
