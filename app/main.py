@@ -1880,6 +1880,97 @@ def _read_creator_file(path: Path) -> str:
         return ""
 
 
+def _render_creator_dashboard(project: dict[str, Any]) -> None:
+    _page_header("Creator Dashboard", "Simple tools for songs, hooks, podcasts, affiliate scripts, and release packages.", project)
+    state = project.setdefault("creator_dashboard", {})
+    st.info("สร้างแพ็กเพลง เนื้อเพลง prompt caption และ checklist ได้ในหน้าเดียว โดยไม่ต้องใช้ระบบ render")
+
+    card_cols = st.columns(5)
+    cards = [
+        ("Create Song Package", "ทำเพลงพร้อม Suno/Udio", "Generate Song", "CREATE", "Song Studio Only"),
+        ("Create TikTok Hook", "ทำไอเดียฮุกสั้น", "Hook Clip Studio", "PRODUCTION", "Full Pipeline"),
+        ("Create Podcast Clip", "ทำสคริปต์พอดแคสต์", "Podcast Studio", "PODCAST", "Podcast Studio (Beta)"),
+        ("Create Affiliate Script", "ทำสคริปต์ขายสินค้า", "Affiliate Studio", "PRODUCTION", "Full Pipeline"),
+        ("Open Advanced Tools", "เปิดเครื่องมือทั้งหมด", "Dashboard", "START", "Full Pipeline"),
+    ]
+    for col, (label, help_text, target_page, target_section, target_mode) in zip(card_cols, cards):
+        with col:
+            st.markdown(f"**{label}**")
+            st.caption(help_text)
+            if st.button("Open", key=f"creator_dashboard_card_{target_page}", use_container_width=True):
+                if target_mode != "Song Studio Only":
+                    st.session_state.force_developer_mode = True
+                if target_mode != st.session_state.get("workflow_mode"):
+                    st.session_state.workflow_mode = target_mode
+                    st.session_state.pending_navigation = {"section": target_section, "page": target_page}
+                    st.rerun()
+                go_to_page(target_section, target_page)
+
+    st.markdown("### One-Click Song Package")
+    st.caption("ใส่ไอเดียเพลงสั้น ๆ แล้ว VelaFlow จะจัดชุดเนื้อเพลง prompt และข้อความโปรโมตให้ copy ใช้ต่อได้ทันที")
+    form_cols = st.columns(2)
+    idea = form_cols[0].text_area("Song idea", value=state.get("idea", ""), height=120, key="creator_dashboard_song_idea", help="เช่น เพลงเศร้าในออฟฟิศ หรือ คนที่ยังลืมแฟนเก่าไม่ได้")
+    mood = form_cols[1].text_input("Mood", value=state.get("mood", "emotional"), key="creator_dashboard_mood", help="อารมณ์เพลง เช่น เศร้า อบอุ่น เหงา มีหวัง")
+    genre = form_cols[0].selectbox(
+        "Genre",
+        list(CREATIVE_PACK_PRESETS),
+        index=list(CREATIVE_PACK_PRESETS).index(state.get("genre", "Vela Moon Emotional Pop Rock")) if state.get("genre") in CREATIVE_PACK_PRESETS else list(CREATIVE_PACK_PRESETS).index("Vela Moon Emotional Pop Rock"),
+        key="creator_dashboard_genre",
+    )
+    vocal_style = form_cols[1].text_input("Vocal style", value=state.get("vocal_style", "Thai male vocal, warm emotional tone"), key="creator_dashboard_vocal_style")
+    language = form_cols[0].selectbox("Language", ["Thai", "English", "Thai + English"], index=["Thai", "English", "Thai + English"].index(state.get("language", "Thai")) if state.get("language") in {"Thai", "English", "Thai + English"} else 0, key="creator_dashboard_language")
+    if st.button("Generate Song Package", type="primary", use_container_width=True, key="creator_dashboard_generate_song_package"):
+        combined_idea = "\n".join(
+            [
+                str(idea or "").strip(),
+                f"Mood: {mood}",
+                f"Vocal style: {vocal_style}",
+                f"Language: {language}",
+            ]
+        ).strip()
+        result = generate_creative_release_pack(combined_idea, genre, str(project.get("artist") or DEFAULT_ARTIST))
+        state.update({"idea": idea, "mood": mood, "genre": genre, "vocal_style": vocal_style, "language": language, "result": result})
+        project["creator_dashboard"] = state
+        project.setdefault("song", {})["idea"] = idea
+        project["song"]["title"] = (result.get("pack") or {}).get("Suggested title", "")
+        project["song"]["complete_lyrics"] = (result.get("pack") or {}).get("Full lyrics", "")
+        project["song"]["style_prompt"] = (result.get("pack") or {}).get("Music style prompt for Suno/Udio", "")
+        _save_project()
+        st.success("Song package ready")
+        st.rerun()
+
+    result = state.get("result") or {}
+    pack = result.get("pack") or {}
+    if not pack:
+        st.caption("เริ่มจากไอเดียเพลง แล้วกด Generate Song Package")
+        return
+
+    output_blocks = [
+        ("Song Title Suggestions", pack.get("Suggested title", "")),
+        ("Structured Lyrics", pack.get("Full lyrics", "")),
+        ("Producer-Grade Music Style Prompt", pack.get("Music style prompt for Suno/Udio", "")),
+        ("Suno-Ready Prompt", pack.get("Suno Copy-Ready Block", "")),
+        ("SEO Caption", pack.get("Caption", "")),
+        ("YouTube Description", pack.get("YouTube description", "")),
+        ("Hashtags", pack.get("Hashtags", "")),
+        ("Cover Prompt", pack.get("Cover prompt", "")),
+        ("Release Checklist", "1. Copy lyrics into Suno/Udio\n2. Use the producer prompt as style guidance\n3. Generate 2-3 takes\n4. Pick the strongest hook\n5. Use cover prompt and captions for release"),
+    ]
+    for idx, (label, value) in enumerate(output_blocks):
+        st.button(f"Copy {label}", key=f"creator_dashboard_copy_{idx}", use_container_width=True)
+        st.text_area(label, value=value, height=160 if len(str(value)) > 240 else 90, key=f"creator_dashboard_output_{idx}")
+
+    txt_payload = creative_release_pack_to_text(result)
+    st.download_button(
+        "Download Full Package TXT",
+        data=txt_payload.encode("utf-8-sig"),
+        file_name="velaflow_song_package.txt",
+        mime="text/plain",
+        use_container_width=True,
+        key="creator_dashboard_download_txt",
+    )
+
+
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
     _page_header("AI Creative Pack Generator", "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.", project)
     state = project.setdefault("creative_pack_v1", {})
@@ -4285,6 +4376,7 @@ if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
     st.caption("☁️ Internal Cloud Mode")
 
 PAGE_MODULES = {
+    "Creator Dashboard": "creative_pack",
     "Idea": "creative_pack",
     "Generate Song": "creative_pack",
     "Generate Visual Pack": "creative_pack",
@@ -4373,6 +4465,8 @@ with st.sidebar:
             save_beta_access({"creator_name": creator_name, "creator_id": creator_id or safe_name(creator_name)})
             st.success("Founding member profile saved")
             st.rerun()
+    if st.session_state.pop("force_developer_mode", False):
+        st.session_state.developer_mode = True
     developer_mode = st.checkbox(
         "Advanced / Developer Mode",
         value=bool(st.session_state.get("developer_mode", False)),
@@ -4413,7 +4507,7 @@ with st.sidebar:
         if not st.session_state.get("current_project") and _fix_display_text((st.session_state.project or {}).get("title", "")) in SONG_DEFAULT_TITLES:
             st.session_state.project = new_project(_workflow_default_name(selected_mode), DEFAULT_ARTIST, workflow_type_for_mode(selected_mode))
         if selected_mode == "Song Studio Only" and st.session_state.selected_page not in SONG_ONLY_ALLOWED_PAGES:
-            st.session_state["pending_navigation"] = {"section": "CREATE", "page": "Idea"}
+            st.session_state["pending_navigation"] = {"section": "CREATE", "page": "Creator Dashboard"}
         if selected_mode == "Seller Studio (Beta)" and st.session_state.selected_page not in SELLER_STUDIO_ALLOWED_PAGES:
             st.session_state["pending_navigation"] = {"section": "SELLER", "page": "Seller Studio"}
         if selected_mode == "Podcast Studio (Beta)" and st.session_state.selected_page not in PODCAST_STUDIO_ALLOWED_PAGES:
@@ -4429,6 +4523,8 @@ with st.sidebar:
         st.session_state[workflow_log_key] = True
     st.markdown("**Creator Navigation**")
     if not developer_mode:
+        if st.button("Creator Dashboard", use_container_width=True, key="sidebar_nav_creator_dashboard"):
+            go_to_page("CREATE", "Creator Dashboard")
         if st.button("Idea", use_container_width=True, key="sidebar_nav_idea"):
             go_to_page("CREATE", "Idea")
         if st.button("Generate Song", use_container_width=True, key="sidebar_nav_generate_song"):
@@ -4936,7 +5032,10 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
 
 
 
-if page in {"Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"}:
+if page == "Creator Dashboard":
+    _render_creator_dashboard(project)
+
+elif page in {"Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"}:
     _render_ai_creative_pack_generator(project, page)
 
 elif page == "Dashboard":

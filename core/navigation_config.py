@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 PAGE_LABELS = {
+    "Creator Dashboard": "Creator Dashboard",
     "Idea": "Idea",
     "Generate Song": "Generate Song",
     "Generate Visual Pack": "Generate Visual Pack",
@@ -15,7 +16,7 @@ PAGE_LABELS = {
 }
 
 FULL_MENU_GROUPS = {
-    "START": ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "Dashboard", "One Click Creator Flow", "VelaFlow Agent Studio", "Creator Wizard"],
+    "START": ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "Dashboard", "One Click Creator Flow", "VelaFlow Agent Studio", "Creator Wizard"],
     "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
     "VISUAL": ["MV Director", "Video Prompt Studio", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
     "PRODUCTION": ["Hook Clip Studio", "Remaster Studio", "Affiliate Studio", "Shorts Factory", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
@@ -24,7 +25,7 @@ FULL_MENU_GROUPS = {
 }
 
 SONG_ONLY_MENU_GROUPS = {
-    "CREATE": ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"],
+    "CREATE": ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"],
 }
 
 SELLER_STUDIO_MENU_GROUPS = {
