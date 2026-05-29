@@ -8,7 +8,8 @@ from typing import Any
 
 from core.file_naming import build_export_filename, ensure_unique_path, sanitize_filename
 from core.paths import workflow_project_root
-from core.song_title_engine import generate_song_title_from_idea
+from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, score_song_title_candidate
+from core.thai_quality_filter import build_thai_quality_report, clean_thai_output
 
 
 CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
@@ -222,7 +223,8 @@ def _performance_intro_tag(preset_name: str, preset: dict[str, str]) -> str:
 
 
 def _seed_title(idea: str, preset_name: str) -> str:
-    title = generate_song_title_from_idea(idea, "")
+    candidates = generate_song_title_candidates(idea=idea)
+    title = candidates[0]["title"] if candidates else generate_song_title_from_idea(idea, "")
     title = str(title or "").strip()
     if title and title.lower() not in {"demo song", "untitled song", "new song"}:
         return title
@@ -230,17 +232,61 @@ def _seed_title(idea: str, preset_name: str) -> str:
     return " ".join(words[:5]) or preset_name
 
 
+def _score_hook_candidate(hook: str) -> dict[str, Any]:
+    lines = _lines(hook)
+    joined = " ".join(lines)
+    compact_len = len(joined.replace(" ", ""))
+    singability = 82 - max(0, compact_len - 54)
+    memorability = 74 + (10 if 2 <= len(lines) <= 4 else -12) + (8 if any("ใจ" in line or "เธอ" in line or "รัก" in line for line in lines) else 0)
+    emotional = 70 + (10 if any("ใจ" in line or "คืน" in line or "ลืม" in line or "รัก" in line for line in lines) else 0)
+    caption = 74 + (10 if lines and len(lines[0].replace(" ", "")) <= 16 else -8)
+    penalty = 0
+    if compact_len > 78:
+        penalty += 28
+    if any(word in joined.lower() for word in ["direction", "prompt", "hook friendly", "spotify-friendly", "tiktok"]):
+        penalty += 80
+    if any(len(line.replace(" ", "")) > 32 for line in lines):
+        penalty += 18
+    score = int((singability + memorability + emotional + caption) / 4 - penalty)
+    return {
+        "hook": hook,
+        "score": max(0, min(100, score)),
+        "singability": max(0, min(100, singability)),
+        "memorability": max(0, min(100, memorability)),
+        "emotional_punch": max(0, min(100, emotional)),
+        "caption_potential": max(0, min(100, caption)),
+    }
+
+
+def _hook_candidates(title: str, idea: str) -> list[str]:
+    idea_text = str(idea or "")
+    if "รัก" in idea_text and not any(word in idea_text for word in ["อกหัก", "เลิก", "ลืม"]):
+        return [
+            "\n".join([title, "ถ้าใจยังเลือกเธออยู่", "ฉันจะเรียกมันว่ารักได้ไหม"]),
+            "\n".join(["รักที่ไม่พูดไป", "ยังดังอยู่ในใจ", "ทุกครั้งที่เจอเธอ"]),
+            "\n".join(["เก็บรักไว้ในใจ", "ไม่กล้าบอกให้เธอรู้", "กลัวเสียเธอไป"]),
+            "\n".join(["คืนที่ยังรัก", "ฉันยังเปิดเพลงเดิม", "ให้ใจมันคิดถึงเธอ"]),
+            "\n".join(["คำว่ารักยังอยู่", "แม้ปากไม่เคยพูดไป", "แต่ใจจำเธอเสมอ"]),
+        ]
+    return [
+        "\n".join([title, "ยังดังซ้ำ ๆ ในหัวใจ", "ยิ่งหนีไกล ยิ่งกลับไปคิดถึง"]),
+        "\n".join(["คืนที่ไม่มีเธอ", "ยังยาวเกินจะผ่านไป", "ใจยังเรียกชื่อเดิม"]),
+        "\n".join(["ถ้าลืมง่ายเหมือนพูดลา", "ฉันคงไม่เจ็บถึงวันนี้", "คงไม่ร้องเพลงนี้ซ้ำ ๆ"]),
+        "\n".join(["ยังเก็บเธอไว้ในเพลง", "ทุกคำยังเหมือนวันเก่า", "ทุกเสียงยังพาใจกลับไป"]),
+        "\n".join(["พอได้แล้วใจ", "อย่ารอคนที่ไม่กลับมา", "แต่ทำไมยังรักอยู่"]),
+    ]
+
+
+def _select_best_hook(title: str, idea: str) -> dict[str, Any]:
+    scored = sorted([_score_hook_candidate(clean_thai_output(candidate)) for candidate in _hook_candidates(title, idea)], key=lambda item: item["score"], reverse=True)
+    return scored[0] if scored else _score_hook_candidate(title)
+
+
 def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     hook_direction = str(preset.get("hook_direction") or "").strip()
     if hook_direction:
-        return "\n".join(
-            [
-                title,
-                "\u0e22\u0e31\u0e07\u0e14\u0e31\u0e07\u0e0b\u0e49\u0e33 \u0e46 \u0e43\u0e19\u0e2b\u0e31\u0e27\u0e43\u0e08",
-                "\u0e22\u0e34\u0e48\u0e07\u0e2b\u0e19\u0e35\u0e44\u0e01\u0e25 \u0e22\u0e34\u0e48\u0e07\u0e01\u0e25\u0e31\u0e1a\u0e44\u0e1b\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07",
-                "\u0e04\u0e37\u0e19\u0e19\u0e35\u0e49\u0e43\u0e08\u0e22\u0e31\u0e07\u0e40\u0e23\u0e35\u0e22\u0e01\u0e2b\u0e32\u0e40\u0e18\u0e2d",
-            ]
-        )
+        return _select_best_hook(title, idea)["hook"]
+    return _select_best_hook(title, idea)["hook"]
     lowered = str(idea or "").strip()
     if "ออฟฟิศ" in lowered or "office" in lowered.lower():
         return "\n".join(["ทำไมใจยังติดอยู่ที่โต๊ะเดิม", "ทั้งที่ไฟในตึกดับไปนานแล้ว", "ฉันแค่เหนื่อย หรือฉันไม่เหลือใคร"])
@@ -306,7 +352,7 @@ def generate_creative_release_pack(
     concept = str(idea or "").strip() or preset["mood"]
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
-    lyrics = _clean_lyric_text(_lyrics(title, hook, concept, preset_name, preset))
+    lyrics = clean_thai_output(_clean_lyric_text(_lyrics(title, hook, concept, preset_name, preset)))
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, preset["style"], advanced_settings)
@@ -355,11 +401,23 @@ def generate_creative_release_pack(
     }
     if preset_name.startswith("Vela Moon"):
         pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\n{caption_direction}"
+    title_score = score_song_title_candidate(title, concept)
+    hook_score = _score_hook_candidate(hook)
     return {
         "ok": True,
         "preset": preset_name,
         "artist_name": artist_name,
         "pack": pack,
+        "quality_report": {
+            "selected_title_score": title_score,
+            "selected_hook_score": hook_score,
+            "thai_quality": build_thai_quality_report(lyrics),
+            "producer_review": {
+                "title_approved": title_score.get("score", 0) >= 60,
+                "hook_approved": hook_score.get("score", 0) >= 60,
+                "caption_ready": hook_score.get("caption_potential", 0) >= 60,
+            },
+        },
         "generated_at": datetime.now().isoformat(timespec="seconds"),
     }
 

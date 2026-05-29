@@ -18,6 +18,22 @@ PLACEHOLDER_TITLES = {
 FALLBACK_TITLES = ["ลืมไม่ลง", "ยังอยู่ในใจ", "คืนที่ไม่มีเธอ", "พอได้แล้วใจ", "คนที่ไม่กลับมา"]
 
 
+GENERIC_TITLE_TERMS = {"รัก", "ความรัก", "เพลงรัก", "คิดถึง", "อกหัก", "เศร้า", "เหงา", "love", "sad", "lonely", "heartbreak"}
+
+COMMERCIAL_EMOTIONAL_TITLES = [
+    "คืนที่ยังรัก",
+    "เก็บรักไว้ในใจ",
+    "รักที่ไม่พูดไป",
+    "หัวใจยังรอ",
+    "คนที่ใจเลือก",
+    "ยังมีเธอในเพลง",
+    "ถ้าใจยังรัก",
+    "รักในวันที่สาย",
+    "คำว่ารักยังอยู่",
+    "ไม่กล้าลืมเธอ",
+]
+
+
 def is_placeholder_song_title(value: str | None) -> bool:
     normalized = re.sub(r"\s+", " ", str(value or "").strip()).lower()
     return normalized in PLACEHOLDER_TITLES or normalized.startswith("demo_song")
@@ -56,7 +72,14 @@ def _dedupe(values: list[str]) -> list[str]:
 
 def _keyword_candidates(text: str) -> list[str]:
     compact = _compact(text)
+    lowered = _clean_phrase(text).lower()
     candidates: list[str] = []
+    if "เพลงรัก" in lowered or ("รัก" in lowered and not any(word in lowered for word in ["อกหัก", "เลิก", "ลืม", "ไม่กลับ", "กลับมา"])):
+        candidates += COMMERCIAL_EMOTIONAL_TITLES
+    if "เศร้า" in lowered or "เหงา" in lowered:
+        candidates += ["คืนที่เงียบไป", "เหงาเกินจะนอน", "ใจที่ไม่มีใคร", "แสงสุดท้ายของเรา"]
+    if "อกหัก" in lowered:
+        candidates += ["รักในวันที่สาย", "แตกสลายช้า ๆ", "ยังเจ็บที่เดิม", "คนแพ้ที่ยังรัก"]
     if "พอได้แล้วใจ" in compact:
         candidates.append("พอได้แล้วใจ")
     if "ลืมแฟนเก่าไม่ได้" in compact or "ลืมเธอไม่ได้" in compact or ("ลืม" in compact and "ไม่ได้" in compact):
@@ -109,7 +132,15 @@ def title_is_valid(title: str, source_text: str = "") -> bool:
     clean = _clean_phrase(title)
     compact = _compact(clean)
     source = _compact(source_text)
+    clean_lower = clean.lower()
+    source_lower = _clean_phrase(source_text).lower()
     if not clean or is_placeholder_song_title(clean):
+        return False
+    if clean_lower in GENERIC_TITLE_TERMS:
+        return False
+    if source_lower and clean_lower == source_lower:
+        return False
+    if source_lower.startswith("เพลง") and clean_lower == source_lower.replace("เพลง", "", 1).strip():
         return False
     if len(clean.split()) > 6:
         return False
@@ -131,17 +162,28 @@ def score_song_title_candidate(title: str, source_text: str = "") -> dict[str, A
     emotional = 50 + min(40, sum(10 for term in emotional_terms if term in compact))
     memorability = 62 + (18 if 4 <= len(compact) <= 12 else 0) + (8 if any(term in compact for term in ["ใจ", "คืน", "เธอ"]) else 0)
     commercial = 68 + (12 if len(compact) <= 14 else -10) + (8 if title in FALLBACK_TITLES else 0)
-    platform = 70 + (10 if len(compact) <= 12 else 0)
+    caption = 68 + (14 if 5 <= len(compact) <= 16 else 0) + (8 if any(term in compact for term in ["ใจ", "คืน", "เธอ", "รัก"]) else 0)
+    spotify = 70 + (12 if len(compact) <= 16 else -8) + (8 if any(term in compact for term in ["ใจ", "คืน", "รัก", "เธอ"]) else 0)
+    tiktok = 70 + (12 if len(compact) <= 14 else 0) + (8 if any(term in compact for term in ["ใจ", "รัก", "เธอ"]) else 0)
+    uniqueness = 72 + (12 if title not in FALLBACK_TITLES else -4)
     relevance_terms = ["ใจ", "ลืม", "คิดถึง", "คืน", "เธอ", "รัก", "กลับมา", "ไม่มี", "ฝน", "พอ"]
     relevance = sum(1 for term in relevance_terms if term in compact and term in source)
     penalty = 0
     if source and compact and compact in source and len(compact) > 16:
         penalty += 25
+    if source and compact and compact in source and len(compact) <= 14:
+        penalty -= 12
     if source and relevance == 0:
         penalty += 16
+    if _clean_phrase(title).lower() in GENERIC_TITLE_TERMS:
+        penalty += 60
+    if "ไม่กลับมา" in source and _clean_phrase(title) == "คนที่ไม่กลับมา":
+        penalty -= 12
+    if _clean_phrase(title) == "พอได้แล้วใจ":
+        penalty -= 4
     if not title_is_valid(title, source_text):
         penalty += 80
-    total = int((brevity + emotional + memorability + commercial + platform) / 5 + min(24, relevance * 6) - penalty)
+    total = int((brevity + emotional + memorability + caption + spotify + tiktok + uniqueness) / 7 + min(24, relevance * 6) - penalty)
     return {
         "title": _clean_phrase(title),
         "score": max(0, min(100, total)),
@@ -149,7 +191,11 @@ def score_song_title_candidate(title: str, source_text: str = "") -> dict[str, A
         "emotional_impact": max(0, min(100, emotional)),
         "brevity": max(0, min(100, brevity)),
         "commercial_feel": max(0, min(100, commercial)),
-        "tiktok_spotify_friendliness": max(0, min(100, platform)),
+        "caption_potential": max(0, min(100, caption)),
+        "spotify_friendliness": max(0, min(100, spotify)),
+        "tiktok_friendliness": max(0, min(100, tiktok)),
+        "uniqueness": max(0, min(100, uniqueness)),
+        "tiktok_spotify_friendliness": max(0, min(100, int((spotify + tiktok) / 2))),
     }
 
 
@@ -164,7 +210,7 @@ def generate_song_title_candidates(idea: str = "", hook_text: str = "", lyrics: 
     raw_candidates.extend(FALLBACK_TITLES)
     scored = [score_song_title_candidate(candidate, source_text) for candidate in _dedupe(raw_candidates)]
     scored = [item for item in scored if item["score"] >= 45 and title_is_valid(item["title"], source_text)]
-    return sorted(scored, key=lambda item: item["score"], reverse=True)[:8]
+    return sorted(scored, key=lambda item: item["score"], reverse=True)[:10]
 
 
 def generate_song_title_from_idea(idea: str = "", hook_text: str = "", lyrics: str = "") -> str:

@@ -151,6 +151,7 @@ from core.song_structure_intelligence import (
     validate_structure_plan,
 )
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
+from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import load_project, new_project, save_project, save_project_folder
@@ -482,6 +483,10 @@ def main():
     assert_true(len(long_hook_title.replace(" ", "")) <= 20 and title_is_valid(long_hook_title), "generated title is too long or invalid")
     title_candidates = generate_song_title_candidates(hook_text="\u0e22\u0e31\u0e07\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07\u0e40\u0e18\u0e2d\u0e17\u0e38\u0e01\u0e04\u0e37\u0e19 \u0e41\u0e21\u0e49\u0e44\u0e21\u0e48\u0e21\u0e35\u0e17\u0e32\u0e07\u0e22\u0e49\u0e2d\u0e19\u0e21\u0e32")
     assert_true(title_candidates and title_candidates[0]["score"] >= title_candidates[-1]["score"], "title candidates not scored")
+    love_title = generate_song_title_from_idea("เพลงรัก")
+    love_candidates = generate_song_title_candidates(idea="เพลงรัก")
+    assert_true(len(love_candidates) == 10 and love_title not in {"รัก", "ความรัก", "เพลงรัก", "คิดถึง", "อกหัก", "เศร้า", "เหงา"}, "generic love title was not rejected")
+    assert_true(all(key in love_candidates[0] for key in ["memorability", "emotional_impact", "caption_potential", "spotify_friendliness", "tiktok_friendliness", "uniqueness"]), "title scoring dimensions missing")
     assert_true(score_song_title_candidate("\u0e25\u0e37\u0e21\u0e44\u0e21\u0e48\u0e25\u0e07")["commercial_feel"] >= 70, "title commercial scoring failed")
     assert_true(resolve_song_title({"title": manual_title_ex, "idea": idea_forget_ex}) == manual_title_ex, "manual song title was overwritten")
     assert_true(is_placeholder_song_title("Demo Song") and is_placeholder_song_title("เพลงใหม่ของฉัน"), "placeholder title detection failed")
@@ -640,6 +645,12 @@ def main():
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
+    love_release_pack = generate_creative_release_pack("เพลงรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
+    love_pack = love_release_pack["pack"]
+    love_hook_lines = [line for line in love_pack["Hook"].splitlines() if line.strip()]
+    assert_true(love_pack["Suggested title"] not in {"รัก", "ความรัก", "เพลงรัก"} and len(love_hook_lines) >= 2, "creative pack generic title/hook quality failed")
+    assert_true(love_release_pack["quality_report"]["selected_title_score"]["score"] >= 60 and love_release_pack["quality_report"]["selected_hook_score"]["score"] >= 60, "creative pack quality report scoring failed")
+    assert_true(not detect_thai_quality_issues(clean_thai_output("ความรู้สึกของฉัน ไม่สามารถที่จะ ลืมเธอ")), "Thai quality filter rewrite failed")
     signature_presets = {
         "Vela Moon Emotional Pop Rock",
         "Vela Moon Late Night Drive",
