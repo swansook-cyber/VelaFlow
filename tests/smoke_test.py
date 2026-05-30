@@ -634,15 +634,15 @@ def main():
     release_zip = Path((release_export.get("data") or {}).get("zip_path", ""))
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
-    assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "Music style prompt for Suno/Udio" in release_txt, "creative release pack render-free notes/text missing")
+    assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "AI PRODUCER PROMPT" in release_txt and "Music style prompt for Suno/Udio" not in release_txt, "creative release pack producer prompt text missing")
     assert_true("Weirdness:" in release_txt and "Style Influence:" in release_txt and "BPM:" in release_txt, "advanced Suno settings missing from release pack")
     assert_true("Suno Copy-Ready Block" in release_txt and "LYRICS ONLY" in release_pack["pack"]["Suno Copy-Ready Block"], "Suno copy-ready block missing")
     with zipfile.ZipFile(release_zip, "r") as release_archive:
         release_zip_names = set(release_archive.namelist())
         advanced_settings_zip_text = release_archive.read("advanced_suno_settings.txt").decode("utf-8-sig")
         copy_ready_zip_text = release_archive.read("suno_copy_ready_block.txt").decode("utf-8-sig")
-    assert_true({"advanced_suno_settings.txt", "suno_copy_ready_block.txt"}.issubset(release_zip_names), "release ZIP missing advanced Suno files")
-    assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "ADVANCED SUNO SETTINGS" in copy_ready_zip_text, "release ZIP advanced Suno content missing")
+    assert_true({"ai_producer_prompt.txt", "advanced_suno_settings.txt", "suno_copy_ready_block.txt"}.issubset(release_zip_names), "release ZIP missing producer/advanced Suno files")
+    assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "ADVANCED SUNO SETTINGS" in copy_ready_zip_text and "AI PRODUCER PROMPT" in copy_ready_zip_text, "release ZIP advanced Suno content missing")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
@@ -670,17 +670,17 @@ def main():
         assert_true("Hook direction" not in signature_pack["pack"]["Hook"] and "Mood:" not in signature_pack["pack"]["Hook"], f"{signature_preset} hook contains prompt metadata")
         signature_lyrics_lower = signature_pack["pack"]["Full lyrics"].lower()
         signature_copy_block_lower = signature_pack["pack"]["Suno Copy-Ready Block"].lower()
-        producer_prompt = signature_pack["pack"]["Music style prompt for Suno/Udio"].lower()
-        producer_required_terms = ["vocal", "arrangement", "pre-chorus", "chorus", "final chorus", "mix"]
+        producer_prompt = signature_pack["pack"]["AI PRODUCER PROMPT"].lower()
+        producer_required_terms = ["core genre", "vocal direction", "instrumentation", "arrangement progression", "drum & bass direction", "chorus lift", "bridge direction", "final chorus climax", "mix & master feel", "reference feel"]
         producer_instrument_terms = ["vocal", "acoustic", "electric", "piano", "drum", "bass"]
-        arrangement_terms = ["verse", "pre-chorus", "chorus", "final chorus"]
+        arrangement_terms = ["intro:", "verse:", "pre-chorus:", "chorus:", "bridge:", "final chorus:", "outro:"]
         assert_true(all(term in producer_prompt for term in producer_required_terms), f"{signature_preset} producer prompt direction missing")
         assert_true(all(term in producer_prompt for term in producer_instrument_terms), f"{signature_preset} producer instrumentation missing")
         assert_true(all(term in producer_prompt for term in arrangement_terms), f"{signature_preset} arrangement progression missing")
         assert_true("spotify-ready" in producer_prompt or "radio feel" in producer_prompt or "radio-ready" in producer_prompt, f"{signature_preset} mix feel missing")
         assert_true(not any(item in signature_lyrics_lower for item in forbidden_lyric_prompts), f"{signature_preset} full lyrics leaked internal direction")
         assert_true(not any(item in signature_lyrics_lower for item in ["core genre", "vocal direction", "instrumentation", "arrangement progression", "mix & master feel", "music style prompt"]), f"{signature_preset} producer prompt leaked into full lyrics")
-        assert_true(not any(item in signature_copy_block_lower.split("music style prompt", 1)[0] for item in forbidden_lyric_prompts), f"{signature_preset} copy-ready lyrics leaked internal direction")
+        assert_true(not any(item in signature_copy_block_lower.split("ai producer prompt", 1)[0] for item in forbidden_lyric_prompts), f"{signature_preset} copy-ready lyrics leaked internal direction")
         assert_true("(soft cinematic intro" not in signature_pack["pack"]["Full lyrics"] and "spotify-friendly" not in signature_lyrics_lower and "tiktok hook friendly" not in signature_lyrics_lower, f"{signature_preset} intro tag is not clean")
         lyric_lines = signature_pack["pack"]["Full lyrics"].splitlines()
         chorus_index = lyric_lines.index("[Chorus]")
@@ -692,6 +692,12 @@ def main():
         assert_true(len(final_lines - chorus_lines) >= 2, f"{signature_preset} final chorus lacks payoff lines")
     emotional_settings = generate_creative_release_pack("เพลง Vela Moon สำหรับคนที่ยังลืมไม่ได้", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]
     assert_true("BPM: 85" in emotional_settings and "Weirdness: 20%" in emotional_settings and "Style Influence: 70%" in emotional_settings, "Vela Moon Emotional Pop Rock advanced settings failed")
+    producer_validation_pack = generate_creative_release_pack("ถ้าใจยังรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
+    producer_validation_text = creative_release_pack_to_text(producer_validation_pack)
+    producer_validation_prompt = producer_validation_pack["pack"]["AI PRODUCER PROMPT"]
+    assert_true("====================\nAI PRODUCER PROMPT\n====================" in producer_validation_text, "AI Producer Prompt section header missing from TXT export")
+    producer_validation_prompt_lower = producer_validation_prompt.lower()
+    assert_true("fingerpicked acoustic guitar + felt piano" in producer_validation_prompt_lower and "half-time emotional breakdown" in producer_validation_prompt_lower and "electric guitar counter melody" in producer_validation_prompt_lower, "Vela Moon Emotional Pop Rock dynamic arrangement intelligence missing")
     assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")
     assert_true("Auto" in AGENT_WORKFLOW_MODES and "Auto" in AGENT_AI_PROVIDERS, "agent auto mode/provider missing")
     local_provider = LocalFallbackProvider()
@@ -1922,7 +1928,7 @@ def main():
         assert_true("Optional Creator Mastering" in main_source and "Polish AI-generated songs for clearer vocal, better loudness, and streaming-ready export." in main_source and "Generate Mastered WAV" in main_source and "Download Mastered WAV" in main_source, "Remaster Studio UI missing")
         assert_true("Creator Dashboard" in main_source and "Create Song Package" in main_source and "Create TikTok Hook" in main_source and "Create Podcast Clip" in main_source and "Create Affiliate Script" in main_source and "Open Advanced Tools" in main_source, "creator dashboard workflow cards missing")
         assert_true("One-Click Song Package" in main_source and "Generate Song Package" in main_source and "Download Full Package TXT" in main_source and "ทำเพลงพร้อม Suno/Udio" in main_source, "creator dashboard one-click song package missing")
-        assert_true("Song Title Suggestions" in main_source and "Producer-Grade Music Style Prompt" in main_source and "Suno-Ready Prompt" in main_source and "Release Checklist" in main_source, "creator dashboard output blocks missing")
+        assert_true("Song Title Suggestions" in main_source and "AI Producer Prompt" in main_source and "Suno-Ready Prompt" in main_source and "Release Checklist" in main_source, "creator dashboard output blocks missing")
         assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools." in main_source, "creative pack generator UI missing")
         assert_true("Choose preset" in main_source and "Enter song idea" in main_source and "Generate & Export" in main_source, "creative pack quick start missing")
         assert_true("sidebar_nav_creator_dashboard" in main_source and "sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source, "creative pack sidebar navigation missing")

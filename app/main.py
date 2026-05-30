@@ -1944,7 +1944,7 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
         project.setdefault("song", {})["idea"] = idea
         project["song"]["title"] = (result.get("pack") or {}).get("Suggested title", "")
         project["song"]["complete_lyrics"] = (result.get("pack") or {}).get("Full lyrics", "")
-        project["song"]["style_prompt"] = (result.get("pack") or {}).get("Music style prompt for Suno/Udio", "")
+        project["song"]["style_prompt"] = (result.get("pack") or {}).get("AI PRODUCER PROMPT", (result.get("pack") or {}).get("AI Producer Prompt", (result.get("pack") or {}).get("Music style prompt for Suno/Udio", "")))
         _save_project()
         st.success("Song package ready")
         st.rerun()
@@ -1958,7 +1958,7 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
     output_blocks = [
         ("Song Title Suggestions", pack.get("Suggested title", "")),
         ("Structured Lyrics", pack.get("Full lyrics", "")),
-        ("Producer-Grade Music Style Prompt", pack.get("Music style prompt for Suno/Udio", "")),
+        ("AI Producer Prompt", pack.get("AI PRODUCER PROMPT", pack.get("AI Producer Prompt", pack.get("Music style prompt for Suno/Udio", "")))),
         ("Suno-Ready Prompt", pack.get("Suno Copy-Ready Block", "")),
         ("SEO Caption", pack.get("Caption", "")),
         ("YouTube Description", pack.get("YouTube description", "")),
@@ -2046,7 +2046,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         project.setdefault("song", {})["idea"] = idea
         project["song"]["title"] = result["pack"].get("Suggested title", "")
         project["song"]["complete_lyrics"] = result["pack"].get("Full lyrics", "")
-        project["song"]["style_prompt"] = result["pack"].get("Music style prompt for Suno/Udio", "")
+        project["song"]["style_prompt"] = result["pack"].get("AI PRODUCER PROMPT", result["pack"].get("AI Producer Prompt", result["pack"].get("Music style prompt for Suno/Udio", "")))
         _save_project()
         _log_beta_event("generate", workflow="creative_pack_v1", metadata={"page": active_stage, "preset": preset})
         if export.get("ok"):
@@ -2070,7 +2070,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
     st.text_area("Full lyrics", value=pack.get("Full lyrics", ""), height=300, key="creative_pack_full_lyrics")
-    st.text_area("Music style prompt for Suno/Udio", value=pack.get("Music style prompt for Suno/Udio", ""), height=110, key="creative_pack_music_style")
+    st.text_area("AI Producer Prompt", value=pack.get("AI PRODUCER PROMPT", pack.get("AI Producer Prompt", pack.get("Music style prompt for Suno/Udio", ""))), height=260, key="creative_pack_music_style")
     st.text_area("Advanced Suno Settings", value=pack.get("Advanced Suno Settings", ""), height=150, key="creative_pack_advanced_suno_settings")
     st.text_area("Suno Copy-Ready Block", value=pack.get("Suno Copy-Ready Block", ""), height=320, key="creative_pack_suno_copy_ready_block")
 

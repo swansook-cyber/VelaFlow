@@ -96,7 +96,7 @@ RELEASE_PACK_FILES = {
     "suggested_title.txt": "Suggested title",
     "hook.txt": "Hook",
     "full_lyrics.txt": "Full lyrics",
-    "music_style_prompt.txt": "Music style prompt for Suno/Udio",
+    "ai_producer_prompt.txt": "AI PRODUCER PROMPT",
     "advanced_suno_settings.txt": "Advanced Suno Settings",
     "suno_copy_ready_block.txt": "Suno Copy-Ready Block",
     "cover_prompt.txt": "Cover prompt",
@@ -195,6 +195,110 @@ def _advanced_settings_to_text(settings: dict[str, str]) -> str:
     return "\n".join(f"{key}: {value}" for key, value in settings.items())
 
 
+def _producer_profile_for_preset(preset_name: str, preset: dict[str, str], settings: dict[str, str]) -> dict[str, str]:
+    fallback = {
+        "core_genre": preset.get("style", "modern Thai pop, emotional commercial structure"),
+        "vocal_direction": settings.get("Vocal Style Notes", "clear emotional Thai vocal, intimate verse, open chorus release"),
+        "instrumentation": "soft piano, warm acoustic guitar, smooth bass, cinematic pad, clean pop drums",
+        "arrangement_progression": "Intro starts intimate, verse stays close, pre-chorus builds tension, chorus opens wider, bridge drops down, final chorus returns bigger, outro fades naturally",
+        "drum_bass": "restrained verse groove, controlled kick and snare, bass follows vocal emotion, stronger chorus pocket",
+        "layers": "acoustic guitar foundation, piano emotional support, warm pad glue, subtle melodic counter lines",
+        "chorus_lift": "memorable chorus with wider drums, stronger harmony, emotional release, and clear title phrase",
+        "bridge": "cinematic breakdown with reduced drums, exposed vocal, piano lead, and emotional space",
+        "final_chorus": "largest dynamic section with layered harmonies, wider guitars, stronger drums, and a satisfying final hook payoff",
+        "mix_master": "warm Spotify-ready mix, clear vocal focus, controlled low end, soft reverb tail, radio-friendly loudness",
+        "reference": settings.get("Commercial Direction", "commercial Thai pop release, Suno/Udio-ready, playlist-friendly"),
+    }
+    profiles = {
+        "Vela Moon Emotional Pop Rock": {
+            "core_genre": "Thai emotional pop rock, Vela Moon signature warmth, commercial Spotify-friendly structure, TikTok-ready emotional hook",
+            "vocal_direction": "Thai male vocal, warm expressive tone, close-mic intimate verse, restrained pre-chorus lift, open emotional chorus, clear pronunciation",
+            "instrumentation": "fingerpicked acoustic guitar, felt piano, clean electric guitar melodic fills, warm cinematic pad, smooth live bass, mid-tempo pop rock drum kit",
+            "arrangement_progression": "Intro: fingerpicked acoustic guitar + felt piano. Verse: intimate close-mic vocal over restrained guitar. Pre-Chorus: build tension with toms and pads. Chorus: full drum kit and layered guitars. Bridge: half-time emotional breakdown. Final Chorus: largest dynamic section with layered harmonies and electric guitar counter melody. Outro: natural acoustic fade.",
+            "drum_bass": "85 BPM pocket, soft kick in verse, rising toms into pre-chorus, full snare and cymbal lift in chorus, smooth bass supporting vocal emotion",
+            "layers": "acoustic guitar intro, clean electric guitar hook accents, soft piano emotional layer, warm pad behind chorus, gentle cymbal swells",
+            "chorus_lift": "wide dynamic chorus lift with full band energy, layered harmony, electric guitar accents, strong emotional release, singable title phrase",
+            "bridge": "half-time breakdown, emotional piano lead, reduced drums, vulnerable vocal space, warm pad atmosphere",
+            "final_chorus": "biggest final chorus, stacked harmonies, stronger drums, electric guitar counter melody, final hook payoff, smooth fade outro",
+            "mix_master": "warm Spotify-ready mix, vocal-forward, clear midrange, controlled bass, radio-friendly Thai pop rock loudness",
+            "reference": "modern Thai pop rock ballad energy, Vela Moon signature comfort, playlist-friendly and emotional short-form ready",
+        },
+        "Vela Moon Late Night Drive": {
+            "core_genre": "atmospheric Thai pop rock, lonely night-drive mood, nostalgic but not too sad",
+            "vocal_direction": "warm Thai male vocal, intimate late-night delivery, reflective verse, open chorus with calm emotional release",
+            "instrumentation": "smooth electric guitar lead, subtle acoustic rhythm, soft piano shadows, cinematic pad, rounded bass, restrained drums",
+            "arrangement_progression": "Intro: soft dashboard-like pad and guitar. Verse: close vocal with sparse rhythm. Pre-Chorus: gentle lift. Chorus: open night-drive width. Bridge: spacious reflective pause. Final Chorus: warmer and wider. Outro: soft road-trip fade.",
+            "drum_bass": "82 BPM restrained drum kit, rounded bass pulse, soft snare, cymbal shimmer only on emotional lifts",
+            "layers": "electric guitar lead phrases, soft piano shadows, low cinematic pad, subtle acoustic movement",
+            "chorus_lift": "chorus opens wider like city lights, with bigger vocal harmony and smooth guitar melody",
+            "bridge": "spacious bridge with pad, piano, and distant guitar echo",
+            "final_chorus": "warmer final chorus, wider stereo guitars, fuller harmony, emotional but controlled release",
+            "mix_master": "warm late-night Spotify-ready mix, clear vocal center, cinematic width, smooth low end",
+            "reference": "Thai night-drive playlist feel, nostalgic road-trip pop rock, soft cinematic realism",
+        },
+        "Vela Moon Heartbroken Anthem": {
+            "core_genre": "modern Thai pop rock ballad, heartbroken anthem, slow build into dramatic final chorus",
+            "vocal_direction": "Thai emotional male vocal, fragile verse tone, rising pre-chorus, powerful chorus release, dramatic final chorus",
+            "instrumentation": "acoustic guitar foundation, electric guitar layers, emotional piano, warm strings, cinematic pad, smooth bass, slow-build drums",
+            "arrangement_progression": "Intro: sparse guitar and piano. Verse: vulnerable vocal. Pre-Chorus: rising tension. Chorus: powerful full-band release. Bridge: stripped emotional breakdown. Final Chorus: dramatic expanded singalong. Outro: warm reverb tail.",
+            "drum_bass": "78 BPM slow-build drum kit, quiet verse pulse, stronger tom/snare lift into chorus, bass widens final chorus",
+            "layers": "acoustic guitar bed, electric guitar swells, piano lead, warm string pad, layered harmony in choruses",
+            "chorus_lift": "anthemic heartbreak chorus with full band, layered harmony, and repeatable title phrase",
+            "bridge": "stripped piano-led breakdown with vulnerable vocal and half-time feel",
+            "final_chorus": "dramatic expanded final chorus, stacked harmony, stronger guitars, cymbal lift, emotional peak",
+            "mix_master": "warm radio-ready ballad mix, vocal-forward, wide emotional chorus, polished low end",
+            "reference": "big Thai heartbreak singalong, modern ballad production, strong final chorus payoff",
+        },
+        "Vela Moon Easy Listening Pop Rock": {
+            "core_genre": "commercial Thai easy listening pop rock, clean mainstream Spotify style, catchy hook",
+            "vocal_direction": "clean Thai male vocal, friendly phrasing, relaxed verse, natural chorus lift, polished final chorus",
+            "instrumentation": "acoustic guitar groove, clean electric guitar counter-melody, soft piano, smooth bass, subtle pad warmth, radio-friendly drums",
+            "arrangement_progression": "Intro: clean acoustic groove. Verse: relaxed vocal and light rhythm. Pre-Chorus: natural lift. Chorus: catchy and open. Bridge: concise reset. Final Chorus: bright polished repeat. Outro: clean ending.",
+            "drum_bass": "88 BPM tight pop rock drums, steady bass, light verse groove, polished chorus pocket",
+            "layers": "acoustic rhythm guitar, clean electric counter-melody, soft piano support, subtle pad glue",
+            "chorus_lift": "catchy chorus with simple melody, wider drums, light harmony, and radio-friendly energy",
+            "bridge": "short bridge with reduced drums and melodic guitar answer",
+            "final_chorus": "polished final chorus with brighter harmony, fuller guitars, and clean commercial finish",
+            "mix_master": "clean Spotify-ready mix balance, vocal clarity, radio feel, controlled brightness",
+            "reference": "mainstream Thai easy listening pop rock, daily playlist friendly, commercial hook focus",
+        },
+        "Vela Moon Office Life Story": {
+            "core_genre": "Thai working-life storytelling pop rock, office burnout emotion, relatable but hopeful",
+            "vocal_direction": "warm Thai male vocal, conversational verse, tired but sincere delivery, hopeful final chorus",
+            "instrumentation": "acoustic guitar pulse, clean electric guitar emotional fills, soft piano, smooth bass, warm pad, steady pop rock drums",
+            "arrangement_progression": "Intro: quiet office-like pulse. Verse: conversational storytelling. Pre-Chorus: emotional lift from exhaustion. Chorus: relatable singalong. Bridge: reflective pause. Final Chorus: hopeful and wider. Outro: warm release.",
+            "drum_bass": "84 BPM steady pop rock drums, grounded bass, restrained verse groove, hopeful chorus lift",
+            "layers": "acoustic pulse, clean electric fills, soft piano, warm pad, subtle cymbal lift",
+            "chorus_lift": "relatable chorus with warmer harmony, stronger drums, and a final line that feels hopeful",
+            "bridge": "reflective bridge with piano and pad, space for tired vocal honesty",
+            "final_chorus": "hopeful final chorus, wider guitars, brighter harmony, warm emotional payoff",
+            "mix_master": "warm Spotify-ready mix, clear vocal storytelling, polished Thai pop rock comfort",
+            "reference": "office-life Thai pop rock, relatable working adult story, comfort after burnout",
+        },
+    }
+    profile = dict(fallback)
+    profile.update(profiles.get(preset_name, {}))
+    return profile
+
+
+def _build_ai_producer_prompt(preset_name: str, preset: dict[str, str], settings: dict[str, str]) -> str:
+    profile = _producer_profile_for_preset(preset_name, preset, settings)
+    ordered_sections = [
+        ("CORE GENRE", profile["core_genre"]),
+        ("VOCAL DIRECTION", profile["vocal_direction"]),
+        ("INSTRUMENTATION", profile["instrumentation"]),
+        ("ARRANGEMENT PROGRESSION", profile["arrangement_progression"]),
+        ("DRUM & BASS DIRECTION", profile["drum_bass"]),
+        ("GUITAR / PIANO / PAD LAYERS", profile["layers"]),
+        ("CHORUS LIFT", profile["chorus_lift"]),
+        ("BRIDGE DIRECTION", profile["bridge"]),
+        ("FINAL CHORUS CLIMAX", profile["final_chorus"]),
+        ("MIX & MASTER FEEL", profile["mix_master"]),
+        ("REFERENCE FEEL", profile["reference"]),
+    ]
+    return "\n\n".join(f"{heading}\n{body}" for heading, body in ordered_sections)
+
+
 def _clean_lyric_text(text: str) -> str:
     cleaned: list[str] = []
     for line in str(text or "").splitlines():
@@ -250,12 +354,12 @@ def polish_commercial_lyrics(text: str, hook: str = "") -> str:
     return output
 
 
-def _suno_copy_ready_block(title: str, lyrics: str, music_style_prompt: str, advanced_settings: dict[str, str]) -> str:
+def _suno_copy_ready_block(title: str, lyrics: str, ai_producer_prompt: str, advanced_settings: dict[str, str]) -> str:
     return "\n\n".join(
         [
             "SONG TITLE\n" + title,
             "LYRICS ONLY\n" + _clean_lyric_text(lyrics),
-            "MUSIC STYLE PROMPT\n" + music_style_prompt,
+            "AI PRODUCER PROMPT\n" + ai_producer_prompt,
             "ADVANCED SUNO SETTINGS\n" + _advanced_settings_to_text(advanced_settings),
             "NOTES FOR GENERATION\nUse the full lyrics as the song body. Keep the vocal clear, preserve the emotional chorus, and generate 2-3 takes before choosing the strongest commercial version.",
         ]
@@ -405,7 +509,8 @@ def generate_creative_release_pack(
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
-    suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, preset["style"], advanced_settings)
+    ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)
+    suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, ai_producer_prompt, advanced_settings)
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
     if preset_name.startswith("Vela Moon"):
         hashtags.extend(["#VelaMoon", "#ThaiPopRock", "#SpotifyThailand"])
@@ -415,7 +520,9 @@ def generate_creative_release_pack(
         "Suggested title": title,
         "Hook": hook,
         "Full lyrics": lyrics,
-        "Music style prompt for Suno/Udio": preset["style"],
+        "AI PRODUCER PROMPT": ai_producer_prompt,
+        "AI Producer Prompt": ai_producer_prompt,
+        "Music style prompt for Suno/Udio": ai_producer_prompt,
         "Advanced Suno Settings": advanced_settings_text,
         "Suno Copy-Ready Block": suno_copy_ready_block,
         "Cover prompt": f"premium cover artwork for '{title}', {preset['visual']}, cinematic realism, no watermark",
