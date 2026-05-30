@@ -656,6 +656,16 @@ def main():
     assert_true(love_pack["Suggested title"] not in {"รัก", "ความรัก", "เพลงรัก"} and len(love_hook_lines) >= 2, "creative pack generic title/hook quality failed")
     assert_true(len(love_hook_lines) <= 5 and "ให้ท่อนนี้" not in love_pack["Hook"] and "ร้องให้สุด" not in love_pack["Hook"], "creative pack hook contains meta text")
     assert_true(love_release_pack["quality_report"]["selected_title_score"]["score"] >= 60 and love_release_pack["quality_report"]["selected_hook_score"]["score"] >= 60, "creative pack quality report scoring failed")
+    communication_concept = "ความจริงสำคัญ แต่วิธีพูดก็สำคัญพอกัน"
+    communication_pack = generate_creative_release_pack(communication_concept, "Vela Moon Emotional Pop Rock", "Vela Moon")
+    communication_lyrics = communication_pack["pack"]["Full lyrics"]
+    communication_intro = communication_lyrics.split("[Verse 1]", 1)[0]
+    stale_breakup_lines = ["ฉันเดินผ่านที่เดิม", "ทุกข้อความเก่า", "ถ้าความทรงจำมีประตูให้ปิด", "เสียงเมืองยังดัง", "หัวใจก็ยังจำว่าเคยรัก", "ปล่อยให้ชื่อเธอค่อย ๆ จางไป"]
+    communication_terms = ["ความจริง", "พูด", "คำ", "อ่อนโยน", "ฟัง", "รักษา", "ซ่อม"]
+    assert_true(communication_concept not in communication_intro, "communication concept was copied directly into intro")
+    assert_true(all(line not in communication_lyrics for line in stale_breakup_lines), "communication concept reused stale breakup-memory lyrics")
+    assert_true(sum(1 for term in communication_terms if term in communication_lyrics) >= 5, "communication lyrics do not focus on honest respectful speech")
+    assert_true(communication_pack["quality_report"]["concept_alignment"]["aligned"] is True and communication_pack["quality_report"]["concept_alignment"]["theme"] == "respectful_truth", "concept alignment validation failed for communication lyrics")
     assert_true(not detect_thai_quality_issues(clean_thai_output("ความรู้สึกของฉัน ไม่สามารถที่จะ ลืมเธอ")), "Thai quality filter rewrite failed")
     signature_presets = {
         "Vela Moon Emotional Pop Rock",

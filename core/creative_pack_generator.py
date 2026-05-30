@@ -178,9 +178,32 @@ INTERNAL_LYRIC_PHRASES = [
     "music style prompt",
 ]
 
+REUSED_BREAKUP_MEMORY_LINES = [
+    "ฉันเดินผ่านที่เดิม",
+    "ทุกข้อความเก่า",
+    "ถ้าความทรงจำมีประตูให้ปิด",
+    "เสียงเมืองยังดัง",
+    "หัวใจก็ยังจำว่าเคยรัก",
+    "ปล่อยให้ชื่อเธอค่อย ๆ จางไป",
+    "แม้เธอไม่อยู่ตรงนี้แล้ว",
+]
+
 
 def _lines(text: str) -> list[str]:
     return [line.strip() for line in str(text or "").splitlines() if line.strip()]
+
+
+def _concept_theme(idea: str) -> str:
+    text = str(idea or "").lower()
+    if any(word in text for word in ["ความจริง", "พูด", "ตรง ๆ", "ตรงๆ", "ไม่แรง", "วิธีพูด", "คำพูด", "สื่อสาร", "คุยกัน", "ฟังกัน"]):
+        return "respectful_truth"
+    if any(word in text for word in ["เลิก", "แฟนเก่า", "ลืม", "ไม่กลับมา", "ความทรงจำ", "คิดถึง", "อกหัก", "breakup", "memory"]):
+        return "breakup_memory"
+    return "general_emotional"
+
+
+def _is_breakup_memory_concept(idea: str) -> bool:
+    return _concept_theme(idea) == "breakup_memory"
 
 
 def _advanced_settings_for_preset(preset_name: str) -> dict[str, str]:
@@ -423,6 +446,14 @@ def _score_hook_candidate(hook: str) -> dict[str, Any]:
 
 def _hook_candidates(title: str, idea: str) -> list[str]:
     idea_text = str(idea or "")
+    if _concept_theme(idea_text) == "respectful_truth":
+        return [
+            "\n".join(["พูดความจริงเบา ๆ", "ให้ใจเรายังจับมือกัน", "ไม่ต้องชนะด้วยคำแรง", "แค่ฟังกันให้มากพอ"]),
+            "\n".join(["ความจริงยังสำคัญ", "แต่วิธีพูดก็สำคัญไม่แพ้กัน", "ถ้ารักยังอยากซ่อมใจ", "อย่าใช้คำไหนทำร้ายเรา"]),
+            "\n".join(["บอกตรง ๆ ได้ไหม", "แต่ขอให้ใจยังอ่อนโยน", "คำจริงไม่ต้องเป็นค้อน", "ก็ทำให้เราเข้าใจกัน"]),
+            "\n".join(["อย่าพูดให้แพ้ชนะ", "พูดให้เรากลับมาใกล้กัน", "ความจริงจะไม่เจ็บเกินไป", "ถ้าใจยังเลือกถนอมน้ำคำ"]),
+            "\n".join(["ถ้าใจยังรัก", "พูดกันดี ๆ ได้ไหม", "ให้ความจริงเป็นสะพาน", "ไม่ใช่กำแพงกลางใจ"]),
+        ]
     if "รัก" in idea_text and not any(word in idea_text for word in ["อกหัก", "เลิก", "ลืม"]):
         return [
             "\n".join([title, "ถ้าใจยังเลือกเธออยู่", "ฉันจะเรียกมันว่ารักได้ไหม"]),
@@ -460,7 +491,61 @@ def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     return "\n".join([title, "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก", f"อารมณ์หลัก: {preset['mood']}"])
 
 
+def _respectful_truth_lyrics(title: str, hook: str) -> str:
+    hook_block = "\n".join(_lines(hook))
+    return "\n".join(
+        [
+            "[Intro]",
+            "คืนนี้เรานั่งเงียบกันนานกว่าทุกที",
+            "เหมือนมีคำหนึ่งคำรอให้พูดออกมา",
+            "",
+            "[Verse 1]",
+            "ฉันไม่ได้กลัวความจริงที่เธอเก็บไว้",
+            "แค่กลัวน้ำเสียงทำให้ใจเราห่างกัน",
+            "ถ้าต้องบอกอะไรที่เจ็บให้กันฟัง",
+            "ขอให้ยังมีมือหนึ่งคอยประคอง",
+            "",
+            "[Pre-Chorus]",
+            "คำตรง ๆ ไม่จำเป็นต้องเป็นมีด",
+            "ถ้าพูดด้วยใจที่ยังอยากรักษาเรา",
+            "",
+            "[Chorus]",
+            hook_block,
+            "",
+            "[Verse 2]",
+            "ฉันก็มีส่วนผิดที่เงียบจนเกินไป",
+            "เธอก็เหนื่อยใช่ไหมที่ต้องเดาใจฉัน",
+            "ลองวางคำแข็ง ๆ ลงข้างความสัมพันธ์",
+            "แล้วพูดกันเหมือนคนที่ยังแคร์",
+            "",
+            "[Pre-Chorus]",
+            "ความจริงจะพาเราไปทางไหนก็ได้",
+            "แต่คำอ่อนโยนจะพาเราไม่หลงทาง",
+            "",
+            "[Chorus]",
+            hook_block,
+            "",
+            "[Bridge]",
+            "ถ้าคืนนี้ต้องร้องไห้ก็ไม่เป็นไร",
+            "ขอแค่เราไม่ใช้คำพูดทำลายกัน",
+            "ให้ความจริงเป็นไฟที่ส่องทาง",
+            "ไม่ใช่ไฟที่เผาทุกอย่างจนหายไป",
+            "",
+            "[Final Chorus]",
+            hook_block,
+            "พูดให้ใจยังมีที่ให้กลับมา",
+            "ให้ความจริงซ่อมเรา ไม่ใช่แยกเราไกล",
+            "",
+            "[Outro]",
+            "ถ้ายังรักกันอยู่",
+            "พูดกันเบา ๆ ก็พอ",
+        ]
+    )
+
+
 def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
+    if _concept_theme(idea) == "respectful_truth":
+        return _respectful_truth_lyrics(title, hook)
     hook_lines = _lines(hook)
     hook_block = "\n".join(hook_lines)
     return "\n".join(
@@ -504,6 +589,40 @@ def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str
     )
 
 
+def validate_concept_alignment(idea: str, lyrics: str) -> dict[str, Any]:
+    theme = _concept_theme(idea)
+    text = str(lyrics or "")
+    reused_lines = [line for line in REUSED_BREAKUP_MEMORY_LINES if line in text]
+    if theme == "respectful_truth":
+        required_terms = ["ความจริง", "พูด", "คำ", "อ่อนโยน", "ฟัง", "รักษา", "ซ่อม"]
+        matched_terms = [term for term in required_terms if term in text]
+        return {
+            "theme": theme,
+            "aligned": len(matched_terms) >= 4 and not reused_lines,
+            "matched_terms": matched_terms,
+            "reused_breakup_memory_lines": reused_lines,
+            "reason": "lyrics focus on respectful truth and soft communication" if len(matched_terms) >= 4 and not reused_lines else "lyrics do not support the current communication concept strongly enough",
+        }
+    return {
+        "theme": theme,
+        "aligned": _is_breakup_memory_concept(idea) or not reused_lines,
+        "matched_terms": [],
+        "reused_breakup_memory_lines": reused_lines,
+        "reason": "breakup/memory lines allowed for this concept" if _is_breakup_memory_concept(idea) else "no forbidden reused breakup-memory lines detected",
+    }
+
+
+def _remove_disallowed_reused_lines(idea: str, lyrics: str) -> str:
+    if _is_breakup_memory_concept(idea):
+        return lyrics
+    output: list[str] = []
+    for line in str(lyrics or "").splitlines():
+        if any(stale in line for stale in REUSED_BREAKUP_MEMORY_LINES):
+            continue
+        output.append(line)
+    return "\n".join(output).strip()
+
+
 def generate_creative_release_pack(
     idea: str,
     preset_name: str = "Thai Sad Pop",
@@ -515,6 +634,13 @@ def generate_creative_release_pack(
     hook = _hook_from_idea(concept, title, preset)
     hook = improve_hook_singability(hook)
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
+    lyrics = _remove_disallowed_reused_lines(concept, lyrics)
+    concept_alignment = validate_concept_alignment(concept, lyrics)
+    if not concept_alignment["aligned"] and _concept_theme(concept) == "respectful_truth":
+        hook = improve_hook_singability(_select_best_hook(title, concept)["hook"])
+        lyrics = polish_commercial_lyrics(_respectful_truth_lyrics(title, hook), hook)
+        lyrics = _remove_disallowed_reused_lines(concept, lyrics)
+        concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)
@@ -598,6 +724,7 @@ def generate_creative_release_pack(
                 "hook_approved": hook_score.get("score", 0) >= 60,
                 "caption_ready": hook_score.get("caption_potential", 0) >= 60,
             },
+            "concept_alignment": concept_alignment,
         },
         "generated_at": generated_at,
     }
