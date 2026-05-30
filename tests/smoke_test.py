@@ -649,6 +649,7 @@ def main():
     love_pack = love_release_pack["pack"]
     love_hook_lines = [line for line in love_pack["Hook"].splitlines() if line.strip()]
     assert_true(love_pack["Suggested title"] not in {"รัก", "ความรัก", "เพลงรัก"} and len(love_hook_lines) >= 2, "creative pack generic title/hook quality failed")
+    assert_true(len(love_hook_lines) <= 5 and "ให้ท่อนนี้" not in love_pack["Hook"] and "ร้องให้สุด" not in love_pack["Hook"], "creative pack hook contains meta text")
     assert_true(love_release_pack["quality_report"]["selected_title_score"]["score"] >= 60 and love_release_pack["quality_report"]["selected_hook_score"]["score"] >= 60, "creative pack quality report scoring failed")
     assert_true(not detect_thai_quality_issues(clean_thai_output("ความรู้สึกของฉัน ไม่สามารถที่จะ ลืมเธอ")), "Thai quality filter rewrite failed")
     signature_presets = {
@@ -669,17 +670,25 @@ def main():
         signature_lyrics_lower = signature_pack["pack"]["Full lyrics"].lower()
         signature_copy_block_lower = signature_pack["pack"]["Suno Copy-Ready Block"].lower()
         producer_prompt = signature_pack["pack"]["Music style prompt for Suno/Udio"].lower()
-        producer_required_terms = ["core genre", "vocal direction", "instrumentation", "arrangement progression", "drum/bass direction", "chorus lift", "bridge / final chorus direction", "mix & master feel"]
+        producer_required_terms = ["vocal", "arrangement", "pre-chorus", "chorus", "final chorus", "mix"]
         producer_instrument_terms = ["vocal", "acoustic", "electric", "piano", "drum", "bass"]
         arrangement_terms = ["verse", "pre-chorus", "chorus", "final chorus"]
-        assert_true(all(term in producer_prompt for term in producer_required_terms), f"{signature_preset} producer prompt sections missing")
+        assert_true(all(term in producer_prompt for term in producer_required_terms), f"{signature_preset} producer prompt direction missing")
         assert_true(all(term in producer_prompt for term in producer_instrument_terms), f"{signature_preset} producer instrumentation missing")
         assert_true(all(term in producer_prompt for term in arrangement_terms), f"{signature_preset} arrangement progression missing")
         assert_true("spotify-ready" in producer_prompt or "radio feel" in producer_prompt or "radio-ready" in producer_prompt, f"{signature_preset} mix feel missing")
         assert_true(not any(item in signature_lyrics_lower for item in forbidden_lyric_prompts), f"{signature_preset} full lyrics leaked internal direction")
-        assert_true(not any(item in signature_lyrics_lower for item in ["core genre", "vocal direction", "instrumentation", "arrangement progression", "mix & master feel"]), f"{signature_preset} producer prompt leaked into full lyrics")
+        assert_true(not any(item in signature_lyrics_lower for item in ["core genre", "vocal direction", "instrumentation", "arrangement progression", "mix & master feel", "music style prompt"]), f"{signature_preset} producer prompt leaked into full lyrics")
         assert_true(not any(item in signature_copy_block_lower.split("music style prompt", 1)[0] for item in forbidden_lyric_prompts), f"{signature_preset} copy-ready lyrics leaked internal direction")
-        assert_true("(soft cinematic intro" in signature_pack["pack"]["Full lyrics"] and "spotify-friendly" not in signature_lyrics_lower and "tiktok hook friendly" not in signature_lyrics_lower, f"{signature_preset} intro tag is not clean")
+        assert_true("(soft cinematic intro" not in signature_pack["pack"]["Full lyrics"] and "spotify-friendly" not in signature_lyrics_lower and "tiktok hook friendly" not in signature_lyrics_lower, f"{signature_preset} intro tag is not clean")
+        lyric_lines = signature_pack["pack"]["Full lyrics"].splitlines()
+        chorus_index = lyric_lines.index("[Chorus]")
+        final_chorus_index = lyric_lines.index("[Final Chorus]")
+        verse2_index = lyric_lines.index("[Verse 2]")
+        outro_index = lyric_lines.index("[Outro]")
+        chorus_lines = {line for line in lyric_lines[chorus_index + 1:verse2_index] if line.strip()}
+        final_lines = {line for line in lyric_lines[final_chorus_index + 1:outro_index] if line.strip()}
+        assert_true(len(final_lines - chorus_lines) >= 2, f"{signature_preset} final chorus lacks payoff lines")
     emotional_settings = generate_creative_release_pack("เพลง Vela Moon สำหรับคนที่ยังลืมไม่ได้", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]
     assert_true("BPM: 85" in emotional_settings and "Weirdness: 20%" in emotional_settings and "Style Influence: 70%" in emotional_settings, "Vela Moon Emotional Pop Rock advanced settings failed")
     assert_true(AGENT_WORKFLOW_MODES == WORKFLOW_MODES and "MV Director Mode" in AGENT_WORKFLOW_MODES, "agent workflow modes missing")

@@ -50,7 +50,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Emotional Pop Rock": {
         "mood": "Vela Moon signature comfort, emotional Thai male vocal, warm but powerful",
-        "style": "Core Genre: Thai emotional pop rock, Spotify-friendly modern Thai radio feel. Vocal Direction: Thai male vocal, warm expressive tone, clear pronunciation, intimate verse vocal and emotional final chorus. Instrumentation: acoustic guitar-led arrangement, clean electric guitar melodic fills, soft piano support, warm cinematic pad. Arrangement Progression: acoustic intro, intimate verse, restrained pre-chorus build, wide dynamic chorus lift, bridge opens space, emotional final chorus. Drum/Bass Direction: smooth bass, mid-tempo drum kit around 85 BPM, gentle cymbal swells, steady pop rock groove. Guitar/Piano/Pad Layers: acoustic guitar pulse, electric guitar hook accents, soft piano emotional support, warm pad glue. Chorus Lift: wide singable hook with layered harmony and stronger emotional release. Bridge / Final Chorus Direction: vulnerable bridge breakdown into bigger final chorus. Mix & Master Feel: warm Spotify-ready mix, clear vocal focus, modern Thai pop rock radio feel.",
+        "style": "Thai male vocal, emotional modern Thai pop rock arrangement, acoustic guitar-led intro, clean electric guitar melodic hook, soft piano emotional layer, warm cinematic pad, smooth bass, mid-tempo drum kit around 85 BPM, intimate verse vocal, restrained pre-chorus build, wide emotional chorus lift, vulnerable bridge breakdown, bigger final chorus with layered harmony, warm Spotify-ready mix, clear vocal focus, radio-friendly Thai pop rock, TikTok-ready emotional hook.",
         "visual": "warm rehearsal room, acoustic guitar, clean electric guitar, soft piano corner, comforting cinematic light, Vela Moon signature pop rock mood",
         "hook_direction": "comforting emotional hook, singable first line, dynamic chorus lift, easy to remember on TikTok",
         "lyrics_direction": "relatable Thai emotional lyrics with a warm male vocal perspective, honest pain, and a hopeful release in the final chorus",
@@ -58,7 +58,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Late Night Drive": {
         "mood": "lonely night drive, nostalgic, emotional but not too sad",
-        "style": "Core Genre: atmospheric Thai pop rock with lonely night-drive emotion. Vocal Direction: warm Thai male vocal, relaxed intimate phrasing, nostalgic but controlled emotion. Instrumentation: smooth electric guitar lead, acoustic guitar texture, soft piano shadows, cinematic pad, rounded bass. Arrangement Progression: quiet intro, reflective verse, gradual pre-chorus lift, open chorus, bridge with spacious night atmosphere, soft final chorus release. Drum/Bass Direction: 82 BPM restrained drum kit, soft kick, light snare, smooth bass movement. Guitar/Piano/Pad Layers: clean electric guitar melodies, subtle acoustic rhythm, piano color notes, wide pad ambience. Chorus Lift: emotional but not too sad, memorable night-drive melody. Bridge / Final Chorus Direction: half-time emotional space before a warmer final chorus. Mix & Master Feel: warm late-night Spotify-ready mix, clear vocal center, cinematic road-trip width.",
+        "style": "Thai male vocal, atmospheric Thai pop rock arrangement, smooth electric guitar lead, subtle acoustic rhythm, soft piano shadows, cinematic pad, rounded bass, restrained 82 BPM drum kit, reflective verse, gradual pre-chorus lift, open night-drive chorus, spacious bridge, warmer final chorus, warm late-night Spotify-ready mix, clear vocal center, cinematic road-trip width.",
         "visual": "late night car interior, soft dashboard glow, wet street reflections, warm vocal mood, cinematic Thai night-drive palette",
         "hook_direction": "night-drive hook with a nostalgic melody and a phrase listeners can hum after one play",
         "lyrics_direction": "lyrics about driving through the city at night, missing someone quietly, and finding calm instead of collapse",
@@ -66,7 +66,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Heartbroken Anthem": {
         "mood": "heartbroken anthem, slow build, dramatic emotional release",
-        "style": "Core Genre: modern Thai pop rock ballad with anthem-sized heartbreak. Vocal Direction: emotional Thai male vocal, vulnerable verse tone, rising pre-chorus tension, powerful chorus delivery. Instrumentation: acoustic guitar foundation, electric guitar layers, emotional piano, warm strings and cinematic pad, supportive bass. Arrangement Progression: sparse intro, intimate verse, slow pre-chorus build, powerful chorus, stripped bridge, dramatic expanded final chorus. Drum/Bass Direction: 78 BPM slow-build drum kit, deep kick, restrained verse percussion, bigger chorus crashes, smooth bass support. Guitar/Piano/Pad Layers: acoustic guitar pulse, electric guitar swells, piano lead emotions, warm string pad underneath. Chorus Lift: big singalong hook with layered harmony and strong emotional release. Bridge / Final Chorus Direction: cinematic breakdown into the most dramatic final chorus. Mix & Master Feel: warm radio-ready ballad mix, vocal-forward, wide emotional chorus, streaming-ready loudness.",
+        "style": "Thai emotional male vocal, modern Thai pop rock ballad arrangement, acoustic guitar foundation, electric guitar layers, emotional piano, warm strings and cinematic pad, smooth bass, 78 BPM slow-build drum kit, vulnerable verse, rising pre-chorus tension, powerful chorus, stripped bridge, dramatic expanded final chorus, layered harmony, warm radio-ready ballad mix, vocal-forward, wide emotional chorus.",
         "visual": "empty bedroom after heartbreak, guitar by the bed, dramatic warm shadows, cinematic final chorus energy, modern Thai pop rock ballad cover",
         "hook_direction": "anthemic heartbreak chorus, repeatable title phrase, bigger final chorus, emotional singalong",
         "lyrics_direction": "a broken relationship story that starts vulnerable, builds through regret, and explodes into a powerful final chorus",
@@ -74,7 +74,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Easy Listening Pop Rock": {
         "mood": "commercial easy listening, clean, catchy, mainstream",
-        "style": "Core Genre: commercial Thai easy listening pop rock, clean mainstream Spotify style. Vocal Direction: Thai male vocal, friendly clear tone, relaxed verse, bright chorus confidence. Instrumentation: acoustic guitar groove, clean electric guitar, soft piano, smooth bass, light pad texture. Arrangement Progression: clean intro, simple verse, natural pre-chorus lift, catchy chorus, short bridge, polished final chorus. Drum/Bass Direction: 88 BPM radio-friendly drum kit, tight kick/snare, smooth bass pocket, light cymbal movement. Guitar/Piano/Pad Layers: acoustic strum, clean electric counter-melody, soft piano support, subtle pad warmth. Chorus Lift: simple melodic hook, easy to sing, repeat-friendly. Bridge / Final Chorus Direction: concise bridge leading to a brighter final chorus. Mix & Master Feel: clean radio feel, Spotify-ready balance, clear vocal focus, polished mainstream finish.",
+        "style": "Thai male vocal, commercial Thai easy listening pop rock arrangement, acoustic guitar groove, clean electric guitar counter-melody, soft piano support, smooth bass, subtle pad warmth, tight 88 BPM radio-friendly drum kit, relaxed verse, natural pre-chorus lift, catchy chorus, concise bridge, bright polished final chorus, clean Spotify-ready mix balance, clear vocal focus, mainstream radio feel.",
         "visual": "clean daylight studio, acoustic guitar and soft piano, friendly mainstream Spotify cover, warm easy listening mood",
         "hook_direction": "simple catchy hook with natural Thai phrasing, radio-friendly melody, easy to sing",
         "lyrics_direction": "clear mainstream Thai lyrics, simple emotional images, positive forward motion, and a clean chorus",
@@ -82,7 +82,7 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
     },
     "Vela Moon Office Life Story": {
         "mood": "Thai working-life storytelling, office burnout, relatable but hopeful",
-        "style": "Core Genre: Thai working-life storytelling pop rock with hopeful emotional release. Vocal Direction: warm Thai male vocal, conversational verse delivery, tired but sincere emotion, hopeful final chorus. Instrumentation: acoustic guitar, clean electric guitar, soft piano, smooth bass, warm pad, steady drum kit. Arrangement Progression: quiet office-like intro, story verse, lifting pre-chorus, relatable chorus, reflective bridge, hopeful final chorus. Drum/Bass Direction: 84 BPM steady pop rock drums, soft verse groove, stronger chorus backbeat, smooth supportive bass. Guitar/Piano/Pad Layers: acoustic guitar pulse, clean electric guitar emotional fills, soft piano for office-night mood, warm pad glue. Chorus Lift: relatable singalong hook for tired workers, warmer and wider each repeat. Bridge / Final Chorus Direction: vulnerable bridge turns into hopeful final chorus. Mix & Master Feel: warm Spotify-ready mix, clear vocal storytelling, polished Thai pop rock comfort.",
+        "style": "Warm Thai male vocal, Thai working-life storytelling pop rock arrangement, acoustic guitar pulse, clean electric guitar emotional fills, soft piano, smooth bass, warm pad, steady 84 BPM pop rock drums, conversational verse, lifting pre-chorus, relatable chorus, reflective bridge, hopeful final chorus, warmer and wider each repeat, warm Spotify-ready mix, clear vocal storytelling, polished Thai pop rock comfort.",
         "visual": "late office desk, city window, tired worker with warm hope, acoustic guitar mood, cinematic working-life Thai pop rock cover",
         "hook_direction": "relatable office-life hook, burnout emotion, warm hopeful final line, TikTok caption-ready",
         "lyrics_direction": "Thai working-life story about being tired at the desk, feeling unseen, and recovering hope in the final chorus",
@@ -169,9 +169,15 @@ INTERNAL_LYRIC_PHRASES = [
     "lyrics direction:",
     "comforting emotional hook",
     "spotify-friendly",
+    "tiktok-ready",
     "tiktok hook friendly",
     "dynamic chorus lift",
     "easy to remember on tiktok",
+    "ให้ท่อนนี้",
+    "ท่อนนี้ควร",
+    "ร้องให้สุด",
+    "producer prompt",
+    "music style prompt",
 ]
 
 
@@ -195,8 +201,53 @@ def _clean_lyric_text(text: str) -> str:
         lowered = line.strip().lower()
         if any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES):
             continue
+        if lowered.startswith("(") and lowered.endswith(")"):
+            continue
         cleaned.append(line.rstrip())
     return "\n".join(cleaned).strip()
+
+
+def remove_meta_lines_from_lyrics(text: str) -> str:
+    return _clean_lyric_text(text)
+
+
+def improve_hook_singability(hook: str) -> str:
+    lines = _lines(remove_meta_lines_from_lyrics(hook))
+    if len(lines) < 3:
+        lines.extend(["ยังดังซ้ำ ๆ ในหัวใจ", "หัวใจก็ยิ่งจำ"])
+    return "\n".join(lines[:5])
+
+
+def polish_commercial_lyrics(text: str, hook: str = "") -> str:
+    cleaned = clean_thai_output(remove_meta_lines_from_lyrics(text))
+    lines = cleaned.splitlines()
+    hook_lines = _lines(improve_hook_singability(hook))
+    polished: list[str] = []
+    in_final_chorus = False
+    final_has_payoff = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "[Final Chorus]":
+            in_final_chorus = True
+            final_has_payoff = False
+            polished.append(stripped)
+            continue
+        if stripped.startswith("[") and stripped.endswith("]") and stripped != "[Final Chorus]":
+            if in_final_chorus and not final_has_payoff:
+                polished.extend(["แม้เธอไม่อยู่ตรงนี้แล้ว", "หัวใจก็ยังจำว่าเคยรัก"])
+            in_final_chorus = False
+            polished.append(stripped)
+            continue
+        if in_final_chorus and any(phrase in stripped for phrase in ["ร้องให้สุด", "ท่อนนี้", "TikTok-ready"]):
+            continue
+        polished.append(line.rstrip())
+    if in_final_chorus and not final_has_payoff:
+        polished.extend(["แม้เธอไม่อยู่ตรงนี้แล้ว", "หัวใจก็ยังจำว่าเคยรัก"])
+    # Keep first and final chorus related, but give the final chorus an emotional payoff.
+    output = "\n".join(polished).strip()
+    if hook_lines and "[Final Chorus]" in output:
+        output = output.replace("[Final Chorus]\n" + "\n".join(hook_lines), "[Final Chorus]\n" + "\n".join(hook_lines), 1)
+    return output
 
 
 def _suno_copy_ready_block(title: str, lyrics: str, music_style_prompt: str, advanced_settings: dict[str, str]) -> str:
@@ -300,7 +351,6 @@ def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
 def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
     hook_lines = _lines(hook)
     hook_block = "\n".join(hook_lines)
-    first_hook = hook_lines[0] if hook_lines else title
     return "\n".join(
         [
             "[Intro]",
@@ -319,7 +369,6 @@ def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str
             "",
             "[Chorus]",
             hook_block,
-            first_hook,
             "ให้ท่อนนี้วนอยู่ในใจคนฟัง",
             "",
             "[Verse 2]",
@@ -352,7 +401,8 @@ def generate_creative_release_pack(
     concept = str(idea or "").strip() or preset["mood"]
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
-    lyrics = clean_thai_output(_clean_lyric_text(_lyrics(title, hook, concept, preset_name, preset)))
+    hook = improve_hook_singability(hook)
+    lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, preset["style"], advanced_settings)
