@@ -96,6 +96,7 @@ from core.hook_package_generator import build_final_creator_zip, generate_full_h
 from core.prompt_director import build_prompt_director_package
 from core.remaster_engine import REMASTER_STYLES, remaster_song_audio
 from core.automatic_hook_clip import quick_generate_hook_clip
+from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
 from core.beat_timing_engine import create_beat_timing_plan
 from core.beat_timing_engine import create_affiliate_retention_timing
@@ -1356,6 +1357,28 @@ def main():
     assert_true("same character" in consistent_prompt and "smokeseed" in consistent_prompt, "character consistency prompt failed")
     opening_hook = analyze_opening_hook("กล้วยโดนเทแล้วบ่นเรื่องชีวิต", hook_style="Funny", preset=get_preset("cute_character"), character_profile=character_profile)
     assert_true(opening_hook["ok"] and opening_hook["data"]["hook_score"] >= 0 and opening_hook["data"]["opening_line"], "opening hook intelligence failed")
+    character_studio_pack = generate_character_prompt_pack(
+        character_name="Nong Mint",
+        age_range="4 years old / little girl character",
+        gender_presentation="female presentation",
+        country_culture="Thai rural village",
+        face_description="adorable round face, soft cheeks, bright smile",
+        hair_style="short black bob haircut",
+        eye_style="big round brown eyes",
+        skin_tone="light tan skin",
+        outfit="mint green sweatshirt, brown jogger pants",
+        shoes_accessories="white sneakers",
+        character_style="Pixar-style 3D",
+        scene_background="Rural Thai house",
+        use_case="Lip sync music video",
+        platform="Kling",
+    )
+    character_studio_sections = character_studio_pack.get("sections", {})
+    assert_true(character_studio_pack["ok"] and set(REQUIRED_CHARACTER_STUDIO_SECTIONS).issubset(character_studio_sections), "Character Studio sections missing")
+    assert_true("Keep the exact same character identity." in character_studio_sections["Consistency Lock Prompt"] and "Same face, same hairstyle, same outfit, same proportions." in character_studio_sections["Consistency Lock Prompt"], "Character Studio consistency lock missing")
+    assert_true("Kling" in character_studio_sections["Image-to-Video Prompt"] and "no text" in character_studio_sections["Image Generation Prompt"].lower(), "Character Studio practical prompt content missing")
+    character_studio_text = character_prompt_pack_to_text(character_studio_pack)
+    assert_true("VELAFLOW CHARACTER STUDIO PACK" in character_studio_text and "Character Bible" in character_studio_text and "Lip Sync Prompt" in character_studio_text, "Character Studio text export failed")
     styled_subtitles = generate_styled_subtitles(hook_subtitles, out / "hook_clip_projects" / "styled_subtitles", preset_id="cute_character")
     assert_true(styled_subtitles["ok"] and Path(styled_subtitles["data"]["ass"]).exists() and mode_for_preset("cute_character") == "bounce", "TikTok styled subtitle engine failed")
     combine_manifest = combine_scene_clips(["scene_1.mp4", "scene_2.mp4"], out / "hook_clip_projects" / "final_hook_clip.mp4", subtitle_timing=hook_subtitles)
@@ -1917,6 +1940,7 @@ def main():
         assert_true("Creator Navigation" in main_source and "sidebar_nav_song_studio" in main_source and "sidebar_nav_clip_studio" in main_source and "sidebar_nav_remaster_studio" in main_source and "sidebar_nav_agent_studio" in main_source and "Agent Studio Loaded" in main_source, "Agent Studio visible sidebar navigation missing")
         assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "Project Sidebar" in main_source and "Recent Projects" in main_source and "Create Project" in main_source and "Continue Project" in main_source and "Project Timeline" in main_source and "Workspace Summary" in main_source and "Asset Browser" in main_source and "Storyboard Viewer" in main_source and "Media Timeline" in main_source and "Cover History" in main_source and "Asset Tags" in main_source and "Project Asset Summary" in main_source and "Export ZIP" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
+        assert_true("Character Studio" in main_source and "Generate Character Pack" in main_source and "Download Character Pack TXT" in main_source and "Copy-Ready Prompts" in main_source and "Apply character to existing storyboard" in main_source, "Character Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")

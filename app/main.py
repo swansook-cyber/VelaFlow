@@ -81,6 +81,16 @@ from core.beta_testing import (
 from core.branding import APP_TITLE, BRAND_NAME, DEFAULT_ARTIST, PRODUCT_TAGLINE, WINDOW_TITLE
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.character_consistency import apply_character_to_storyboard, build_character_prompt, normalize_character
+from core.character_studio import (
+    CHARACTER_STYLES,
+    DEFAULT_CHARACTER_INPUTS,
+    PLATFORMS,
+    REQUIRED_CHARACTER_SECTIONS,
+    SCENE_BACKGROUNDS,
+    USE_CASES,
+    character_prompt_pack_to_text,
+    generate_character_prompt_pack,
+)
 from core.clip_factory import CLIP_TYPES, generate_clip, generate_clip_set
 from core.common_fixes import fix_common_issues
 from core.creator_wizard import (
@@ -6184,21 +6194,83 @@ elif page == "Video Prompt Studio":
         st.info("Choose a preset or paste an idea to generate your first AI video prompt package.")
 
 elif page == "Character Studio":
-    st.subheader("Character Studio")
-    char = normalize_character(project.get("character", {}) or {})
-    c1, c2, c3 = st.columns(3)
-    char["name"] = c1.text_input("Character Name", value=char.get("name", ""))
-    char["gender"] = c2.selectbox("Gender", ["male", "female", "non-binary", "unspecified"], index=["male", "female", "non-binary", "unspecified"].index(char.get("gender", "male") if char.get("gender", "male") in ["male", "female", "non-binary", "unspecified"] else "male"))
-    char["hair"] = c3.text_input("Hair", value=char.get("hair", "short black hair"))
-    char["outfit"] = st.text_input("Outfit", value=char.get("outfit", "dark hoodie"))
-    char["mood"] = st.text_input("Mood", value=char.get("mood", "lonely expression"))
-    char["reference_notes"] = st.text_area("Reference Notes", value=char.get("reference_notes", ""), height=120)
-    if st.button("Save Character / Apply To Storyboard", type="primary"):
-        project["character"] = char
-        project["mv"] = apply_character_to_storyboard(project.get("mv", {}) or {}, char)
+    _page_header("Character Studio", "Create reusable AI character prompts for Kling, Veo, Runway, Hailuo, PixVerse, and image tools.", project)
+    st.info("Quick Start: 1) ใส่รายละเอียดตัวละคร 2) เลือกสไตล์/ฉาก/แพลตฟอร์ม 3) กด Generate Character Pack แล้ว copy prompt ไปใช้")
+
+    state = project.setdefault("character_studio", {})
+    saved_inputs = dict(DEFAULT_CHARACTER_INPUTS)
+    saved_inputs.update(state.get("inputs") or {})
+
+    with st.container(border=True):
+        st.markdown("### Character Identity")
+        c1, c2 = st.columns(2)
+        saved_inputs["character_name"] = c1.text_input("ชื่อตัวละคร", value=saved_inputs.get("character_name", DEFAULT_CHARACTER_INPUTS["character_name"]), key="character_studio_name")
+        saved_inputs["age_range"] = c2.text_input("อายุ / ประเภทตัวละคร", value=saved_inputs.get("age_range", DEFAULT_CHARACTER_INPUTS["age_range"]), key="character_studio_age")
+        c3, c4 = st.columns(2)
+        saved_inputs["gender_presentation"] = c3.text_input("เพศ / บุคลิกภาพ", value=saved_inputs.get("gender_presentation", DEFAULT_CHARACTER_INPUTS["gender_presentation"]), key="character_studio_gender")
+        saved_inputs["country_culture"] = c4.text_input("ประเทศ / กลิ่นอายวัฒนธรรม", value=saved_inputs.get("country_culture", DEFAULT_CHARACTER_INPUTS["country_culture"]), key="character_studio_culture")
+        saved_inputs["face_description"] = st.text_area("ใบหน้า / สีหน้า", value=saved_inputs.get("face_description", DEFAULT_CHARACTER_INPUTS["face_description"]), height=80, key="character_studio_face")
+        c5, c6, c7 = st.columns(3)
+        saved_inputs["hair_style"] = c5.text_input("ทรงผม", value=saved_inputs.get("hair_style", DEFAULT_CHARACTER_INPUTS["hair_style"]), key="character_studio_hair")
+        saved_inputs["eye_style"] = c6.text_input("ดวงตา", value=saved_inputs.get("eye_style", DEFAULT_CHARACTER_INPUTS["eye_style"]), key="character_studio_eyes")
+        saved_inputs["skin_tone"] = c7.text_input("สีผิว", value=saved_inputs.get("skin_tone", DEFAULT_CHARACTER_INPUTS["skin_tone"]), key="character_studio_skin")
+        c8, c9 = st.columns(2)
+        saved_inputs["outfit"] = c8.text_input("ชุดหลัก", value=saved_inputs.get("outfit", DEFAULT_CHARACTER_INPUTS["outfit"]), key="character_studio_outfit")
+        saved_inputs["shoes_accessories"] = c9.text_input("รองเท้า / เครื่องประดับ", value=saved_inputs.get("shoes_accessories", DEFAULT_CHARACTER_INPUTS["shoes_accessories"]), key="character_studio_accessories")
+
+    with st.container(border=True):
+        st.markdown("### Prompt Setup")
+        c1, c2 = st.columns(2)
+        saved_inputs["character_style"] = c1.selectbox("Character style", CHARACTER_STYLES, index=CHARACTER_STYLES.index(saved_inputs.get("character_style")) if saved_inputs.get("character_style") in CHARACTER_STYLES else 0, key="character_studio_style")
+        saved_inputs["scene_background"] = c2.selectbox("Scene background", SCENE_BACKGROUNDS, index=SCENE_BACKGROUNDS.index(saved_inputs.get("scene_background")) if saved_inputs.get("scene_background") in SCENE_BACKGROUNDS else 0, key="character_studio_background")
+        c3, c4 = st.columns(2)
+        saved_inputs["use_case"] = c3.selectbox("Use case", USE_CASES, index=USE_CASES.index(saved_inputs.get("use_case")) if saved_inputs.get("use_case") in USE_CASES else 0, key="character_studio_use_case")
+        saved_inputs["platform"] = c4.selectbox("Platform", PLATFORMS, index=PLATFORMS.index(saved_inputs.get("platform")) if saved_inputs.get("platform") in PLATFORMS else 0, key="character_studio_platform")
+
+    if st.button("Generate Character Pack", type="primary", use_container_width=True, key="character_studio_generate"):
+        pack = generate_character_prompt_pack(**saved_inputs)
+        state["inputs"] = saved_inputs
+        state["pack"] = pack
+        project["character_studio"] = state
+        project["character"] = normalize_character(
+            {
+                "name": saved_inputs.get("character_name", ""),
+                "gender": saved_inputs.get("gender_presentation", ""),
+                "hair": saved_inputs.get("hair_style", ""),
+                "outfit": saved_inputs.get("outfit", ""),
+                "mood": saved_inputs.get("face_description", ""),
+                "reference_notes": pack.get("sections", {}).get("Master Character Prompt", ""),
+            }
+        )
         _save_project()
-        st.success("Character saved")
-    st.code(build_character_prompt(char), language="text")
+        st.success("Character prompt pack ready.")
+        st.rerun()
+
+    pack = state.get("pack") or generate_character_prompt_pack(**saved_inputs)
+    sections = pack.get("sections") or pack.get("outputs") or {}
+    st.markdown("### Copy-Ready Prompts")
+    for idx, section_name in enumerate(REQUIRED_CHARACTER_SECTIONS):
+        height = 210 if section_name in {"Master Character Prompt", "Image Generation Prompt", "Image-to-Video Prompt"} else 130
+        with st.container(border=True):
+            st.button(f"Copy {section_name}", use_container_width=True, key=f"character_studio_copy_{idx}")
+            st.text_area(section_name, value=sections.get(section_name, ""), height=height, key=f"character_studio_section_{idx}")
+
+    txt_payload = character_prompt_pack_to_text(pack)
+    st.download_button(
+        "Download Character Pack TXT",
+        data=txt_payload.encode("utf-8-sig"),
+        file_name="velaflow_character_prompt_pack.txt",
+        mime="text/plain",
+        use_container_width=True,
+        key="character_studio_download_txt",
+    )
+
+    with st.expander("Apply character to existing storyboard", expanded=False):
+        st.code(build_character_prompt(project.get("character", {}) or {}), language="text")
+        if st.button("Save Character / Apply To Storyboard", use_container_width=True, key="character_studio_apply_storyboard"):
+            project["mv"] = apply_character_to_storyboard(project.get("mv", {}) or {}, project.get("character", {}) or {})
+            _save_project()
+            st.success("Character saved and applied to storyboard.")
 
 elif page == "Image Lab":
     st.subheader("Image Lab")
