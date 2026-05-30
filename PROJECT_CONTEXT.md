@@ -3,9 +3,28 @@
 ## Vision
 VelaFlow is a local-first creator workspace that turns raw creative ideas into release-ready packages for music, short-form video prompts, affiliate content, podcast ideas, and reusable AI character prompts. The core product should help non-technical creators move from idea to usable assets quickly without requiring render pipelines, cloud automation, or complex production tools.
 
+## VelaLab Ecosystem
+VelaFlow is part of the larger VelaLab creative ecosystem.
+
+```text
+VelaLab
+├── Vela Moon
+├── VelaFlow
+└── Vela After Work
+```
+
+Tagline: Music. Software. Stories.
+
+- **Vela Moon:** Music identity, emotional pop rock direction, artist presets, and release-ready song concepts.
+- **VelaFlow:** Creative software for generating lyrics, prompts, packages, character prompts, affiliate scripts, and creator exports.
+- **Vela After Work:** Storytelling, podcast, office-life concepts, and after-work creative media.
+
 ## Product Philosophy
 - Generate, organize, polish, and export creator assets.
-- Prioritize output quality over feature count.
+- Output Quality > Feature Count.
+- Reduce clicks whenever possible.
+- Prefer workflow simplification over feature expansion.
+- Keep normal workflows understandable in one screen.
 - Keep the normal user flow simple and creator-friendly.
 - Treat rendering, cloud video generation, and automation bots as outside the V1 product boundary unless explicitly reintroduced with a stable reason.
 - Preserve working flows before adding new ones.
@@ -25,6 +44,13 @@ VelaFlow is a local-first creator workspace that turns raw creative ideas into r
 - Use clear primary actions such as `Generate Full Release Pack`, `Generate Character Pack`, and `Download TXT/ZIP`.
 - Keep copy-ready blocks visible for creators who use external tools.
 - Mobile layouts should avoid horizontal overflow, giant prompt walls, and unnecessary scrolling.
+
+## Workflow Philosophy
+- Reduce clicks whenever possible.
+- Prefer workflow simplification over feature expansion.
+- Output Quality > Feature Count.
+- Creator-first UX.
+- Keep normal workflows understandable in one screen.
 
 ## Current Priorities
 - Improve commercial quality of titles, hooks, lyrics, and producer-grade Suno/Udio prompts.
@@ -55,11 +81,15 @@ VelaFlow is a local-first creator workspace that turns raw creative ideas into r
 - Optional integrations only when they are reliable and do not complicate V1.
 
 ## Closed Beta Strategy
-- Target 5-10 creators first.
-- Measure whether users can generate a useful package without guidance.
-- Prioritize clear errors, stable exports, and output quality.
-- Avoid fake success states.
-- Keep feedback local and lightweight until the product direction is proven.
+- Build for personal real-world use first.
+- Stabilize through personal usage.
+- Expand to 5-10 founding beta users.
+- Collect real feedback.
+- Improve based on real usage.
+- Monetize only after proven value.
+
+## Long-Term Product Direction
+VelaFlow should evolve into a creator operating system for AI-native content creation while remaining simple, creator-friendly, and output-focused.
 
 ## Development Workflow
 - Read this file before major architecture or workflow changes.

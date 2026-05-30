@@ -30,6 +30,13 @@
 - Prefer one clear primary action per workflow.
 - Keep copy-ready text blocks and download buttons easy to find.
 
+## Product Philosophy Rules
+- Output Quality > Feature Count.
+- Reduce clicks whenever possible.
+- Prefer workflow simplification over feature expansion.
+- Do not add new workflow steps unless necessary.
+- Protect creator-first UX.
+
 ## Refactoring Rules
 - Keep edits scoped to the requested workflow.
 - Preserve backward compatibility where possible.

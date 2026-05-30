@@ -8,6 +8,11 @@
 
 ## Product Priorities
 - Prioritize output quality, clarity, and creator usability.
+- Output Quality > Feature Count.
+- Reduce clicks whenever possible.
+- Prefer workflow simplification over feature expansion.
+- Avoid feature bloat.
+- Protect creator usability.
 - Keep VelaFlow V1 focused on Generate / Organize / Export.
 - Avoid workflow bloat, extra dashboards, unnecessary menus, and duplicate buttons.
 - Do not add rendering, video encoding, lip sync, upload automation, browser automation, or heavy scraping unless explicitly requested.
