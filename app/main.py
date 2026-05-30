@@ -1958,8 +1958,9 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
     output_blocks = [
         ("Song Title Suggestions", pack.get("Suggested title", "")),
         ("Structured Lyrics", pack.get("Full lyrics", "")),
-        ("AI Producer Prompt", pack.get("AI PRODUCER PROMPT", pack.get("AI Producer Prompt", pack.get("Music style prompt for Suno/Udio", "")))),
-        ("Suno-Ready Prompt", pack.get("Suno Copy-Ready Block", "")),
+        ("Lyrics for Suno", pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))),
+        ("Style for Suno", pack.get("SUNO STYLE OF MUSIC FIELD", "")),
+        ("Producer Notes", pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", ""))),
         ("SEO Caption", pack.get("Caption", "")),
         ("YouTube Description", pack.get("YouTube description", "")),
         ("Hashtags", pack.get("Hashtags", "")),
@@ -2069,10 +2070,13 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     song_cols[2].metric("Mode", "No Render")
     st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
-    st.text_area("Full lyrics", value=pack.get("Full lyrics", ""), height=300, key="creative_pack_full_lyrics")
-    st.text_area("AI Producer Prompt", value=pack.get("AI PRODUCER PROMPT", pack.get("AI Producer Prompt", pack.get("Music style prompt for Suno/Udio", ""))), height=260, key="creative_pack_music_style")
+    st.button("Copy Lyrics for Suno", use_container_width=True, key="creative_pack_copy_suno_lyrics")
+    st.text_area("Suno Lyrics Field", value=pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", "")), height=300, key="creative_pack_full_lyrics")
+    st.button("Copy Style for Suno", use_container_width=True, key="creative_pack_copy_suno_style")
+    st.text_area("Suno Style of Music Field", value=pack.get("SUNO STYLE OF MUSIC FIELD", ""), height=140, key="creative_pack_suno_style_field")
+    st.button("Copy Producer Notes", use_container_width=True, key="creative_pack_copy_producer_notes")
+    st.text_area("Producer Notes", value=pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", pack.get("Music style prompt for Suno/Udio", ""))), height=260, key="creative_pack_music_style")
     st.text_area("Advanced Suno Settings", value=pack.get("Advanced Suno Settings", ""), height=150, key="creative_pack_advanced_suno_settings")
-    st.text_area("Suno Copy-Ready Block", value=pack.get("Suno Copy-Ready Block", ""), height=320, key="creative_pack_suno_copy_ready_block")
 
     st.markdown("### Generate Visual Pack")
     visual_cols = st.columns(2)

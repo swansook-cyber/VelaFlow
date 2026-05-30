@@ -92,13 +92,11 @@ CREATIVE_PACK_PRESETS: dict[str, dict[str, str]] = {
 
 
 RELEASE_PACK_FILES = {
-    "song_concept.txt": "Song concept",
-    "suggested_title.txt": "Suggested title",
-    "hook.txt": "Hook",
-    "full_lyrics.txt": "Full lyrics",
-    "ai_producer_prompt.txt": "AI PRODUCER PROMPT",
+    "song_info.txt": "SONG INFO",
+    "lyrics_only.txt": "SUNO LYRICS FIELD",
+    "suno_style_prompt.txt": "SUNO STYLE OF MUSIC FIELD",
+    "producer_notes.txt": "PRODUCER NOTES",
     "advanced_suno_settings.txt": "Advanced Suno Settings",
-    "suno_copy_ready_block.txt": "Suno Copy-Ready Block",
     "cover_prompt.txt": "Cover prompt",
     "mv_storyboard_prompt.txt": "MV storyboard prompt",
     "shorts_tiktok_ideas.txt": "Shorts/TikTok ideas",
@@ -299,6 +297,28 @@ def _build_ai_producer_prompt(preset_name: str, preset: dict[str, str], settings
     return "\n\n".join(f"{heading}\n{body}" for heading, body in ordered_sections)
 
 
+def _build_suno_style_prompt(preset_name: str, preset: dict[str, str], settings: dict[str, str]) -> str:
+    profile = _producer_profile_for_preset(preset_name, preset, settings)
+    bpm = settings.get("BPM", "85")
+    if preset_name == "Vela Moon Emotional Pop Rock":
+        return (
+            "Thai emotional pop rock, Thai male vocal, warm expressive tone, fingerpicked acoustic guitar and felt piano intro, "
+            "intimate close-mic verse vocal, restrained pre-chorus build with toms and pads, full drum kit and layered guitars in chorus, "
+            "half-time emotional bridge breakdown, biggest final chorus with stacked harmonies and electric guitar counter melody, warm Spotify-ready mix, "
+            f"{bpm} BPM."
+        )
+    core = profile["core_genre"].split(",")[0].strip()
+    vocal = ", ".join(profile["vocal_direction"].split(",")[:3]).strip()
+    instrumentation = ", ".join(profile["instrumentation"].split(",")[:5]).strip()
+    arrangement = profile["arrangement_progression"]
+    arrangement_parts = [part.strip() for part in arrangement.split(".") if part.strip()]
+    arrangement = ", ".join(arrangement_parts[:4])
+    mix = ", ".join(profile["mix_master"].split(",")[:3]).strip()
+    return (
+        f"{core}, {vocal}, {instrumentation}, {arrangement}, {mix}, {bpm} BPM."
+    )
+
+
 def _clean_lyric_text(text: str) -> str:
     cleaned: list[str] = []
     for line in str(text or "").splitlines():
@@ -352,18 +372,6 @@ def polish_commercial_lyrics(text: str, hook: str = "") -> str:
     if hook_lines and "[Final Chorus]" in output:
         output = output.replace("[Final Chorus]\n" + "\n".join(hook_lines), "[Final Chorus]\n" + "\n".join(hook_lines), 1)
     return output
-
-
-def _suno_copy_ready_block(title: str, lyrics: str, ai_producer_prompt: str, advanced_settings: dict[str, str]) -> str:
-    return "\n\n".join(
-        [
-            "SONG TITLE\n" + title,
-            "LYRICS ONLY\n" + _clean_lyric_text(lyrics),
-            "AI PRODUCER PROMPT\n" + ai_producer_prompt,
-            "ADVANCED SUNO SETTINGS\n" + _advanced_settings_to_text(advanced_settings),
-            "NOTES FOR GENERATION\nUse the full lyrics as the song body. Keep the vocal clear, preserve the emotional chorus, and generate 2-3 takes before choosing the strongest commercial version.",
-        ]
-    )
 
 
 def _performance_intro_tag(preset_name: str, preset: dict[str, str]) -> str:
@@ -510,21 +518,37 @@ def generate_creative_release_pack(
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)
-    suno_copy_ready_block = _suno_copy_ready_block(title, lyrics, ai_producer_prompt, advanced_settings)
+    lyrics_only = _clean_lyric_text(lyrics)
+    suno_style_prompt = _build_suno_style_prompt(preset_name, preset, advanced_settings)
+    generated_at = datetime.now().isoformat(timespec="seconds")
+    song_info = "\n".join(
+        [
+            f"Preset: {preset_name}",
+            f"Generated: {generated_at}",
+            f"Suggested Title: {title}",
+            "Hook:",
+            hook,
+            "Song Concept:",
+            f"{concept}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
+        ]
+    )
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
     if preset_name.startswith("Vela Moon"):
         hashtags.extend(["#VelaMoon", "#ThaiPopRock", "#SpotifyThailand"])
     caption_direction = str(preset.get("caption_direction") or "เน€เธเธฅเธเธเธตเนเธชเธณเธซเธฃเธฑเธเธเธเธ—เธตเนเธขเธฑเธเธขเธดเนเธกเนเธ”เน เนเธ•เนเธเนเธฒเธเนเธเธขเธฑเธเนเธกเนเธซเธฒเธขเธ”เธต")
     pack = {
+        "SONG INFO": song_info,
         "Song concept": f"{concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
         "Suggested title": title,
         "Hook": hook,
+        "SUNO LYRICS FIELD": lyrics_only,
         "Full lyrics": lyrics,
+        "SUNO STYLE OF MUSIC FIELD": suno_style_prompt,
         "AI PRODUCER PROMPT": ai_producer_prompt,
         "AI Producer Prompt": ai_producer_prompt,
+        "PRODUCER NOTES": ai_producer_prompt,
         "Music style prompt for Suno/Udio": ai_producer_prompt,
         "Advanced Suno Settings": advanced_settings_text,
-        "Suno Copy-Ready Block": suno_copy_ready_block,
         "Cover prompt": f"premium cover artwork for '{title}', {preset['visual']}, cinematic realism, no watermark",
         "MV storyboard prompt": (
             f"Vertical 9:16 emotional MV storyboard for '{title}'. Scene 1: wide atmosphere. "
@@ -575,20 +599,43 @@ def generate_creative_release_pack(
                 "caption_ready": hook_score.get("caption_potential", 0) >= 60,
             },
         },
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "generated_at": generated_at,
     }
 
 
 def creative_release_pack_to_text(result: dict[str, Any]) -> str:
     pack = result.get("pack") or {}
-    return "\n\n".join(
+    title = str(pack.get("Suggested title", "")).strip()
+    hook = str(pack.get("Hook", "")).strip()
+    concept = str(pack.get("Song concept", "")).strip()
+    song_info = "\n".join(
         [
-            "VELAFLOW AI CREATIVE RELEASE PACK",
+            "1. SONG INFO",
             f"Preset: {result.get('preset', '')}",
             f"Generated: {result.get('generated_at', '')}",
-            *[f"====================\n{label}\n====================\n{pack.get(label, '')}" for label in RELEASE_PACK_FILES.values()],
+            f"Suggested Title: {title}",
+            "Hook:",
+            hook,
+            "Song Concept:",
+            concept,
         ]
     )
+    sections = [
+        "VELAFLOW AI CREATIVE RELEASE PACK",
+        song_info,
+        "2. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "3. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "4. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "5. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "6. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "7. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "8. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "9. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "10. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "11. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "12. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+    ]
+    return "\n\n".join(sections).strip() + "\n"
 
 
 def export_creative_release_pack(
@@ -608,6 +655,9 @@ def export_creative_release_pack(
             path = export_dir / filename
             path.write_text(str(pack.get(label, "")).strip() + "\n", encoding="utf-8-sig")
             written[filename] = str(path)
+        release_pack_path = export_dir / "release_pack.txt"
+        release_pack_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
+        written["release_pack.txt"] = str(release_pack_path)
         txt_path = ensure_unique_path(export_dir / build_export_filename(title, artist_name, "Release_Pack", "txt"))
         txt_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         manifest = {
