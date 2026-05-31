@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from core.file_naming import build_export_filename, ensure_unique_path, sanitize_filename
+from core.lyrics_expander import parse_lyric_sections, validate_song_structure
 from core.paths import workflow_project_root
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, score_song_title_candidate
 from core.thai_quality_filter import build_thai_quality_report, clean_thai_output
@@ -187,6 +188,17 @@ REUSED_BREAKUP_MEMORY_LINES = [
     "ปล่อยให้ชื่อเธอค่อย ๆ จางไป",
     "แม้เธอไม่อยู่ตรงนี้แล้ว",
 ]
+
+COMMERCIAL_SECTION_ORDER = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]
+COMMERCIAL_SECTION_MIN_LINES = {
+    "Verse 1": 4,
+    "Pre-Chorus": 2,
+    "Chorus": 4,
+    "Verse 2": 4,
+    "Bridge": 2,
+    "Final Chorus": 6,
+    "Outro": 1,
+}
 
 
 def _lines(text: str) -> list[str]:
@@ -552,7 +564,7 @@ def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str
         [
             "[Intro]",
             f"({_performance_intro_tag(preset_name, preset)})",
-            f"คืนหนึ่งที่ใจยังไม่ยอมพักจากเรื่อง {idea}",
+            _concept_rewrite_line(idea, "Intro", 0),
             "",
             "[Verse 1]",
             "ฉันเดินผ่านที่เดิมเหมือนไม่มีอะไรเปลี่ยน",
@@ -612,15 +624,155 @@ def validate_concept_alignment(idea: str, lyrics: str) -> dict[str, Any]:
     }
 
 
-def _remove_disallowed_reused_lines(idea: str, lyrics: str) -> str:
+def _concept_rewrite_line(idea: str, section: str, index: int, *, final_payoff: bool = False) -> str:
+    theme = _concept_theme(idea)
+    if theme == "respectful_truth":
+        pools = {
+            "Intro": [
+                "คืนนี้เรานั่งฟังใจกันก่อนจะพูดอะไร",
+                "ให้ความเงียบช่วยจับมือเราไว้เบา ๆ",
+            ],
+            "Verse 1": [
+                "ฉันไม่ได้กลัวความจริงที่เธออยากบอก",
+                "แค่กลัวน้ำเสียงทำให้ใจเราห่างกัน",
+                "ถ้าต้องพูดเรื่องที่เจ็บให้กันฟัง",
+                "ขอให้ยังมีความอ่อนโยนประคองคำ",
+            ],
+            "Pre-Chorus": [
+                "คำตรง ๆ ไม่จำเป็นต้องเป็นมีด",
+                "ถ้าพูดด้วยใจที่ยังอยากรักษาเรา",
+            ],
+            "Chorus": [
+                "พูดความจริงเบา ๆ",
+                "ให้ใจเรายังจับมือกัน",
+                "ไม่ต้องชนะด้วยคำแรง",
+                "แค่ฟังกันให้มากพอ",
+            ],
+            "Verse 2": [
+                "ฉันก็มีส่วนผิดที่เงียบจนเกินไป",
+                "เธอก็เหนื่อยใช่ไหมที่ต้องเดาใจฉัน",
+                "ลองวางคำแข็ง ๆ ลงข้างความสัมพันธ์",
+                "แล้วพูดกันเหมือนคนที่ยังแคร์",
+            ],
+            "Bridge": [
+                "ให้ความจริงเป็นไฟที่ส่องทาง",
+                "ไม่ใช่ไฟที่เผาทุกอย่างจนหายไป",
+                "ถ้าคืนนี้น้ำตาจะไหลก็ไม่เป็นไร",
+                "ขอแค่ไม่ใช้คำพูดทำลายกัน",
+            ],
+            "Final Chorus": [
+                "พูดความจริงเบา ๆ",
+                "ให้ใจเรายังกลับมา",
+                "ให้คำอ่อนโยนซ่อมรอยร้าว",
+                "ไม่ใช่ผลักเราให้ไกล",
+                "ถ้ายังรักกันอยู่",
+                "พูดกันดี ๆ ได้ไหม",
+            ],
+            "Outro": [
+                "ถ้ายังรักกันอยู่ พูดกันเบา ๆ ก็พอ",
+            ],
+        }
+    else:
+        pools = {
+            "Intro": [
+                "คืนนี้ใจฉันวางเรื่องเดิมไว้ตรงหน้า",
+                "ให้เพลงนี้เริ่มจากความรู้สึกจริง",
+            ],
+            "Verse 1": [
+                "ฉันค่อย ๆ ฟังเสียงใจที่ยังไม่ยอมเงียบ",
+                "ทุกคำที่เก็บไว้มันดังขึ้นในคืนนี้",
+                "ไม่อยากหลบความรู้สึกที่มี",
+                "เลยปล่อยให้เพลงนี้พูดแทนใจ",
+            ],
+            "Pre-Chorus": [
+                "ยิ่งเก็บไว้นานเท่าไรยิ่งชัดเจน",
+                "ว่าหัวใจยังต้องการคำตอบ",
+            ],
+            "Chorus": [
+                "ยังมีบางคำในใจ",
+                "ที่ร้องซ้ำ ๆ ไม่หาย",
+                "ยิ่งพยายามเดินไป",
+                "ยิ่งรู้ว่าต้องซื่อตรงกับใจ",
+            ],
+            "Verse 2": [
+                "ฉันเห็นตัวเองชัดขึ้นในวันที่เหนื่อยล้า",
+                "ไม่ได้ต้องการชนะใครในเพลงนี้",
+                "แค่อยากให้ความรู้สึกที่มี",
+                "กลายเป็นทางให้ใจเดินต่อ",
+            ],
+            "Bridge": [
+                "ถ้าคืนนี้ต้องยอมรับทุกอย่าง",
+                "ฉันจะไม่หนีจากใจตัวเองอีกแล้ว",
+            ],
+            "Final Chorus": [
+                "ยังมีบางคำในใจ",
+                "ที่ร้องดังขึ้นกว่าเดิม",
+                "ให้ความจริงพาฉันเดิน",
+                "ผ่านคืนที่เคยสั่นไหว",
+                "ถ้าพรุ่งนี้ต้องเริ่มใหม่",
+                "ฉันจะเริ่มด้วยใจที่ตรงกว่าเดิม",
+            ],
+            "Outro": [
+                "ให้เพลงนี้ค่อย ๆ พาใจฉันกลับมา",
+            ],
+        }
+    lines = pools.get(section) or pools.get("Verse 1") or [str(idea or "ความรู้สึกนี้").strip()]
+    if final_payoff and section == "Final Chorus" and len(lines) > 4:
+        return lines[(index + 2) % len(lines)]
+    return lines[index % len(lines)]
+
+
+def _rewrite_disallowed_reused_lines(idea: str, lyrics: str) -> str:
     if _is_breakup_memory_concept(idea):
         return lyrics
     output: list[str] = []
+    current_section = "Intro"
+    replacement_counts: dict[str, int] = {}
     for line in str(lyrics or "").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped.strip("[]")
+            output.append(line)
+            continue
         if any(stale in line for stale in REUSED_BREAKUP_MEMORY_LINES):
+            replacement_counts[current_section] = replacement_counts.get(current_section, 0) + 1
+            output.append(_concept_rewrite_line(idea, current_section, replacement_counts[current_section] - 1))
             continue
         output.append(line)
     return "\n".join(output).strip()
+
+
+def _ensure_commercial_song_length(idea: str, title: str, hook: str, lyrics: str) -> str:
+    sections = parse_lyric_sections(lyrics)
+    hook_lines = _lines(improve_hook_singability(hook))
+    rendered_sections: dict[str, list[str]] = {}
+    for section in COMMERCIAL_SECTION_ORDER:
+        lines = [line for line in sections.get(section, []) if line.strip()]
+        if section in {"Chorus", "Final Chorus"} and hook_lines:
+            existing_joined = "\n".join(lines)
+            for hook_line in hook_lines:
+                if hook_line and hook_line not in existing_joined:
+                    lines.insert(len([line for line in lines if line in hook_lines]), hook_line)
+        minimum = COMMERCIAL_SECTION_MIN_LINES.get(section, 1 if section in {"Intro", "Outro"} else 0)
+        fill_index = 0
+        while len(lines) < minimum:
+            candidate = _concept_rewrite_line(idea, section, fill_index, final_payoff=section == "Final Chorus")
+            fill_index += 1
+            if candidate not in lines:
+                lines.append(candidate)
+        if section == "Final Chorus":
+            chorus_set = set(rendered_sections.get("Chorus", []))
+            final_unique = [line for line in lines if line not in chorus_set]
+            payoff_index = 0
+            while len(final_unique) < 2:
+                candidate = _concept_rewrite_line(idea, section, payoff_index, final_payoff=True)
+                payoff_index += 1
+                if candidate not in lines:
+                    lines.append(candidate)
+                    final_unique.append(candidate)
+        rendered_sections[section] = lines
+    blocks = [f"[{section}]\n" + "\n".join(rendered_sections[section]) for section in COMMERCIAL_SECTION_ORDER]
+    return "\n\n".join(blocks).strip()
 
 
 def generate_creative_release_pack(
@@ -634,13 +786,17 @@ def generate_creative_release_pack(
     hook = _hook_from_idea(concept, title, preset)
     hook = improve_hook_singability(hook)
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
-    lyrics = _remove_disallowed_reused_lines(concept, lyrics)
+    lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
+    lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     if not concept_alignment["aligned"] and _concept_theme(concept) == "respectful_truth":
         hook = improve_hook_singability(_select_best_hook(title, concept)["hook"])
         lyrics = polish_commercial_lyrics(_respectful_truth_lyrics(title, hook), hook)
-        lyrics = _remove_disallowed_reused_lines(concept, lyrics)
+        lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
+        lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
         concept_alignment = validate_concept_alignment(concept, lyrics)
+    if not validate_song_structure(lyrics)["ok"]:
+        lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)

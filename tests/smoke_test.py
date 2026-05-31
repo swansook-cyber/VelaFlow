@@ -666,6 +666,15 @@ def main():
     assert_true(all(line not in communication_lyrics for line in stale_breakup_lines), "communication concept reused stale breakup-memory lyrics")
     assert_true(sum(1 for term in communication_terms if term in communication_lyrics) >= 5, "communication lyrics do not focus on honest respectful speech")
     assert_true(communication_pack["quality_report"]["concept_alignment"]["aligned"] is True and communication_pack["quality_report"]["concept_alignment"]["theme"] == "respectful_truth", "concept alignment validation failed for communication lyrics")
+    actual_thai_communication_concept = "\u0e04\u0e27\u0e32\u0e21\u0e08\u0e23\u0e34\u0e07\u0e2a\u0e33\u0e04\u0e31\u0e0d \u0e41\u0e15\u0e48\u0e27\u0e34\u0e18\u0e35\u0e1e\u0e39\u0e14\u0e01\u0e47\u0e2a\u0e33\u0e04\u0e31\u0e0d\u0e1e\u0e2d\u0e01\u0e31\u0e19"
+    actual_communication_pack = generate_creative_release_pack(actual_thai_communication_concept, "Vela Moon Emotional Pop Rock", "Vela Moon")
+    actual_communication_lyrics = actual_communication_pack["pack"]["Full lyrics"]
+    actual_sections = validate_song_structure(actual_communication_lyrics)["section_line_counts"]
+    expected_minimums = {"Verse 1": 4, "Pre-Chorus": 2, "Chorus": 4, "Verse 2": 4, "Bridge": 2, "Final Chorus": 6, "Outro": 1}
+    assert_true(actual_thai_communication_concept not in actual_communication_lyrics.split("[Verse 1]", 1)[0], "actual Thai communication concept copied directly into intro")
+    assert_true(all(actual_sections.get(section, 0) >= minimum for section, minimum in expected_minimums.items()), "concept alignment shortened commercial song structure")
+    assert_true(actual_communication_pack["quality_report"]["concept_alignment"]["aligned"] is True and actual_communication_pack["quality_report"]["concept_alignment"]["theme"] == "respectful_truth", "actual Thai concept alignment failed")
+    assert_true(sum(1 for term in ["\u0e04\u0e27\u0e32\u0e21\u0e08\u0e23\u0e34\u0e07", "\u0e1e\u0e39\u0e14", "\u0e04\u0e33", "\u0e2d\u0e48\u0e2d\u0e19\u0e42\u0e22\u0e19", "\u0e1f\u0e31\u0e07", "\u0e23\u0e31\u0e01\u0e29\u0e32", "\u0e0b\u0e48\u0e2d\u0e21"] if term in actual_communication_lyrics) >= 5, "actual Thai communication lyrics lack concept focus")
     assert_true(not detect_thai_quality_issues(clean_thai_output("ความรู้สึกของฉัน ไม่สามารถที่จะ ลืมเธอ")), "Thai quality filter rewrite failed")
     signature_presets = {
         "Vela Moon Emotional Pop Rock",
