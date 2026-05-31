@@ -448,6 +448,65 @@ def _local_storage_script(script: str, key: str) -> None:
     components.html(f"<script>{script}</script>", height=0)
 
 
+def _copy_to_clipboard_button(label: str, text: str, key: str, *, use_container_width: bool = True) -> bool:
+    """Render a repeatable clipboard button with short client-side feedback."""
+    clicked = st.button(label, use_container_width=use_container_width, key=f"{key}_button")
+    if not clicked:
+        return False
+
+    count_key = f"{key}_clipboard_count"
+    st.session_state[count_key] = int(st.session_state.get(count_key, 0)) + 1
+    copy_count = st.session_state[count_key]
+    payload = _js_string(text)
+    event_key = f"{key}_clipboard_event_{copy_count}"
+    script = f"""
+const velaflowCopyText = {payload};
+(async () => {{
+  try {{
+    if (navigator.clipboard && window.isSecureContext) {{
+      await navigator.clipboard.writeText(velaflowCopyText);
+      return;
+    }}
+  }} catch (err) {{}}
+  const textArea = document.createElement('textarea');
+  textArea.value = velaflowCopyText;
+  textArea.setAttribute('readonly', '');
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-9999px';
+  textArea.style.top = '0';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(textArea);
+}})();
+"""
+    if streamlit_js_eval is not None:
+        try:
+            streamlit_js_eval(js_expressions=f"{script}\n'ok';", key=event_key, want_output=False)
+        except Exception:
+            components.html(f"<script>{script}</script>", height=0)
+    else:
+        components.html(f"<script>{script}</script>", height=0)
+
+    feedback_id = f"{key}_clipboard_feedback_{copy_count}"
+    components.html(
+        f"""
+<div id="{feedback_id}" style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #166534; background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 7px 10px; font-size: 14px;">
+  ✓ Copied to clipboard
+</div>
+<script>
+setTimeout(() => {{
+  const feedback = document.getElementById('{feedback_id}');
+  if (feedback) feedback.style.display = 'none';
+}}, 2600);
+</script>
+""",
+        height=38,
+    )
+    return True
+
+
 def _restore_local_api_state() -> None:
     if st.session_state.get("local_api_state_restored"):
         return
@@ -1968,8 +2027,12 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
         ("Release Checklist", "1. Copy lyrics into Suno/Udio\n2. Use the producer prompt as style guidance\n3. Generate 2-3 takes\n4. Pick the strongest hook\n5. Use cover prompt and captions for release"),
     ]
     for idx, (label, value) in enumerate(output_blocks):
-        st.button(f"Copy {label}", key=f"creator_dashboard_copy_{idx}", use_container_width=True)
         st.text_area(label, value=value, height=160 if len(str(value)) > 240 else 90, key=f"creator_dashboard_output_{idx}")
+        _copy_to_clipboard_button(
+            f"Copy {label}",
+            str(st.session_state.get(f"creator_dashboard_output_{idx}", value) or ""),
+            key=f"creator_dashboard_copy_{idx}",
+        )
 
     txt_payload = creative_release_pack_to_text(result)
     st.download_button(
@@ -2070,26 +2133,33 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     song_cols[2].metric("Mode", "No Render")
     st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
-    st.button("Copy Lyrics for Suno", use_container_width=True, key="creative_pack_copy_suno_lyrics")
-    st.text_area("Suno Lyrics Field", value=pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", "")), height=300, key="creative_pack_full_lyrics")
-    st.button("Copy Style for Suno", use_container_width=True, key="creative_pack_copy_suno_style")
-    st.text_area("Suno Style of Music Field", value=pack.get("SUNO STYLE OF MUSIC FIELD", ""), height=140, key="creative_pack_suno_style_field")
-    st.button("Copy Producer Notes", use_container_width=True, key="creative_pack_copy_producer_notes")
-    st.text_area("Producer Notes", value=pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", pack.get("Music style prompt for Suno/Udio", ""))), height=260, key="creative_pack_music_style")
+    lyrics_for_suno = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
+    st.text_area("Suno Lyrics Field", value=lyrics_for_suno, height=300, key="creative_pack_full_lyrics")
+    _copy_to_clipboard_button("Copy Lyrics for Suno", str(st.session_state.get("creative_pack_full_lyrics", lyrics_for_suno) or ""), key="creative_pack_copy_suno_lyrics")
+    style_for_suno = pack.get("SUNO STYLE OF MUSIC FIELD", "")
+    st.text_area("Suno Style of Music Field", value=style_for_suno, height=140, key="creative_pack_suno_style_field")
+    _copy_to_clipboard_button("Copy Style for Suno", str(st.session_state.get("creative_pack_suno_style_field", style_for_suno) or ""), key="creative_pack_copy_suno_style")
+    producer_notes = pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", pack.get("Music style prompt for Suno/Udio", "")))
+    st.text_area("Producer Notes", value=producer_notes, height=260, key="creative_pack_music_style")
+    _copy_to_clipboard_button("Copy Producer Notes", str(st.session_state.get("creative_pack_music_style", producer_notes) or ""), key="creative_pack_copy_producer_notes")
     st.text_area("Advanced Suno Settings", value=pack.get("Advanced Suno Settings", ""), height=150, key="creative_pack_advanced_suno_settings")
 
     st.markdown("### Generate Visual Pack")
     visual_cols = st.columns(2)
     with visual_cols[0]:
-        st.button("Copy Cover Prompt", use_container_width=True, key="creative_pack_copy_cover")
-        st.text_area("Cover prompt", value=pack.get("Cover prompt", ""), height=140, key="creative_pack_cover_prompt")
-        st.button("Copy MV Storyboard Prompt", use_container_width=True, key="creative_pack_copy_storyboard")
-        st.text_area("MV storyboard prompt", value=pack.get("MV storyboard prompt", ""), height=170, key="creative_pack_mv_storyboard_prompt")
+        cover_prompt = pack.get("Cover prompt", "")
+        st.text_area("Cover prompt", value=cover_prompt, height=140, key="creative_pack_cover_prompt")
+        _copy_to_clipboard_button("Copy Cover Prompt", str(st.session_state.get("creative_pack_cover_prompt", cover_prompt) or ""), key="creative_pack_copy_cover")
+        storyboard_prompt = pack.get("MV storyboard prompt", "")
+        st.text_area("MV storyboard prompt", value=storyboard_prompt, height=170, key="creative_pack_mv_storyboard_prompt")
+        _copy_to_clipboard_button("Copy MV Storyboard Prompt", str(st.session_state.get("creative_pack_mv_storyboard_prompt", storyboard_prompt) or ""), key="creative_pack_copy_storyboard")
     with visual_cols[1]:
-        st.button("Copy Shorts/TikTok Ideas", use_container_width=True, key="creative_pack_copy_shorts")
-        st.text_area("Shorts/TikTok ideas", value=pack.get("Shorts/TikTok ideas", ""), height=160, key="creative_pack_shorts_ideas")
-        st.button("Copy Caption", use_container_width=True, key="creative_pack_copy_caption")
-        st.text_area("Caption", value=pack.get("Caption", ""), height=110, key="creative_pack_caption")
+        shorts_ideas = pack.get("Shorts/TikTok ideas", "")
+        st.text_area("Shorts/TikTok ideas", value=shorts_ideas, height=160, key="creative_pack_shorts_ideas")
+        _copy_to_clipboard_button("Copy Shorts/TikTok Ideas", str(st.session_state.get("creative_pack_shorts_ideas", shorts_ideas) or ""), key="creative_pack_copy_shorts")
+        caption = pack.get("Caption", "")
+        st.text_area("Caption", value=caption, height=110, key="creative_pack_caption")
+        _copy_to_clipboard_button("Copy Caption", str(st.session_state.get("creative_pack_caption", caption) or ""), key="creative_pack_copy_caption")
         st.text_area("Hashtags", value=pack.get("Hashtags", ""), height=90, key="creative_pack_hashtags")
 
     st.markdown("### Export Release Pack")
@@ -3919,8 +3989,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                     prompt_text = prompt_path.read_text(encoding="utf-8-sig")
                     with st.expander(label, expanded=idx == 0):
                         st.text_area(label, value=prompt_text, height=150, key=f"song_creator_copy_prompt_{idx}_{filename}")
-                        if st.button(f"Copy {label}", key=f"song_creator_copy_button_{idx}_{filename}", use_container_width=True):
-                            st.info(f"{label} is ready above. Select the text box and copy it.")
+                        _copy_to_clipboard_button(
+                            f"Copy {label}",
+                            str(st.session_state.get(f"song_creator_copy_prompt_{idx}_{filename}", prompt_text) or ""),
+                            key=f"song_creator_copy_button_{idx}_{filename}",
+                        )
         if creator_package.get("zip_path") and Path(str(creator_package.get("zip_path"))).is_file():
             zip_path = Path(str(creator_package.get("zip_path")))
             st.download_button(
@@ -6184,12 +6257,15 @@ elif page == "Video Prompt Studio":
                     st.write(f"Lighting and color tone: {scene.get('lighting', '')}")
                     st.text_area("Shot prompt", value=scene.get("prompt", ""), height=100, key=f"video_prompt_scene_{scene.get('shot_id', '')}")
         with tabs[2]:
-            st.button("Copy Whisk Prompt", use_container_width=True, key="video_prompt_copy_whisk")
-            st.text_area("Whisk Prompt", value=package.get("whisk_prompt", ""), height=130, key="video_prompt_whisk_prompt")
-            st.button("Copy Video Prompt", use_container_width=True, key="video_prompt_copy_video")
-            st.text_area("Video Prompt for Veo / Flow / Runway / Kling / Pika / Luma", value=package.get("video_prompt", ""), height=150, key="video_prompt_video_prompt")
-            st.button("Copy Full Shot Package", use_container_width=True, key="video_prompt_copy_full")
-            st.text_area("Full Shot Package", value=package.get("full_shot_package", ""), height=220, key="video_prompt_full_package")
+            whisk_prompt = package.get("whisk_prompt", "")
+            st.text_area("Whisk Prompt", value=whisk_prompt, height=130, key="video_prompt_whisk_prompt")
+            _copy_to_clipboard_button("Copy Whisk Prompt", str(st.session_state.get("video_prompt_whisk_prompt", whisk_prompt) or ""), key="video_prompt_copy_whisk")
+            video_prompt = package.get("video_prompt", "")
+            st.text_area("Video Prompt for Veo / Flow / Runway / Kling / Pika / Luma", value=video_prompt, height=150, key="video_prompt_video_prompt")
+            _copy_to_clipboard_button("Copy Video Prompt", str(st.session_state.get("video_prompt_video_prompt", video_prompt) or ""), key="video_prompt_copy_video")
+            full_shot_package = package.get("full_shot_package", "")
+            st.text_area("Full Shot Package", value=full_shot_package, height=220, key="video_prompt_full_package")
+            _copy_to_clipboard_button("Copy Full Shot Package", str(st.session_state.get("video_prompt_full_package", full_shot_package) or ""), key="video_prompt_copy_full")
             st.text_area("Negative prompt", value=package.get("negative_prompt", ""), height=90, key="video_prompt_negative_prompt")
         with tabs[3]:
             txt_payload = video_prompt_package_to_text(package)
@@ -6256,8 +6332,13 @@ elif page == "Character Studio":
     for idx, section_name in enumerate(REQUIRED_CHARACTER_SECTIONS):
         height = 210 if section_name in {"Master Character Prompt", "Image Generation Prompt", "Image-to-Video Prompt"} else 130
         with st.container(border=True):
-            st.button(f"Copy {section_name}", use_container_width=True, key=f"character_studio_copy_{idx}")
-            st.text_area(section_name, value=sections.get(section_name, ""), height=height, key=f"character_studio_section_{idx}")
+            section_value = sections.get(section_name, "")
+            st.text_area(section_name, value=section_value, height=height, key=f"character_studio_section_{idx}")
+            _copy_to_clipboard_button(
+                f"Copy {section_name}",
+                str(st.session_state.get(f"character_studio_section_{idx}", section_value) or ""),
+                key=f"character_studio_copy_{idx}",
+            )
 
     txt_payload = character_prompt_pack_to_text(pack)
     st.download_button(
