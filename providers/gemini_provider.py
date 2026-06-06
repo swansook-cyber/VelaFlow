@@ -23,7 +23,20 @@ class GeminiTextProvider(BaseTextProvider):
         )
         super().__init__(resolved_key, resolved_model)
         self.last_status = ""
+        self.configure_result = "configured" if self.api_key else "missing_api_key"
+        self.client_initialized = bool(self.api_key and self.model)
+        self.client_initialization_result = "initialized" if self.client_initialized else "not_initialized"
+        self.client_initialization_error = "" if self.client_initialized else "Gemini API key missing"
         self.debug_log: list[dict[str, Any]] = []
+        self._record_debug(
+            event="client_init",
+            provider_selected=self.name,
+            model_used=self.model,
+            api_key_detected=bool(self.api_key),
+            configure_result=self.configure_result,
+            client_initialization_result=self.client_initialization_result,
+            exception_message=self.client_initialization_error,
+        )
 
     def _record_debug(self, **details: Any) -> None:
         safe_details = {
@@ -93,6 +106,10 @@ class GeminiTextProvider(BaseTextProvider):
                 "model_used": self.model,
                 "api_response_status": self.last_status,
                 "exception_message": self.last_error,
+                "configure_result": self.configure_result,
+                "client_initialized": self.client_initialized,
+                "client_initialization_result": self.client_initialization_result,
+                "client_initialization_error": self.client_initialization_error,
                 "debug_log": self.debug_log,
             }
         )

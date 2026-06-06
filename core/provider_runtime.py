@@ -4,6 +4,7 @@ from typing import Any
 
 from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
 from providers.ai_provider import normalize_provider, provider_display_name
+from providers.gemini_provider import GeminiTextProvider
 
 
 def _import_status(module_name: str) -> tuple[bool, str]:
@@ -39,27 +40,42 @@ def build_provider_runtime_diagnostics(
         return diagnostics
 
     if normalized == "gemini":
-        gemini_sdk_ok, gemini_sdk_message = _import_status("google.generativeai")
+        client_exception = ""
+        try:
+            gemini_client = GeminiTextProvider(api_key=api_key)
+            provider_diag = gemini_client.diagnostics()
+            client_initialized = bool(provider_diag.get("client_initialized"))
+            configure_result = str(provider_diag.get("configure_result") or "")
+            client_init_result = str(provider_diag.get("client_initialization_result") or "")
+            client_exception = str(provider_diag.get("client_initialization_error") or provider_diag.get("exception_message") or "")
+        except Exception as exc:
+            client_initialized = False
+            configure_result = "exception"
+            client_init_result = "failed"
+            client_exception = f"{type(exc).__name__}: {exc}"
         veo_sdk_ok, veo_sdk_message = _import_status("google.genai")
         diagnostics["checks"] = {
-            "Gemini runtime ready": gemini_sdk_ok,
-            "Gemini client initialized": gemini_sdk_ok,
+            "Gemini runtime ready": client_initialized,
+            "Gemini client initialized": client_initialized,
             "Veo render capable": veo_sdk_ok,
             "Veo SDK available": veo_sdk_ok,
         }
-        diagnostics["gemini_runtime_ready"] = bool(gemini_sdk_ok)
-        diagnostics["gemini_client_initialized"] = bool(gemini_sdk_ok)
+        diagnostics["gemini_runtime_ready"] = bool(client_initialized)
+        diagnostics["gemini_client_initialized"] = bool(client_initialized)
+        diagnostics["gemini_configure_result"] = configure_result
+        diagnostics["gemini_client_initialization_result"] = client_init_result
+        diagnostics["gemini_exception_message"] = client_exception
         diagnostics["veo_render_capable"] = bool(veo_sdk_ok)
-        diagnostics["runtime_ready"] = bool(gemini_sdk_ok)
-        if gemini_sdk_ok and veo_sdk_ok:
+        diagnostics["runtime_ready"] = bool(client_initialized)
+        if client_initialized and veo_sdk_ok:
             diagnostics["status"] = "Ready"
             diagnostics["message"] = "Gemini runtime ready; Veo SDK available"
-        elif gemini_sdk_ok:
+        elif client_initialized:
             diagnostics["status"] = "Ready"
             diagnostics["message"] = f"Gemini runtime ready; Veo unavailable: {veo_sdk_message}"
         else:
             diagnostics["status"] = "Provider Unavailable"
-            diagnostics["message"] = f"Gemini SDK unavailable: {gemini_sdk_message}"
+            diagnostics["message"] = f"Gemini client initialization failed: {client_exception or client_init_result or 'unknown error'}"
         return diagnostics
 
     if normalized == "openai":

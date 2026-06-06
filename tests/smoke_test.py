@@ -412,6 +412,7 @@ def main():
     assert_true(gemini_health["ok"] and "runtime/user key" in gemini_health["message"], "BYO Gemini health runtime sync failed")
     gemini_runtime = build_provider_runtime_diagnostics("gemini", "user-gemini", api_mode=API_MODE_OWN_KEY, source="user")
     assert_true(gemini_runtime["key_present"] and "Gemini runtime ready" in gemini_runtime["checks"], "BYO Gemini runtime diagnostics failed")
+    assert_true(gemini_runtime["runtime_ready"] and gemini_runtime["gemini_runtime_ready"] and gemini_runtime["gemini_client_initialized"] and gemini_runtime["gemini_configure_result"] == "configured", "Gemini runtime/client initialization diagnostics failed")
     fake_settings = type(
         "Settings",
         (),
@@ -2030,6 +2031,7 @@ def main():
         assert_true("One-Click Song Package" in main_source and "Generate Song Package" in main_source and "Download Full Package TXT" in main_source and "ทำเพลงพร้อม Suno/Udio" in main_source, "creator dashboard one-click song package missing")
         assert_true("Song Title Suggestions" in main_source and "Lyrics for Suno" in main_source and "Style for Suno" in main_source and "Producer Notes" in main_source and "Release Checklist" in main_source, "creator dashboard output blocks missing")
         assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools." in main_source, "creative pack generator UI missing")
+        assert_true("Gemini API Key" in main_source and "Gemini status:" in main_source and "Key source:" in main_source and "Gemini configure() result:" in main_source and "Gemini client initialization result:" in main_source and "Test Gemini Connection" in main_source, "Gemini settings diagnostics UI missing")
         assert_true("Choose preset" in main_source and "Enter song idea" in main_source and "Generate & Export" in main_source, "creative pack quick start missing")
         assert_true("sidebar_nav_creator_dashboard" in main_source and "sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source and "sidebar_nav_ai_settings" in main_source, "creative pack sidebar navigation missing")
         assert_true("One Click Creator Flow" in main_source and "Generate Creator Package" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")

@@ -344,9 +344,25 @@ def _active_text_credentials() -> tuple[str, str, str]:
 
 
 def _active_credential_status() -> dict[str, Any]:
+    provider = _active_ai_provider()
+    if provider == "gemini":
+        gemini = resolve_gemini_api_key(settings=settings, session_state=st.session_state)
+        if gemini.get("enabled"):
+            source = str(gemini.get("source") or "env")
+            return {
+                "provider": "gemini",
+                "api_key": str(gemini.get("api_key") or ""),
+                "model": str(getattr(settings, "gemini_model", "") or "gemini-2.5-flash"),
+                "api_mode": st.session_state.get("api_mode", API_MODE_OWN_KEY),
+                "source": "user" if source == "session" else "env",
+                "status": "Ready",
+                "user_key_present": source == "session",
+                "velaflow_key_present": source == "env",
+                "warning": "",
+            }
     return resolve_provider_credentials(
         settings=settings,
-        provider=_active_ai_provider(),
+        provider=provider,
         api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY),
         user_api_keys=st.session_state.get("user_api_keys", {}),
     )
@@ -5478,6 +5494,7 @@ elif page == "Podcast Script Studio":
             podcast_script_narrator,
             podcast_script_length,
             gemini_api_key=str(gemini_status.get("api_key", "") or ""),
+            require_gemini_success=bool(gemini_status.get("enabled")),
         )
         if result.get("ok"):
             package = result["data"]
@@ -6874,6 +6891,20 @@ elif page == "AI Settings":
         api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY),
         user_api_keys=st.session_state.get("user_api_keys", {}),
     )
+    if selected_provider == "gemini" and gemini_status.get("enabled"):
+        gemini_source = str(gemini_status.get("source") or "env")
+        resolved = {
+            **resolved,
+            "provider": "gemini",
+            "api_key": str(gemini_status.get("api_key") or ""),
+            "model": str(getattr(settings, "gemini_model", "") or "gemini-2.5-flash"),
+            "api_mode": st.session_state.get("api_mode", API_MODE_OWN_KEY),
+            "source": "user" if gemini_source == "session" else "env",
+            "status": "Ready",
+            "user_key_present": gemini_source == "session",
+            "velaflow_key_present": gemini_source == "env",
+            "warning": "",
+        }
     _sync_provider_runtime_state()
     runtime = _provider_runtime_status(selected_provider, resolved.get("api_key", ""))
     runtime_details = st.session_state.get("provider_runtime", {}) or {}
@@ -6885,7 +6916,34 @@ elif page == "AI Settings":
     if selected_provider == "gemini":
         st.write("Gemini runtime ready:", bool(runtime_details.get("gemini_runtime_ready")))
         st.write("Gemini client initialized:", bool(runtime_details.get("gemini_client_initialized")))
+        st.write("Gemini configure() result:", runtime_details.get("gemini_configure_result", "-"))
+        st.write("Gemini client initialization result:", runtime_details.get("gemini_client_initialization_result", "-"))
+        if runtime_details.get("gemini_exception_message"):
+            st.warning(f"Gemini exception: {runtime_details.get('gemini_exception_message')}")
         st.write("Veo render capable:", bool(runtime_details.get("veo_render_capable")))
+        if st.button("Test Gemini Connection", use_container_width=True, key="settings_test_gemini_connection"):
+            from providers.gemini_provider import GeminiProvider
+
+            test_provider = GeminiProvider(api_key=str(gemini_status.get("api_key") or ""), model=str(getattr(settings, "gemini_model", "") or "gemini-2.5-flash"))
+            test_text = test_provider.generate_text("Reply with exactly: Gemini connection OK")
+            test_diag = test_provider.diagnostics()
+            st.session_state["gemini_connection_test"] = {
+                "ok": bool(test_text),
+                "response": test_text[:300],
+                "diagnostics": test_diag,
+            }
+        connection_test = st.session_state.get("gemini_connection_test", {}) or {}
+        if connection_test:
+            if connection_test.get("ok"):
+                st.success(f"Gemini connection OK: {connection_test.get('response')}")
+            else:
+                diag = connection_test.get("diagnostics", {}) or {}
+                st.error("Gemini connection failed")
+                st.warning(str(diag.get("exception_message") or diag.get("client_initialization_error") or "Unknown Gemini error"))
+            if st.session_state.get("developer_mode"):
+                safe_diag = dict((connection_test.get("diagnostics") or {}))
+                safe_diag.pop("api_key", None)
+                st.json(safe_diag, expanded=False)
     st.write(f"Gemini model: {settings.gemini_model}")
     st.write("Gemini configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("gemini") or settings.gemini_api_key))
     st.write(f"OpenAI GPT model: {settings.openai_text_model}")

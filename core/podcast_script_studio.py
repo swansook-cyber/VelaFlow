@@ -733,12 +733,22 @@ def _ai_video_prompt(topic: str, tone: str, context: dict[str, str] | None = Non
     )
 
 
-def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str, episode_length: str, gemini_api_key: str | None = None) -> dict[str, Any]:
+def generate_podcast_script_package(
+    topic: str,
+    podcast_tone: str,
+    narrator: str,
+    episode_length: str,
+    gemini_api_key: str | None = None,
+    require_gemini_success: bool = False,
+) -> dict[str, Any]:
     topic = _clean(topic, "เรื่องที่คนทำงานคิดถึงหลังเลิกงาน")
     podcast_tone = podcast_tone if podcast_tone in PODCAST_SCRIPT_TONES else "Vela After Work"
     narrator = narrator if narrator in PODCAST_NARRATORS else "Male"
     episode_length = episode_length if episode_length in PODCAST_EPISODE_LENGTHS else "10 min"
     story_blueprint, provider_diagnostics = _generate_story_blueprint(topic, podcast_tone, episode_length, gemini_api_key=gemini_api_key)
+    if require_gemini_success and provider_diagnostics.get("used") != "true":
+        error = provider_diagnostics.get("fallback_reason") or "Gemini Story Writer failed"
+        return {"ok": False, "data": {}, "error": error}
     context = story_blueprint["context"]
     title = _best_title(topic, podcast_tone)
     full_script = _full_script(topic, podcast_tone, narrator, episode_length, context=context)
