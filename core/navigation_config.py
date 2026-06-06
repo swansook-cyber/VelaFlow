@@ -18,7 +18,7 @@ PAGE_LABELS = {
 FULL_MENU_GROUPS = {
     "START": ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "Dashboard", "One Click Creator Flow", "VelaFlow Agent Studio", "Creator Wizard"],
     "SONG": ["Song Studio", "Song Library", "Artist Preset Manager"],
-    "VISUAL": ["MV Director", "Video Prompt Studio", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
+    "VISUAL": ["MV Director", "Video Prompt Studio", "Podcast Script Studio", "Character Studio", "Image Lab", "Image Review", "Video Lab"],
     "PRODUCTION": ["Hook Clip Studio", "Remaster Studio", "Affiliate Studio", "Shorts Factory", "Render Lab", "Smart Clip Factory", "Marketing Package", "Final Package"],
     "INTELLIGENCE": ["Creative Intelligence", "Production Audit", "Beta Test Mode", "Asset Intelligence"],
     "SYSTEM": ["Queue Monitor", "System Health", "Release Hardening Tools", "AI Settings"],

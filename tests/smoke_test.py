@@ -118,6 +118,14 @@ from core.podcast_content import (
     generate_podcast_content,
     podcast_content_to_text,
 )
+from core.podcast_script_studio import (
+    PODCAST_EPISODE_LENGTHS as SCRIPT_PODCAST_EPISODE_LENGTHS,
+    PODCAST_NARRATORS,
+    PODCAST_SCRIPT_TONES,
+    REQUIRED_PODCAST_SCRIPT_SECTIONS,
+    generate_podcast_script_package,
+    podcast_script_package_to_text,
+)
 from core.recovery import recover_last_session, save_last_session
 from core.theme import active_theme_name
 from core.ui_styles import get_global_css
@@ -566,7 +574,7 @@ def main():
     assert_true("VelaFlow Agent Studio" not in flatten_pages(SONG_ONLY_MENU_GROUPS), "Agent Studio should be hidden from normal V1 creative pack navigation")
     assert_true(FULL_MENU_GROUPS["SONG"] == ["Song Studio", "Song Library", "Artist Preset Manager"], "SONG navigation group failed")
     assert_true("Artist Preset Manager" in FULL_MENU_GROUPS["SONG"], "Artist Preset Manager missing from SONG group")
-    assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"], "Video Prompt Studio missing from VISUAL group")
+    assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"] and "Podcast Script Studio" in FULL_MENU_GROUPS["VISUAL"], "creative tools missing from VISUAL group")
     assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
     assert_true(song_only_pages == ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"], "Song Studio Only missing simplified creator dashboard flow")
@@ -1279,6 +1287,22 @@ def main():
     podcast_export = export_podcast_content("Smoke Podcast Project", podcast_package, out / "podcast_projects")
     assert_true(podcast_export["ok"] and Path(podcast_export["data"]["txt_path"]).name == "podcast_episode_package.txt", "podcast TXT export failed")
     assert_true(Path(podcast_export["data"]["json_path"]).name == "podcast_episode_package.json", "podcast JSON export failed")
+    podcast_script_result = generate_podcast_script_package(
+        topic="คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ",
+        podcast_tone="Dark Humor",
+        narrator="Male",
+        episode_length="20 min",
+    )
+    assert_true(podcast_script_result["ok"], "Podcast Script Studio generation failed")
+    podcast_script_package = podcast_script_result["data"]
+    assert_true(set(REQUIRED_PODCAST_SCRIPT_SECTIONS).issubset(set(podcast_script_package)), "Podcast Script Studio missing output sections")
+    assert_true(podcast_script_package["metadata"]["offline_safe"] is True and podcast_script_package["metadata"]["episode_length"] == "20 min", "Podcast Script Studio metadata failed")
+    assert_true("Hello everyone" not in podcast_script_package["Cold Open"] and "วันนี้เราจะพูดถึง" not in podcast_script_package["Cold Open"], "Podcast Script Studio cold open is too robotic")
+    assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Story Arc 3]" in podcast_script_package["Full Podcast Script"] and "[Peak Conflict]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio full structure missing")
+    assert_true("[Cold Open]" not in podcast_script_package["AI Voice Version"] and "[Narrator Direction]" not in podcast_script_package["AI Voice Version"], "Podcast Script Studio AI voice version contains labels")
+    assert_true(len(podcast_script_package["Shorts Extraction"]) >= 8 and all({"Hook", "Script", "Suggested duration", "Suggested caption"}.issubset(item) for item in podcast_script_package["Shorts Extraction"]), "Podcast Script Studio shorts extraction failed")
+    podcast_script_text = podcast_script_package_to_text(podcast_script_package)
+    assert_true("VELAFLOW PODCAST SCRIPT STUDIO" in podcast_script_text and "YOUTUBE PACKAGE" in podcast_script_text and "SPOTIFY PACKAGE" in podcast_script_text, "Podcast Script Studio TXT export failed")
     podcast_render_package = build_render_package("Smoke Podcast Project", "podcast", podcast_package, {"provider": "Luma", "aspect_ratio": "9:16", "duration": "10s", "quality": "Standard", "motion_intensity": "Low"}, podcast_package["visual_engine"])
     podcast_render_export = export_render_package("Smoke Podcast Project", podcast_render_package, out / "podcast_projects")
     assert_true(podcast_render_export["ok"] and "Luma" in Path(podcast_render_export["data"]["txt_path"]).read_text(encoding="utf-8"), "podcast render package export failed")
@@ -1975,6 +1999,7 @@ def main():
         assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "Project Sidebar" in main_source and "Recent Projects" in main_source and "Create Project" in main_source and "Continue Project" in main_source and "Project Timeline" in main_source and "Workspace Summary" in main_source and "Asset Browser" in main_source and "Storyboard Viewer" in main_source and "Media Timeline" in main_source and "Cover History" in main_source and "Asset Tags" in main_source and "Project Asset Summary" in main_source and "Export ZIP" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Character Studio" in main_source and "Generate Character Pack" in main_source and "Download Character Pack TXT" in main_source and "Copy-Ready Prompts" in main_source and "Apply character to existing storyboard" in main_source, "Character Studio UI missing")
+        assert_true("Podcast Script Studio" in main_source and "Generate Podcast Script Package" in main_source and "AI Voice Version" in main_source and "Download Podcast Script TXT" in main_source and "Local-only script studio. No rendering, no TTS, no video generation, no external APIs." in main_source, "Podcast Script Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")

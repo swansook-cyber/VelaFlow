@@ -146,6 +146,13 @@ from core.podcast_content import (
     generate_podcast_content,
     podcast_content_to_text,
 )
+from core.podcast_script_studio import (
+    PODCAST_EPISODE_LENGTHS as SCRIPT_PODCAST_EPISODE_LENGTHS,
+    PODCAST_NARRATORS,
+    PODCAST_SCRIPT_TONES,
+    generate_podcast_script_package,
+    podcast_script_package_to_text,
+)
 from core.preset_engine import apply_preset_to_project, get_preset, list_presets
 from core.viral_clips_content import (
     CLIP_LENGTHS,
@@ -4473,6 +4480,7 @@ PAGE_MODULES = {
     "Song Studio": "director",
     "Song Library": "core",
     "MV Director": "director",
+    "Podcast Script Studio": "marketing",
     "Character Studio": "director",
     "Image Lab": "assets",
     "Image Review": "assets",
@@ -5413,6 +5421,124 @@ elif page == "Seller Studio":
             _render_real_clip_controls(project, "seller_studio", ((project.get("seller_studio", {}) or {}).get("hook_clip") or {}), "seller")
     with st.expander("Render Queue", expanded=False):
         _render_queue_ui(project.get("title") or (seller_package or {}).get("product_name") or "seller_project")
+
+elif page == "Podcast Script Studio":
+    _page_header("Podcast Script Studio", "Write Vela After Work podcast scripts, voice-ready narration, shorts, and platform copy.", project)
+    st.info("Local-only script studio. No rendering, no TTS, no video generation, no external APIs.", icon="🎙️")
+    st.caption("Vela After Work: Stories people think about after work but rarely say out loud.")
+
+    script_state = project.setdefault("podcast_script_studio", {})
+    existing_package = script_state.get("package") or {}
+    metadata = existing_package.get("metadata") or {}
+
+    with st.container(border=True):
+        st.markdown("### Episode Setup")
+        st.caption("ใส่หัวข้อ เลือกโทน แล้วสร้างสคริปต์พร้อมใช้กับ voice tools ภายนอก")
+        c1, c2 = st.columns([2, 1])
+        podcast_script_topic = c1.text_area(
+            "Topic",
+            value=script_state.get("topic", metadata.get("topic", "")),
+            height=120,
+            key="podcast_script_topic",
+            help="เช่น วันที่รู้ว่างานไม่ได้หนักเท่าความคาดหวังของคนอื่น",
+        )
+        podcast_script_tone = c2.selectbox(
+            "Podcast Tone",
+            PODCAST_SCRIPT_TONES,
+            index=PODCAST_SCRIPT_TONES.index(metadata.get("podcast_tone")) if metadata.get("podcast_tone") in PODCAST_SCRIPT_TONES else 0,
+            key="podcast_script_tone",
+        )
+        c3, c4 = st.columns(2)
+        podcast_script_narrator = c3.selectbox(
+            "Narrator",
+            PODCAST_NARRATORS,
+            index=PODCAST_NARRATORS.index(metadata.get("narrator")) if metadata.get("narrator") in PODCAST_NARRATORS else 0,
+            key="podcast_script_narrator",
+        )
+        podcast_script_length = c4.selectbox(
+            "Episode Length",
+            SCRIPT_PODCAST_EPISODE_LENGTHS,
+            index=SCRIPT_PODCAST_EPISODE_LENGTHS.index(metadata.get("episode_length")) if metadata.get("episode_length") in SCRIPT_PODCAST_EPISODE_LENGTHS else 0,
+            key="podcast_script_length",
+        )
+
+    if st.button("Generate Podcast Script Package", type="primary", use_container_width=True, key="podcast_script_generate"):
+        result = generate_podcast_script_package(
+            podcast_script_topic,
+            podcast_script_tone,
+            podcast_script_narrator,
+            podcast_script_length,
+        )
+        if result.get("ok"):
+            package = result["data"]
+            script_state.update(
+                {
+                    "topic": podcast_script_topic,
+                    "package": package,
+                    "last_error": "",
+                }
+            )
+            project["podcast_script_studio"] = script_state
+            _save_project()
+            _log_beta_event("generate", workflow="podcast_script_studio", metadata={"tone": podcast_script_tone, "episode_length": podcast_script_length})
+            st.success("Podcast script package ready")
+            st.rerun()
+        else:
+            script_state["last_error"] = result.get("error") or "Podcast Script Studio failed"
+            st.error(script_state["last_error"])
+
+    package = script_state.get("package") or {}
+    if package:
+        st.markdown("### Output Package")
+        title = str(package.get("Episode Title", ""))
+        st.text_area("Episode Title", value=title, height=70, key="podcast_script_title")
+        _copy_to_clipboard_button("Copy Episode Title", str(st.session_state.get("podcast_script_title", title) or ""), key="podcast_script_copy_title")
+
+        cold_open = str(package.get("Cold Open", ""))
+        st.text_area("Cold Open", value=cold_open, height=170, key="podcast_script_cold_open")
+        _copy_to_clipboard_button("Copy Cold Open", str(st.session_state.get("podcast_script_cold_open", cold_open) or ""), key="podcast_script_copy_cold_open")
+
+        script_tabs = st.tabs(["Full Script", "AI Voice", "Shorts", "YouTube / Spotify", "Download"])
+        with script_tabs[0]:
+            full_script = str(package.get("Full Podcast Script", ""))
+            st.text_area("Full Podcast Script", value=full_script, height=360, key="podcast_script_full")
+            _copy_to_clipboard_button("Copy Full Podcast Script", str(st.session_state.get("podcast_script_full", full_script) or ""), key="podcast_script_copy_full")
+        with script_tabs[1]:
+            ai_voice = str(package.get("AI Voice Version", ""))
+            st.caption("Clean narration version for ElevenLabs, OpenAI TTS, Minimax, and other voice tools.")
+            st.text_area("AI Voice Version", value=ai_voice, height=360, key="podcast_script_ai_voice")
+            _copy_to_clipboard_button("Copy AI Voice Version", str(st.session_state.get("podcast_script_ai_voice", ai_voice) or ""), key="podcast_script_copy_ai_voice")
+        with script_tabs[2]:
+            shorts = package.get("Shorts Extraction", []) or []
+            shorts_text = "\n\n".join(
+                f"{idx}. Hook: {item.get('Hook', '')}\nScript: {item.get('Script', '')}\nSuggested duration: {item.get('Suggested duration', '')}\nSuggested caption: {item.get('Suggested caption', '')}"
+                for idx, item in enumerate(shorts, start=1)
+            )
+            st.text_area("Shorts Extraction", value=shorts_text, height=330, key="podcast_script_shorts")
+            _copy_to_clipboard_button("Copy Shorts Extraction", str(st.session_state.get("podcast_script_shorts", shorts_text) or ""), key="podcast_script_copy_shorts")
+        with script_tabs[3]:
+            youtube = package.get("YouTube Package", {}) or {}
+            spotify = package.get("Spotify Package", {}) or {}
+            youtube_text = "\n".join(f"{key}: {value}" for key, value in youtube.items())
+            spotify_text = "\n".join(f"{key}: {value}" for key, value in spotify.items())
+            st.text_area("YouTube Package", value=youtube_text, height=220, key="podcast_script_youtube")
+            _copy_to_clipboard_button("Copy YouTube Package", str(st.session_state.get("podcast_script_youtube", youtube_text) or ""), key="podcast_script_copy_youtube")
+            st.text_area("Spotify Package", value=spotify_text, height=130, key="podcast_script_spotify")
+            _copy_to_clipboard_button("Copy Spotify Package", str(st.session_state.get("podcast_script_spotify", spotify_text) or ""), key="podcast_script_copy_spotify")
+        with script_tabs[4]:
+            txt_payload = podcast_script_package_to_text(package)
+            st.download_button(
+                "Download Podcast Script TXT",
+                data=txt_payload.encode("utf-8-sig"),
+                file_name="velaflow_podcast_script_package.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="podcast_script_download_txt",
+            )
+            st.text_area("Full TXT Package", value=txt_payload, height=280, key="podcast_script_txt_package")
+            _copy_to_clipboard_button("Copy Full TXT Package", str(st.session_state.get("podcast_script_txt_package", txt_payload) or ""), key="podcast_script_copy_txt_package")
+    else:
+        st.caption("Start with a workplace story topic, then generate a voice-friendly podcast script package.")
 
 elif page == "Podcast Studio":
     _page_header("Podcast Studio", "Create Thai spoken podcast, storytelling, rant, and Shorts-ready narration packages.", project)
