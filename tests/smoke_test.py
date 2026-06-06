@@ -1288,23 +1288,35 @@ def main():
     podcast_export = export_podcast_content("Smoke Podcast Project", podcast_package, out / "podcast_projects")
     assert_true(podcast_export["ok"] and Path(podcast_export["data"]["txt_path"]).name == "podcast_episode_package.txt", "podcast TXT export failed")
     assert_true(Path(podcast_export["data"]["json_path"]).name == "podcast_episode_package.json", "podcast JSON export failed")
-    podcast_script_result = generate_podcast_script_package(
-        topic="คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ",
-        podcast_tone="Dark Humor",
-        narrator="Male",
-        episode_length="20 min",
-    )
+    saved_gemini_key = os.environ.pop("GEMINI_API_KEY", None)
+    try:
+        podcast_script_result = generate_podcast_script_package(
+            topic="คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ",
+            podcast_tone="Dark Humor",
+            narrator="Male",
+            episode_length="20 min",
+        )
+    finally:
+        if saved_gemini_key is not None:
+            os.environ["GEMINI_API_KEY"] = saved_gemini_key
     assert_true(podcast_script_result["ok"], "Podcast Script Studio generation failed")
     podcast_script_package = podcast_script_result["data"]
     assert_true(set(REQUIRED_PODCAST_SCRIPT_SECTIONS).issubset(set(podcast_script_package)), "Podcast Script Studio missing output sections")
-    podcast_script_10_result = generate_podcast_script_package(
-        topic="คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ",
-        podcast_tone="Dark Humor",
-        narrator="Male",
-        episode_length="10 min",
-    )
+    saved_gemini_key = os.environ.pop("GEMINI_API_KEY", None)
+    try:
+        podcast_script_10_result = generate_podcast_script_package(
+            topic="คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ",
+            podcast_tone="Dark Humor",
+            narrator="Male",
+            episode_length="10 min",
+        )
+    finally:
+        if saved_gemini_key is not None:
+            os.environ["GEMINI_API_KEY"] = saved_gemini_key
     assert_true(podcast_script_10_result["ok"], "Podcast Script Studio 10-minute generation failed")
     assert_true("Vela After Work" in PODCAST_SCRIPT_TONES and WORD_TARGETS["20 min"]["min"] >= 3500 and podcast_script_package["metadata"]["offline_safe"] is True and podcast_script_package["metadata"]["episode_length"] == "20 min", "Podcast Script Studio metadata failed")
+    assert_true(podcast_script_package["metadata"]["story_engine"] == "Vela After Work AI Story Writer" and podcast_script_package["metadata"]["story_blueprint_source"] in {"gemini", "local_fallback"} and podcast_script_package["metadata"]["story_provider"]["provider"] == "gemini", "Podcast Script Studio AI story writer metadata failed")
+    assert_true(podcast_script_package["metadata"]["story_arc"] and podcast_script_package["metadata"]["scene_breakdown"] and len(podcast_script_package["metadata"]["scene_breakdown"]) >= 6, "Podcast Script Studio story outline metadata missing")
     assert_true("Hello everyone" not in podcast_script_package["Cold Open"] and "วันนี้เราจะพูดถึง" not in podcast_script_package["Cold Open"], "Podcast Script Studio cold open is too robotic")
     assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Act 1: The Ordinary Office Day]" in podcast_script_package["Full Podcast Script"] and "[Act 2: The Incident]" in podcast_script_package["Full Podcast Script"] and "[Act 3: The Awkward Silence]" in podcast_script_package["Full Podcast Script"] and "[Act 4: The Office Politics]" in podcast_script_package["Full Podcast Script"] and "[Act 5: The Breaking Point]" in podcast_script_package["Full Podcast Script"] and "[Act 6: After Work Reflection]" in podcast_script_package["Full Podcast Script"] and "[Ending]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio V4 full story arc missing")
     assert_true("[Cold Open]" not in podcast_script_package["AI Voice Version"] and "[Narrator Direction]" not in podcast_script_package["AI Voice Version"], "Podcast Script Studio AI voice version contains labels")

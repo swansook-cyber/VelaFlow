@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime
 from typing import Any
+
+from providers.gemini_provider import GeminiProvider
 
 
 PODCAST_SCRIPT_TONES = ["Vela After Work", "Dark Humor", "Emotional", "Motivational", "Storytelling", "Office Rant"]
@@ -35,6 +39,18 @@ def _clean(value: str, fallback: str) -> str:
 
 def _word_count(text: str) -> int:
     return len([part for part in str(text or "").replace("\n", " ").split(" ") if part.strip()])
+
+
+def _extract_json_object(text: str) -> dict[str, Any]:
+    cleaned = (text or "").strip().replace("```json", "```").replace("```JSON", "```")
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if not match:
+        return {}
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _tone_profile(tone: str) -> dict[str, str]:
@@ -149,6 +165,159 @@ def _story_context(topic: str, tone: str) -> dict[str, str]:
         "after_work_place": "ลานจอดรถหลังฝนตก",
         "tone": tone,
     }
+
+
+def _local_story_blueprint(topic: str, tone: str) -> dict[str, Any]:
+    context = _story_context(topic, tone)
+    return {
+        "source": "local_fallback",
+        "main_narrator_profile": {
+            "name": "ผม",
+            "role": "พนักงานออฟฟิศที่เหนื่อยแต่ยังพยายามเล่าเรื่องให้ตรง",
+            "voice": "เล่าเหมือนเพื่อนร่วมงานคุยกันหลังเลิกงาน เหนื่อยนิด ๆ ประชดเบา ๆ แต่ไม่ดราม่าเกินจริง",
+        },
+        "supporting_characters": [
+            {"name": context["support_1"], "role": context["support_1_role"], "tension": "คนทำงานจริงแต่ชื่อมักหายไปจากเครดิต"},
+            {"name": context["support_2"], "role": context["support_2_role"], "tension": "หัวหน้าที่ใช้ความสุภาพทำให้คนอื่นพูดยาก"},
+            {"name": context["support_3"], "role": context["support_3_role"], "tension": "คนกลางที่ถามว่าไม่เป็นไรใช่ไหม แต่ไม่ได้เปิดทางให้ตอบจริง"},
+        ],
+        "office_environment": context["location"],
+        "conflict": context["incident"],
+        "emotional_peak": context["peak"],
+        "resolution": "ผมพิมพ์ข้อความขอใส่ชื่อคนเตรียมข้อมูลไว้ใน note ของสไลด์ แทนการรับทราบเงียบ ๆ เหมือนทุกครั้ง",
+        "takeaway": "บางครั้งการไม่ปล่อยให้เครดิตของคนทำงานหายไป คือการปกป้องความเป็นมนุษย์เล็ก ๆ ในระบบงาน",
+        "story_arc": [
+            "เช้าวันทำงานธรรมดาเริ่มจากลิฟต์ กาแฟ และ work chat",
+            "รายงาน Excel ถูกเปิดกลางประชุม แล้วชื่อคนทำงานจริงหายไป",
+            "ห้องประชุมเงียบ ทุกคนรู้แต่ไม่มีใครอยากพูด",
+            "การเมืองในทีมเริ่มชัดผ่านประโยคสุภาพและเครดิตที่หายไป",
+            "เมย์พูดที่โต๊ะกินข้าวว่าไม่รู้ว่าครั้งหน้าควรทำเต็มที่แค่ไหน",
+            "หลังเลิกงาน ผมยืนในลานจอดรถและตัดสินใจว่าครั้งหน้าจะไม่เงียบแบบเดิม",
+        ],
+        "scene_breakdown": [
+            {"section": "Cold Open", "location": "ลิฟต์", "scene": "กาแฟในมือและแชตงานเด้งก่อนถึงโต๊ะ", "dialogue": context["first_message"]},
+            {"section": "Act 1", "location": "โต๊ะทำงาน", "scene": "จอ Excel, printer, shared folder final_v7", "dialogue": "รายงานเมื่อวานอยู่ไหนนะ"},
+            {"section": "Act 2", "location": context["location"], "scene": "สไลด์สรุปที่ชื่อคนทำงานหายไป", "dialogue": "อันนี้ใครเป็นคนทำ"},
+            {"section": "Act 3", "location": context["location"], "scene": "ห้องประชุมเงียบไปประมาณสามวินาที", "dialogue": "เดี๋ยวคุยกันหลังประชุม"},
+            {"section": "Act 4", "location": "หน้าห้องประชุม", "scene": "HR ถามด้วยเสียงสุภาพ", "dialogue": "ไม่เป็นไรใช่ไหม"},
+            {"section": "Act 5", "location": "โต๊ะกินข้าว", "scene": "เมย์เขี่ยข้าวและพูดสิ่งที่เหนื่อยมานาน", "dialogue": "หนูไม่รู้ว่าครั้งหน้าควรทำเต็มที่แค่ไหน"},
+            {"section": "Act 6", "location": context["after_work_place"], "scene": "ฝนหยุดตก มือถือมี unread messages", "dialogue": "ขอใส่ชื่อคนเตรียมข้อมูลไว้ใน note ด้วยนะครับ"},
+        ],
+        "context": context,
+    }
+
+
+def _gemini_story_prompt(topic: str, tone: str, episode_length: str) -> str:
+    return f"""
+You are the story brain for Vela After Work, a Thai office-life podcast.
+Create a realistic story blueprint BEFORE the final podcast script.
+
+Topic:
+{topic}
+
+Tone:
+{tone}
+
+Episode length:
+{episode_length}
+
+Required style:
+- Thai first-person office storytelling.
+- Feels like a tired coworker telling a real story after work.
+- Human, tired, slightly sarcastic, emotionally honest.
+- Concrete scenes, natural dialogue, office politics.
+- Do not write generic self-help.
+- Do not repeat the topic name.
+- Avoid these phrases: จุดเปลี่ยนคือ, บทเรียนคือ, เริ่มจากจุดที่หลายคนคุ้น, สิ่งที่ทำให้.
+
+Return JSON only with this schema:
+{{
+  "main_narrator_profile": {{"name":"ผม","role":"","voice":""}},
+  "supporting_characters": [
+    {{"name":"","role":"","tension":""}},
+    {{"name":"","role":"","tension":""}},
+    {{"name":"","role":"","tension":""}}
+  ],
+  "office_environment": "",
+  "conflict": "",
+  "emotional_peak": "",
+  "resolution": "",
+  "takeaway": "",
+  "story_arc": ["", "", "", "", "", ""],
+  "scene_breakdown": [
+    {{"section":"Cold Open","location":"","scene":"","dialogue":""}},
+    {{"section":"Act 1","location":"","scene":"","dialogue":""}},
+    {{"section":"Act 2","location":"","scene":"","dialogue":""}},
+    {{"section":"Act 3","location":"","scene":"","dialogue":""}},
+    {{"section":"Act 4","location":"","scene":"","dialogue":""}},
+    {{"section":"Act 5","location":"","scene":"","dialogue":""}},
+    {{"section":"Act 6","location":"","scene":"","dialogue":""}}
+  ]
+}}
+"""
+
+
+def _normalize_story_blueprint(raw: dict[str, Any], topic: str, tone: str) -> dict[str, Any]:
+    fallback = _local_story_blueprint(topic, tone)
+    if not raw:
+        return fallback
+    context = dict(fallback["context"])
+    narrator = raw.get("main_narrator_profile") if isinstance(raw.get("main_narrator_profile"), dict) else fallback["main_narrator_profile"]
+    characters = raw.get("supporting_characters") if isinstance(raw.get("supporting_characters"), list) else fallback["supporting_characters"]
+    characters = [item for item in characters if isinstance(item, dict) and item.get("name")] or fallback["supporting_characters"]
+    scenes = raw.get("scene_breakdown") if isinstance(raw.get("scene_breakdown"), list) else fallback["scene_breakdown"]
+    scenes = [item for item in scenes if isinstance(item, dict)] or fallback["scene_breakdown"]
+    if characters:
+        context["support_1"] = str(characters[0].get("name") or context["support_1"]).strip()
+        context["support_1_role"] = str(characters[0].get("role") or context["support_1_role"]).strip()
+    if len(characters) > 1:
+        context["support_2"] = str(characters[1].get("name") or context["support_2"]).strip()
+        context["support_2_role"] = str(characters[1].get("role") or context["support_2_role"]).strip()
+    if len(characters) > 2:
+        context["support_3"] = str(characters[2].get("name") or context["support_3"]).strip()
+        context["support_3_role"] = str(characters[2].get("role") or context["support_3_role"]).strip()
+    context["location"] = str(raw.get("office_environment") or context["location"]).strip()
+    context["incident"] = str(raw.get("conflict") or context["incident"]).strip()
+    context["peak"] = str(raw.get("emotional_peak") or context["peak"]).strip()
+    first_dialogue = next((str(scene.get("dialogue") or "").strip() for scene in scenes if scene.get("dialogue")), "")
+    if first_dialogue:
+        context["first_message"] = first_dialogue.strip('"')
+    return {
+        "source": "gemini",
+        "main_narrator_profile": narrator,
+        "supporting_characters": characters[:4],
+        "office_environment": context["location"],
+        "conflict": context["incident"],
+        "emotional_peak": context["peak"],
+        "resolution": str(raw.get("resolution") or fallback["resolution"]).strip(),
+        "takeaway": str(raw.get("takeaway") or fallback["takeaway"]).strip(),
+        "story_arc": raw.get("story_arc") if isinstance(raw.get("story_arc"), list) and raw.get("story_arc") else fallback["story_arc"],
+        "scene_breakdown": scenes[:8],
+        "context": context,
+    }
+
+
+def _generate_story_blueprint(topic: str, tone: str, episode_length: str) -> tuple[dict[str, Any], dict[str, str]]:
+    provider = GeminiProvider()
+    diagnostics = {
+        "provider": "gemini",
+        "model": provider.model,
+        "used": "false",
+        "fallback_reason": "",
+    }
+    if not provider.available:
+        diagnostics["fallback_reason"] = provider.last_error or "GEMINI_API_KEY missing"
+        return _local_story_blueprint(topic, tone), diagnostics
+    text = provider.generate_text(_gemini_story_prompt(topic, tone, episode_length))
+    if not text:
+        diagnostics["fallback_reason"] = provider.last_error or "Gemini returned empty story blueprint"
+        return _local_story_blueprint(topic, tone), diagnostics
+    parsed = _extract_json_object(text)
+    if not parsed:
+        diagnostics["fallback_reason"] = "Gemini story blueprint was not valid JSON"
+        return _local_story_blueprint(topic, tone), diagnostics
+    diagnostics["used"] = "true"
+    return _normalize_story_blueprint(parsed, topic, tone), diagnostics
 
 
 def _office_scene_detail(index: int) -> str:
@@ -569,7 +738,8 @@ def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str
     podcast_tone = podcast_tone if podcast_tone in PODCAST_SCRIPT_TONES else "Vela After Work"
     narrator = narrator if narrator in PODCAST_NARRATORS else "Male"
     episode_length = episode_length if episode_length in PODCAST_EPISODE_LENGTHS else "10 min"
-    context = _story_context(topic, podcast_tone)
+    story_blueprint, provider_diagnostics = _generate_story_blueprint(topic, podcast_tone, episode_length)
+    context = story_blueprint["context"]
     title = _best_title(topic, podcast_tone)
     full_script = _full_script(topic, podcast_tone, narrator, episode_length, context=context)
     word_count = _word_count(_ai_voice_version(full_script))
@@ -593,7 +763,13 @@ def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str
             "target_word_count_min": WORD_TARGETS[episode_length]["min"],
             "target_word_count_max": WORD_TARGETS[episode_length]["max"],
             "style": "Vela After Work",
-            "story_engine": "Vela After Work Story Engine V4",
+            "story_engine": "Vela After Work AI Story Writer",
+            "story_blueprint_source": story_blueprint.get("source", "local_fallback"),
+            "story_provider": provider_diagnostics,
+            "story_arc": story_blueprint.get("story_arc", []),
+            "scene_breakdown": story_blueprint.get("scene_breakdown", []),
+            "resolution": story_blueprint.get("resolution", ""),
+            "takeaway": story_blueprint.get("takeaway", ""),
             "main_narrator": context["main_narrator"],
             "supporting_characters": [context["support_1"], context["support_2"], context["support_3"]],
             "office_location": context["location"],
