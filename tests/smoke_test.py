@@ -1297,15 +1297,25 @@ def main():
     assert_true(podcast_script_result["ok"], "Podcast Script Studio generation failed")
     podcast_script_package = podcast_script_result["data"]
     assert_true(set(REQUIRED_PODCAST_SCRIPT_SECTIONS).issubset(set(podcast_script_package)), "Podcast Script Studio missing output sections")
+    podcast_script_10_result = generate_podcast_script_package(
+        topic="คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ",
+        podcast_tone="Dark Humor",
+        narrator="Male",
+        episode_length="10 min",
+    )
+    assert_true(podcast_script_10_result["ok"], "Podcast Script Studio 10-minute generation failed")
     assert_true("Vela After Work" in PODCAST_SCRIPT_TONES and WORD_TARGETS["20 min"]["min"] >= 3500 and podcast_script_package["metadata"]["offline_safe"] is True and podcast_script_package["metadata"]["episode_length"] == "20 min", "Podcast Script Studio metadata failed")
     assert_true("Hello everyone" not in podcast_script_package["Cold Open"] and "วันนี้เราจะพูดถึง" not in podcast_script_package["Cold Open"], "Podcast Script Studio cold open is too robotic")
-    assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Setup]" in podcast_script_package["Full Podcast Script"] and "[Conflict]" in podcast_script_package["Full Podcast Script"] and "[Escalation]" in podcast_script_package["Full Podcast Script"] and "[Emotional Breakdown]" in podcast_script_package["Full Podcast Script"] and "[Reflection]" in podcast_script_package["Full Podcast Script"] and "[Takeaway]" in podcast_script_package["Full Podcast Script"] and "[Ending]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio V3 full story arc missing")
+    assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Act 1: The Ordinary Office Day]" in podcast_script_package["Full Podcast Script"] and "[Act 2: The Incident]" in podcast_script_package["Full Podcast Script"] and "[Act 3: The Awkward Silence]" in podcast_script_package["Full Podcast Script"] and "[Act 4: The Office Politics]" in podcast_script_package["Full Podcast Script"] and "[Act 5: The Breaking Point]" in podcast_script_package["Full Podcast Script"] and "[Act 6: After Work Reflection]" in podcast_script_package["Full Podcast Script"] and "[Ending]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio V4 full story arc missing")
     assert_true("[Cold Open]" not in podcast_script_package["AI Voice Version"] and "[Narrator Direction]" not in podcast_script_package["AI Voice Version"], "Podcast Script Studio AI voice version contains labels")
-    assert_true(podcast_script_package["metadata"]["word_count"] >= WORD_TARGETS["20 min"]["min"], "Podcast Script Studio V3 long-form word target failed")
+    assert_true(podcast_script_package["metadata"]["word_count"] >= WORD_TARGETS["20 min"]["min"] and podcast_script_package["metadata"]["word_count"] > podcast_script_10_result["data"]["metadata"]["word_count"] + 1200, "Podcast Script Studio V4 long-form word target failed")
     full_podcast_script = podcast_script_package["Full Podcast Script"]
     smoke_podcast_topic = "คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ"
-    assert_true(full_podcast_script.count(smoke_podcast_topic) <= 6, "Podcast Script Studio repeats topic too often")
+    assert_true(podcast_script_package_to_text(podcast_script_package).count(smoke_podcast_topic) <= 2, "Podcast Script Studio repeats topic too often in full package")
     assert_true("ผมจำได้ว่า" in full_podcast_script and "วันนั้น" in full_podcast_script and "ตอนนั้น" in full_podcast_script and "ผมนั่งอยู่" in full_podcast_script, "Podcast Script Studio lacks forced first-person story cues")
+    assert_true("เมย์" in full_podcast_script and "พี่นนท์" in full_podcast_script and ("พี่อร" in full_podcast_script or "HR" in full_podcast_script), "Podcast Script Studio lacks supporting office characters")
+    assert_true(any(line in full_podcast_script for line in ["\"อันนี้ใครเป็นคนทำ\"", "\"พี่ขอแก้นิดเดียวเอง\"", "\"ไม่เป็นไรใช่ไหม\"", "\"เดี๋ยวคุยกันหลังประชุม\""]), "Podcast Script Studio lacks realistic office dialogue")
+    assert_true("ห้องประชุมเงียบไปประมาณสามวินาที" in full_podcast_script and "รายงาน Excel" in full_podcast_script and "shared folder" in full_podcast_script, "Podcast Script Studio lacks concrete incident and office politics")
     assert_true(any(token in podcast_script_package["Cold Open"] for token in ["เครื่องชงกาแฟ", "ลิฟต์", "กาแฟ", "ประชุม", "จอ Excel", "แชตงาน", "ลานจอดรถ"]), "Podcast Script Studio cold open does not start from an office scene")
     assert_true(any(token in full_podcast_script for token in ["ลิฟต์", "กาแฟ", "จอ Excel", "แชตงาน", "ลานจอดรถ"]), "Podcast Script Studio lacks office scene narration")
     assert_true("Hello everyone" not in full_podcast_script and "ในบทความนี้" not in full_podcast_script and "โดยสรุป" not in full_podcast_script and "สิ่งที่ทำให้" not in full_podcast_script and "จุดเปลี่ยนคือ" not in full_podcast_script and "บทเรียนคือ" not in full_podcast_script, "Podcast Script Studio contains generic AI or self-help narration")
@@ -1313,7 +1323,7 @@ def main():
     assert_true(len(podcast_script_package["Shorts Extraction"]) == 10 and all({"timestamp", "hook", "script", "caption"}.issubset(item) for item in podcast_script_package["Shorts Extraction"]), "Podcast Script Studio shorts extraction failed")
     assert_true(podcast_script_package["Thumbnail Prompt"] and podcast_script_package["AI Video Prompt"] and "no watermark" in podcast_script_package["AI Video Prompt"], "Podcast Script Studio platform prompts missing")
     podcast_script_text = podcast_script_package_to_text(podcast_script_package)
-    assert_true("VELAFLOW PODCAST SCRIPT STUDIO V3" in podcast_script_text and "YOUTUBE PACKAGE" in podcast_script_text and "SPOTIFY PACKAGE" in podcast_script_text and "VIRAL RANT ENGINE" in podcast_script_text, "Podcast Script Studio TXT export failed")
+    assert_true("VELAFLOW PODCAST SCRIPT STUDIO V4" in podcast_script_text and "YOUTUBE PACKAGE" in podcast_script_text and "SPOTIFY PACKAGE" in podcast_script_text and "VIRAL RANT ENGINE" in podcast_script_text, "Podcast Script Studio TXT export failed")
     podcast_render_package = build_render_package("Smoke Podcast Project", "podcast", podcast_package, {"provider": "Luma", "aspect_ratio": "9:16", "duration": "10s", "quality": "Standard", "motion_intensity": "Low"}, podcast_package["visual_engine"])
     podcast_render_export = export_render_package("Smoke Podcast Project", podcast_render_package, out / "podcast_projects")
     assert_true(podcast_render_export["ok"] and "Luma" in Path(podcast_render_export["data"]["txt_path"]).read_text(encoding="utf-8"), "podcast render package export failed")

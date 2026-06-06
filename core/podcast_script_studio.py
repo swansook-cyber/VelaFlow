@@ -24,7 +24,7 @@ REQUIRED_PODCAST_SCRIPT_SECTIONS = [
 WORD_TARGETS = {
     "10 min": {"min": 1500, "max": 2000, "target": 1650, "shorts": 10},
     "20 min": {"min": 3500, "max": 4300, "target": 3700, "shorts": 10},
-    "30 min": {"min": 4500, "max": 6000, "target": 4800, "shorts": 10},
+    "30 min": {"min": 5000, "max": 6200, "target": 5200, "shorts": 10},
 }
 
 
@@ -131,6 +131,26 @@ def _topic_aliases() -> list[str]:
     ]
 
 
+def _story_context(topic: str, tone: str) -> dict[str, str]:
+    return {
+        "topic": topic,
+        "main_narrator": "ผม",
+        "support_1": "เมย์",
+        "support_1_role": "รุ่นน้องฝ่ายคอนเทนต์ที่ชอบขอโทษก่อนอธิบาย",
+        "support_2": "พี่นนท์",
+        "support_2_role": "หัวหน้าทีมที่พูดเบา แต่ทำให้ทั้งห้องเกร็งได้",
+        "support_3": "พี่อร",
+        "support_3_role": "HR ที่มักส่งข้อความด้วยถ้อยคำสุภาพจนอ่านแล้วเหนื่อยกว่าเดิม",
+        "location": "ห้องประชุมกระจกข้าง pantry ชั้นสิบสอง",
+        "incident": "รายงาน Excel เมื่อวานถูกเปิดขึ้นกลางประชุม แล้วชื่อคนทำงานจริงหายไปจากสไลด์สรุป",
+        "first_message": "ขอคุยเรื่องรายงานเมื่อวานหน่อย",
+        "politics": "ทุกคนรู้ว่าไฟล์ถูกแก้หลายรอบ แต่ไม่มีใครอยากพูดว่าใครเป็นคนสั่งแก้ เพราะคนสั่งแก้นั่งอยู่หัวโต๊ะ",
+        "peak": "ห้องประชุมเงียบไปประมาณสามวินาที หลังจากพี่นนท์ถามว่า อันนี้ใครเป็นคนทำ",
+        "after_work_place": "ลานจอดรถหลังฝนตก",
+        "tone": tone,
+    }
+
+
 def _office_scene_detail(index: int) -> str:
     scenes = [
         "ตอนนั้นไฟฟลูออเรสเซนต์บนเพดานยังสว่างเกินไป ทั้งที่คนในแผนกเริ่มกลับกันเกือบหมดแล้ว",
@@ -172,9 +192,33 @@ def _human_transition(section: str, narrator: str, index: int) -> str:
             f"{pronoun}ไม่ได้อยากให้เรื่องนี้จบด้วยคำสอนสวย ๆ แค่อยากให้มันจบด้วยความซื่อสัตย์กับตัวเองมากขึ้น",
             "บางทีการดูแลใจตัวเองไม่ได้เริ่มจากการลาออก แต่มันเริ่มจากการยอมรับว่าเราเหนื่อยจริง",
         ],
+        "Act 1: The Ordinary Office Day": [
+            f"ผมจำได้ว่าวันนั้นมันเริ่มธรรมดามาก ธรรมดาจนถ้าไม่มีเรื่องหลังจากนั้น ผมคงลืมไปแล้วด้วยซ้ำ",
+            f"ตอนนั้นผมนั่งอยู่กับเสียงแอร์ เสียงคีย์บอร์ด และความรู้สึกเล็ก ๆ ว่าวันนี้อาจไม่จบง่าย",
+        ],
+        "Act 2: The Incident": [
+            f"พอไฟล์ถูกเปิดขึ้นบนจอ ผมรู้ทันทีว่ามีบางอย่างหายไป และมันไม่ใช่แค่ชื่อในสไลด์",
+            f"เหตุการณ์จริงเริ่มตรงนั้น ตรงที่ทุกคนเห็นเหมือนกัน แต่ไม่มีใครอยากเป็นคนแรกที่พูด",
+        ],
+        "Act 3: The Awkward Silence": [
+            f"ผมไม่ได้ตอบทันที เพราะความเงียบในห้องนั้นมันเหมือนมีน้ำหนักของมันเอง",
+            f"ห้องประชุมเงียบไปประมาณสามวินาที และสามวินาทีนั้นทำให้ผมเข้าใจว่าออฟฟิศบางทีก็ดังที่สุดตอนไม่มีใครพูด",
+        ],
+        "Act 4: The Office Politics": [
+            f"หลังจากนั้นเรื่องไม่ได้อยู่ที่ไฟล์แล้ว แต่อยู่ที่ว่าใครมีสิทธิ์พูดความจริงโดยไม่ถูกมองว่าเรื่องมาก",
+            f"ผมเริ่มเห็นเกมเล็ก ๆ ในออฟฟิศชัดขึ้น เกมที่ไม่มีใครบอกว่ากำลังเล่น แต่ทุกคนรู้กติกา",
+        ],
+        "Act 5: The Breaking Point": [
+            f"จังหวะที่ผมเริ่มไม่ไหวไม่ได้ดังเลย มันเป็นแค่ประโยคเบา ๆ จากคนที่เหนื่อยมานาน",
+            f"ตอนนั้นผมนั่งอยู่เฉย ๆ แต่ข้างในเหมือนมีอะไรบางอย่างเดินมาถึงเส้นสุดท้าย",
+        ],
+        "Act 6: After Work Reflection": [
+            f"หลังเลิกงาน ผมไม่ได้รู้สึกชนะหรือแพ้ ผมแค่รู้สึกว่าเรื่องนั้นยังเดินตามผมออกมาถึงลานจอดรถ",
+            f"พอออกจากตึก ผมถึงเพิ่งได้ยินความคิดตัวเองชัดขึ้นกว่าทั้งวัน",
+        ],
         "Ending": [
-            f"คืนนี้ถ้าคุณฟังอยู่ระหว่างเดินทางกลับบ้าน {pronoun}อยากให้คุณรู้ว่าความรู้สึกนี้มีที่วาง",
-            "และถ้าพรุ่งนี้ยังต้องกลับไปที่เดิม อย่างน้อยคืนนี้เราไม่ต้องโกหกตัวเองว่าทุกอย่างเบา",
+            f"คืนนี้ถ้าคุณฟังอยู่ระหว่างเดินทางกลับบ้าน {pronoun}จะเล่าให้จบแบบที่เพื่อนร่วมงานคนหนึ่งพูดกับอีกคนหลังปิดคอม",
+            "และถ้าพรุ่งนี้ยังต้องกลับไปที่เดิม เรื่องนี้ก็ยังควรถูกจำในแบบที่มันเกิดขึ้นจริง",
         ],
     }
     options = transitions.get(section, transitions["Reflection"])
@@ -219,11 +263,18 @@ def _section_bank_key(section: str) -> str:
         "Emotional Breakdown": "Act 3: Emotional Breakdown",
         "Reflection": "Act 4: Reflection",
         "Takeaway": "Act 5: Takeaway",
+        "Act 1: The Ordinary Office Day": "Act 1: The Ordinary Office Day",
+        "Act 2: The Incident": "Act 2: The Incident",
+        "Act 3: The Awkward Silence": "Act 3: The Awkward Silence",
+        "Act 4: The Office Politics": "Act 4: The Office Politics",
+        "Act 5: The Breaking Point": "Act 5: The Breaking Point",
+        "Act 6: After Work Reflection": "Act 6: After Work Reflection",
         "Ending": "Ending",
     }.get(section, section)
 
 
-def _cold_open(topic: str, tone: str) -> str:
+def _cold_open(topic: str, tone: str, context: dict[str, str] | None = None) -> str:
+    context = context or _story_context(topic, tone)
     if tone == "Dark Humor":
         specific = "ถ้าชีวิตการทำงานมีปุ่ม mute เราคงกดค้างไว้ตั้งแต่บ่ายสาม"
     elif tone == "Office Rant":
@@ -232,15 +283,64 @@ def _cold_open(topic: str, tone: str) -> str:
         specific = "บางวันเราเดินออกจากออฟฟิศแล้วรู้สึกเหมือนยังมีทั้งห้องประชุมเดินตามกลับบ้าน"
     return "\n".join(
         [
-            "ผมจำได้ว่าวันนั้นผมยืนอยู่หน้าเครื่องชงกาแฟในออฟฟิศตอนเช้า เสียงเครื่องบดกาแฟดังกลบเสียงแชตงานที่เด้งขึ้นมาพอดี",
+            "เช้าวันนั้น ผมเดินเข้าลิฟต์พร้อมกาแฟแก้วเดิมในมือ",
+            "หน้าจอมือถือเด้งแจ้งเตือนจากกรุ๊ปงานตั้งแต่ยังไม่ถึงโต๊ะ",
+            f"ประโยคแรกที่ผมเห็นคือ \"{context['first_message']}\"",
+            f"ผมยืนอ่านมันอยู่ใต้ไฟฟลูออเรสเซนต์ที่สว่างเกินจำเป็น แล้วได้ยินเสียงเครื่องปรับอากาศในลิฟต์ดังเหมือนกำลังช่วยกลบความเงียบ",
+            f"วันนั้นมี {context['support_1']} ยืนอยู่ข้างผม เธอมองหน้าจอของตัวเองแล้วพูดเบา ๆ ว่า \"พี่เห็นแชตหรือยัง\"",
+            f"ผมไม่ได้ตอบทันที เพราะในหัวผมกำลังนึกถึง {context['incident']}",
             specific,
-            "ไม่ใช่เพราะงานชิ้นเดียว ไม่ใช่เพราะแชตเดียว และไม่ใช่เพราะใครคนเดียวเสมอไป",
-            "แต่มันคือการสะสมของประโยคเล็ก ๆ สีหน้าสั้น ๆ และความเงียบที่เราต้องกลืนไว้ทั้งวัน",
-            "คืนนี้ผมไม่ได้จะทำให้เรื่องนี้ดูเก่งหรือดูมีคำตอบครบ",
-            "เรามาเล่าเรื่องที่หลายคนคิดหลังปิดคอม แต่ไม่ค่อยพูดออกมาดัง ๆ",
-            "ถ้าคุณเคยยิ้มทั้งวัน แล้วกลับมาถามตัวเองว่าเราไหวจริงไหม ตอนนี้คุณไม่ได้ฟังอยู่คนเดียว",
+            "นี่ไม่ใช่เรื่องสอนใจ ไม่ใช่เรื่องให้ใครเลือกข้าง และไม่ใช่เรื่องดราม่าใหญ่โต",
+            "มันเป็นแค่เช้าวันทำงานธรรมดา ที่ค่อย ๆ ทำให้คนคนหนึ่งรู้ว่าความเงียบในออฟฟิศบางทีมันเสียงดังมาก",
         ]
     )
+
+
+def _story_act_bank(section: str, context: dict[str, str]) -> list[str]:
+    return {
+        "Act 1: The Ordinary Office Day": [
+            f"ผมนั่งอยู่หน้าโต๊ะทำงานตอนนั้น แก้วกาแฟยังวางอยู่ข้างคีย์บอร์ด และจอ Excel ก็เปิดค้างอยู่เหมือนทุกเช้า {context['support_1']} เดินผ่านโต๊ะผมพร้อมแฟ้มเอกสารบาง ๆ แล้วทำหน้าที่คนในออฟฟิศรู้กันว่า แปลว่าอยากพูดแต่ยังไม่แน่ใจว่าควรพูดไหม",
+            f"วันนั้นเริ่มธรรมดามากจนเกือบน่าขำ เครื่องพิมพ์ติดกระดาษ เสียงแอร์ดังเกินไป โต๊ะข้าง ๆ คุยเรื่องร้านข้าวเที่ยง และใน shared folder มีไฟล์ชื่อ final_v7 ที่ทุกคนรู้ว่าไม่น่าจะ final จริง {context['support_2']} เดินเข้ามาพร้อมแก้วกาแฟดำ แล้วถามว่า \"รายงานเมื่อวานอยู่ไหนนะ\" ด้วยเสียงที่ฟังเหมือนไม่มีอะไร แต่ทำให้หลังผมตรงขึ้นเอง",
+            f"{context['support_1']} เป็นคนรวบรวมตัวเลขเกือบทั้งหมดเมื่อคืน เธอส่งไฟล์ตอนสามทุ่มกว่า แล้วพิมพ์ต่อท้ายว่า ถ้ามีอะไรแก้บอกได้นะคะ ประโยคสุภาพแบบนั้นในออฟฟิศบางทีมันไม่ได้แปลว่าเต็มใจเสมอไป มันแปลว่า เหนื่อยแล้วแต่ยังไม่กล้าปิดคอม",
+            f"ผมจำได้ว่าตอนนั้น HR ส่งข้อความเข้ากรุ๊ปใหญ่เรื่องกิจกรรมสร้างความสัมพันธ์ในทีมพอดี ข้อความของ {context['support_3']} สุภาพมาก มี emoji ยิ้มหนึ่งตัว และบอกว่าอยากให้ทุกคนเปิดใจคุยกัน ผมอ่านแล้วเกือบหัวเราะ เพราะอีกห้านาทีต่อมา เรากำลังจะเข้าห้องประชุมที่ไม่มีใครเปิดใจจริง ๆ สักคน",
+        ],
+        "Act 2: The Incident": [
+            f"เหตุการณ์เริ่มตอน {context['support_2']} เปิดสไลด์สรุปบนจอใหญ่ แล้วเลื่อนไปถึงหน้าที่มีกราฟยอดขายรายสัปดาห์ ผมเห็นทันทีว่าชื่อคนเตรียมข้อมูลหายไป เหลือแค่ชื่อคนพรีเซนต์กับโลโก้ทีมที่ดูสะอาดเกินจริง",
+            f"เมย์นั่งอยู่ฝั่งตรงข้ามผม เธอมองจอประมาณสองวินาที แล้วก้มหน้าจดอะไรลงสมุด ทั้งที่ผมรู้ว่าเธอไม่ได้จด เธอแค่ต้องหาอะไรทำกับมือ เพื่อไม่ให้สีหน้าตัวเองตอบแทนปาก",
+            f"{context['support_2']} หันมาถามห้องว่า \"อันนี้ใครเป็นคนทำ\" คำถามสั้นมาก แต่ทำให้เสียงแอร์ดังขึ้นทันทีแบบประหลาด ห้องประชุมเงียบไปประมาณสามวินาที ไม่มีใครมองใครตรง ๆ และสามวินาทีนั้นยาวกว่า deadline ทั้งสัปดาห์",
+            f"ผมไม่ได้ตอบทันที เพราะคำตอบจริงมันไม่สวย เมย์ทำข้อมูล ผมช่วยเช็กสูตร พี่อีกคนแก้สไลด์ตอนดึก และคนที่กำลังถามอยู่ก็เป็นคนบอกให้ตัดชื่อออกเพราะอยากให้หน้าสรุปดู clean ขึ้น แต่ในห้องประชุม ไม่มีใครพูดคำว่า clean ด้วยความหมายเดียวกัน",
+        ],
+        "Act 3: The Awkward Silence": [
+            f"ความเงียบหลังคำถามนั้นไม่ได้ว่างเปล่า มันมีเสียงเก้าอี้ขยับ เสียงปากกากระทบโต๊ะ และเสียง notification ที่ไม่มีใครกล้าหยิบขึ้นมาดู ผมนั่งอยู่ตรงนั้นแล้วรู้สึกเหมือนทั้งห้องกำลังรอให้ใครสักคนยอมรับบทคนผิด",
+            f"{context['support_1']} เงยหน้าขึ้นนิดหนึ่งแล้วพูดว่า \"หนูทำไฟล์ตัวเลขค่ะ แต่สไลด์น่าจะมีคนช่วยปรับต่อ\" ประโยคนั้นสุภาพมาก สุภาพจนเจ็บ เพราะมันพยายามบอกความจริงโดยไม่ให้ใครเสียหน้า และในออฟฟิศ การไม่ให้ใครเสียหน้าบางทีแปลว่าเราต้องยอมเสียความรู้สึกเอง",
+            f"{context['support_2']} พยักหน้าแล้วพูดว่า \"โอเค งั้นเดี๋ยวคุยกันหลังประชุม\" ไม่มีเสียงดุ ไม่มีคำแรง แต่ทุกคนในห้องรู้ทันทีว่า หลังประชุม ไม่ได้แปลว่าคุยกันเฉย ๆ มันแปลว่ามีบางคนต้องอธิบาย และบางคนจะยืนดูเหมือนไม่เกี่ยว",
+            f"ผมมองไฟล์บนจออีกครั้ง เห็น cursor กระพริบอยู่ท้ายชื่อไฟล์ เหมือนมันกำลังถามแทนผมว่าเราจะปล่อยให้เรื่องนี้ผ่านไปเหมือนทุกครั้งไหม หรือวันนี้จะมีใครพูดอะไรที่ตรงกว่าคำว่า ไม่เป็นไร",
+        ],
+        "Act 4: The Office Politics": [
+            f"การเมืองในออฟฟิศไม่จำเป็นต้องมีคนตะโกน มันอยู่ในประโยคอย่าง \"พี่ขอแก้นิดเดียวเอง\" อยู่ในชื่อที่หายไปจากสไลด์ อยู่ในคนที่ถูกขอบคุณตอนประชุมใหญ่ และคนที่ถูกเรียกไปแก้ไฟล์ตอนสามทุ่มโดยไม่มีใครจำได้ในเช้าวันถัดมา",
+            f"หลังประชุม {context['support_3']} เดินผ่านหน้าห้องแล้วถามว่า \"ไม่เป็นไรใช่ไหม\" คำถามนั้นฟังดูห่วงใย แต่ก็เป็นคำถามที่ปิดทางตอบมากพอสมควร เพราะถ้าตอบว่าไม่เป็นไร ทุกอย่างก็จบ ถ้าตอบว่าเป็น ก็เหมือนเราเป็นคนทำให้บรรยากาศเสีย",
+            f"ผมเห็นเมย์เก็บสมุดใส่กระเป๋าช้า ๆ เธอไม่ได้ร้องไห้ ไม่ได้ทำหน้าโกรธ แค่เงียบแบบคนที่เริ่มเข้าใจว่าบางงานไม่ได้เหนื่อยเพราะงาน แต่มันเหนื่อยเพราะต้องคอยวัดว่าความจริงพูดได้ดังแค่ไหน",
+            f"{context['politics']} นี่แหละที่ทำให้เรื่องเล็กกลายเป็นเรื่องค้างในใจ ไม่ใช่เพราะกราฟ ไม่ใช่เพราะเครดิตบรรทัดเดียว แต่เพราะทุกคนเห็นเหมือนกัน แล้วพร้อมใจกันทำเหมือนไม่เห็น",
+        ],
+        "Act 5: The Breaking Point": [
+            f"จุดที่ผมเริ่มไม่ไหวไม่ได้เกิดในห้องประชุม แต่มาเกิดตอนเที่ยงที่โต๊ะกินข้าว เมย์นั่งเขี่ยข้าวในจานแล้วพูดเบา ๆ ว่า \"หนูไม่รู้ว่าครั้งหน้าควรทำเต็มที่แค่ไหน\" ประโยคนั้นทำให้ผมวางช้อนลง",
+            f"มันไม่ใช่ประโยคของคนขี้เกียจ มันเป็นประโยคของคนที่เคยตั้งใจ แล้วเริ่มกลัวว่าความตั้งใจของตัวเองจะถูกใช้จนหมดโดยไม่มีใครเห็น ผมฟังแล้วนึกถึงตัวเองหลายปีก่อน ตอนที่ยังคิดว่าถ้าเราทำดีพอ ระบบจะจำเราได้เอง",
+            f"บ่ายนั้นแชตงานเด้งขึ้นมาอีกครั้ง {context['support_2']} ส่งข้อความว่า \"แก้ชื่อไฟล์ให้ตรง version ล่าสุดด้วยนะ\" ไม่มีคำขอโทษ ไม่มีการพูดถึงชื่อที่หายไป ไม่มีใครพูดถึงสามวินาทีในห้องประชุม เหมือนทุกอย่างถูกพับเก็บไว้ใน folder เดิม",
+            f"ผมพิมพ์คำว่า รับทราบ ค้างไว้เกือบนาที แล้วลบออก ผมไม่ได้อยากมีเรื่อง แต่วันนั้นผมก็ไม่อยากเป็นคนที่ช่วยทำให้ทุกอย่างดูปกติอีก ผมเลยพิมพ์กลับไปว่า \"ขอใส่ชื่อคนเตรียมข้อมูลไว้ใน note ของสไลด์ด้วยนะครับ จะได้ตามงานถูก\" แค่นั้นเอง แค่นั้นจริง ๆ แต่สำหรับวันนั้น มันเหมือนยกโต๊ะทั้งตัวออกจากอก",
+        ],
+        "Act 6: After Work Reflection": [
+            f"หลังเลิกงาน ผมเดินไปที่ {context['after_work_place']} ฝนเพิ่งหยุดตก พื้นยังสะท้อนแสงไฟจากตึก และมือถือผมยังมีข้อความที่ยังไม่ได้อ่านอีกหลายอัน ผมไม่ได้เปิดดูทันที เพราะบางครั้งเราต้องให้ตัวเองได้ยืนเฉย ๆ ก่อนจะกลับไปเป็นคนตอบไว",
+            f"ผมคิดถึงเมย์ คิดถึงสีหน้าของเธอที่ไม่ได้แตกสลาย แต่มันแบนลง เหมือนความรู้สึกถูกลด resolution เพื่อให้ส่งต่อในที่ทำงานได้ง่ายขึ้น ผมคิดถึงพี่นนท์ด้วย ไม่ใช่ในฐานะตัวร้าย แต่ในฐานะคนที่อยู่ในระบบมานานจนบางทีแยกไม่ออกแล้วว่าอะไรคือความสะดวก และอะไรคือการลบคนอื่นออกจากเรื่อง",
+            f"เรื่องแบบนี้มันเหนื่อยเพราะไม่มีฉากใหญ่ให้ชี้ ไม่มีประโยคหยาบให้แคป ไม่มีหลักฐานที่ดูดราม่าพอ มันมีแค่บรรยากาศในห้องประชุม ความเงียบหลังจากนั้น และคำถามที่กลับมาหาเราตอนขับรถว่า วันนี้เราปล่อยอะไรผ่านไปอีกแล้วหรือเปล่า",
+            f"ผมไม่ได้กลับบ้านพร้อมคำตอบเท่มากมาย ผมแค่กลับบ้านพร้อมความรู้สึกว่า ครั้งหน้าถ้ามีชื่อใครหายไปจากงานที่เขาทำ ผมอาจต้องพูดให้เร็วขึ้นนิดหนึ่ง ไม่ใช่เพื่อเป็นคนกล้า แต่เพื่อไม่ให้ความเงียบกลายเป็นระบบอีกชั้นหนึ่ง",
+        ],
+        "Ending": [
+            f"ตอนนี้ถ้าคุณกำลังฟังอยู่หลังเลิกงาน บางทีคุณอาจไม่ได้มีเรื่องเดียวกับผม แต่คุณอาจรู้จักบรรยากาศแบบเดียวกัน บรรยากาศที่ไม่มีใครทำร้ายเราตรง ๆ แต่เรากลับเหนื่อยเหมือนโดนอะไรบางอย่างขูดอยู่ทั้งวัน",
+            f"ผมไม่อยากจบตอนนี้ด้วยคำแนะนำสวย ๆ เพราะเรื่องในออฟฟิศบางเรื่องไม่ได้ต้องการคำคม มันต้องการคนจำรายละเอียดให้ได้ จำว่าใครทำงาน จำว่าใครเงียบ จำว่าใครถูกตัดออกจากเครดิต และจำว่าเราเองเคยรู้สึกอย่างไรตอนนั่งอยู่ในห้องนั้น",
+            f"พรุ่งนี้อาจมีประชุมอีก ไฟ Excel อาจยังเปิดค้าง และกรุ๊ปงานอาจเด้งตั้งแต่เช้าเหมือนเดิม แต่คืนนี้อย่างน้อยเราพูดเรื่องนี้ออกมาแล้ว แบบคนทำงานคนหนึ่งเล่าให้เพื่อนร่วมงานอีกคนฟังหลังปิดคอม",
+            "แล้วเจอกันหลังเลิกงานครั้งหน้า กับเรื่องที่อาจไม่ได้อยู่ในรายงาน แต่ค้างอยู่ในใจคนทำงานหลายคน",
+        ],
+    }[section]
 
 
 def _paragraph_bank(topic: str, tone: str) -> dict[str, list[str]]:
@@ -285,8 +385,20 @@ def _paragraph_bank(topic: str, tone: str) -> dict[str, list[str]]:
     }
 
 
-def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int, narrator: str = "Male", start_index: int = 0) -> str:
-    bank = _paragraph_bank(topic, tone)[_section_bank_key(section)]
+def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int, narrator: str = "Male", start_index: int = 0, context: dict[str, str] | None = None) -> str:
+    section_key = _section_bank_key(section)
+    if context and section_key in {
+        "Act 1: The Ordinary Office Day",
+        "Act 2: The Incident",
+        "Act 3: The Awkward Silence",
+        "Act 4: The Office Politics",
+        "Act 5: The Breaking Point",
+        "Act 6: After Work Reflection",
+        "Ending",
+    }:
+        bank = _story_act_bank(section_key, context)
+    else:
+        bank = _paragraph_bank(topic, tone)[section_key]
     rows = []
     for index in range(paragraphs_needed):
         base = bank[index % len(bank)]
@@ -296,28 +408,38 @@ def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int,
                 "และนั่นอาจเป็นจุดเริ่มต้นเล็ก ๆ ของการกลับมาฟังตัวเอง หลังจากฟังเสียงคนอื่นมาทั้งวัน",
                 "บางทีคำตอบไม่ได้อยู่ที่การหนีไปไหน แต่อยู่ที่การเห็นให้ชัดว่าอะไรที่เราไม่ควรปล่อยให้กลายเป็นเรื่องปกติอีกแล้ว",
             ][index % 3]
-        rows.append(_humanize_paragraph(base, section, topic, tone, narrator, start_index + index))
+        rows.append(_humanize_paragraph(base, section_key, topic, tone, narrator, start_index + index))
     return "\n\n".join(rows)
 
 
-def _full_script(topic: str, tone: str, narrator: str, length: str) -> str:
+def _full_script(topic: str, tone: str, narrator: str, length: str, context: dict[str, str] | None = None) -> str:
+    context = context or _story_context(topic, tone)
     target = WORD_TARGETS.get(length, WORD_TARGETS["10 min"])["target"]
-    sections = ["Cold Open", "Setup", "Conflict", "Escalation", "Emotional Breakdown", "Reflection", "Takeaway", "Ending"]
-    paragraphs_by_section = max(3, target // 420)
-    blocks = [f"[Cold Open]\n{_cold_open(topic, tone)}"]
+    sections = [
+        "Cold Open",
+        "Act 1: The Ordinary Office Day",
+        "Act 2: The Incident",
+        "Act 3: The Awkward Silence",
+        "Act 4: The Office Politics",
+        "Act 5: The Breaking Point",
+        "Act 6: After Work Reflection",
+        "Ending",
+    ]
+    paragraphs_by_section = max(3, target // 440)
+    blocks = [f"[Cold Open]\n{_cold_open(topic, tone, context)}"]
     section_offset = 0
     for section in sections[1:]:
-        extra = 1 if section in {"Escalation", "Emotional Breakdown", "Takeaway"} else 0
+        extra = 1 if section in {"Act 3: The Awkward Silence", "Act 4: The Office Politics", "Act 5: The Breaking Point"} else 0
         count = paragraphs_by_section + extra
-        blocks.append(f"[{section}]\n{_expand_section(section, topic, tone, count, narrator=narrator, start_index=section_offset)}")
+        blocks.append(f"[{section}]\n{_expand_section(section, topic, tone, count, narrator=narrator, start_index=section_offset, context=context)}")
         section_offset += count
     voice_note = f"\n\n[Narrator Direction]\n{_narrator_voice(narrator)}"
     script = _avoid_topic_repeat("\n\n".join(blocks) + voice_note, topic)
-    extension_sections = ["Conflict", "Escalation", "Emotional Breakdown", "Reflection", "Takeaway", "Ending"]
+    extension_sections = ["Act 2: The Incident", "Act 3: The Awkward Silence", "Act 4: The Office Politics", "Act 5: The Breaking Point", "Act 6: After Work Reflection", "Ending"]
     extension_index = 0
     while _word_count(script) < target:
         section = extension_sections[extension_index % len(extension_sections)]
-        script += "\n\n" + _expand_section(section, topic, tone, 1, narrator=narrator, start_index=section_offset + extension_index)
+        script += "\n\n" + _expand_section(section, topic, tone, 1, narrator=narrator, start_index=section_offset + extension_index, context=context)
         script = _avoid_topic_repeat(script, topic)
         extension_index += 1
     return script
@@ -358,18 +480,31 @@ def _rant_versions(topic: str) -> dict[str, str]:
     }
 
 
-def _shorts(topic: str, count: int) -> list[dict[str, str]]:
+def _shorts(topic: str, count: int, context: dict[str, str] | None = None) -> list[dict[str, str]]:
+    context = context or _story_context(topic, "Vela After Work")
     hooks = [
-        "งานไม่ได้จบตอนเลิกงาน ถ้าใจยังประชุมต่อ",
-        "บางคนไม่ได้หมดไฟ เขาแค่หมดแรงจะอธิบาย",
-        "เคยยิ้มทั้งวัน แล้วพังตอนอยู่คนเดียวไหม",
-        "สิ่งที่คนทำงานไม่ค่อยพูด คือเราเหนื่อยกับการทำตัวโอเค",
-        "POV: แชตเดียวทำให้คุณคิดทั้งคืน",
-        "ไม่ได้อยากลาออก แค่อยากหายใจในที่ทำงาน",
-        "ออฟฟิศสอนให้เราเก่ง แต่บางทีก็สอนให้เราเงียบเกินไป",
-        "คำว่าไม่เป็นไร บางครั้งแปลว่าไม่ไหวแล้ว",
-        "ประชุมจบ แต่ความรู้สึกยังไม่จบ",
-        "หลังปิดคอม ความจริงบางอย่างเพิ่งเริ่มดัง",
+        "ห้องประชุมเงียบไปสามวินาที แล้วทุกคนรู้ว่าเรื่องไม่จบ",
+        "ประโยคว่า อันนี้ใครเป็นคนทำ ทำให้ทั้งห้องไม่กล้ามองหน้ากัน",
+        "ชื่อคนทำงานหายไปจากสไลด์ แต่ความเหนื่อยไม่ได้หายไปด้วย",
+        "เมย์พูดว่า หนูไม่รู้ว่าครั้งหน้าควรทำเต็มที่แค่ไหน แล้วโต๊ะกินข้าวก็เงียบ",
+        "คำว่า เดี๋ยวคุยกันหลังประชุม บางทีน่ากลัวกว่าการถูกดุ",
+        "พี่ขอแก้นิดเดียวเอง คือประโยคที่ทำให้คนทำงานนอนดึกได้ทั้งคืน",
+        "HR ถามว่า ไม่เป็นไรใช่ไหม และทุกคนรู้ว่าคำตอบที่ปลอดภัยคืออะไร",
+        "ผมพิมพ์ รับทราบ ค้างไว้ แล้วลบออกเป็นครั้งแรก",
+        "เรื่องนี้ไม่ได้ดัง แต่มันทำให้คนหนึ่งหมดแรงจะตั้งใจ",
+        "หลังเลิกงานที่ลานจอดรถ ผมเพิ่งรู้ว่าเรื่องในห้องประชุมยังเดินตามมา",
+    ]
+    scripts = [
+        f"ผมจำได้ว่าตอน {context['support_2']} ถามว่า \"อันนี้ใครเป็นคนทำ\" ห้องประชุมเงียบไปประมาณสามวินาที ไม่มีใครขยับเมาส์ ไม่มีใครจิบน้ำ และสามวินาทีนั้นทำให้เห็นชัดว่าในออฟฟิศ บางครั้งทุกคนรู้ความจริงพร้อมกัน แต่ไม่มีใครอยากเป็นคนแรกที่พูด",
+        f"เมย์ไม่ได้โวยวาย เธอแค่พูดว่า \"หนูทำไฟล์ตัวเลขค่ะ แต่สไลด์น่าจะมีคนช่วยปรับต่อ\" ประโยคนี้สุภาพมาก สุภาพจนเจ็บ เพราะมันพยายามรักษาหน้าทุกคน ยกเว้นความรู้สึกของคนพูดเอง",
+        f"เรื่องมันเริ่มจาก {context['incident']} ถ้ามองผ่าน ๆ อาจเป็นแค่สไลด์หนึ่งหน้า แต่สำหรับคนที่นั่งแก้สูตรจนสามทุ่ม มันคือชื่อของตัวเองที่ถูกลบออกจากเรื่อง",
+        "ตอนเที่ยง เมย์เขี่ยข้าวในจานแล้วพูดว่า \"หนูไม่รู้ว่าครั้งหน้าควรทำเต็มที่แค่ไหน\" ผมวางช้อนลงเลย เพราะนั่นไม่ใช่เสียงของคนขี้เกียจ มันคือเสียงของคนที่เคยตั้งใจแล้วเริ่มไม่แน่ใจว่าความตั้งใจมีที่อยู่ไหม",
+        "\"เดี๋ยวคุยกันหลังประชุม\" เป็นประโยคที่ฟังสุภาพ แต่คนทำงานรู้ดีว่ามันไม่ได้แปลว่าคุยเฉย ๆ มันแปลว่าจะมีใครบางคนต้องอธิบาย ในขณะที่อีกหลายคนทำเหมือนไม่เกี่ยว",
+        "ในออฟฟิศ ประโยคว่า \"พี่ขอแก้นิดเดียวเอง\" บางทีไม่ได้เล็กตามคำพูด เพราะมันอาจหมายถึงแก้ไฟล์ตอนสามทุ่ม แก้ชื่อคนทำงานออก และแก้ความรู้สึกของคนหนึ่งให้เงียบลง",
+        f"{context['support_3']} ถามว่า \"ไม่เป็นไรใช่ไหม\" คำถามนี้ดูห่วงใย แต่ก็ปิดทางตอบมากพอสมควร เพราะถ้าตอบว่าไม่เป็นไร ทุกอย่างก็จบ ถ้าตอบว่าเป็น เราอาจกลายเป็นคนทำให้บรรยากาศเสีย",
+        "ผมพิมพ์คำว่า รับทราบ ค้างไว้เกือบนาที แล้วลบออก วันนั้นผมไม่ได้อยากเป็นฮีโร่ แค่ไม่อยากช่วยทำให้ความเงียบกลายเป็นระบบอีกชั้นหนึ่ง",
+        "เรื่องแบบนี้ไม่ค่อยมีหลักฐานที่ดูดราม่า มันมีแค่บรรยากาศในห้องประชุม สีหน้าของคนที่ถูกตัดเครดิต และความรู้สึกว่าถ้าพูดตรง ๆ เราจะกลายเป็นคนเรื่องมากไหม",
+        f"หลังเลิกงาน ผมยืนอยู่ที่ {context['after_work_place']} ฝนเพิ่งหยุดตก มือถือยังมี unread messages แต่ผมยังไม่เปิดดู เพราะบางครั้งเราต้องยืนเฉย ๆ ก่อนกลับไปเป็นคนตอบไวอีกครั้ง",
     ]
     items = []
     for index, hook in enumerate(hooks[:count], start=1):
@@ -380,46 +515,50 @@ def _shorts(topic: str, count: int) -> list[dict[str, str]]:
                 "timestamp": f"{start}-{end}",
                 "hook": hook,
                 "caption": f"เรื่องนี้คนทำงานน่าจะเข้าใจ #{index} #VelaAfterWork",
-                "script": f"{hook}\n\nเรื่องนี้ไม่ใช่แค่เรื่อง {topic} แต่มันคือความรู้สึกของคนที่ต้องดูโอเคทั้งวัน ทั้งที่ข้างในอยากมีใครสักคนถามว่าเหนื่อยไหมแบบที่พร้อมฟังจริง ๆ",
+                "script": f"{hook}\n\n{scripts[(index - 1) % len(scripts)]}",
             }
         )
     return items
 
 
-def _youtube_package(title: str, topic: str, tone: str) -> dict[str, str]:
+def _youtube_package(title: str, topic: str, tone: str, context: dict[str, str] | None = None) -> dict[str, str]:
+    context = context or _story_context(topic, tone)
     return {
         "YouTube Title": title,
         "YouTube Description": (
-            f"Vela After Work ตอนนี้เล่าเรื่อง {topic} ผ่านโทน {tone} สำหรับคนทำงานที่มีเรื่องหลังเลิกงานค้างอยู่ในใจ\n\n"
-            "นี่ไม่ใช่พอดแคสต์สอนให้เก่งขึ้นทันที แต่เป็นพื้นที่ให้เรายอมรับความเหนื่อย ความตลกร้าย และเรื่องที่พูดยากในที่ทำงาน\n\n"
-            "ฟังช้า ๆ แล้วกลับไปใจดีกับตัวเองอีกนิด"
+            f"Vela After Work ตอนนี้เป็นเรื่องเล่าในออฟฟิศโทน {tone} เกี่ยวกับรายงาน Excel หนึ่งไฟล์ ชื่อคนทำงานที่หายไปจากสไลด์ "
+            f"และความเงียบใน {context['location']} ที่ทำให้ทุกคนรู้ว่าเรื่องเล็กไม่ได้เล็กเสมอไป\n\n"
+            "ฟังเหมือนเพื่อนร่วมงานคนหนึ่งเล่าเรื่องหลังปิดคอม มีทั้งความเหนื่อย ความตลกร้าย การเมืองในทีม และประโยคที่ไม่มีใครกล้าพูดดัง ๆ"
         ),
         "Hashtags": "#VelaAfterWork #Podcastไทย #ชีวิตวัยทำงาน #OfficeStory #Burnout #เล่าเรื่อง",
         "Pinned Comment": "คุณเคยมีเรื่องที่ไม่กล้าพูดในออฟฟิศ แต่คิดถึงหลังเลิกงานไหม เล่าแบบไม่ต้องบอกชื่อใครก็ได้",
     }
 
 
-def _spotify_package(topic: str, tone: str, length: str) -> dict[str, str]:
+def _spotify_package(topic: str, tone: str, length: str, context: dict[str, str] | None = None) -> dict[str, str]:
+    context = context or _story_context(topic, tone)
     return {
-        "Spotify title": f"Vela After Work: {topic[:42]}",
+        "Spotify title": "Vela After Work: ห้องประชุมเงียบไปสามวินาที",
         "Spotify description": (
-            f"ตอนความยาวประมาณ {length} ในโทน {tone} ว่าด้วย office life, workplace politics, burnout "
-            "และเรื่องที่คนทำงานคิดหลังปิดคอมแต่ไม่ค่อยพูดออกมา เหมาะสำหรับฟังหลังเลิกงานหรือระหว่างเดินทางกลับบ้าน"
+            f"ตอนความยาวประมาณ {length} ในโทน {tone} เล่าเหตุการณ์ใน {context['location']} "
+            "เมื่อรายงานหนึ่งไฟล์ทำให้เห็นทั้งเครดิตที่หายไป ความเงียบในทีม และการเมืองเล็ก ๆ ที่คนทำงานหลายคนรู้จักดี"
         ),
     }
 
 
-def _thumbnail_prompt(topic: str, tone: str) -> str:
+def _thumbnail_prompt(topic: str, tone: str, context: dict[str, str] | None = None) -> str:
+    context = context or _story_context(topic, tone)
     return (
         f"cinematic podcast cover for Vela After Work, Thai office worker after hours, tired but thoughtful expression, "
-        f"dark warm office lighting, desk lamp, city window at night, emotional workplace story about {topic}, tone {tone}, "
+        f"dark warm office lighting, desk lamp, city window at night, emotional workplace story in {context['location']}, tone {tone}, "
         "premium podcast artwork, no random text, no watermark"
     )
 
 
-def _ai_video_prompt(topic: str, tone: str) -> str:
+def _ai_video_prompt(topic: str, tone: str, context: dict[str, str] | None = None) -> str:
+    context = context or _story_context(topic, tone)
     return (
-        f"vertical 9:16 cinematic b-roll prompt for a podcast episode about {topic}, Vela After Work mood, office life after dark, "
+        f"vertical 9:16 cinematic b-roll prompt for a Vela After Work office story, {context['location']}, Excel report on projector, unread work chat, "
         f"workplace politics and burnout atmosphere, {tone} emotional storytelling, slow shots of empty desk, elevator, rainy window, "
         "coffee cup, phone notification, realistic Thai office, no subtitles, no logo, no watermark"
     )
@@ -430,20 +569,21 @@ def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str
     podcast_tone = podcast_tone if podcast_tone in PODCAST_SCRIPT_TONES else "Vela After Work"
     narrator = narrator if narrator in PODCAST_NARRATORS else "Male"
     episode_length = episode_length if episode_length in PODCAST_EPISODE_LENGTHS else "10 min"
+    context = _story_context(topic, podcast_tone)
     title = _best_title(topic, podcast_tone)
-    full_script = _full_script(topic, podcast_tone, narrator, episode_length)
+    full_script = _full_script(topic, podcast_tone, narrator, episode_length, context=context)
     word_count = _word_count(_ai_voice_version(full_script))
     package = {
         "Episode Title": title,
-        "Cold Open": _cold_open(topic, podcast_tone),
+        "Cold Open": _cold_open(topic, podcast_tone, context),
         "Full Podcast Script": full_script,
         "AI Voice Version": _ai_voice_version(full_script),
         "Viral Rant Engine": _rant_versions(topic),
-        "Shorts Extraction": _shorts(topic, WORD_TARGETS[episode_length]["shorts"]),
-        "YouTube Package": _youtube_package(title, topic, podcast_tone),
-        "Spotify Package": _spotify_package(topic, podcast_tone, episode_length),
-        "Thumbnail Prompt": _thumbnail_prompt(topic, podcast_tone),
-        "AI Video Prompt": _ai_video_prompt(topic, podcast_tone),
+        "Shorts Extraction": _shorts(topic, WORD_TARGETS[episode_length]["shorts"], context),
+        "YouTube Package": _youtube_package(title, topic, podcast_tone, context),
+        "Spotify Package": _spotify_package(topic, podcast_tone, episode_length, context),
+        "Thumbnail Prompt": _thumbnail_prompt(topic, podcast_tone, context),
+        "AI Video Prompt": _ai_video_prompt(topic, podcast_tone, context),
         "metadata": {
             "topic": topic,
             "podcast_tone": podcast_tone,
@@ -453,6 +593,11 @@ def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str
             "target_word_count_min": WORD_TARGETS[episode_length]["min"],
             "target_word_count_max": WORD_TARGETS[episode_length]["max"],
             "style": "Vela After Work",
+            "story_engine": "Vela After Work Story Engine V4",
+            "main_narrator": context["main_narrator"],
+            "supporting_characters": [context["support_1"], context["support_2"], context["support_3"]],
+            "office_location": context["location"],
+            "specific_incident": context["incident"],
             "offline_safe": True,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
         },
@@ -481,7 +626,7 @@ def podcast_script_package_to_text(package: dict[str, Any]) -> str:
             content = str(body or "")
         return f"====================\n{title}\n====================\n{content.strip()}\n"
 
-    lines = ["VELAFLOW PODCAST SCRIPT STUDIO V3", "Vela After Work: Stories people think about after work but rarely say out loud.", ""]
+    lines = ["VELAFLOW PODCAST SCRIPT STUDIO V4", "Vela After Work: Stories people think about after work but rarely say out loud.", ""]
     metadata = package.get("metadata") or {}
     lines.append(block("EPISODE METADATA", metadata))
     for section in REQUIRED_PODCAST_SCRIPT_SECTIONS:
