@@ -5511,7 +5511,7 @@ elif page == "Podcast Script Studio":
         with script_tabs[2]:
             shorts = package.get("Shorts Extraction", []) or []
             shorts_text = "\n\n".join(
-                f"{idx}. Hook: {item.get('Hook', '')}\nScript: {item.get('Script', '')}\nSuggested duration: {item.get('Suggested duration', '')}\nSuggested caption: {item.get('Suggested caption', '')}"
+                f"{idx}. Timestamp: {item.get('timestamp', '')}\nHook: {item.get('hook', item.get('Hook', ''))}\nScript: {item.get('script', item.get('Script', ''))}\nCaption: {item.get('caption', item.get('Suggested caption', ''))}"
                 for idx, item in enumerate(shorts, start=1)
             )
             st.text_area("Shorts Extraction", value=shorts_text, height=330, key="podcast_script_shorts")
@@ -5521,10 +5521,16 @@ elif page == "Podcast Script Studio":
             spotify = package.get("Spotify Package", {}) or {}
             youtube_text = "\n".join(f"{key}: {value}" for key, value in youtube.items())
             spotify_text = "\n".join(f"{key}: {value}" for key, value in spotify.items())
+            thumbnail_prompt = str(package.get("Thumbnail Prompt", ""))
+            ai_video_prompt = str(package.get("AI Video Prompt", ""))
             st.text_area("YouTube Package", value=youtube_text, height=220, key="podcast_script_youtube")
             _copy_to_clipboard_button("Copy YouTube Package", str(st.session_state.get("podcast_script_youtube", youtube_text) or ""), key="podcast_script_copy_youtube")
             st.text_area("Spotify Package", value=spotify_text, height=130, key="podcast_script_spotify")
             _copy_to_clipboard_button("Copy Spotify Package", str(st.session_state.get("podcast_script_spotify", spotify_text) or ""), key="podcast_script_copy_spotify")
+            st.text_area("Thumbnail Prompt", value=thumbnail_prompt, height=120, key="podcast_script_thumbnail_prompt")
+            _copy_to_clipboard_button("Copy Thumbnail Prompt", str(st.session_state.get("podcast_script_thumbnail_prompt", thumbnail_prompt) or ""), key="podcast_script_copy_thumbnail_prompt")
+            st.text_area("AI Video Prompt", value=ai_video_prompt, height=130, key="podcast_script_ai_video_prompt")
+            _copy_to_clipboard_button("Copy AI Video Prompt", str(st.session_state.get("podcast_script_ai_video_prompt", ai_video_prompt) or ""), key="podcast_script_copy_ai_video_prompt")
         with script_tabs[4]:
             txt_payload = podcast_script_package_to_text(package)
             st.download_button(

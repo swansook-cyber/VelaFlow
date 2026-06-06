@@ -32,7 +32,7 @@ Tagline: Music. Software. Stories.
 ## Ecosystem Structure
 - **AI Creative Pack Generator:** Main V1 workflow for song ideas, titles, hooks, lyrics, producer prompts, captions, hashtags, cover prompts, storyboard prompts, and release packs.
 - **Song Studio:** Deeper lyric, hook, Suno/Udio export, and release package workflow.
-- **Podcast Script Studio:** Local-only Vela After Work podcast scripts, AI voice-ready narration, shorts extraction, and platform copy.
+- **Podcast Script Studio:** Local-only Vela After Work Story Engine V2 for long-form podcast scripts, AI voice-ready narration, rant variants, shorts extraction, and platform copy.
 - **Video Prompt Studio / MV Director:** Prompt and storyboard planning for Whisk, Flow, Veo, Runway, Kling, Pika, Luma, and similar external tools.
 - **Character Studio:** Reusable character identity prompts for image, image-to-video, lip sync, and TikTok/Reels workflows.
 - **Affiliate Studio:** Lightweight product analysis, hook/script generation, trend ideas, and affiliate creator package export.

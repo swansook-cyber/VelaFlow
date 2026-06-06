@@ -123,6 +123,7 @@ from core.podcast_script_studio import (
     PODCAST_NARRATORS,
     PODCAST_SCRIPT_TONES,
     REQUIRED_PODCAST_SCRIPT_SECTIONS,
+    WORD_TARGETS,
     generate_podcast_script_package,
     podcast_script_package_to_text,
 )
@@ -1296,13 +1297,16 @@ def main():
     assert_true(podcast_script_result["ok"], "Podcast Script Studio generation failed")
     podcast_script_package = podcast_script_result["data"]
     assert_true(set(REQUIRED_PODCAST_SCRIPT_SECTIONS).issubset(set(podcast_script_package)), "Podcast Script Studio missing output sections")
-    assert_true(podcast_script_package["metadata"]["offline_safe"] is True and podcast_script_package["metadata"]["episode_length"] == "20 min", "Podcast Script Studio metadata failed")
+    assert_true("Vela After Work" in PODCAST_SCRIPT_TONES and WORD_TARGETS["20 min"]["min"] == 3000 and podcast_script_package["metadata"]["offline_safe"] is True and podcast_script_package["metadata"]["episode_length"] == "20 min", "Podcast Script Studio metadata failed")
     assert_true("Hello everyone" not in podcast_script_package["Cold Open"] and "วันนี้เราจะพูดถึง" not in podcast_script_package["Cold Open"], "Podcast Script Studio cold open is too robotic")
-    assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Story Arc 3]" in podcast_script_package["Full Podcast Script"] and "[Peak Conflict]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio full structure missing")
+    assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Act 3: Emotional Breakdown]" in podcast_script_package["Full Podcast Script"] and "[Act 5: Takeaway]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio V2 full structure missing")
     assert_true("[Cold Open]" not in podcast_script_package["AI Voice Version"] and "[Narrator Direction]" not in podcast_script_package["AI Voice Version"], "Podcast Script Studio AI voice version contains labels")
-    assert_true(len(podcast_script_package["Shorts Extraction"]) >= 8 and all({"Hook", "Script", "Suggested duration", "Suggested caption"}.issubset(item) for item in podcast_script_package["Shorts Extraction"]), "Podcast Script Studio shorts extraction failed")
+    assert_true(podcast_script_package["metadata"]["word_count"] >= WORD_TARGETS["20 min"]["min"], "Podcast Script Studio V2 long-form word target failed")
+    assert_true("Viral Rant Engine" in podcast_script_package and {"emotional rant version", "angry rant version", "sarcastic office rant version"}.issubset(podcast_script_package["Viral Rant Engine"]), "Podcast Script Studio rant variants missing")
+    assert_true(len(podcast_script_package["Shorts Extraction"]) == 10 and all({"timestamp", "hook", "script", "caption"}.issubset(item) for item in podcast_script_package["Shorts Extraction"]), "Podcast Script Studio shorts extraction failed")
+    assert_true(podcast_script_package["Thumbnail Prompt"] and podcast_script_package["AI Video Prompt"] and "no watermark" in podcast_script_package["AI Video Prompt"], "Podcast Script Studio platform prompts missing")
     podcast_script_text = podcast_script_package_to_text(podcast_script_package)
-    assert_true("VELAFLOW PODCAST SCRIPT STUDIO" in podcast_script_text and "YOUTUBE PACKAGE" in podcast_script_text and "SPOTIFY PACKAGE" in podcast_script_text, "Podcast Script Studio TXT export failed")
+    assert_true("VELAFLOW PODCAST SCRIPT STUDIO V2" in podcast_script_text and "YOUTUBE PACKAGE" in podcast_script_text and "SPOTIFY PACKAGE" in podcast_script_text and "VIRAL RANT ENGINE" in podcast_script_text, "Podcast Script Studio TXT export failed")
     podcast_render_package = build_render_package("Smoke Podcast Project", "podcast", podcast_package, {"provider": "Luma", "aspect_ratio": "9:16", "duration": "10s", "quality": "Standard", "motion_intensity": "Low"}, podcast_package["visual_engine"])
     podcast_render_export = export_render_package("Smoke Podcast Project", podcast_render_package, out / "podcast_projects")
     assert_true(podcast_render_export["ok"] and "Luma" in Path(podcast_render_export["data"]["txt_path"]).read_text(encoding="utf-8"), "podcast render package export failed")
