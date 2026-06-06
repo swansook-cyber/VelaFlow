@@ -45,7 +45,7 @@ from core.affiliate_engine import (
 )
 from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_gemini_api_key, resolve_provider_credentials
 from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
 from core.exporter import export_package
@@ -431,6 +431,21 @@ def main():
     assert_true(beta_resolved["api_key"] == "env-openai" and beta_resolved["source"] == "velaflow_beta", "VelaFlow beta key resolution failed")
     assert_true(missing_resolved["api_key"] == "" and missing_resolved["status"] == "Offline Fallback", "missing BYO key fallback failed")
     assert_true(missing_resolved["warning"] == "Please add your own API key in AI Settings.", "missing own-key warning failed")
+    saved_gemini_env = os.environ.pop("GEMINI_API_KEY", None)
+    try:
+        session_gemini = resolve_gemini_api_key(settings=fake_settings, session_state={"user_api_keys": {"gemini": "session-gemini"}})
+        assert_true(session_gemini["api_key"] == "session-gemini" and session_gemini["source"] == "session" and session_gemini["enabled"], "Gemini session key resolution failed")
+        os.environ["GEMINI_API_KEY"] = "env-gemini-live"
+        env_gemini = resolve_gemini_api_key(settings=type("Settings", (), {"gemini_api_key": ""})(), session_state={"user_api_keys": {}})
+        assert_true(env_gemini["api_key"] == "env-gemini-live" and env_gemini["source"] == "env" and env_gemini["enabled"], "Gemini env key resolution failed")
+        os.environ.pop("GEMINI_API_KEY", None)
+        missing_gemini = resolve_gemini_api_key(settings=type("Settings", (), {"gemini_api_key": ""})(), session_state={"user_api_keys": {}})
+        assert_true(not missing_gemini["enabled"] and missing_gemini["source"] == "none" and missing_gemini["fallback_reason"], "Gemini missing key fallback failed")
+    finally:
+        if saved_gemini_env is not None:
+            os.environ["GEMINI_API_KEY"] = saved_gemini_env
+        else:
+            os.environ.pop("GEMINI_API_KEY", None)
     assert_true(LOCAL_STORAGE_KEYS["gemini"] == "velaflow_gemini_key" and LOCAL_STORAGE_KEYS["openai"] == "velaflow_openai_key" and LOCAL_STORAGE_KEYS["xai"] == "velaflow_xai_key", "localStorage key names failed")
     assert_true(mask_api_key("abcd1234") == "Provided: ****1234" and mask_api_key("") == "Missing", "API key masking failed")
     analytics_root = out / "analytics_case"
@@ -578,7 +593,7 @@ def main():
     assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"] and "Podcast Script Studio" in FULL_MENU_GROUPS["VISUAL"], "creative tools missing from VISUAL group")
     assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
-    assert_true(song_only_pages == ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"], "Song Studio Only missing simplified creator dashboard flow")
+    assert_true(song_only_pages == ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "AI Settings"], "Song Studio Only missing simplified creator dashboard flow or Settings")
     assert_true(set(song_only_pages) == SONG_ONLY_ALLOWED_PAGES, "Song Studio Only allowed page set mismatch")
     assert_true(len(full_pages) == len(set(full_pages)) and len(song_only_pages) == len(set(song_only_pages)), "duplicate navigation pages found")
     assert_true(PAGE_LABELS.get("Creator Wizard") == "Release Workflow Wizard" and PAGE_LABELS.get("Smart Clip Factory") == "Clip Factory" and PAGE_LABELS.get("Production Audit") == "Quality Audit", "menu label polish failed")
@@ -637,7 +652,7 @@ def main():
     assert_true(project["creative_direction"]["music_direction"] == "Emotional Pop Rock", "Song Studio project creative direction state failed")
     assert_true(TARGET_PLATFORM_OPTIONS and "Full Pipeline" in TARGET_PLATFORM_OPTIONS, "creator wizard target platforms failed")
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
-    assert_true(["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"] == song_only_pages, "V1 creative pack navigation should include dashboard plus four creator steps")
+    assert_true(["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "AI Settings"] == song_only_pages, "V1 creative pack navigation should include dashboard, creator steps, and Settings")
     release_pack = generate_creative_release_pack("เพลงเศร้าในออฟฟิศ", "Office Burnout", "Vela Moon")
     release_export = export_creative_release_pack("Smoke Creative Pack", release_pack, "Vela Moon", base_dir=out / "creative_pack")
     release_zip = Path((release_export.get("data") or {}).get("zip_path", ""))
@@ -2016,7 +2031,7 @@ def main():
         assert_true("Song Title Suggestions" in main_source and "Lyrics for Suno" in main_source and "Style for Suno" in main_source and "Producer Notes" in main_source and "Release Checklist" in main_source, "creator dashboard output blocks missing")
         assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools." in main_source, "creative pack generator UI missing")
         assert_true("Choose preset" in main_source and "Enter song idea" in main_source and "Generate & Export" in main_source, "creative pack quick start missing")
-        assert_true("sidebar_nav_creator_dashboard" in main_source and "sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source, "creative pack sidebar navigation missing")
+        assert_true("sidebar_nav_creator_dashboard" in main_source and "sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source and "sidebar_nav_ai_settings" in main_source, "creative pack sidebar navigation missing")
         assert_true("One Click Creator Flow" in main_source and "Generate Creator Package" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")
         assert_true("analyzing song" in main_source and "detecting hook" in main_source and "generating prompts" in main_source and "remastering audio" in main_source and "building creator package" in main_source and "complete" in main_source, "one-click progress stages missing")
         assert_true("VelaFlow Closed Beta" in main_source and "Founding Member" in main_source and "Creator tips" in main_source and "Send beta feedback" in main_source, "closed beta premium creator elements missing")
@@ -2032,7 +2047,7 @@ def main():
         assert_true("VelaFlow Agent Studio" in main_source and "Generate Agent Package" in main_source and "พิมพ์ไอเดียของคุณ" in main_source and "Download Agent Package TXT" in main_source and "Workflow mode" in main_source and "Use Agent Memory" in main_source and "Clear Agent Memory" in main_source and "AI Provider" in main_source and "Auto Workflow" in main_source and "Multi-Agent Mode" in main_source and "Brain Analysis" in main_source and "Execution Plan" in main_source and "Active Agents" in main_source and "Agent Collaboration Log" in main_source and "Director Decisions" in main_source and "Agent Actions" in main_source and "Generated Files" in main_source and "Project Sidebar" in main_source and "Recent Projects" in main_source and "Create Project" in main_source and "Continue Project" in main_source and "Project Timeline" in main_source and "Workspace Summary" in main_source and "Asset Browser" in main_source and "Storyboard Viewer" in main_source and "Media Timeline" in main_source and "Cover History" in main_source and "Asset Tags" in main_source and "Project Asset Summary" in main_source and "Export ZIP" in main_source and "run_agent_workflow" in main_source, "Agent Studio UI missing")
         assert_true("Video Prompt Studio" in main_source and "Generate Storyboard + AI Video Prompts" in main_source and "Copy Whisk Prompt" in main_source and "Copy Video Prompt" in main_source and "Copy Full Shot Package" in main_source and "Download TXT" in main_source, "Video Prompt Studio UI missing")
         assert_true("Character Studio" in main_source and "Generate Character Pack" in main_source and "Download Character Pack TXT" in main_source and "Copy-Ready Prompts" in main_source and "Apply character to existing storyboard" in main_source, "Character Studio UI missing")
-        assert_true("Podcast Script Studio" in main_source and "Generate Podcast Script Package" in main_source and "AI Voice Version" in main_source and "Download Podcast Script TXT" in main_source and "Local-only script studio. No rendering, no TTS, no video generation, no external APIs." in main_source, "Podcast Script Studio UI missing")
+        assert_true("Podcast Script Studio" in main_source and "Generate Podcast Script Package" in main_source and "AI Voice Version" in main_source and "Download Podcast Script TXT" in main_source and "Gemini Story Writer when configured. No rendering, no TTS, no video generation." in main_source, "Podcast Script Studio UI missing")
         assert_true("Generate Affiliate Creator Package" in main_source and "Download Affiliate Creator Package ZIP" in main_source, "Affiliate package creator UX missing")
         assert_true("No posting bots" in main_source and "no login automation" in main_source and "no heavy scraping" in main_source, "Affiliate safety wording missing")
         assert_true("Manual Product Mode" in main_source and "Product Benefits" in main_source and "Creator Notes" in main_source, "affiliate manual product mode missing")

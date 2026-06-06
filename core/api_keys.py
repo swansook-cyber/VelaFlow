@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 from typing import Any
 
 from providers.ai_provider import normalize_provider
@@ -50,6 +52,59 @@ def mask_api_key(api_key: str | None) -> str:
         return "Missing"
     suffix = value[-4:] if len(value) >= 4 else value
     return f"Provided: ****{suffix}"
+
+
+def resolve_gemini_api_key(settings: Any | None = None, session_state: Any | None = None) -> dict[str, Any]:
+    """Resolve Gemini key without exposing the secret value in diagnostics."""
+    state = session_state
+    if state is None:
+        try:
+            if "streamlit" not in sys.modules:
+                raise RuntimeError("streamlit not loaded")
+            from streamlit.runtime.scriptrunner import get_script_run_ctx  # type: ignore
+
+            if get_script_run_ctx() is None:
+                raise RuntimeError("streamlit session unavailable")
+            import streamlit as st  # type: ignore
+
+            state = st.session_state
+        except Exception:
+            state = {}
+
+    def _state_get(key: str, default: Any = "") -> Any:
+        try:
+            return state.get(key, default) if state is not None else default
+        except Exception:
+            return default
+
+    user_keys = _state_get("user_api_keys", {}) or {}
+    session_key = str(user_keys.get("gemini", "") or _state_get("gemini_api_key", "") or "").strip()
+    if session_key:
+        return {
+            "api_key": session_key,
+            "enabled": True,
+            "source": "session",
+            "fallback_reason": "",
+            "key_present": True,
+        }
+
+    env_key = str(os.getenv("GEMINI_API_KEY") or (getattr(settings, "gemini_api_key", "") if settings is not None else "")).strip()
+    if env_key:
+        return {
+            "api_key": env_key,
+            "enabled": True,
+            "source": "env",
+            "fallback_reason": "",
+            "key_present": True,
+        }
+
+    return {
+        "api_key": "",
+        "enabled": False,
+        "source": "none",
+        "fallback_reason": "Gemini API key not configured",
+        "key_present": False,
+    }
 
 
 def resolve_provider_credentials(

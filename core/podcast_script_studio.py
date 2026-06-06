@@ -297,8 +297,8 @@ def _normalize_story_blueprint(raw: dict[str, Any], topic: str, tone: str) -> di
     }
 
 
-def _generate_story_blueprint(topic: str, tone: str, episode_length: str) -> tuple[dict[str, Any], dict[str, str]]:
-    provider = GeminiProvider()
+def _generate_story_blueprint(topic: str, tone: str, episode_length: str, gemini_api_key: str | None = None) -> tuple[dict[str, Any], dict[str, str]]:
+    provider = GeminiProvider(api_key=gemini_api_key)
     diagnostics = {
         "provider": "gemini",
         "model": provider.model,
@@ -733,12 +733,12 @@ def _ai_video_prompt(topic: str, tone: str, context: dict[str, str] | None = Non
     )
 
 
-def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str, episode_length: str) -> dict[str, Any]:
+def generate_podcast_script_package(topic: str, podcast_tone: str, narrator: str, episode_length: str, gemini_api_key: str | None = None) -> dict[str, Any]:
     topic = _clean(topic, "เรื่องที่คนทำงานคิดถึงหลังเลิกงาน")
     podcast_tone = podcast_tone if podcast_tone in PODCAST_SCRIPT_TONES else "Vela After Work"
     narrator = narrator if narrator in PODCAST_NARRATORS else "Male"
     episode_length = episode_length if episode_length in PODCAST_EPISODE_LENGTHS else "10 min"
-    story_blueprint, provider_diagnostics = _generate_story_blueprint(topic, podcast_tone, episode_length)
+    story_blueprint, provider_diagnostics = _generate_story_blueprint(topic, podcast_tone, episode_length, gemini_api_key=gemini_api_key)
     context = story_blueprint["context"]
     title = _best_title(topic, podcast_tone)
     full_script = _full_script(topic, podcast_tone, narrator, episode_length, context=context)

@@ -6,6 +6,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from core.api_keys import resolve_gemini_api_key
 from providers.base_provider import BaseTextProvider
 
 
@@ -13,7 +14,7 @@ class GeminiTextProvider(BaseTextProvider):
     name = "gemini"
 
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
-        resolved_key = str(api_key or "").strip() if api_key is not None else str(os.getenv("GEMINI_API_KEY") or "").strip()
+        resolved_key = str(api_key or "").strip() if api_key is not None else str(resolve_gemini_api_key().get("api_key", "") or "").strip()
         resolved_model = (
             str(model or "").strip()
             or str(os.getenv("GEMINI_TEXT_MODEL") or "").strip()

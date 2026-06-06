@@ -64,7 +64,7 @@ from core.affiliate_engine import (
 )
 from core.automatic_hook_clip import export_tiktok_package, quick_generate_hook_clip
 from core.character_engine import CHARACTER_TYPES, PERSONALITY_PROMPTS, STYLE_PROMPTS, random_viral_character_idea
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_gemini_api_key, resolve_provider_credentials
 from core.asset_manager import clear_image_cache, clear_rejected_images, clear_temp_renders, project_asset_summary
 from core.beta_testing import (
     BETA_RATING_AREAS,
@@ -2522,7 +2522,10 @@ def _mv_storyboard_to_hook_package(project_name: str, storyboard: list[dict[str,
 
 
 def _user_api_key(provider: str) -> str:
-    return str((st.session_state.get("user_api_keys", {}) or {}).get(normalize_provider(provider), "") or "")
+    normalized = normalize_provider(provider)
+    if normalized == "gemini":
+        return str(resolve_gemini_api_key(settings=settings, session_state=st.session_state).get("api_key", "") or "")
+    return str((st.session_state.get("user_api_keys", {}) or {}).get(normalized, "") or "")
 
 
 def _render_real_clip_controls(
@@ -4628,6 +4631,8 @@ with st.sidebar:
             go_to_page("CREATE", "Generate Visual Pack")
         if st.button("Export Release Pack", use_container_width=True, key="sidebar_nav_export_release_pack"):
             go_to_page("CREATE", "Export Release Pack")
+        if st.button("Settings / API Key", use_container_width=True, key="sidebar_nav_ai_settings"):
+            go_to_page("SETTINGS", "AI Settings")
     else:
         if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio"):
             go_to_page("SONG", "Song Studio")
@@ -5424,7 +5429,11 @@ elif page == "Seller Studio":
 
 elif page == "Podcast Script Studio":
     _page_header("Podcast Script Studio", "Write Vela After Work podcast scripts, voice-ready narration, shorts, and platform copy.", project)
-    st.info("Local-only script studio. No rendering, no TTS, no video generation, no external APIs.", icon="🎙️")
+    gemini_status = resolve_gemini_api_key(settings=settings, session_state=st.session_state)
+    st.info("Gemini Story Writer when configured. No rendering, no TTS, no video generation.", icon="🎙️")
+    st.caption(f"Gemini status: {'enabled' if gemini_status.get('enabled') else 'disabled'} · Key source: {gemini_status.get('source', 'none')}")
+    if st.session_state.get("developer_mode") and not gemini_status.get("enabled"):
+        st.caption(f"Fallback reason: {gemini_status.get('fallback_reason')}")
     st.caption("Vela After Work: Stories people think about after work but rarely say out loud.")
 
     script_state = project.setdefault("podcast_script_studio", {})
@@ -5468,6 +5477,7 @@ elif page == "Podcast Script Studio":
             podcast_script_tone,
             podcast_script_narrator,
             podcast_script_length,
+            gemini_api_key=str(gemini_status.get("api_key", "") or ""),
         )
         if result.get("ok"):
             package = result["data"]
@@ -6795,6 +6805,39 @@ elif page == "AI Settings":
     if st.session_state.get("local_api_state_source") == "session_state_only":
         st.caption("localStorage helper is unavailable in this environment, so keys persist only for this Streamlit session.")
     user_keys = st.session_state.setdefault("user_api_keys", {})
+    st.markdown("### Gemini API Key")
+    st.caption("Used by Podcast Studio, Agent Studio, and other Gemini-powered tools. The key is never written to logs or exports.")
+    quick_gemini_key = st.text_input(
+        "Gemini API Key",
+        value=str(user_keys.get("gemini", "") or ""),
+        type="password",
+        key="settings_quick_gemini_api_key",
+        help="Paste your Gemini key here if you do not want to use a .env file.",
+    )
+    gk1, gk2 = st.columns(2)
+    if gk1.button("Save Gemini Key", use_container_width=True, key="settings_save_gemini_key"):
+        if quick_gemini_key.strip():
+            st.session_state.user_api_keys["gemini"] = quick_gemini_key.strip()
+            st.session_state.api_mode = API_MODE_OWN_KEY
+            st.session_state.default_ai_provider = "gemini"
+            st.session_state.api_storage_nonce += 1
+            _save_api_state_to_local_storage("gemini", API_MODE_OWN_KEY, quick_gemini_key.strip())
+            _sync_provider_runtime_state()
+            st.success("Gemini key saved for this session/device")
+        else:
+            st.warning("Paste a Gemini key before saving.")
+    if gk2.button("Forget Gemini Key", use_container_width=True, key="settings_forget_gemini_key"):
+        st.session_state.user_api_keys.pop("gemini", None)
+        st.session_state.api_storage_nonce += 1
+        _forget_api_key_from_local_storage("gemini")
+        _sync_provider_runtime_state()
+        st.success("Gemini key removed from this session/device")
+    gemini_status = resolve_gemini_api_key(settings=settings, session_state=st.session_state)
+    st.write("Gemini status:", "enabled" if gemini_status.get("enabled") else "disabled")
+    st.write("Key source:", gemini_status.get("source", "none"))
+    if st.session_state.get("developer_mode") and not gemini_status.get("enabled"):
+        st.caption(f"Fallback reason: {gemini_status.get('fallback_reason')}")
+
     existing_user_key = str(user_keys.get(selected_provider, "") or "")
     input_nonce_key = f"user_api_key_nonce_{selected_provider}"
     st.session_state.setdefault(input_nonce_key, 0)

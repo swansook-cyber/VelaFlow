@@ -26,6 +26,7 @@ FULL_MENU_GROUPS = {
 
 SONG_ONLY_MENU_GROUPS = {
     "CREATE": ["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"],
+    "SETTINGS": ["AI Settings"],
 }
 
 SELLER_STUDIO_MENU_GROUPS = {
