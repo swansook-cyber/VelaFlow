@@ -23,7 +23,7 @@ REQUIRED_PODCAST_SCRIPT_SECTIONS = [
 
 WORD_TARGETS = {
     "10 min": {"min": 1500, "max": 2000, "target": 1650, "shorts": 10},
-    "20 min": {"min": 3000, "max": 4000, "target": 3300, "shorts": 10},
+    "20 min": {"min": 3500, "max": 4300, "target": 3700, "shorts": 10},
     "30 min": {"min": 4500, "max": 6000, "target": 4800, "shorts": 10},
 }
 
@@ -117,7 +117,7 @@ def _best_title(topic: str, tone: str) -> str:
 
 
 def _narrator_pronoun(narrator: str) -> str:
-    return "ฉัน" if narrator == "Female" else "ผม"
+    return "ผม"
 
 
 def _topic_aliases() -> list[str]:
@@ -148,23 +148,27 @@ def _office_scene_detail(index: int) -> str:
 def _human_transition(section: str, narrator: str, index: int) -> str:
     pronoun = _narrator_pronoun(narrator)
     transitions = {
-        "Act 1: Setup": [
-            f"{pronoun}ไม่ได้รู้ทันทีว่าวันนั้นจะกลายเป็นเรื่องที่จำได้ แค่รู้ว่ามันมีอะไรบางอย่างไม่เหมือนเดิม",
+        "Setup": [
+            f"{pronoun}นั่งอยู่หน้าโต๊ะทำงานตอนนั้น และไม่ได้รู้ทันทีว่าวันนั้นจะกลายเป็นเรื่องที่จำได้ แค่รู้ว่ามันมีอะไรบางอย่างไม่เหมือนเดิม",
             f"ถ้าเล่าให้ตรงที่สุด {pronoun}คิดว่ามันเริ่มจากรายละเอียดเล็กมาก จนตอนแรกยังไม่กล้าเรียกว่าปัญหา",
         ],
-        "Act 2: Conflict": [
+        "Conflict": [
             f"ช่วงที่ยากไม่ใช่ตอนมีคนพูดแรง แต่เป็นตอนที่ {pronoun}ต้องแกล้งทำเหมือนไม่มีอะไรเกิดขึ้น",
             f"ความขัดแย้งแบบนี้ไม่ดัง แต่มันกัดช้า ๆ และคนฟังอาจรู้จักมันดีเกินกว่าจะต้องอธิบายยาว",
         ],
-        "Act 3: Emotional Breakdown": [
+        "Escalation": [
+            f"จากเรื่องที่ควรจบในห้องประชุม มันค่อย ๆ ตาม {pronoun} ออกมาถึงโต๊ะทำงาน ถึงลิฟต์ และถึงทางกลับบ้าน",
+            f"ตอนแรก {pronoun}คิดว่าปล่อยผ่านได้ แต่พอมีแชตใหม่ มีประชุมใหม่ มีสีหน้าเดิม มันเริ่มไม่ใช่เรื่องเล็กแล้ว",
+        ],
+        "Emotional Breakdown": [
             f"พอถึงจุดหนึ่ง {pronoun}ไม่ได้อยากชนะใครแล้ว แค่อยากกลับถึงบ้านโดยไม่ต้องเข้มแข็งต่อ",
             f"มันมีวินาทีหนึ่งที่หน้าตายังนิ่ง แต่ข้างในเหมือนเอกสารทั้งกองหล่นลงพื้นพร้อมกัน",
         ],
-        "Act 4: Reflection": [
+        "Reflection": [
             f"พอมองย้อนกลับไป {pronoun}ไม่ได้เห็นแค่คนอื่นผิด เห็นตัวเองที่ฝืนเงียบอยู่นานเกินไปด้วย",
             f"สิ่งที่น่ากลัวคือเราชินกับการบอกว่าไม่เป็นไร จนลืมถามตัวเองว่าจริง ๆ แล้วเป็นอะไร",
         ],
-        "Act 5: Takeaway": [
+        "Takeaway": [
             f"{pronoun}ไม่ได้อยากให้เรื่องนี้จบด้วยคำสอนสวย ๆ แค่อยากให้มันจบด้วยความซื่อสัตย์กับตัวเองมากขึ้น",
             "บางทีการดูแลใจตัวเองไม่ได้เริ่มจากการลาออก แต่มันเริ่มจากการยอมรับว่าเราเหนื่อยจริง",
         ],
@@ -173,7 +177,7 @@ def _human_transition(section: str, narrator: str, index: int) -> str:
             "และถ้าพรุ่งนี้ยังต้องกลับไปที่เดิม อย่างน้อยคืนนี้เราไม่ต้องโกหกตัวเองว่าทุกอย่างเบา",
         ],
     }
-    options = transitions.get(section, transitions["Act 4: Reflection"])
+    options = transitions.get(section, transitions["Reflection"])
     return options[index % len(options)]
 
 
@@ -207,6 +211,18 @@ def _avoid_topic_repeat(text: str, topic: str, max_mentions: int = 5) -> str:
     return "".join(rebuilt)
 
 
+def _section_bank_key(section: str) -> str:
+    return {
+        "Setup": "Act 1: Setup",
+        "Conflict": "Act 2: Conflict",
+        "Escalation": "Act 2: Conflict",
+        "Emotional Breakdown": "Act 3: Emotional Breakdown",
+        "Reflection": "Act 4: Reflection",
+        "Takeaway": "Act 5: Takeaway",
+        "Ending": "Ending",
+    }.get(section, section)
+
+
 def _cold_open(topic: str, tone: str) -> str:
     if tone == "Dark Humor":
         specific = "ถ้าชีวิตการทำงานมีปุ่ม mute เราคงกดค้างไว้ตั้งแต่บ่ายสาม"
@@ -216,10 +232,11 @@ def _cold_open(topic: str, tone: str) -> str:
         specific = "บางวันเราเดินออกจากออฟฟิศแล้วรู้สึกเหมือนยังมีทั้งห้องประชุมเดินตามกลับบ้าน"
     return "\n".join(
         [
+            "ผมจำได้ว่าวันนั้นผมยืนอยู่หน้าเครื่องชงกาแฟในออฟฟิศตอนเช้า เสียงเครื่องบดกาแฟดังกลบเสียงแชตงานที่เด้งขึ้นมาพอดี",
             specific,
             "ไม่ใช่เพราะงานชิ้นเดียว ไม่ใช่เพราะแชตเดียว และไม่ใช่เพราะใครคนเดียวเสมอไป",
             "แต่มันคือการสะสมของประโยคเล็ก ๆ สีหน้าสั้น ๆ และความเงียบที่เราต้องกลืนไว้ทั้งวัน",
-            "คืนนี้เราไม่ได้มาสรุปบทเรียนให้ดูเก่ง",
+            "คืนนี้ผมไม่ได้จะทำให้เรื่องนี้ดูเก่งหรือดูมีคำตอบครบ",
             "เรามาเล่าเรื่องที่หลายคนคิดหลังปิดคอม แต่ไม่ค่อยพูดออกมาดัง ๆ",
             "ถ้าคุณเคยยิ้มทั้งวัน แล้วกลับมาถามตัวเองว่าเราไหวจริงไหม ตอนนี้คุณไม่ได้ฟังอยู่คนเดียว",
         ]
@@ -269,7 +286,7 @@ def _paragraph_bank(topic: str, tone: str) -> dict[str, list[str]]:
 
 
 def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int, narrator: str = "Male", start_index: int = 0) -> str:
-    bank = _paragraph_bank(topic, tone)[section]
+    bank = _paragraph_bank(topic, tone)[_section_bank_key(section)]
     rows = []
     for index in range(paragraphs_needed):
         base = bank[index % len(bank)]
@@ -285,18 +302,18 @@ def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int,
 
 def _full_script(topic: str, tone: str, narrator: str, length: str) -> str:
     target = WORD_TARGETS.get(length, WORD_TARGETS["10 min"])["target"]
-    sections = ["Cold Open", "Act 1: Setup", "Act 2: Conflict", "Act 3: Emotional Breakdown", "Act 4: Reflection", "Act 5: Takeaway", "Ending"]
+    sections = ["Cold Open", "Setup", "Conflict", "Escalation", "Emotional Breakdown", "Reflection", "Takeaway", "Ending"]
     paragraphs_by_section = max(3, target // 420)
     blocks = [f"[Cold Open]\n{_cold_open(topic, tone)}"]
     section_offset = 0
     for section in sections[1:]:
-        extra = 1 if section in {"Act 3: Emotional Breakdown", "Act 5: Takeaway"} else 0
+        extra = 1 if section in {"Escalation", "Emotional Breakdown", "Takeaway"} else 0
         count = paragraphs_by_section + extra
         blocks.append(f"[{section}]\n{_expand_section(section, topic, tone, count, narrator=narrator, start_index=section_offset)}")
         section_offset += count
     voice_note = f"\n\n[Narrator Direction]\n{_narrator_voice(narrator)}"
     script = _avoid_topic_repeat("\n\n".join(blocks) + voice_note, topic)
-    extension_sections = ["Act 2: Conflict", "Act 3: Emotional Breakdown", "Act 4: Reflection", "Act 5: Takeaway", "Ending"]
+    extension_sections = ["Conflict", "Escalation", "Emotional Breakdown", "Reflection", "Takeaway", "Ending"]
     extension_index = 0
     while _word_count(script) < target:
         section = extension_sections[extension_index % len(extension_sections)]
@@ -464,7 +481,7 @@ def podcast_script_package_to_text(package: dict[str, Any]) -> str:
             content = str(body or "")
         return f"====================\n{title}\n====================\n{content.strip()}\n"
 
-    lines = ["VELAFLOW PODCAST SCRIPT STUDIO V2", "Vela After Work: Stories people think about after work but rarely say out loud.", ""]
+    lines = ["VELAFLOW PODCAST SCRIPT STUDIO V3", "Vela After Work: Stories people think about after work but rarely say out loud.", ""]
     metadata = package.get("metadata") or {}
     lines.append(block("EPISODE METADATA", metadata))
     for section in REQUIRED_PODCAST_SCRIPT_SECTIONS:
