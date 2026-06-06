@@ -116,21 +116,95 @@ def _best_title(topic: str, tone: str) -> str:
     return scored[0][0]
 
 
-def _avoid_topic_repeat(text: str, topic: str, max_mentions: int = 8) -> str:
+def _narrator_pronoun(narrator: str) -> str:
+    return "ฉัน" if narrator == "Female" else "ผม"
+
+
+def _topic_aliases() -> list[str]:
+    return [
+        "เรื่องนี้",
+        "ความรู้สึกนั้น",
+        "สิ่งที่ค้างอยู่ในใจ",
+        "ประเด็นที่ไม่มีใครพูดตรง ๆ",
+        "ความเหนื่อยแบบนี้",
+        "เรื่องเล็กที่ไม่เล็ก",
+    ]
+
+
+def _office_scene_detail(index: int) -> str:
+    scenes = [
+        "ตอนนั้นไฟฟลูออเรสเซนต์บนเพดานยังสว่างเกินไป ทั้งที่คนในแผนกเริ่มกลับกันเกือบหมดแล้ว",
+        "แก้วกาแฟบนโต๊ะเย็นจนจืด แต่มือยังจับมันไว้เหมือนต้องการอะไรสักอย่างให้ไม่ว่าง",
+        "เสียงแชตงานเด้งขึ้นมาตอนใกล้เลิกงาน มันสั้นมาก แต่ทำให้บรรยากาศทั้งเย็นเปลี่ยนไปทันที",
+        "ในลิฟต์หลังหกโมง ทุกคนยืนเงียบเหมือนกลัวว่าถ้าพูดออกมา ความเหนื่อยจะหลุดออกมาด้วย",
+        "จอ Excel ยังเปิดค้างอยู่ แสงจากหน้าจอส่องหน้าเราแบบที่ทำให้รู้สึกเหมือนยังไม่หมดเวร",
+        "ลานจอดรถหลังฝนตกเงียบกว่าปกติ และบางทีความเงียบนั่นแหละที่ทำให้เราได้ยินตัวเองชัดขึ้น",
+        "บัตรพนักงานกระทบขอบโต๊ะเบา ๆ ตอนเก็บของ เสียงเล็กแค่นั้นกลับทำให้รู้ว่าวันนี้เราใช้แรงไปเยอะมาก",
+        "ในห้องประชุมที่เพิ่งปิดโปรเจกเตอร์ กลิ่นแอร์เย็น ๆ ยังอยู่ แต่คำบางคำยังค้างอยู่ในอก",
+    ]
+    return scenes[index % len(scenes)]
+
+
+def _human_transition(section: str, narrator: str, index: int) -> str:
+    pronoun = _narrator_pronoun(narrator)
+    transitions = {
+        "Act 1: Setup": [
+            f"{pronoun}ไม่ได้รู้ทันทีว่าวันนั้นจะกลายเป็นเรื่องที่จำได้ แค่รู้ว่ามันมีอะไรบางอย่างไม่เหมือนเดิม",
+            f"ถ้าเล่าให้ตรงที่สุด {pronoun}คิดว่ามันเริ่มจากรายละเอียดเล็กมาก จนตอนแรกยังไม่กล้าเรียกว่าปัญหา",
+        ],
+        "Act 2: Conflict": [
+            f"ช่วงที่ยากไม่ใช่ตอนมีคนพูดแรง แต่เป็นตอนที่ {pronoun}ต้องแกล้งทำเหมือนไม่มีอะไรเกิดขึ้น",
+            f"ความขัดแย้งแบบนี้ไม่ดัง แต่มันกัดช้า ๆ และคนฟังอาจรู้จักมันดีเกินกว่าจะต้องอธิบายยาว",
+        ],
+        "Act 3: Emotional Breakdown": [
+            f"พอถึงจุดหนึ่ง {pronoun}ไม่ได้อยากชนะใครแล้ว แค่อยากกลับถึงบ้านโดยไม่ต้องเข้มแข็งต่อ",
+            f"มันมีวินาทีหนึ่งที่หน้าตายังนิ่ง แต่ข้างในเหมือนเอกสารทั้งกองหล่นลงพื้นพร้อมกัน",
+        ],
+        "Act 4: Reflection": [
+            f"พอมองย้อนกลับไป {pronoun}ไม่ได้เห็นแค่คนอื่นผิด เห็นตัวเองที่ฝืนเงียบอยู่นานเกินไปด้วย",
+            f"สิ่งที่น่ากลัวคือเราชินกับการบอกว่าไม่เป็นไร จนลืมถามตัวเองว่าจริง ๆ แล้วเป็นอะไร",
+        ],
+        "Act 5: Takeaway": [
+            f"{pronoun}ไม่ได้อยากให้เรื่องนี้จบด้วยคำสอนสวย ๆ แค่อยากให้มันจบด้วยความซื่อสัตย์กับตัวเองมากขึ้น",
+            "บางทีการดูแลใจตัวเองไม่ได้เริ่มจากการลาออก แต่มันเริ่มจากการยอมรับว่าเราเหนื่อยจริง",
+        ],
+        "Ending": [
+            f"คืนนี้ถ้าคุณฟังอยู่ระหว่างเดินทางกลับบ้าน {pronoun}อยากให้คุณรู้ว่าความรู้สึกนี้มีที่วาง",
+            "และถ้าพรุ่งนี้ยังต้องกลับไปที่เดิม อย่างน้อยคืนนี้เราไม่ต้องโกหกตัวเองว่าทุกอย่างเบา",
+        ],
+    }
+    options = transitions.get(section, transitions["Act 4: Reflection"])
+    return options[index % len(options)]
+
+
+def _humanize_paragraph(base: str, section: str, topic: str, tone: str, narrator: str, index: int) -> str:
+    pronoun = _narrator_pronoun(narrator)
+    alias = _topic_aliases()[index % len(_topic_aliases())]
+    text = base
+    if topic and index % 2 == 1:
+        text = text.replace(topic, alias, 1)
+    if index % 2 == 0:
+        text = f"{_office_scene_detail(index)} {text}"
+    if index % 3 != 1:
+        text = f"{_human_transition(section, narrator, index)} {text}"
+    if tone in {"Dark Humor", "Office Rant", "Vela After Work"} and index % 4 == 2:
+        text += f" ตลกร้ายตรงที่ {pronoun}ยังต้องพิมพ์คำว่า รับทราบ ให้ดูสุภาพที่สุด ทั้งที่ในใจอยากพิมพ์ว่า ขอเป็นมนุษย์ก่อนสักห้านาทีได้ไหม"
+    return text
+
+
+def _avoid_topic_repeat(text: str, topic: str, max_mentions: int = 5) -> str:
     topic = str(topic or "").strip()
     if not topic:
         return text
-    count = 0
-    output = []
-    replacements = ["เรื่องนี้", "ความรู้สึกนั้น", "สิ่งนั้น", "มัน"]
-    for line in text.splitlines():
-        while topic in line:
-            count += 1
-            if count <= max_mentions:
-                break
-            line = line.replace(topic, replacements[count % len(replacements)], 1)
-        output.append(line)
-    return "\n".join(output)
+    parts = text.split(topic)
+    if len(parts) <= max_mentions + 1:
+        return text
+    aliases = _topic_aliases()
+    rebuilt = [parts[0]]
+    for index, part in enumerate(parts[1:], start=1):
+        replacement = topic if index <= max_mentions else aliases[index % len(aliases)]
+        rebuilt.append(replacement + part)
+    return "".join(rebuilt)
 
 
 def _cold_open(topic: str, tone: str) -> str:
@@ -194,7 +268,7 @@ def _paragraph_bank(topic: str, tone: str) -> dict[str, list[str]]:
     }
 
 
-def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int) -> str:
+def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int, narrator: str = "Male", start_index: int = 0) -> str:
     bank = _paragraph_bank(topic, tone)[section]
     rows = []
     for index in range(paragraphs_needed):
@@ -205,7 +279,7 @@ def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int)
                 "และนั่นอาจเป็นจุดเริ่มต้นเล็ก ๆ ของการกลับมาฟังตัวเอง หลังจากฟังเสียงคนอื่นมาทั้งวัน",
                 "บางทีคำตอบไม่ได้อยู่ที่การหนีไปไหน แต่อยู่ที่การเห็นให้ชัดว่าอะไรที่เราไม่ควรปล่อยให้กลายเป็นเรื่องปกติอีกแล้ว",
             ][index % 3]
-        rows.append(base)
+        rows.append(_humanize_paragraph(base, section, topic, tone, narrator, start_index + index))
     return "\n\n".join(rows)
 
 
@@ -214,14 +288,21 @@ def _full_script(topic: str, tone: str, narrator: str, length: str) -> str:
     sections = ["Cold Open", "Act 1: Setup", "Act 2: Conflict", "Act 3: Emotional Breakdown", "Act 4: Reflection", "Act 5: Takeaway", "Ending"]
     paragraphs_by_section = max(3, target // 420)
     blocks = [f"[Cold Open]\n{_cold_open(topic, tone)}"]
+    section_offset = 0
     for section in sections[1:]:
         extra = 1 if section in {"Act 3: Emotional Breakdown", "Act 5: Takeaway"} else 0
-        blocks.append(f"[{section}]\n{_expand_section(section, topic, tone, paragraphs_by_section + extra)}")
+        count = paragraphs_by_section + extra
+        blocks.append(f"[{section}]\n{_expand_section(section, topic, tone, count, narrator=narrator, start_index=section_offset)}")
+        section_offset += count
     voice_note = f"\n\n[Narrator Direction]\n{_narrator_voice(narrator)}"
     script = _avoid_topic_repeat("\n\n".join(blocks) + voice_note, topic)
+    extension_sections = ["Act 2: Conflict", "Act 3: Emotional Breakdown", "Act 4: Reflection", "Act 5: Takeaway", "Ending"]
+    extension_index = 0
     while _word_count(script) < target:
-        script += "\n\n" + _expand_section("Act 4: Reflection", topic, tone, 1)
+        section = extension_sections[extension_index % len(extension_sections)]
+        script += "\n\n" + _expand_section(section, topic, tone, 1, narrator=narrator, start_index=section_offset + extension_index)
         script = _avoid_topic_repeat(script, topic)
+        extension_index += 1
     return script
 
 

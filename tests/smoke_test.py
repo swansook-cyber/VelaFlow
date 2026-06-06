@@ -1302,6 +1302,11 @@ def main():
     assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Act 3: Emotional Breakdown]" in podcast_script_package["Full Podcast Script"] and "[Act 5: Takeaway]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio V2 full structure missing")
     assert_true("[Cold Open]" not in podcast_script_package["AI Voice Version"] and "[Narrator Direction]" not in podcast_script_package["AI Voice Version"], "Podcast Script Studio AI voice version contains labels")
     assert_true(podcast_script_package["metadata"]["word_count"] >= WORD_TARGETS["20 min"]["min"], "Podcast Script Studio V2 long-form word target failed")
+    full_podcast_script = podcast_script_package["Full Podcast Script"]
+    smoke_podcast_topic = "คนทำงานที่ยิ้มทั้งวันแต่กลับไปร้องไห้ในรถ"
+    assert_true(full_podcast_script.count(smoke_podcast_topic) <= 6, "Podcast Script Studio repeats topic too often")
+    assert_true("ผม" in full_podcast_script and any(token in full_podcast_script for token in ["ลิฟต์", "กาแฟ", "จอ Excel", "แชตงาน", "ลานจอดรถ"]), "Podcast Script Studio lacks first-person office scene narration")
+    assert_true("Hello everyone" not in full_podcast_script and "ในบทความนี้" not in full_podcast_script and "โดยสรุป" not in full_podcast_script, "Podcast Script Studio contains generic AI narration")
     assert_true("Viral Rant Engine" in podcast_script_package and {"emotional rant version", "angry rant version", "sarcastic office rant version"}.issubset(podcast_script_package["Viral Rant Engine"]), "Podcast Script Studio rant variants missing")
     assert_true(len(podcast_script_package["Shorts Extraction"]) == 10 and all({"timestamp", "hook", "script", "caption"}.issubset(item) for item in podcast_script_package["Shorts Extraction"]), "Podcast Script Studio shorts extraction failed")
     assert_true(podcast_script_package["Thumbnail Prompt"] and podcast_script_package["AI Video Prompt"] and "no watermark" in podcast_script_package["AI Video Prompt"], "Podcast Script Studio platform prompts missing")
