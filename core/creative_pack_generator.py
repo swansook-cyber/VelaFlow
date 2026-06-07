@@ -191,6 +191,15 @@ REUSED_BREAKUP_MEMORY_LINES = [
     "แม้เธอไม่อยู่ตรงนี้แล้ว",
 ]
 
+OVERUSED_GENERIC_WORD_LIMITS = {
+    "ใจ": 8,
+    "คิดถึง": 5,
+    "ความจริง": 5,
+    "ความฝัน": 3,
+    "น้ำตา": 4,
+    "รัก": 7,
+}
+
 COMMERCIAL_SECTION_ORDER = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]
 COMMERCIAL_SECTION_MIN_LINES = {
     "Verse 1": 4,
@@ -378,6 +387,7 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
 def _apply_lyrics_quality_engine(title: str, hook: str, lyrics: str, concept: str) -> tuple[str, dict[str, Any]]:
     polished = polish_commercial_lyrics(lyrics, hook)
     polished = _rewrite_disallowed_reused_lines(concept, polished)
+    polished = _reduce_overused_generic_words(concept, polished)
     polished = _ensure_commercial_song_length(concept, title, hook, polished)
     report = _lyrics_quality_engine_report(title, hook, polished, concept)
     if (
@@ -387,6 +397,7 @@ def _apply_lyrics_quality_engine(title: str, hook: str, lyrics: str, concept: st
         or not report["copy_ready_for_suno"]
     ):
         polished = polish_commercial_lyrics(polished, hook)
+        polished = _reduce_overused_generic_words(concept, polished)
         polished = _ensure_commercial_song_length(concept, title, hook, polished)
         report = _lyrics_quality_engine_report(title, hook, polished, concept)
     return polished, report
@@ -433,6 +444,47 @@ def _concept_theme(idea: str) -> str:
 
 def _is_breakup_memory_concept(idea: str) -> bool:
     return _concept_theme(idea) == "breakup_memory"
+
+
+def _song_scene_type(idea: str, preset_name: str = "") -> str:
+    text = f"{idea} {preset_name}".lower()
+    if _concept_theme(idea) == "respectful_truth":
+        return "respectful_truth"
+    if any(word in text for word in ["ออฟฟิศ", "office", "working-life", "working life", "งาน", "ประชุม", "โต๊ะ", "หัวหน้า", "burnout", "desk"]):
+        return "office_life"
+    if any(word in text for word in ["ขับรถ", "รถ", "ถนน", "กลางคืน", "night drive", "night-drive", "drive", "road-trip", "car interior"]):
+        return "night_drive"
+    if any(word in text for word in ["เลิก", "แฟนเก่า", "ลืม", "ไม่กลับมา", "อกหัก", "heartbroken", "breakup"]):
+        return "breakup_memory"
+    if any(word in text for word in ["พูดไม่ได้", "ไม่กล้าบอก", "แอบรัก", "รัก", "love"]):
+        return "quiet_love"
+    return "human_emotional"
+
+
+def _authentic_title_from_concept(idea: str, preset_name: str, current_title: str) -> str:
+    scene = _song_scene_type(idea, preset_name)
+    options = {
+        "office_life": ["เลิกงานแล้วยังเหนื่อย", "ยิ้มทั้งวัน", "โต๊ะเดิม", "กลับบ้านช้า"],
+        "night_drive": ["ถนนที่ยังคิดถึง", "ไฟเมืองพาใจกลับ", "คืนขับรถคนเดียว", "ทางไกลในใจ"],
+        "breakup_memory": ["ลืมไม่ลง", "คืนที่ไม่มีเธอ", "คนที่ไม่กลับมา", "ยังเจ็บที่เดิม"],
+        "quiet_love": ["รักที่ไม่พูดไป", "ถ้าใจยังรัก", "เก็บเธอไว้ในเพลง", "ยังเลือกเธอ"],
+        "respectful_truth": ["พูดกันเบา ๆ", "ความจริงเบา ๆ", "คำที่ยังถนอม", "อย่าชนะด้วยคำแรง"],
+        "human_emotional": ["ยังไหวอยู่ไหม", "กี่คืนถึงพอ", "คำที่ค้างในใจ", "พรุ่งนี้ค่อยหาย"],
+    }
+    title = str(current_title or "").strip()
+    generic = {"รัก", "ความรัก", "เพลงรัก", "คิดถึง", "อกหัก", "เศร้า", "เหงา", "พอได้แล้วใจ"}
+    scene_terms = {
+        "office_life": ["งาน", "โต๊ะ", "เลิกงาน", "ยิ้ม", "เหนื่อย", "กลับบ้าน"],
+        "night_drive": ["ถนน", "ไฟ", "คืน", "รถ", "ทาง", "เมือง"],
+        "breakup_memory": ["ลืม", "เธอ", "กลับมา", "เจ็บ", "คืน"],
+        "quiet_love": ["รัก", "เธอ", "เพลง", "ใจ"],
+        "respectful_truth": ["พูด", "คำ", "จริง", "เบา"],
+        "human_emotional": [],
+    }
+    compatible = not scene_terms.get(scene) or any(term in title for term in scene_terms.get(scene, []))
+    if title and title not in generic and compatible and 4 <= len(_compact_line(title)) <= 18:
+        return title
+    return options.get(scene, options["human_emotional"])[0]
 
 
 def _advanced_settings_for_preset(preset_name: str) -> dict[str, str]:
@@ -600,25 +652,19 @@ def polish_commercial_lyrics(text: str, hook: str = "") -> str:
     hook_lines = _lines(improve_hook_singability(hook))
     polished: list[str] = []
     in_final_chorus = False
-    final_has_payoff = False
     for line in lines:
         stripped = line.strip()
         if stripped == "[Final Chorus]":
             in_final_chorus = True
-            final_has_payoff = False
             polished.append(stripped)
             continue
         if stripped.startswith("[") and stripped.endswith("]") and stripped != "[Final Chorus]":
-            if in_final_chorus and not final_has_payoff:
-                polished.extend(["แม้เธอไม่อยู่ตรงนี้แล้ว", "หัวใจก็ยังจำว่าเคยรัก"])
             in_final_chorus = False
             polished.append(stripped)
             continue
         if in_final_chorus and any(phrase in stripped for phrase in ["ร้องให้สุด", "ท่อนนี้", "TikTok-ready"]):
             continue
         polished.append(line.rstrip())
-    if in_final_chorus and not final_has_payoff:
-        polished.extend(["แม้เธอไม่อยู่ตรงนี้แล้ว", "หัวใจก็ยังจำว่าเคยรัก"])
     # Keep first and final chorus related, but give the final chorus an emotional payoff.
     output = "\n".join(polished).strip()
     if hook_lines and "[Final Chorus]" in output:
@@ -652,8 +698,11 @@ def _score_hook_candidate(hook: str) -> dict[str, Any]:
     joined = " ".join(lines)
     compact_len = len(joined.replace(" ", ""))
     singability = 82 - max(0, compact_len - 54)
-    memorability = 74 + (10 if 2 <= len(lines) <= 4 else -12) + (8 if any("ใจ" in line or "เธอ" in line or "รัก" in line for line in lines) else 0)
-    emotional = 70 + (10 if any("ใจ" in line or "คืน" in line or "ลืม" in line or "รัก" in line for line in lines) else 0)
+    has_question = any("ไหม" in line or "ทำไม" in line or "กี่" in line or "หรือ" in line for line in lines)
+    has_conflict = any(word in joined for word in ["ทั้งที่", "แต่", "ยิ่ง", "ยัง", "ไม่ควร", "ไม่ได้"])
+    generic_repeats = sum(joined.count(word) for word in ["ใจ", "คิดถึง", "ความจริง", "ความฝัน", "น้ำตา", "รัก"])
+    memorability = 74 + (10 if 2 <= len(lines) <= 4 else -12) + (10 if has_question else 0) + (8 if has_conflict else 0)
+    emotional = 70 + (10 if has_conflict else 0) + (8 if any("เจ็บ" in line or "เหนื่อย" in line or "เงียบ" in line or "กลัว" in line for line in lines) else 0)
     caption = 74 + (10 if lines and len(lines[0].replace(" ", "")) <= 16 else -8)
     penalty = 0
     if compact_len > 78:
@@ -662,6 +711,8 @@ def _score_hook_candidate(hook: str) -> dict[str, Any]:
         penalty += 80
     if any(len(line.replace(" ", "")) > 32 for line in lines):
         penalty += 18
+    if generic_repeats > 5:
+        penalty += (generic_repeats - 5) * 5
     score = int((singability + memorability + emotional + caption) / 4 - penalty)
     return {
         "hook": hook,
@@ -683,10 +734,10 @@ def improve_hook_singability(hook: str) -> str:
             clean.append(line)
             seen.add(key)
     fallback_lines = [
-        "ยังมีบางคำในใจ",
-        "ที่ร้องซ้ำ ๆ ไม่หาย",
-        "ยิ่งพยายามเดินไป",
-        "ยิ่งรู้ว่าต้องซื่อตรงกับใจ",
+        "กี่คืนแล้วที่ยังไม่หาย",
+        "ทั้งที่บอกใครว่าไม่เป็นไร",
+        "ยิ่งทำเหมือนเดินต่อได้",
+        "ยิ่งรู้ว่าข้างในยังหยุดอยู่",
     ]
     for fallback in fallback_lines:
         if len(clean) >= 4:
@@ -700,13 +751,46 @@ def improve_hook_singability(hook: str) -> str:
 
 def _hook_candidates(title: str, idea: str) -> list[str]:
     idea_text = str(idea or "")
+    scene = _song_scene_type(idea_text)
     if _concept_theme(idea_text) == "respectful_truth":
         return [
-            "\n".join(["พูดความจริงเบา ๆ", "ให้ใจเรายังจับมือกัน", "ไม่ต้องชนะด้วยคำแรง", "แค่ฟังกันให้มากพอ"]),
-            "\n".join(["ความจริงยังสำคัญ", "แต่วิธีพูดก็สำคัญไม่แพ้กัน", "ถ้ารักยังอยากซ่อมใจ", "อย่าใช้คำไหนทำร้ายเรา"]),
+            "\n".join(["บอกตรง ๆ ได้ไหม", "แต่อย่าให้คำมันผลักเราไกล", "ความจริงยังสำคัญ", "แต่วิธีพูดก็สำคัญพอกัน"]),
+            "\n".join(["พูดความจริงเบา ๆ", "ให้เรายังมองหน้ากันไหว", "ไม่ต้องชนะด้วยคำแรง", "แค่ฟังกันให้มากพอ"]),
             "\n".join(["บอกตรง ๆ ได้ไหม", "แต่ขอให้ใจยังอ่อนโยน", "คำจริงไม่ต้องเป็นค้อน", "ก็ทำให้เราเข้าใจกัน"]),
             "\n".join(["อย่าพูดให้แพ้ชนะ", "พูดให้เรากลับมาใกล้กัน", "ความจริงจะไม่เจ็บเกินไป", "ถ้าใจยังเลือกถนอมน้ำคำ"]),
             "\n".join(["ถ้าใจยังรัก", "พูดกันดี ๆ ได้ไหม", "ให้ความจริงเป็นสะพาน", "ไม่ใช่กำแพงกลางใจ"]),
+        ]
+    if scene == "office_life":
+        return [
+            "\n".join(["ยิ้มทั้งวันจนลืมถามตัวเอง", "ว่าเหนื่อยแค่ไหนถึงเรียกว่าไหว", "เลิกงานแล้วไฟตึกดับไป", "แต่ในหัวฉันยังประชุมอยู่"]),
+            "\n".join(["กี่ครั้งที่บอกว่าไม่เป็นไร", "ทั้งที่มือยังสั่นตอนปิดคอม", "เงินเดือนปลอบใจได้บางตอน", "แต่ไม่เคยกอดเราได้จริง"]),
+            "\n".join(["ทำไมโต๊ะเดิมถึงดูไกล", "ทั้งที่ฉันนั่งอยู่ตรงนี้ทุกวัน", "งานไม่เคยพูดว่ารักกัน", "แต่ทำไมฉันยังทุ่มทั้งใจ"]),
+            "\n".join(["กลับบ้านช้ากว่าแสงสุดท้าย", "ถามตัวเองว่าทำเพื่อใคร", "ถ้าความฝันยังอยู่ในไฟล์งาน", "ช่วยบอกทีว่ายังไม่สายไป"]),
+            "\n".join(["ฉันแค่เหนื่อยหรือฉันหายไป", "ใต้เสื้อเชิ้ตที่ยังต้องยิ้ม", "หัวหน้าถามแค่งานเสร็จไหม", "ไม่มีใครถามว่าฉันไหวหรือเปล่า"]),
+        ]
+    if scene == "night_drive":
+        return [
+            "\n".join(["ถนนยาวไปถึงไหน", "ทำไมยังพาใจกลับไปหาเธอ", "ไฟเมืองผ่านตาเสมอ", "แต่ภาพเดิมไม่เคยผ่านไป"]),
+            "\n".join(["กี่ไฟแดงที่ฉันต้องรอ", "เพื่อยอมรับว่าเธอไม่กลับมา", "ยิ่งขับไกลจากวันลา", "ยิ่งเหมือนใกล้เธอกว่าเดิม"]),
+            "\n".join(["เปิดเพลงเบา ๆ ในรถคันเดิม", "ถามตัวเองว่าควรลืมตรงไหน", "กระจกมีแต่ฝนข้างนอก", "ข้างในมีแต่ชื่อเธอ"]),
+            "\n".join(["คืนขับรถคนเดียว", "ยิ่งเงียบยิ่งได้ยินใจ", "ถ้าเธอไม่อยู่ปลายทางไหน", "ทำไมฉันยังไม่กลับบ้าน"]),
+            "\n".join(["ไฟท้ายคันหน้าไกลออกไป", "เหมือนคำลาในคืนนั้น", "ฉันเหยียบคันเร่งให้พ้นความจำ", "แต่ความจำยังนั่งข้างกัน"]),
+        ]
+    if scene == "breakup_memory":
+        return [
+            "\n".join(["กี่วันคืนผ่านไป", "ทำไมยังเป็นฉันที่เจ็บ", "ทั้งที่เธอไม่เคยหันกลับ", "ฉันยังเก็บเธอไว้ในเพลง"]),
+            "\n".join(["ลืมไม่ลงสักที", "ทั้งที่รู้ว่าไม่มีทางเริ่มใหม่", "ยิ่งบอกตัวเองว่าไม่เป็นไร", "ยิ่งเจ็บเหมือนวันลา"]),
+            "\n".join(["ถ้าใจมันรู้ว่าควรปล่อย", "ทำไมยังคอยอยู่ที่เดิม", "ชื่อเธอไม่ดังเท่าเดิม", "แต่ยังทำให้ฉันเงียบไป"]),
+            "\n".join(["คืนที่ไม่มีเธอ", "ทำไมยาวกว่าทุกคืน", "ฉันหลับตาเพื่อจะลืม", "แต่ตื่นมายังรักอยู่ดี"]),
+            "\n".join(["พอได้แล้วใจ", "เธอไม่กลับมาแล้วรู้ไหม", "แต่ยิ่งพูดเหมือนเข้าใจ", "ยิ่งเจ็บที่ยังรักอยู่"]),
+        ]
+    if scene == "quiet_love":
+        return [
+            "\n".join(["ถ้าใจยังเลือกเธออยู่", "ฉันควรพูดมันออกไปไหม", "กลัวเสียเธอไปทั้งใจ", "เลยเก็บรักไว้ในเพลง"]),
+            "\n".join(["รักที่ไม่พูดไป", "ดังที่สุดตอนเธอเดินมา", "ฉันยิ้มเหมือนไม่มีปัญหา", "แต่ข้างในเรียกชื่อเธอ"]),
+            "\n".join(["กี่ครั้งที่เราใกล้กัน", "แต่ฉันไกลจากคำว่ากล้า", "ถ้าเธอมองมาอีกสักครา", "ฉันอาจยอมแพ้ให้หัวใจ"]),
+            "\n".join(["ไม่กล้าบอกว่ารัก", "แต่ทุกเพลงที่ฟังเป็นเธอ", "ถ้าคำหนึ่งคำทำให้เสียเธอ", "ฉันขอเงียบต่อไปได้ไหม"]),
+            "\n".join(["เก็บเธอไว้ในเพลง", "เพราะในชีวิตจริงฉันไม่กล้า", "รักเธออยู่เต็มสายตา", "แต่พูดได้แค่ไม่เป็นไร"]),
         ]
     if "รัก" in idea_text and not any(word in idea_text for word in ["อกหัก", "เลิก", "ลืม"]):
         return [
@@ -717,11 +801,11 @@ def _hook_candidates(title: str, idea: str) -> list[str]:
             "\n".join(["คำว่ารักยังอยู่", "แม้ปากไม่เคยพูดไป", "แต่ใจจำเธอเสมอ"]),
         ]
     return [
-        "\n".join([title, "ยังดังซ้ำ ๆ ในหัวใจ", "ยิ่งหนีไกล ยิ่งกลับไปคิดถึง"]),
-        "\n".join(["คืนที่ไม่มีเธอ", "ยังยาวเกินจะผ่านไป", "ใจยังเรียกชื่อเดิม"]),
-        "\n".join(["ถ้าลืมง่ายเหมือนพูดลา", "ฉันคงไม่เจ็บถึงวันนี้", "คงไม่ร้องเพลงนี้ซ้ำ ๆ"]),
-        "\n".join(["ยังเก็บเธอไว้ในเพลง", "ทุกคำยังเหมือนวันเก่า", "ทุกเสียงยังพาใจกลับไป"]),
-        "\n".join(["พอได้แล้วใจ", "อย่ารอคนที่ไม่กลับมา", "แต่ทำไมยังรักอยู่"]),
+        "\n".join([title, "กี่คืนแล้วที่ยังไม่หาย", "ทั้งที่บอกใครว่าไม่เป็นไร", "ยิ่งทำเหมือนเดินต่อได้"]),
+        "\n".join(["ยังไหวอยู่ไหม", "คำถามนี้ไม่มีใครถาม", "ฉันยิ้มจนกลายเป็นความเคยชิน", "แต่ข้างในยังเงียบมาก"]),
+        "\n".join(["ถ้าไม่เจ็บคงไม่เขียนเพลงนี้", "ถ้าไม่จริงคงไม่ร้องเบา ๆ", "บางประโยคที่ไม่กล้าพูดกับใคร", "ขอฝากไว้ในท่อนฮุก"]),
+        "\n".join(["กี่ครั้งที่ทำเหมือนลืม", "แต่ยังจำรายละเอียดเล็ก ๆ", "เรื่องที่ควรเบาเหมือนฝุ่น", "กลับหนักอยู่ในอก"]),
+        "\n".join(["พรุ่งนี้ค่อยหายได้ไหม", "คืนนี้ขอเจ็บให้หมดใจ", "ไม่ต้องมีใครเข้าใจ", "แค่เพลงนี้อยู่เป็นเพื่อนพอ"]),
     ]
 
 
@@ -732,9 +816,19 @@ def _select_best_hook(title: str, idea: str) -> dict[str, Any]:
 
 def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     hook_direction = str(preset.get("hook_direction") or "").strip()
+    hook_context = " ".join(
+        [
+            str(idea or ""),
+            str(preset.get("mood") or ""),
+            str(preset.get("style") or ""),
+            str(preset.get("visual") or ""),
+            hook_direction,
+            str(preset.get("lyrics_direction") or ""),
+        ]
+    )
     if hook_direction:
-        return _select_best_hook(title, idea)["hook"]
-    return _select_best_hook(title, idea)["hook"]
+        return _select_best_hook(title, hook_context)["hook"]
+    return _select_best_hook(title, hook_context)["hook"]
     lowered = str(idea or "").strip()
     if "ออฟฟิศ" in lowered or "office" in lowered.lower():
         return "\n".join(["ทำไมใจยังติดอยู่ที่โต๊ะเดิม", "ทั้งที่ไฟในตึกดับไปนานแล้ว", "ฉันแค่เหนื่อย หรือฉันไม่เหลือใคร"])
@@ -805,40 +899,40 @@ def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str
     return "\n".join(
         [
             "[Intro]",
-            f"({_performance_intro_tag(preset_name, preset)})",
             _concept_rewrite_line(idea, "Intro", 0),
+            _concept_rewrite_line(idea, "Intro", 1),
             "",
             "[Verse 1]",
-            "ฉันเดินผ่านที่เดิมเหมือนไม่มีอะไรเปลี่ยน",
-            "แต่ข้างในกลับเงียบจนได้ยินเสียงใจ",
-            "ทุกข้อความเก่าเหมือนแสงที่ยังไม่ดับไป",
-            "ยิ่งพยายามลืมเท่าไร ยิ่งชัดขึ้นมา",
+            _concept_rewrite_line(idea, "Verse 1", 0),
+            _concept_rewrite_line(idea, "Verse 1", 1),
+            _concept_rewrite_line(idea, "Verse 1", 2),
+            _concept_rewrite_line(idea, "Verse 1", 3),
             "",
             "[Pre-Chorus]",
-            "ถ้าความทรงจำมีประตูให้ปิด",
-            "ฉันคงไม่ติดอยู่ตรงนี้ซ้ำ ๆ",
+            _concept_rewrite_line(idea, "Pre-Chorus", 0),
+            _concept_rewrite_line(idea, "Pre-Chorus", 1),
             "",
             "[Chorus]",
             hook_block,
-            "ให้ท่อนนี้วนอยู่ในใจคนฟัง",
             "",
             "[Verse 2]",
-            "เสียงเมืองยังดัง แต่ฉันกลับได้ยินแค่เธอ",
-            "ทุกความเงียบทำให้คำลาเหมือนเพิ่งเกิดเมื่อวาน",
-            "ฉันไม่รู้ว่าควรปล่อย หรือควรรอให้นาน",
-            "เพราะหัวใจยังจำว่าเคยรักแค่ไหน",
+            _concept_rewrite_line(idea, "Verse 2", 0),
+            _concept_rewrite_line(idea, "Verse 2", 1),
+            _concept_rewrite_line(idea, "Verse 2", 2),
+            _concept_rewrite_line(idea, "Verse 2", 3),
             "",
             "[Bridge]",
-            "ถ้าวันหนึ่งฉันยอมวางทุกอย่างลง",
-            "ขอให้เพลงนี้เป็นคำสุดท้ายที่ยังอ่อนโยน",
+            _concept_rewrite_line(idea, "Bridge", 0),
+            _concept_rewrite_line(idea, "Bridge", 1),
+            _concept_rewrite_line(idea, "Bridge", 2),
             "",
             "[Final Chorus]",
             hook_block,
-            "คราวนี้ร้องให้สุด เหมือนคืนสุดท้ายที่ยังคิดถึง",
+            _concept_rewrite_line(idea, "Final Chorus", 0, final_payoff=True),
+            _concept_rewrite_line(idea, "Final Chorus", 1, final_payoff=True),
             "",
             "[Outro]",
-            "(emotional fade out, warm reverb tail, soft vocal ad-lib)",
-            "ปล่อยให้ชื่อเธอค่อย ๆ จางไปกับเพลงนี้",
+            _concept_rewrite_line(idea, "Outro", 0),
         ]
     )
 
@@ -868,6 +962,7 @@ def validate_concept_alignment(idea: str, lyrics: str) -> dict[str, Any]:
 
 def _concept_rewrite_line(idea: str, section: str, index: int, *, final_payoff: bool = False) -> str:
     theme = _concept_theme(idea)
+    scene = _song_scene_type(idea)
     if theme == "respectful_truth":
         pools = {
             "Intro": [
@@ -914,48 +1009,234 @@ def _concept_rewrite_line(idea: str, section: str, index: int, *, final_payoff: 
                 "ถ้ายังรักกันอยู่ พูดกันเบา ๆ ก็พอ",
             ],
         }
+    elif scene == "office_life":
+        pools = {
+            "Intro": [
+                "เช้าวันจันทร์ฉันวางกาแฟไว้ข้างคีย์บอร์ด",
+                "แจ้งเตือนเด้งขึ้นมาก่อนจะได้หายใจ",
+            ],
+            "Verse 1": [
+                "ฉันยิ้มให้ทุกคนเหมือนแบตยังเต็มอยู่",
+                "ทั้งที่เมื่อคืนหลับไปพร้อมไฟหน้าจอ",
+                "ไฟล์ Excel ยังเปิดค้างเหมือนคำถามที่ไม่มีใครตอบ",
+                "ในห้องประชุมฉันพยักหน้าแทนคำว่าไม่ไหว",
+            ],
+            "Pre-Chorus": [
+                "ยิ่งทำเหมือนไม่เป็นไรยิ่งเงียบลงทุกที",
+                "เลิกงานแล้วทำไมงานยังเดินตามกลับบ้าน",
+            ],
+            "Chorus": [
+                "ยิ้มทั้งวันจนลืมถามตัวเอง",
+                "ว่าเหนื่อยแค่ไหนถึงเรียกว่าไหว",
+                "เลิกงานแล้วไฟตึกดับไป",
+                "แต่ในหัวฉันยังประชุมอยู่",
+            ],
+            "Verse 2": [
+                "หัวหน้าบอกว่าแก้อีกนิดเดียวก็เสร็จ",
+                "แต่นิดเดียวของเขาคือทั้งคืนของฉัน",
+                "ในแชตกลุ่มมีแต่คำว่าเร่งหน่อยนะทุกวัน",
+                "ฉันเลยเก็บคำว่าเหนื่อยไว้ใต้รอยยิ้ม",
+            ],
+            "Bridge": [
+                "ตรงลานจอดรถฉันนั่งนิ่งอยู่หลายนาที",
+                "ไม่ได้อยากลาออก แค่อยากกลับมาเป็นคนเดิม",
+                "คนที่เคยมีฝันนอกเหนือจาก deadline",
+                "คนที่ไม่ต้องขอโทษเพราะพักหายใจ",
+            ],
+            "Final Chorus": [
+                "ยิ้มทั้งวันแต่คืนนี้ขอวางลง",
+                "ให้ความเหนื่อยได้มีชื่อของมัน",
+                "ถ้าพรุ่งนี้ต้องเดินเข้าตึกเดิมอีกครั้ง",
+                "ขอให้ฉันยังไม่ทิ้งตัวเองไว้ตรงนั้น",
+                "เลิกงานแล้วไฟตึกดับไป",
+                "คราวนี้ฉันจะพาใจกลับบ้าน",
+            ],
+            "Outro": [
+                "ปิดคอมแล้วขอปิดเสียงในหัวสักคืน",
+            ],
+        }
+    elif scene == "night_drive":
+        pools = {
+            "Intro": [
+                "ฝนบาง ๆ เกาะกระจกหน้ารถตอนสี่ทุ่ม",
+                "เพลงเดิมดังเบา ๆ เหมือนมีใครนั่งข้างกัน",
+            ],
+            "Verse 1": [
+                "ฉันเลี้ยวผ่านปั๊มเดิมที่เราเคยหยุดซื้อกาแฟ",
+                "ไฟถนนยาวเหมือนประโยคที่ยังไม่จบ",
+                "มือจับพวงมาลัยแต่ความคิดหลุดไปไกล",
+                "ทุกแยกในคืนนี้เหมือนถามว่าจะไปไหนต่อ",
+            ],
+            "Pre-Chorus": [
+                "ยิ่งขับให้ไกลจากวันที่เสียเธอไป",
+                "ยิ่งเห็นว่าใจยังวนอยู่ถนนเดิม",
+            ],
+            "Chorus": [
+                "ถนนยาวไปถึงไหน",
+                "ทำไมยังพาใจกลับไปหาเธอ",
+                "ไฟเมืองผ่านตาเสมอ",
+                "แต่ภาพเดิมไม่เคยผ่านไป",
+            ],
+            "Verse 2": [
+                "เสียงฝนบนหลังคารถดังแทนคำที่ไม่ได้พูด",
+                "เบาะข้าง ๆ ว่างจนดูใหญ่กว่าเดิม",
+                "ฉันลดกระจกให้ลมกลางคืนเข้ามาเติม",
+                "แต่ความเงียบยังนั่งอยู่ตรงที่เธอเคยอยู่",
+            ],
+            "Bridge": [
+                "ถ้าปลายทางไม่มีเธอรออยู่แล้ว",
+                "ทำไมฉันยังไม่กล้ากลับบ้าน",
+                "บางทีการขับไปเรื่อย ๆ",
+                "ก็แค่ข้ออ้างของคนที่ยังไม่พร้อมหยุด",
+            ],
+            "Final Chorus": [
+                "ถนนยาวไปถึงไหน",
+                "คืนนี้ฉันคงต้องยอมรับ",
+                "ไฟเมืองพาใจกลับไปหาเธอ",
+                "แต่ฉันต้องพาตัวเองกลับมา",
+                "ถ้าเธอไม่อยู่ปลายทางไหน",
+                "ฉันจะหยุดรถแล้วปล่อยให้ใจร้องไห้",
+            ],
+            "Outro": [
+                "ไฟท้ายคันสุดท้ายหายไป เหลือแค่ฉันกับเพลงเดิม",
+            ],
+        }
+    elif scene == "breakup_memory":
+        pools = {
+            "Intro": [
+                "คืนนี้ห้องเงียบกว่าทุกคืนที่เคยอยู่ด้วยกัน",
+                "ฉันวางโทรศัพท์คว่ำไว้เหมือนกลัวชื่อเธอสว่างขึ้นมา",
+            ],
+            "Verse 1": [
+                "ฉันเลี่ยงทางเดิมแต่ยังเจอเธอในความคิด",
+                "แก้วใบที่เธอเคยใช้ยังอยู่หลังตู้",
+                "ไม่ได้ตั้งใจเก็บไว้เพื่อรอให้เธอกลับมาดู",
+                "แค่ยังไม่กล้าทิ้งหลักฐานว่าเราเคยมีจริง",
+            ],
+            "Pre-Chorus": [
+                "ใครบอกว่าเวลาจะทำให้เบาลง",
+                "ทำไมของเล็ก ๆ ยังหนักอยู่ในอก",
+            ],
+            "Chorus": [
+                "กี่วันคืนผ่านไป",
+                "ทำไมยังเป็นฉันที่เจ็บ",
+                "ทั้งที่เธอไม่เคยหันกลับ",
+                "ฉันยังเก็บเธอไว้ในเพลง",
+            ],
+            "Verse 2": [
+                "เพื่อนบอกให้ลองเริ่มใหม่กับใครสักคน",
+                "แต่ฉันยังสะดุดกับเพลงที่เธอเคยส่ง",
+                "บางความทรงจำไม่ดัง แต่มันไม่เคยหมดลง",
+                "เหมือนฝุ่นบนกรอบรูปที่เช็ดเท่าไรก็กลับมา",
+            ],
+            "Bridge": [
+                "ถ้าวันหนึ่งฉันพูดชื่อเธอได้โดยไม่สั่น",
+                "วันนั้นคงไม่ใช่วันที่ลืม",
+                "แต่อาจเป็นวันที่ยอมรับ",
+                "ว่าเราเคยรักกันจริง และมันจบจริง",
+            ],
+            "Final Chorus": [
+                "กี่วันคืนผ่านไป",
+                "ฉันยังเป็นคนที่เจ็บ",
+                "แต่คืนนี้จะไม่ขอให้เธอกลับ",
+                "จะขอให้ตัวเองกลับมา",
+                "ถ้ายังเก็บเธอไว้ในเพลง",
+                "ก็ให้เพลงนี้เป็นคำลาสุดท้าย",
+            ],
+            "Outro": [
+                "ฉันปิดไฟ แล้วปล่อยให้ความเงียบดูแลชื่อเธอ",
+            ],
+        }
+    elif scene == "quiet_love":
+        pools = {
+            "Intro": [
+                "ฉันซ้อมคำว่าธรรมดาไว้ก่อนเธอเดินเข้ามา",
+                "ทั้งที่ข้างในไม่เคยธรรมดาเลยสักครั้ง",
+            ],
+            "Verse 1": [
+                "เธอถามว่าวันนี้เป็นยังไง ฉันตอบว่าเหมือนเดิม",
+                "แต่คำว่าเหมือนเดิมคือฉันยังมองหาเธอ",
+                "ทุกครั้งที่เราหัวเราะกับเรื่องเล็ก ๆ",
+                "ฉันต้องเตือนตัวเองว่าอย่าเผลอจริงจัง",
+            ],
+            "Pre-Chorus": [
+                "ถ้าพูดออกไปแล้วเราไม่เหมือนเดิม",
+                "ฉันควรเก็บเธอไว้ตรงนี้หรือเสี่ยงเสียเธอไป",
+            ],
+            "Chorus": [
+                "ถ้าใจยังเลือกเธออยู่",
+                "ฉันควรพูดมันออกไปไหม",
+                "กลัวเสียเธอไปทั้งใจ",
+                "เลยเก็บรักไว้ในเพลง",
+            ],
+            "Verse 2": [
+                "ฉันจำกาแฟที่เธอชอบได้ดีกว่าเรื่องตัวเอง",
+                "จำสีเสื้อวันที่เธอยิ้มให้กัน",
+                "แต่ต้องทำเหมือนไม่เห็นความหมายของวันนั้น",
+                "เพราะกลัวว่าเธอจะรู้มากเกินไป",
+            ],
+            "Bridge": [
+                "ถ้าความเงียบคือที่เดียวที่รักนี้ปลอดภัย",
+                "ฉันคงต้องอยู่กับมันอีกสักพัก",
+                "แต่บางคืนหัวใจดังเกินจะเก็บ",
+                "จนเพลงนี้หลุดออกมาแทนคำสารภาพ",
+            ],
+            "Final Chorus": [
+                "ถ้าใจยังเลือกเธออยู่",
+                "คืนนี้ฉันคงปิดไม่ไหว",
+                "ถ้าพรุ่งนี้เธอจะเดินจากไป",
+                "อย่างน้อยขอให้เธอรู้ความจริง",
+                "ฉันเก็บรักไว้ในเพลงมานาน",
+                "แต่เพลงนี้อยากให้เธอฟัง",
+            ],
+            "Outro": [
+                "ถ้าพูดไม่ไหว ก็ให้เพลงนี้พูดแทน",
+            ],
+        }
     else:
         pools = {
             "Intro": [
-                "คืนนี้ใจฉันวางเรื่องเดิมไว้ตรงหน้า",
-                "ให้เพลงนี้เริ่มจากความรู้สึกจริง",
+                "คืนนี้มีบางอย่างในอกที่ไม่ยอมหลับ",
+                "ฉันเลยเปิดไฟไว้ให้ความรู้สึกค่อย ๆ พูด",
             ],
             "Verse 1": [
-                "ฉันค่อย ๆ ฟังเสียงใจที่ยังไม่ยอมเงียบ",
-                "ทุกคำที่เก็บไว้มันดังขึ้นในคืนนี้",
-                "ไม่อยากหลบความรู้สึกที่มี",
-                "เลยปล่อยให้เพลงนี้พูดแทนใจ",
+                "ฉันไม่ได้เศร้าตลอดเวลาเหมือนในเพลงเก่า",
+                "แค่บางนาทีมันกลับมาโดยไม่บอกกล่าว",
+                "เหมือนประโยคธรรมดาที่ทำให้เงียบไปยาว",
+                "แล้วต้องแกล้งหัวเราะให้ผ่านบทสนทนา",
             ],
             "Pre-Chorus": [
-                "ยิ่งเก็บไว้นานเท่าไรยิ่งชัดเจน",
-                "ว่าหัวใจยังต้องการคำตอบ",
+                "ยิ่งทำเหมือนไม่เป็นไรยิ่งรู้ดี",
+                "ว่าบางอย่างยังรอให้ฉันยอมรับ",
             ],
             "Chorus": [
-                "ยังมีบางคำในใจ",
-                "ที่ร้องซ้ำ ๆ ไม่หาย",
-                "ยิ่งพยายามเดินไป",
-                "ยิ่งรู้ว่าต้องซื่อตรงกับใจ",
+                "กี่คืนแล้วที่ยังไม่หาย",
+                "ทั้งที่บอกใครว่าไม่เป็นไร",
+                "ยิ่งทำเหมือนเดินต่อได้",
+                "ยิ่งรู้ว่าข้างในยังหยุดอยู่",
             ],
             "Verse 2": [
-                "ฉันเห็นตัวเองชัดขึ้นในวันที่เหนื่อยล้า",
-                "ไม่ได้ต้องการชนะใครในเพลงนี้",
-                "แค่อยากให้ความรู้สึกที่มี",
-                "กลายเป็นทางให้ใจเดินต่อ",
+                "ฉันเริ่มกลัวความเงียบในตอนกลับบ้าน",
+                "เพราะมันชอบถามคำที่คนอื่นไม่ถาม",
+                "บางเรื่องเล็กเกินจะเล่าให้ใครฟัง",
+                "แต่ใหญ่พอให้ทั้งคืนไม่จบลง",
             ],
             "Bridge": [
-                "ถ้าคืนนี้ต้องยอมรับทุกอย่าง",
-                "ฉันจะไม่หนีจากใจตัวเองอีกแล้ว",
+                "ถ้าคืนนี้ต้องยอมรับว่าฉันยังไม่เก่ง",
+                "ก็ขอไม่แกล้งแข็งแรงต่อหน้าเพลงนี้",
+                "บางคนหายดีเพราะลืมได้",
+                "แต่ฉันอาจหายดีเพราะยอมพูดตรง ๆ",
             ],
             "Final Chorus": [
-                "ยังมีบางคำในใจ",
-                "ที่ร้องดังขึ้นกว่าเดิม",
-                "ให้ความจริงพาฉันเดิน",
-                "ผ่านคืนที่เคยสั่นไหว",
-                "ถ้าพรุ่งนี้ต้องเริ่มใหม่",
-                "ฉันจะเริ่มด้วยใจที่ตรงกว่าเดิม",
+                "กี่คืนแล้วที่ยังไม่หาย",
+                "คืนนี้ฉันจะไม่โกหกใคร",
+                "ถ้ายังเจ็บก็ปล่อยให้เจ็บได้",
+                "ไม่ต้องรีบเป็นคนใหม่ทันที",
+                "พรุ่งนี้ถ้าต้องเดินต่อไป",
+                "ขอเดินด้วยความจริงที่อยู่ในอก",
             ],
             "Outro": [
-                "ให้เพลงนี้ค่อย ๆ พาใจฉันกลับมา",
+                "ให้เพลงนี้ปิดไฟดวงสุดท้ายในห้องช้า ๆ",
             ],
         }
     lines = pools.get(section) or pools.get("Verse 1") or [str(idea or "ความรู้สึกนี้").strip()]
@@ -980,6 +1261,31 @@ def _rewrite_disallowed_reused_lines(idea: str, lyrics: str) -> str:
             replacement_counts[current_section] = replacement_counts.get(current_section, 0) + 1
             output.append(_concept_rewrite_line(idea, current_section, replacement_counts[current_section] - 1))
             continue
+        output.append(line)
+    return "\n".join(output).strip()
+
+
+def _reduce_overused_generic_words(idea: str, lyrics: str) -> str:
+    text = str(lyrics or "")
+    overused = {word for word, limit in OVERUSED_GENERIC_WORD_LIMITS.items() if text.count(word) > limit}
+    if not overused:
+        return text
+    output: list[str] = []
+    current_section = "Verse 1"
+    replacement_counts: dict[str, int] = {}
+    protected_sections = {"Chorus", "Final Chorus"}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            current_section = stripped.strip("[]")
+            output.append(line)
+            continue
+        if current_section not in protected_sections and stripped and any(word in stripped for word in overused):
+            replacement_counts[current_section] = replacement_counts.get(current_section, 0) + 1
+            candidate = _concept_rewrite_line(idea, current_section, replacement_counts[current_section] + 2)
+            if _compact_line(candidate) != _compact_line(stripped):
+                output.append(candidate)
+                continue
         output.append(line)
     return "\n".join(output).strip()
 
@@ -1111,14 +1417,15 @@ def generate_creative_release_pack(
         or _compact_line(title) == _compact_line(concept)
     ):
         title = title_candidates[0]["title"]
+    title = _authentic_title_from_concept(concept, preset_name, title)
     if title != original_title:
-        hook = improve_hook_singability(_select_best_hook(title, concept)["hook"])
+        hook = improve_hook_singability(_hook_from_idea(concept, title, preset))
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
     lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     if not concept_alignment["aligned"] and _concept_theme(concept) == "respectful_truth":
-        hook = improve_hook_singability(_select_best_hook(title, concept)["hook"])
+        hook = improve_hook_singability(_hook_from_idea(concept, title, preset))
         lyrics = polish_commercial_lyrics(_respectful_truth_lyrics(title, hook), hook)
         lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
         lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
