@@ -673,6 +673,9 @@ def main():
     assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "[Verse 1]" in lyrics_only_zip_text and "CORE GENRE" not in suno_style_zip_text and "VOCAL DIRECTION" not in suno_style_zip_text and "CORE GENRE" in producer_notes_zip_text, "release ZIP copy-ready Suno content failed")
     assert_true(clean_release_pack_zip_text.count("[Verse 1]") == 1 and clean_release_pack_zip_text.count("PRODUCER NOTES") == 1, "release_pack.txt duplicated lyrics or producer notes")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
+    release_quality = release_pack["quality_report"]["export_quality"]
+    assert_true(release_quality["ok"] and not release_quality["duplicated_sections"] and not release_quality["meta_text_inside_lyrics"] and not release_quality["too_short_lyrics"], "creative release pack export quality gate failed")
+    assert_true(release_quality["lyrics_line_stats"]["line_count"] >= 24 and release_quality["lyrics_line_stats"]["repeated_lines"] <= 8 and release_quality["final_chorus_has_payoff"], "creative release pack lyrics are too short, repetitive, or lack final payoff")
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
     love_release_pack = generate_creative_release_pack("เพลงรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
@@ -681,6 +684,7 @@ def main():
     assert_true(love_pack["Suggested title"] not in {"รัก", "ความรัก", "เพลงรัก"} and len(love_hook_lines) >= 2, "creative pack generic title/hook quality failed")
     assert_true(len(love_hook_lines) <= 5 and "ให้ท่อนนี้" not in love_pack["Hook"] and "ร้องให้สุด" not in love_pack["Hook"], "creative pack hook contains meta text")
     assert_true(love_release_pack["quality_report"]["selected_title_score"]["score"] >= 60 and love_release_pack["quality_report"]["selected_hook_score"]["score"] >= 60, "creative pack quality report scoring failed")
+    assert_true(3 <= len(love_hook_lines) <= 5 and love_release_pack["quality_report"]["export_quality"]["hook_is_copy_ready"], "creative pack hook is not singable/copy-ready")
     communication_concept = "ความจริงสำคัญ แต่วิธีพูดก็สำคัญพอกัน"
     communication_pack = generate_creative_release_pack(communication_concept, "Vela Moon Emotional Pop Rock", "Vela Moon")
     communication_lyrics = communication_pack["pack"]["Full lyrics"]

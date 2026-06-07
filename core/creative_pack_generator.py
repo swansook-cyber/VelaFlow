@@ -205,6 +205,58 @@ def _lines(text: str) -> list[str]:
     return [line.strip() for line in str(text or "").splitlines() if line.strip()]
 
 
+def _compact_line(text: str) -> str:
+    return "".join(str(text or "").lower().split())
+
+
+def _lyric_line_stats(lyrics: str) -> dict[str, Any]:
+    sections = parse_lyric_sections(lyrics)
+    rows = [line for lines in sections.values() for line in lines if line.strip()]
+    compact_rows = [_compact_line(line) for line in rows if _compact_line(line)]
+    repeated = max(0, len(compact_rows) - len(set(compact_rows)))
+    return {
+        "line_count": len(rows),
+        "unique_line_count": len(set(compact_rows)),
+        "repeated_lines": repeated,
+        "section_line_counts": {section: len(lines) for section, lines in sections.items()},
+    }
+
+
+def _lyrics_have_meta_text(lyrics: str) -> bool:
+    lowered = str(lyrics or "").lower()
+    return any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES)
+
+
+def _dedupe_non_hook_lines(section: str, lines: list[str], hook_lines: list[str], idea: str) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    hook_keys = {_compact_line(line) for line in hook_lines}
+    fill_index = 0
+    for line in lines:
+        key = _compact_line(line)
+        if not key:
+            continue
+        if key in seen and key not in hook_keys:
+            candidate = _concept_rewrite_line(idea, section, fill_index, final_payoff=section == "Final Chorus")
+            fill_index += 1
+            key = _compact_line(candidate)
+            attempts = 0
+            while key in seen and attempts < 12:
+                candidate = _concept_rewrite_line(idea, section, fill_index, final_payoff=section == "Final Chorus")
+                fill_index += 1
+                key = _compact_line(candidate)
+                attempts += 1
+            if key in seen:
+                candidate = f"{candidate} {fill_index}"
+                key = _compact_line(candidate)
+            output.append(candidate)
+            seen.add(key)
+            continue
+        output.append(line)
+        seen.add(key)
+    return output
+
+
 def _concept_theme(idea: str) -> str:
     text = str(idea or "").lower()
     if any(word in text for word in ["ความจริง", "พูด", "ตรง ๆ", "ตรงๆ", "ไม่แรง", "วิธีพูด", "คำพูด", "สื่อสาร", "คุยกัน", "ฟังกัน"]):
@@ -454,6 +506,31 @@ def _score_hook_candidate(hook: str) -> dict[str, Any]:
         "emotional_punch": max(0, min(100, emotional)),
         "caption_potential": max(0, min(100, caption)),
     }
+
+
+def improve_hook_singability(hook: str) -> str:
+    lines = _lines(remove_meta_lines_from_lyrics(hook))
+    clean: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        key = _compact_line(line)
+        if key and key not in seen and len(key) <= 34:
+            clean.append(line)
+            seen.add(key)
+    fallback_lines = [
+        "ยังมีบางคำในใจ",
+        "ที่ร้องซ้ำ ๆ ไม่หาย",
+        "ยิ่งพยายามเดินไป",
+        "ยิ่งรู้ว่าต้องซื่อตรงกับใจ",
+    ]
+    for fallback in fallback_lines:
+        if len(clean) >= 4:
+            break
+        key = _compact_line(fallback)
+        if key not in seen:
+            clean.append(fallback)
+            seen.add(key)
+    return "\n".join(clean[:5])
 
 
 def _hook_candidates(title: str, idea: str) -> list[str]:
@@ -748,6 +825,7 @@ def _ensure_commercial_song_length(idea: str, title: str, hook: str, lyrics: str
     rendered_sections: dict[str, list[str]] = {}
     for section in COMMERCIAL_SECTION_ORDER:
         lines = [line for line in sections.get(section, []) if line.strip()]
+        lines = _dedupe_non_hook_lines(section, lines, hook_lines, idea)
         if section in {"Chorus", "Final Chorus"} and hook_lines:
             existing_joined = "\n".join(lines)
             for hook_line in hook_lines:
@@ -764,15 +842,67 @@ def _ensure_commercial_song_length(idea: str, title: str, hook: str, lyrics: str
             chorus_set = set(rendered_sections.get("Chorus", []))
             final_unique = [line for line in lines if line not in chorus_set]
             payoff_index = 0
-            while len(final_unique) < 2:
+            attempts = 0
+            while len(final_unique) < 2 and attempts < 12:
                 candidate = _concept_rewrite_line(idea, section, payoff_index, final_payoff=True)
                 payoff_index += 1
+                attempts += 1
                 if candidate not in lines:
                     lines.append(candidate)
                     final_unique.append(candidate)
+            while len(final_unique) < 2:
+                candidate = ["ขอให้คืนนี้พาใจฉันไปไกลกว่าเดิม", "ให้พรุ่งนี้เริ่มด้วยใจที่ตรงกว่าเดิม"][len(final_unique) % 2]
+                if candidate not in lines:
+                    lines.append(candidate)
+                final_unique.append(candidate)
+            if lines[: len(rendered_sections.get("Chorus", []))] == rendered_sections.get("Chorus", []):
+                lines = lines + [
+                    _concept_rewrite_line(idea, section, payoff_index + 1, final_payoff=True),
+                    _concept_rewrite_line(idea, section, payoff_index + 2, final_payoff=True),
+                ]
+                lines = _dedupe_non_hook_lines(section, lines, hook_lines, idea)
         rendered_sections[section] = lines
     blocks = [f"[{section}]\n" + "\n".join(rendered_sections[section]) for section in COMMERCIAL_SECTION_ORDER]
     return "\n\n".join(blocks).strip()
+
+
+def _release_pack_quality_checks(title: str, hook: str, lyrics: str, suno_style_prompt: str) -> dict[str, Any]:
+    structure = validate_song_structure(lyrics)
+    stats = _lyric_line_stats(lyrics)
+    sections = parse_lyric_sections(lyrics)
+    section_counts = {section: 0 for section in COMMERCIAL_SECTION_ORDER}
+    for raw in str(lyrics or "").splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section_counts[stripped.strip("[]")] = section_counts.get(stripped.strip("[]"), 0) + 1
+    hook_lines = _lines(hook)
+    chorus_lines = set(sections.get("Chorus", []))
+    final_lines = set(sections.get("Final Chorus", []))
+    duplicated_sections = [section for section, count in section_counts.items() if count > 1]
+    section_min_ok = all(stats["section_line_counts"].get(section, 0) >= minimum for section, minimum in COMMERCIAL_SECTION_MIN_LINES.items())
+    too_short = stats["line_count"] < 24 or not section_min_ok
+    return {
+        "title_is_generic": score_song_title_candidate(title).get("score", 0) < 55,
+        "hook_line_count": len(hook_lines),
+        "hook_is_copy_ready": 3 <= len(hook_lines) <= 5 and not _lyrics_have_meta_text(hook),
+        "lyrics_line_stats": stats,
+        "too_short_lyrics": too_short,
+        "structure_validation": structure,
+        "duplicated_sections": duplicated_sections,
+        "meta_text_inside_lyrics": _lyrics_have_meta_text(lyrics),
+        "final_chorus_payoff_lines": len(final_lines - chorus_lines),
+        "final_chorus_has_payoff": len(final_lines - chorus_lines) >= 2,
+        "suno_style_prompt_english_only": not any("\u0e00" <= ch <= "\u0e7f" for ch in str(suno_style_prompt or "")),
+        "ok": (
+            not duplicated_sections
+            and not _lyrics_have_meta_text(lyrics)
+            and not too_short
+            and len(final_lines - chorus_lines) >= 2
+            and stats["line_count"] >= 24
+            and stats["repeated_lines"] <= 8
+            and 3 <= len(hook_lines) <= 5
+        ),
+    }
 
 
 def generate_creative_release_pack(
@@ -785,6 +915,16 @@ def generate_creative_release_pack(
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
     hook = improve_hook_singability(hook)
+    title_candidates = generate_song_title_candidates(idea=concept, hook_text=hook)
+    original_title = title
+    if title_candidates and (
+        score_song_title_candidate(title, concept).get("score", 0) < 70
+        or _compact_line(title) in {_compact_line(line) for line in _lines(hook)}
+        or _compact_line(title) == _compact_line(concept)
+    ):
+        title = title_candidates[0]["title"]
+    if title != original_title:
+        hook = improve_hook_singability(_select_best_hook(title, concept)["hook"])
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
     lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
@@ -802,6 +942,7 @@ def generate_creative_release_pack(
     ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)
     lyrics_only = _clean_lyric_text(lyrics)
     suno_style_prompt = _build_suno_style_prompt(preset_name, preset, advanced_settings)
+    export_quality = _release_pack_quality_checks(title, hook, lyrics_only, suno_style_prompt)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -881,6 +1022,7 @@ def generate_creative_release_pack(
                 "caption_ready": hook_score.get("caption_potential", 0) >= 60,
             },
             "concept_alignment": concept_alignment,
+            "export_quality": export_quality,
         },
         "generated_at": generated_at,
     }
