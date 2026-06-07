@@ -4,8 +4,6 @@ import os
 import sys
 from typing import Any
 
-from providers.ai_provider import normalize_provider
-
 
 API_MODE_OWN_KEY = "Use My Own API Key"
 API_MODE_BETA_KEY = "Use VelaFlow Beta Key"
@@ -17,6 +15,16 @@ LOCAL_STORAGE_KEYS = {
     "openai": "velaflow_openai_key",
     "xai": "velaflow_xai_key",
 }
+
+
+def normalize_provider(provider: str | None = None) -> str:
+    value = (provider or os.getenv("DEFAULT_AI_PROVIDER") or "gemini").strip().lower()
+    value = value.replace(" ", "_").replace("-", "_")
+    if value in {"openai", "openai_gpt", "gpt"}:
+        return "openai"
+    if value in {"xai", "xai_grok", "grok", "grok_ai"}:
+        return "xai"
+    return "gemini"
 
 
 def api_mode_label(value: str | None) -> str:

@@ -110,6 +110,25 @@ def _pick(items: List[str], index: int, offset: int = 0) -> str:
     return items[(index + offset) % len(items)]
 
 
+def _word_count(text: str) -> int:
+    return len([part for part in str(text or "").replace("\n", " ").split(" ") if part.strip()])
+
+
+def _storyboard_quality_report(storyboard: List[Dict[str, Any]]) -> Dict[str, Any]:
+    prompts = [str(scene.get("visual_prompt") or scene.get("image_prompt") or "") for scene in storyboard or []]
+    video_prompts = [str(scene.get("video_prompt") or "") for scene in storyboard or []]
+    joined = "\n".join(prompts + video_prompts).lower()
+    scene_titles = [str(scene.get("scene_title") or "") for scene in storyboard or []]
+    return {
+        "scene_count_ok": 5 <= len(storyboard or []) <= 10,
+        "prompts_detailed": all(_word_count(prompt) >= 24 for prompt in prompts),
+        "camera_lighting_mood_present": all(scene.get("camera_direction") and scene.get("lighting") and scene.get("mood") for scene in storyboard or []),
+        "scene_titles_vary": len(set(scene_titles)) >= min(4, len(scene_titles)),
+        "negative_constraints_present": all(("no text" in prompt.lower() or "no random text" in prompt.lower()) and "no watermark" in prompt.lower() for prompt in video_prompts),
+        "no_placeholder_text": "placeholder" not in joined and "lorem" not in joined,
+    }
+
+
 def _scene_title(visual: str, mood: str, index: int) -> str:
     title_map = [
         "Night Apartment Loneliness",
@@ -186,7 +205,7 @@ def generate_mv_storyboard(
             visual_prompt = (
                 f"{visual}, inspired by the lyric moment '{lyric[:80]}', {lighting}, "
                 f"{camera}, cinematic emotional realistic style, {vertical_note}, "
-                f"optimized for AI video generation"
+                f"optimized for AI video generation, same lead character continuity, realistic depth of field, no text, no watermark"
             )
             visual_prompt = build_visual_prompt(
                 workflow_type="music_mv",
@@ -196,7 +215,11 @@ def generate_mv_storyboard(
             ) if visual_settings else visual_prompt
             if artist_visual_mood and not visual_settings:
                 visual_prompt = f"{visual_prompt}, visual mood: {artist_visual_mood}"
-            video_prompt = f"{visual_prompt}, subtle natural motion, realistic human emotion, concise shot design"
+            video_prompt = (
+                f"{visual_prompt}, subtle natural motion, realistic human emotion, detailed shot design, "
+                f"camera movement: {camera}, lighting mood: {lighting}, emotional pacing: {scene_mood}, "
+                "single fullscreen cinematic scene, no subtitles inside video, no logo, no collage, no split screen, no watermark"
+            )
             scenes.append(
                 {
                     "scene": index + 1,
@@ -221,6 +244,8 @@ def generate_mv_storyboard(
                 }
             )
 
+        quality_report = _storyboard_quality_report(scenes)
+        metadata["quality_report"] = quality_report
         return {
             "ok": True,
             "message": f"Generated {len(scenes)} MV storyboard scenes",

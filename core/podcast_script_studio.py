@@ -424,6 +424,61 @@ def _avoid_topic_repeat(text: str, topic: str, max_mentions: int = 5) -> str:
     return "".join(rebuilt)
 
 
+def _dedupe_exact_paragraphs(text: str) -> str:
+    seen: set[str] = set()
+    rows: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            rows.append("")
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            rows.append(line)
+            continue
+        key = re.sub(r"\s+", " ", line).strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(line)
+    cleaned = "\n".join(rows)
+    while "\n\n\n" in cleaned:
+        cleaned = cleaned.replace("\n\n\n", "\n\n")
+    return cleaned.strip()
+
+
+def _long_form_detail_paragraph(section: str, index: int, context: dict[str, str]) -> str:
+    office_objects = [
+        "แก้วกาแฟที่เย็นจนจืด",
+        "ไฟห้องประชุมที่สว่างเกินจำเป็น",
+        "เสียงแอร์ที่ดังเหมือนกลบความเงียบ",
+        "ไฟล์ Excel ที่ชื่อเหมือน final แต่ไม่เคย final",
+        "แจ้งเตือนแชตงานที่เด้งหลังหกโมง",
+        "เก้าอี้ใน pantry ที่ไม่มีใครอยากนั่งนาน",
+        "ลิฟต์ที่ทุกคนยืนเงียบเกินปกติ",
+        "เครื่องพิมพ์ที่ค้างกระดาษเหมือนค้างอารมณ์",
+        "โต๊ะกินข้าวที่บทสนทนาหายไปครึ่งหนึ่ง",
+        "ลานจอดรถที่ฝนเพิ่งหยุดตก",
+    ]
+    inner_states = [
+        "ผมไม่ได้โกรธทันที แค่รู้สึกเหมือนแรงในตัวค่อย ๆ ลดลง",
+        "ตอนนั้นผมยิ้มได้ แต่ไม่แน่ใจว่าตัวเองยังโอเคจริงไหม",
+        "ผมนั่งฟังอยู่เงียบ ๆ เพราะบางประโยคถ้าเถียงทันทีจะกลายเป็นเรื่องใหญ่",
+        "สิ่งที่หนักไม่ใช่งาน แต่เป็นการทำเหมือนเรื่องนั้นไม่มีน้ำหนัก",
+        "ผมจำได้ว่ามือยังอยู่บนคีย์บอร์ด แต่หัวไม่ได้อยู่กับหน้าจอแล้ว",
+        "ความตลกร้ายคือทุกคนสุภาพมาก จนไม่มีใครต้องรับผิดชอบอะไรตรง ๆ",
+        "ผมไม่ได้อยากชนะใคร แค่อยากให้ความจริงไม่ถูกเลื่อนออกไปอีกวัน",
+        "ตอนนั้นผมเริ่มเข้าใจว่าความเงียบในออฟฟิศบางทีมันดังมาก",
+        "มีบางวินาทีที่ผมอยากปิดคอมแล้วเดินออกไปโดยไม่ต้องอธิบายอะไร",
+        "แต่สุดท้ายผมก็ยังนั่งอยู่ตรงนั้น เพราะชีวิตคนทำงานมักไม่ให้ฉากจบสวย ๆ ง่ายขนาดนั้น",
+    ]
+    character = [context.get("support_1", "เมย์"), context.get("support_2", "พี่นนท์"), context.get("support_3", "พี่อร")][index % 3]
+    return (
+        f"ในช่วง {section.replace('Act ', 'องก์ ')} ความทรงจำชิ้นที่ {index + 1} ที่ยังติดอยู่กับผมคือ {office_objects[index % len(office_objects)]}. "
+        f"{inner_states[index % len(inner_states)]} "
+        f"{character} ไม่ได้พูดอะไรยาว แค่ขยับตัวนิดเดียว แล้วบรรยากาศในห้องก็เปลี่ยนเหมือนทุกคนรู้พร้อมกันว่าเรื่องนี้ไม่ได้จบในประชุม."
+    )
+
+
 def _section_bank_key(section: str) -> str:
     return {
         "Setup": "Act 1: Setup",
@@ -570,13 +625,14 @@ def _expand_section(section: str, topic: str, tone: str, paragraphs_needed: int,
         bank = _paragraph_bank(topic, tone)[section_key]
     rows = []
     for index in range(paragraphs_needed):
-        base = bank[index % len(bank)]
-        if index >= len(bank):
+        effective_index = start_index + index
+        base = bank[effective_index % len(bank)]
+        if effective_index >= len(bank):
             base += " " + [
                 "พอพูดออกมาแบบนี้ มันไม่ได้ทำให้เรื่องเบาลงทันที แต่มันทำให้เราไม่ต้องแบกมันแบบไม่มีชื่ออีกต่อไป",
                 "และนั่นอาจเป็นจุดเริ่มต้นเล็ก ๆ ของการกลับมาฟังตัวเอง หลังจากฟังเสียงคนอื่นมาทั้งวัน",
                 "บางทีคำตอบไม่ได้อยู่ที่การหนีไปไหน แต่อยู่ที่การเห็นให้ชัดว่าอะไรที่เราไม่ควรปล่อยให้กลายเป็นเรื่องปกติอีกแล้ว",
-            ][index % 3]
+            ][effective_index % 3]
         rows.append(_humanize_paragraph(base, section_key, topic, tone, narrator, start_index + index))
     return "\n\n".join(rows)
 
@@ -611,6 +667,14 @@ def _full_script(topic: str, tone: str, narrator: str, length: str, context: dic
         script += "\n\n" + _expand_section(section, topic, tone, 1, narrator=narrator, start_index=section_offset + extension_index, context=context)
         script = _avoid_topic_repeat(script, topic)
         extension_index += 1
+    script = _dedupe_exact_paragraphs(script)
+    refill_count = 0
+    while _word_count(script) < target and refill_count < 220:
+        section = extension_sections[extension_index % len(extension_sections)]
+        script += "\n\n" + _long_form_detail_paragraph(section, extension_index, context)
+        script = _avoid_topic_repeat(_dedupe_exact_paragraphs(script), topic)
+        extension_index += 1
+        refill_count += 1
     return script
 
 
@@ -733,6 +797,69 @@ def _ai_video_prompt(topic: str, tone: str, context: dict[str, str] | None = Non
     )
 
 
+def _is_bullet_heavy(text: str) -> bool:
+    rows = [row.strip() for row in str(text or "").splitlines() if row.strip()]
+    if len(rows) < 10:
+        return False
+    bullet_rows = [row for row in rows if row.startswith(("-", "*", "•")) or re.match(r"^\d+[\.)]\s", row)]
+    return len(bullet_rows) / max(1, len(rows)) > 0.45
+
+
+def _repeated_line_count(text: str) -> int:
+    seen: set[str] = set()
+    repeated = 0
+    for raw in str(text or "").splitlines():
+        line = re.sub(r"\s+", " ", raw).strip().lower()
+        if not line or line.startswith("["):
+            continue
+        if line in seen:
+            repeated += 1
+        seen.add(line)
+    return repeated
+
+
+def _nonempty_script_line_count(text: str) -> int:
+    return len([line for line in str(text or "").splitlines() if line.strip() and not line.strip().startswith("[")])
+
+
+def _polish_podcast_script(script: str) -> str:
+    replacements = {
+        "Hello everyone": "",
+        "Today we will talk about": "",
+        "In this episode, we will discuss": "",
+    }
+    polished = str(script or "")
+    for bad, good in replacements.items():
+        polished = polished.replace(bad, good)
+    while "\n\n\n" in polished:
+        polished = polished.replace("\n\n\n", "\n\n")
+    return polished.strip()
+
+
+def _podcast_quality_report(package: dict[str, Any], episode_length: str) -> dict[str, Any]:
+    full_script = str(package.get("Full Podcast Script") or "")
+    ai_voice = str(package.get("AI Voice Version") or "")
+    text_export = podcast_script_package_to_text(package) if package else ""
+    target = WORD_TARGETS.get(episode_length, WORD_TARGETS["10 min"])["min"]
+    forbidden = [
+        "Hello everyone",
+        "Today we will talk about",
+        "placeholder",
+        "lorem ipsum",
+        "จุดเปลี่ยนคือ",
+        "บทเรียนคือ",
+    ]
+    return {
+        "long_form_ready": _word_count(ai_voice) >= target,
+        "not_bullet_outline": not _is_bullet_heavy(full_script),
+        "required_sections": all(section in full_script for section in ["[Cold Open]", "[Act 1: The Ordinary Office Day]", "[Act 5: The Breaking Point]", "[Ending]"]),
+        "voice_copy_ready": "[Cold Open]" not in ai_voice and "[Narrator Direction]" not in ai_voice and _word_count(ai_voice) >= target,
+        "shorts_ready": len(package.get("Shorts Extraction", []) or []) >= 10,
+        "no_placeholder_language": not any(token.lower() in text_export.lower() for token in forbidden),
+        "low_repetition": _repeated_line_count(full_script) <= max(8, int(_nonempty_script_line_count(full_script) * 0.08)),
+    }
+
+
 def generate_podcast_script_package(
     topic: str,
     podcast_tone: str,
@@ -751,7 +878,7 @@ def generate_podcast_script_package(
         return {"ok": False, "data": {}, "error": error}
     context = story_blueprint["context"]
     title = _best_title(topic, podcast_tone)
-    full_script = _full_script(topic, podcast_tone, narrator, episode_length, context=context)
+    full_script = _polish_podcast_script(_full_script(topic, podcast_tone, narrator, episode_length, context=context))
     word_count = _word_count(_ai_voice_version(full_script))
     package = {
         "Episode Title": title,
@@ -788,6 +915,7 @@ def generate_podcast_script_package(
             "generated_at": datetime.now().isoformat(timespec="seconds"),
         },
     }
+    package["metadata"]["quality_report"] = _podcast_quality_report(package, episode_length)
     return {"ok": True, "data": package, "error": ""}
 
 

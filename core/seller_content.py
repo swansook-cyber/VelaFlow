@@ -106,6 +106,73 @@ def _extract_json(text: str) -> Dict[str, Any]:
     return json.loads(match.group(1))
 
 
+def _word_count(text: str) -> int:
+    parts = [part for part in str(text or "").replace("\n", " ").split(" ") if part.strip()]
+    thai_chars = len(re.findall(r"[\u0e00-\u0e7f]", str(text or "")))
+    return max(len(parts), thai_chars // 6)
+
+
+def _dedupe_keep_order(items: List[Any]) -> List[str]:
+    seen: set[str] = set()
+    cleaned: List[str] = []
+    for item in items or []:
+        text = re.sub(r"\s+", " ", str(item or "")).strip()
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+    return cleaned
+
+
+def _seller_quality_report(package: Dict[str, Any]) -> Dict[str, Any]:
+    hooks = [str(item or "") for item in package.get("tiktok_hooks", [])]
+    scripts = []
+    for key in ["script_15s", "script_30s", "script_60s"]:
+        scripts.extend(str(item or "") for item in package.get(key, []) or [])
+    joined = "\n".join(hooks + scripts + [str(package.get("caption", "")), str(package.get("ai_video_prompt", ""))]).lower()
+    return {
+        "hooks_ready": len(hooks) >= 5 and all(_word_count(hook) >= 3 for hook in hooks[:5]),
+        "scripts_ready": len(package.get("script_15s", []) or []) >= 3 and len(package.get("script_30s", []) or []) >= 4 and len(package.get("script_60s", []) or []) >= 5,
+        "cta_ready": len(package.get("cta_suggestions", []) or []) >= 3,
+        "caption_ready": _word_count(package.get("caption", "")) >= 8,
+        "platform_prompt_ready": "vertical 9:16" in str(package.get("ai_video_prompt", "")).lower() and "product" in str(package.get("ai_video_prompt", "")).lower(),
+        "not_placeholder": not any(token in joined for token in ["placeholder", "lorem", "insert product", "todo"]),
+    }
+
+
+def _polish_seller_package(package: Dict[str, Any]) -> Dict[str, Any]:
+    package = dict(package)
+    for key in ["tiktok_hooks", "script_15s", "script_30s", "script_60s", "cta_suggestions", "broll_shot_ideas"]:
+        package[key] = _dedupe_keep_order(package.get(key, []) or [])
+    hooks = package.get("tiktok_hooks", [])
+    name = _clean(package.get("product_name")) or "product"
+    category = _clean(package.get("product_category")) or "daily item"
+    benefits = package.get("compressed_benefits", []) or ["easy to use", "worth trying", "daily friendly"]
+    while len(hooks) < 5:
+        benefit = benefits[len(hooks) % len(benefits)]
+        hooks.append(f"ลองดู {name} ถ้ากำลังหา {category} ที่ช่วยเรื่อง {benefit}")
+    package["tiktok_hooks"] = hooks[:8]
+    if _word_count(package.get("caption", "")) < 8:
+        package["caption"] = f"{name} สำหรับคนที่อยากได้ {category} ที่ใช้จริงง่าย เน้น {', '.join(str(item) for item in benefits[:3])}"
+    prompt = str(package.get("ai_video_prompt") or "")
+    if "vertical 9:16" not in prompt.lower():
+        prompt = f"vertical 9:16 TikTok product video, {prompt}".strip(", ")
+    if "no text" not in prompt.lower():
+        prompt += ", no text overlay, no logo, no watermark"
+    package["ai_video_prompt"] = prompt
+    package["short_video_script"] = package.get("script_30s", [])
+    package["final_script"] = {
+        "15s": package.get("script_15s", []),
+        "30s": package.get("script_30s", []),
+        "60s": package.get("script_60s", []),
+    }
+    package["quality_report"] = _seller_quality_report(package)
+    return package
+
+
 def _hooks_for_style(name: str, category: str, audience: str, benefits: List[str], hook_style: str) -> List[str]:
     b1 = benefits[0]
     b2 = benefits[1] if len(benefits) > 1 else b1
@@ -300,6 +367,7 @@ hashtags, ai_video_prompt, thumbnail_prompt, broll_shot_ideas
             except Exception:
                 package["provider_fallback_used"] = True
         package = apply_visual_engine_to_package(package, "seller", visual_settings)
+        package = _polish_seller_package(package)
         return {"ok": True, "message": "Seller content generated", "data": package, "error": ""}
     except Exception as exc:
         return {"ok": False, "message": "Seller content generation failed", "data": {}, "error": str(exc)}

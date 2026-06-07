@@ -75,6 +75,38 @@ def _scene_count(clip_length: str) -> int:
     return 6
 
 
+def _word_count(text: str) -> int:
+    return len([part for part in str(text or "").replace("\n", " ").split(" ") if part.strip()])
+
+
+def _is_bullet_heavy(text: str) -> bool:
+    rows = [row.strip() for row in str(text or "").splitlines() if row.strip()]
+    if len(rows) < 6:
+        return False
+    bullet_rows = [row for row in rows if row.startswith(("-", "*", "•")) or row[:2].replace(".", "").isdigit()]
+    return len(bullet_rows) / max(1, len(rows)) > 0.65
+
+
+def _video_quality_report(package: dict[str, Any]) -> dict[str, Any]:
+    prompts = [str(prompt or "") for prompt in package.get("shot_prompts", [])]
+    full_text = "\n".join(
+        [
+            package.get("full_shot_package", ""),
+            package.get("whisk_prompt", ""),
+            package.get("video_prompt", ""),
+            package.get("negative_prompt", ""),
+        ]
+    )
+    required_terms = ["vertical 9:16", "camera", "lighting", "mood", "no text", "no watermark"]
+    return {
+        "min_scene_count": len(package.get("scene_list", [])) >= 2,
+        "shot_prompts_detailed": all(_word_count(prompt) >= 28 for prompt in prompts),
+        "required_terms_present": all(term in full_text.lower() for term in required_terms),
+        "not_bullet_only": not _is_bullet_heavy(package.get("full_shot_package", "")),
+        "no_placeholder_text": "placeholder" not in full_text.lower() and "lorem" not in full_text.lower(),
+    }
+
+
 def build_video_prompt_package(
     *,
     project_type: str,
@@ -109,8 +141,11 @@ def build_video_prompt_package(
             "lighting": lighting,
             "emotion": energy,
             "prompt": (
-                f"Single continuous vertical 9:16 cinematic shot, {visual_style}, mood: {mood}, "
-                f"moment: {source_line}, camera: {camera}, lighting: {lighting}, no text, no logo, no watermark."
+                f"Single continuous vertical 9:16 cinematic shot for {target_platform}, {visual_style}. "
+                f"Story moment: {source_line}. Emotional intent: {energy}; mood: {mood}. "
+                f"Camera movement: {camera} with natural motion and stable subject continuity. "
+                f"Lighting: {lighting}, realistic shadows, clean depth of field, platform-safe framing. "
+                "No text, no subtitles, no logo, no watermark, no collage, no split screen."
             ),
         }
         scene_list.append(scene)
@@ -123,8 +158,10 @@ def build_video_prompt_package(
     )
     video_prompt = (
         f"{target_platform} AI video prompt: Create a {clip_length} {project_type} in vertical 9:16. "
-        f"Concept: {idea_summary}. {continuity} Natural human motion, cinematic camera movement, "
-        f"lighting and color: {visual_style}. Mood: {mood}. {negative_prompt}"
+        f"Concept: {idea_summary}. {continuity} Build a shot-by-shot emotional progression with "
+        "opening hook, visual detail, emotional peak, and soft ending. Use natural human motion, "
+        f"cinematic camera movement, realistic lighting, and color tone: {visual_style}. Mood: {mood}. "
+        f"Reference notes: {_clean(reference_style_notes, 'clean cinematic continuity')}. {negative_prompt}"
     )
     full_package = "\n\n".join(
         [
@@ -146,7 +183,7 @@ def build_video_prompt_package(
     thai_caption = f"คลิปนี้เล่าอารมณ์แบบ {mood} ผ่านภาพ {visual_style}"
     english_caption = f"A {mood} {project_type.lower()} concept built for {target_platform}."
     hashtags = ["#VelaFlow", "#AIVideo", "#VideoPrompt", "#Shorts", "#TikTokCreator"]
-    return {
+    package = {
         "ok": True,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "project_type": project_type,
@@ -169,6 +206,9 @@ def build_video_prompt_package(
         "hashtags": hashtags,
         "full_shot_package": full_package,
     }
+    package["quality_report"] = _video_quality_report(package)
+    package["ok"] = all(package["quality_report"].values())
+    return package
 
 
 def video_prompt_package_to_text(package: dict[str, Any]) -> str:

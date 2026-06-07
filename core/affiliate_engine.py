@@ -152,6 +152,33 @@ def score_affiliate_package(hooks: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _affiliate_word_count(text: str) -> int:
+    parts = [part for part in str(text or "").replace("\n", " ").split(" ") if part.strip()]
+    thai_chars = len([ch for ch in str(text or "") if "\u0e00" <= ch <= "\u0e7f"])
+    return max(len(parts), thai_chars // 6)
+
+
+def validate_affiliate_output_quality(brief: dict[str, Any]) -> dict[str, Any]:
+    hooks = brief.get("hooks") or []
+    scripts = brief.get("scripts") or {}
+    captions = (brief.get("caption_package") or {}).get("captions", [])
+    prompt = str(brief.get("prompt") or "")
+    joined = "\n".join(
+        [str(item.get("hook_text", "")) for item in hooks]
+        + [str(value or "") for value in scripts.values()]
+        + [str(item or "") for item in captions]
+        + [prompt]
+    ).lower()
+    return {
+        "hooks_ready": len(hooks) >= 8 and all(_affiliate_word_count(item.get("hook_text", "")) >= 5 for item in hooks[:5]),
+        "scripts_ready": all(_affiliate_word_count(scripts.get(key, "")) >= minimum for key, minimum in {"tiktok_script_15s": 24, "tiktok_script_30s": 38, "pov_script": 18, "review_script": 22}.items()),
+        "cta_ready": bool((brief.get("caption_package") or {}).get("cta_variants")),
+        "scene_plan_ready": len(brief.get("shot_list") or []) >= 4 and "vertical" in prompt.lower(),
+        "caption_ready": len(captions) >= 3 and all(_affiliate_word_count(item) >= 6 for item in captions[:2]),
+        "no_placeholder_text": not any(token in joined for token in ["placeholder", "lorem", "insert product", "todo"]),
+    }
+
+
 def build_affiliate_scripts(product: dict[str, Any], hooks: list[dict[str, Any]] | None = None) -> dict[str, str]:
     product = normalize_affiliate_product(product)
     top_hook = (hooks or generate_affiliate_hooks(product))[0]["hook_text"]
@@ -159,10 +186,10 @@ def build_affiliate_scripts(product: dict[str, Any], hooks: list[dict[str, Any]]
     pain = product["pain_point"]
     cta = "Check the details before you decide" if product["cta_style"] == "soft sell" else "Check the deal while it is still live"
     return {
-        "tiktok_script_15s": f"0-3s: {top_hook}\n3-8s: Show {name} close-up and the real problem: {pain}\n8-12s: Show one proof moment or before/after\n12-15s: {cta}",
-        "tiktok_script_30s": f"0-3s: {top_hook}\n3-10s: Tell the problem in a casual creator voice\n10-20s: Demo {name} with hands and close-up b-roll\n20-26s: Name 2 clear benefits without sounding spammy\n26-30s: {cta}",
-        "pov_script": f"POV: you are tired of {pain}, then try {name} for the first time.\nKeep it conversational, short, and honest.",
-        "review_script": f"Real review: {name}\nWhat I like: it helps with {product['emotional_angle']}\nBest for: {product['target_audience']}\nCTA: {cta}",
+        "tiktok_script_15s": f"0-3s: {top_hook}\n3-8s: Hold {name} close to camera and show the exact problem: {pain}. Keep the voice casual, like a real creator testing it.\n8-12s: Show one proof moment or before/after detail with hands in frame.\n12-15s: End with one clear CTA: {cta}",
+        "tiktok_script_30s": f"0-3s: {top_hook}\n3-10s: Tell the problem in a casual creator voice, then show why {pain} is annoying in daily life.\n10-20s: Demo {name} with hands, close-up b-roll, and one visible result.\n20-26s: Name 2 clear benefits without sounding spammy: {product['emotional_angle']} and a practical daily-use reason.\n26-30s: Close with soft proof and CTA: {cta}",
+        "pov_script": f"POV: you are tired of {pain}, then try {name} for the first time.\nShow the small frustration first, then the product reveal, then the moment where it feels easier. Keep it conversational, short, and honest.",
+        "review_script": f"Real review: {name}\nOpening: I did not expect this to help with {pain}.\nWhat I like: it helps with {product['emotional_angle']} without needing a complicated setup.\nBest for: {product['target_audience']} who want a practical fix.\nCTA: {cta}",
         "emotional_sell_script": f"If {pain} makes your day harder, {name} is a small helper that can make things feel more manageable.",
         "aesthetic_script": f"Open with a clean close-up of {name}\nCut to lifestyle use\nEnd with a simple hero shot and soft CTA",
     }
@@ -211,7 +238,7 @@ def build_affiliate_clip_brief(product: dict[str, Any], mode: str = "TikTok Affi
             *[f"- {item['scene_id']}: {item['prompt']}" for item in scene_prompt_plan.get("scene_prompts", [])],
         ]
     )
-    return {
+    brief = {
         "generated_by": "VelaFlow",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "mode": mode,
@@ -229,6 +256,8 @@ def build_affiliate_clip_brief(product: dict[str, Any], mode: str = "TikTok Affi
         "thumbnail_analysis": {},
         "prompt": prompt,
     }
+    brief["quality_report"] = validate_affiliate_output_quality(brief)
+    return brief
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -298,6 +327,7 @@ def export_affiliate_package(project_name: str, brief: dict[str, Any], quick_dat
             "target_platforms": ["TikTok", "Reels", "Shorts"],
             "scores": analysis.get("scores", {}),
             "best_hook": score.get("best_hook", {}),
+            "quality_report": brief.get("quality_report") or validate_affiliate_output_quality(brief),
             "automation_policy": "No posting automation, no account automation, no browser botting.",
             "export_status": "complete",
         }

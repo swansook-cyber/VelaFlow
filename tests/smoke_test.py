@@ -1168,6 +1168,7 @@ def main():
     assert_true(mv_storyboard["ok"], "MV storyboard generation failed")
     mv_scenes = mv_storyboard["data"]["storyboard"]
     assert_true(5 <= len(mv_scenes) <= 10, "MV storyboard scene count out of range")
+    assert_true(all(mv_storyboard["data"]["metadata"].get("quality_report", {}).values()), "MV storyboard quality report failed")
     required_scene_keys = {"scene_title", "visual_prompt", "camera_direction", "lighting", "mood", "transition_idea", "image_prompt", "video_prompt"}
     assert_true(all(required_scene_keys.issubset(scene.keys()) for scene in mv_scenes), "MV storyboard scene fields missing")
     assert_true(len({scene["scene_title"] for scene in mv_scenes}) > 3, "MV storyboard scene titles did not vary")
@@ -1218,6 +1219,7 @@ def main():
     assert_true(len(seller_package["tiktok_hooks"]) >= 3 and seller_package["caption"] and seller_package["ai_video_prompt"], "seller content package missing core fields")
     assert_true(seller_package["product_image"]["attached"] is False, "seller no-image package incorrectly marked image attached")
     assert_true(seller_package.get("script_15s") and seller_package.get("script_30s") and seller_package.get("script_60s"), "seller timed scripts missing")
+    assert_true(all(seller_package.get("quality_report", {}).values()), "seller content quality report failed")
     assert_true(seller_package.get("thumbnail_prompt"), "seller thumbnail prompt missing")
     assert_true(len(seller_package["broll_shot_ideas"]) >= 5 and "vertical 9:16" in seller_package["ai_video_prompt"], "seller video prompt or b-roll failed")
     seller_text = seller_content_to_text(seller_package)
@@ -1336,6 +1338,7 @@ def main():
     assert_true(podcast_script_10_result["ok"], "Podcast Script Studio 10-minute generation failed")
     assert_true("Vela After Work" in PODCAST_SCRIPT_TONES and WORD_TARGETS["20 min"]["min"] >= 3500 and podcast_script_package["metadata"]["offline_safe"] is True and podcast_script_package["metadata"]["episode_length"] == "20 min", "Podcast Script Studio metadata failed")
     assert_true(podcast_script_package["metadata"]["story_engine"] == "Vela After Work AI Story Writer" and podcast_script_package["metadata"]["story_blueprint_source"] in {"gemini", "local_fallback"} and podcast_script_package["metadata"]["story_provider"]["provider"] == "gemini", "Podcast Script Studio AI story writer metadata failed")
+    assert_true(all(podcast_script_package["metadata"].get("quality_report", {}).values()), "Podcast Script Studio quality report failed")
     assert_true(podcast_script_package["metadata"]["story_arc"] and podcast_script_package["metadata"]["scene_breakdown"] and len(podcast_script_package["metadata"]["scene_breakdown"]) >= 6, "Podcast Script Studio story outline metadata missing")
     assert_true("Hello everyone" not in podcast_script_package["Cold Open"] and "วันนี้เราจะพูดถึง" not in podcast_script_package["Cold Open"], "Podcast Script Studio cold open is too robotic")
     assert_true("[Cold Open]" in podcast_script_package["Full Podcast Script"] and "[Act 1: The Ordinary Office Day]" in podcast_script_package["Full Podcast Script"] and "[Act 2: The Incident]" in podcast_script_package["Full Podcast Script"] and "[Act 3: The Awkward Silence]" in podcast_script_package["Full Podcast Script"] and "[Act 4: The Office Politics]" in podcast_script_package["Full Podcast Script"] and "[Act 5: The Breaking Point]" in podcast_script_package["Full Podcast Script"] and "[Act 6: After Work Reflection]" in podcast_script_package["Full Podcast Script"] and "[Ending]" in podcast_script_package["Full Podcast Script"], "Podcast Script Studio V4 full story arc missing")
@@ -2153,6 +2156,7 @@ def main():
         assert_true(affiliate_timing["first_3_seconds"]["cut_at"] <= 2.2 and affiliate_timing["cta_timing"]["start"] > 0 and affiliate_timing["retention_estimate"] > 0, "affiliate retention timing failed")
         affiliate_brief = build_affiliate_clip_brief(affiliate_product, "TikTok Affiliate")
         assert_true(affiliate_brief["viral_score"]["conversion_potential"] > 0 and affiliate_brief["retention_timing"]["cta_timing"]["start"] > 0, "affiliate viral score failed")
+        assert_true(all(affiliate_brief.get("quality_report", {}).values()), "affiliate output quality report failed")
         affiliate_export = export_affiliate_package("Smoke Affiliate Clip", affiliate_brief, {})
         affiliate_dir = Path((affiliate_export.get("data") or {}).get("final_dir", ""))
         affiliate_zip = Path((affiliate_export.get("data") or {}).get("zip_path", ""))
@@ -2211,6 +2215,7 @@ def main():
             reference_style_notes="same woman, same room, warm shadow",
         )
         assert_true(video_prompt_package["ok"] and len(video_prompt_package["scene_list"]) == 3 and "Google Whisk" in video_prompt_package["video_prompt"], "video prompt studio package failed")
+        assert_true(all(video_prompt_package.get("quality_report", {}).values()), "video prompt quality report failed")
         assert_true("no text" in video_prompt_package["negative_prompt"].lower() and "vertical 9:16" in video_prompt_package["whisk_prompt"], "video prompt safety/framing failed")
         assert_true("Sad Pop MV" in VIDEO_PROMPT_PRESETS and "WHISK IMAGE PROMPT" in video_prompt_package_to_text(video_prompt_package), "video prompt preset/text export failed")
         assert_true(len(list_shorts_variations()) == 5 and list_shorts_variations()[0]["variation_id"] == "v1_emotional", "shorts variation list failed")
