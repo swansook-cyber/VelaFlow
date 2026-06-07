@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.api_quality_gate import build_api_quality_gate, production_blocked_result
 from core.file_naming import build_export_filename, ensure_unique_path, sanitize_filename
 from core.lyrics_expander import parse_lyric_sections, validate_song_structure
 from core.paths import workflow_project_root
@@ -1087,7 +1088,16 @@ def generate_creative_release_pack(
     idea: str,
     preset_name: str = "Thai Sad Pop",
     artist_name: str = "Vela Moon",
+    *,
+    production_mode: bool = False,
+    api_key: str = "",
+    demo_mode: bool = True,
+    provider_status: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    gate = provider_status or build_api_quality_gate(api_key=api_key, demo_mode=(demo_mode and not production_mode))
+    if production_mode and not gate.get("ok"):
+        return production_blocked_result(gate)
+
     preset = CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])
     concept = str(idea or "").strip() or preset["mood"]
     title = _seed_title(concept, preset_name)
@@ -1177,12 +1187,14 @@ def generate_creative_release_pack(
         "Release notes": "\n".join(
             [
                 "Release Pack generated locally by VelaFlow V1.",
+                f"Generation Mode: {gate.get('message') or gate.get('status')}",
                 "No video rendering, lip sync, cloud render, or encoding was used.",
                 "Review lyrics and prompts before publishing.",
                 f"Created at: {datetime.now().isoformat(timespec='seconds')}",
             ]
         ),
         "Lyrics Quality Report": _format_lyrics_quality_report(lyrics_quality_report),
+        "API Quality Gate": f"Status: {gate.get('status')}\nMessage: {gate.get('message')}\nOffline allowed: {gate.get('offline_allowed')}",
     }
     if preset_name.startswith("Vela Moon"):
         pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\n{caption_direction}"
@@ -1205,8 +1217,10 @@ def generate_creative_release_pack(
             "concept_alignment": concept_alignment,
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
+            "api_quality_gate": gate,
         },
         "generated_at": generated_at,
+        "provider_status": gate,
     }
 
 
@@ -1220,6 +1234,8 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
             "1. SONG INFO",
             f"Preset: {result.get('preset', '')}",
             f"Generated: {result.get('generated_at', '')}",
+            f"Provider Status: {(result.get('provider_status') or {}).get('status', '-')}",
+            f"Generation Mode: {((result.get('provider_status') or {}).get('message') or '-')}",
             f"Suggested Title: {title}",
             "Hook:",
             hook,
@@ -1274,6 +1290,7 @@ def export_creative_release_pack(
             "project_name": project_name,
             "song_title": title,
             "preset": result.get("preset"),
+            "provider_status": result.get("provider_status") or {},
             "generated_files": written,
             "txt_export": str(txt_path),
             "created_at": datetime.now().isoformat(timespec="seconds"),

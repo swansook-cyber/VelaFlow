@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+from core.api_quality_gate import build_api_quality_gate, production_blocked_result
 from providers.gemini_provider import GeminiProvider
 
 
@@ -867,15 +868,29 @@ def generate_podcast_script_package(
     episode_length: str,
     gemini_api_key: str | None = None,
     require_gemini_success: bool = False,
+    production_mode: bool = False,
+    demo_mode: bool = True,
 ) -> dict[str, Any]:
     topic = _clean(topic, "เรื่องที่คนทำงานคิดถึงหลังเลิกงาน")
     podcast_tone = podcast_tone if podcast_tone in PODCAST_SCRIPT_TONES else "Vela After Work"
     narrator = narrator if narrator in PODCAST_NARRATORS else "Male"
     episode_length = episode_length if episode_length in PODCAST_EPISODE_LENGTHS else "10 min"
     story_blueprint, provider_diagnostics = _generate_story_blueprint(topic, podcast_tone, episode_length, gemini_api_key=gemini_api_key)
-    if require_gemini_success and provider_diagnostics.get("used") != "true":
+    api_used = provider_diagnostics.get("used") == "true"
+    gate = build_api_quality_gate(
+        api_key=str(gemini_api_key or ""),
+        demo_mode=(demo_mode and not (production_mode or require_gemini_success)),
+        provider_error="" if api_used else provider_diagnostics.get("fallback_reason", ""),
+        provider="gemini",
+        key_source="runtime" if gemini_api_key else "none",
+    )
+    if (production_mode or require_gemini_success) and not api_used:
         error = provider_diagnostics.get("fallback_reason") or "Gemini Story Writer failed"
-        return {"ok": False, "data": {}, "error": error}
+        if not str(gemini_api_key or "").strip():
+            gate = build_api_quality_gate(api_key="", demo_mode=False, provider="gemini", key_source="none")
+        else:
+            gate = build_api_quality_gate(api_key=str(gemini_api_key or ""), demo_mode=False, provider_error=error, provider="gemini", key_source="runtime")
+        return production_blocked_result(gate)
     context = story_blueprint["context"]
     title = _best_title(topic, podcast_tone)
     full_script = _polish_podcast_script(_full_script(topic, podcast_tone, narrator, episode_length, context=context))
@@ -903,6 +918,8 @@ def generate_podcast_script_package(
             "story_engine": "Vela After Work AI Story Writer",
             "story_blueprint_source": story_blueprint.get("source", "local_fallback"),
             "story_provider": provider_diagnostics,
+            "provider_status": build_api_quality_gate(api_key=str(gemini_api_key or ""), demo_mode=False, provider="gemini") if api_used else gate,
+            "fallback_label": gate.get("message") if gate.get("status") == "Offline Demo Mode" else "",
             "story_arc": story_blueprint.get("story_arc", []),
             "scene_breakdown": story_blueprint.get("scene_breakdown", []),
             "resolution": story_blueprint.get("resolution", ""),

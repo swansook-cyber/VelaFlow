@@ -4,6 +4,8 @@ import os
 import sys
 from typing import Any
 
+from core.api_quality_gate import API_QUALITY_WARNING, STATUS_MISSING_KEY
+
 
 API_MODE_OWN_KEY = "Use My Own API Key"
 API_MODE_BETA_KEY = "Use VelaFlow Beta Key"
@@ -154,10 +156,10 @@ def resolve_provider_credentials(
         "api_key": "",
         "model": provider_model_name(settings, normalized),
         "api_mode": mode,
-        "source": "offline_fallback",
-        "status": "Offline Fallback",
+        "source": "none",
+        "status": STATUS_MISSING_KEY,
         "user_key_present": bool(user_key),
         "velaflow_key_present": bool(env_key),
         "missing_key": provider_key_env_name(normalized) if mode == API_MODE_BETA_KEY else "User API Key",
-        "warning": "Please add your own API key in AI Settings." if mode == API_MODE_OWN_KEY else f"{provider_key_env_name(normalized)} is not configured.",
+        "warning": API_QUALITY_WARNING,
     }

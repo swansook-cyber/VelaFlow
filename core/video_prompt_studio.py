@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from core.api_quality_gate import build_api_quality_gate, production_blocked_result
+
 
 PROJECT_TYPES = ["Music MV", "TikTok Affiliate Clip", "Spotify Canvas", "YouTube Shorts"]
 TARGET_PLATFORMS = ["Google Whisk", "Flow", "Veo", "Runway", "Kling", "Pika", "Luma", "Multi Platform"]
@@ -116,7 +118,14 @@ def build_video_prompt_package(
     target_platform: str,
     clip_length: str,
     reference_style_notes: str = "",
+    production_mode: bool = False,
+    api_key: str = "",
+    demo_mode: bool = True,
 ) -> dict[str, Any]:
+    gate = build_api_quality_gate(api_key=api_key, demo_mode=(demo_mode and not production_mode), provider="video_prompt_studio")
+    if production_mode and not gate.get("ok"):
+        return production_blocked_result(gate)
+
     project_type = project_type if project_type in PROJECT_TYPES else "Music MV"
     target_platform = target_platform if target_platform in TARGET_PLATFORMS else "Multi Platform"
     clip_length = clip_length if clip_length in CLIP_LENGTHS else "15s"
@@ -205,6 +214,8 @@ def build_video_prompt_package(
         "english_caption": english_caption,
         "hashtags": hashtags,
         "full_shot_package": full_package,
+        "provider_status": gate,
+        "fallback_label": gate.get("message") if gate.get("status") == "Offline Demo Mode" else "",
     }
     package["quality_report"] = _video_quality_report(package)
     package["ok"] = all(package["quality_report"].values())
@@ -218,6 +229,8 @@ def video_prompt_package_to_text(package: dict[str, Any]) -> str:
             f"Project Type: {package.get('project_type', '')}",
             f"Target Platform: {package.get('target_platform', '')}",
             f"Clip Length: {package.get('clip_length', '')}",
+            f"Provider Status: {(package.get('provider_status') or {}).get('status', '-')}",
+            f"Generation Mode: {package.get('fallback_label') or 'API provider output'}",
             "",
             package.get("full_shot_package", ""),
             "THAI CAPTION",

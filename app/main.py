@@ -45,6 +45,7 @@ from core.agent_memory import load_agent_memory, save_agent_memory
 from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
+from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -399,10 +400,9 @@ def _runtime_api_keys_for_health() -> dict[str, str]:
 def _warn_missing_provider_key(provider: str, api_key: str) -> None:
     if api_key:
         return
-    label = provider_display_name(provider)
     resolved = _active_credential_status() if provider == _active_ai_provider() else {}
     key_name = resolved.get("missing_key") or {"openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY"}.get(provider, "GEMINI_API_KEY")
-    warning = resolved.get("warning") or f"{label} ยังไม่มี {key_name}. ระบบจะใช้ offline fallback แทนและไม่ crash."
+    warning = resolved.get("warning") or f"{key_name}: {API_QUALITY_WARNING}"
     st.warning(warning)
 
 
@@ -415,8 +415,37 @@ def _provider_runtime_status(provider: str, api_key: str) -> dict[str, str]:
         return {"status": str(diagnostics.get("status") or "Ready"), "message": f"{diagnostics.get('message')} · configured via {source_label}"}
     label = provider_display_name(provider)
     key_name = (resolved or {}).get("missing_key") or provider_key_env_name(provider)
-    warning = (resolved or {}).get("warning") or f"Missing Key: {key_name}. {label} will fall back where available."
-    return {"status": "Offline Fallback", "message": warning}
+    warning = (resolved or {}).get("warning") or f"Missing Key: {key_name}. {API_QUALITY_WARNING}"
+    return {"status": "Missing API Key", "message": warning}
+
+
+def _production_api_gate(provider: str | None = None, api_key: str | None = None) -> dict[str, Any]:
+    selected_provider = provider or _active_ai_provider()
+    selected_api_key = str(api_key if api_key is not None else (_active_credential_status().get("api_key", "")) or "")
+    resolved = _active_credential_status() if selected_provider == _active_ai_provider() else {}
+    diagnostics = build_provider_runtime_diagnostics(
+        selected_provider,
+        selected_api_key,
+        api_mode=str(resolved.get("api_mode") or ""),
+        source=str(resolved.get("source") or ""),
+    )
+    runtime_ready = bool(diagnostics.get("runtime_ready")) if selected_api_key else None
+    error = "" if not selected_api_key or runtime_ready else diagnostics.get("message", "Provider runtime is not ready")
+    return build_api_quality_gate(
+        api_key=selected_api_key,
+        demo_mode=False,
+        provider_error=error,
+        runtime_ready=runtime_ready,
+        provider=selected_provider,
+        key_source=str(resolved.get("source") or ""),
+    )
+
+
+def _show_api_quality_stop(gate: dict[str, Any]) -> None:
+    st.error(API_QUALITY_WARNING)
+    status = gate.get("status") or "Provider Error"
+    detail = gate.get("error") or gate.get("message") or ""
+    st.warning(f"{status}: {detail}")
 
 
 def _workflow_analytics_key(workflow_mode: str | None = None) -> str:
@@ -2020,7 +2049,22 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
                 f"Language: {language}",
             ]
         ).strip()
-        result = generate_creative_release_pack(combined_idea, genre, str(project.get("artist") or DEFAULT_ARTIST))
+        production_mode = not bool(st.session_state.get("developer_mode"))
+        gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider=_active_ai_provider())
+        if production_mode and not gate.get("ok"):
+            _show_api_quality_stop(gate)
+            return
+        result = generate_creative_release_pack(
+            combined_idea,
+            genre,
+            str(project.get("artist") or DEFAULT_ARTIST),
+            production_mode=production_mode,
+            demo_mode=not production_mode,
+            provider_status=gate,
+        )
+        if not result.get("ok"):
+            _show_api_quality_stop(result.get("provider_status") or gate)
+            return
         state.update({"idea": idea, "mood": mood, "genre": genre, "vocal_style": vocal_style, "language": language, "result": result})
         project["creator_dashboard"] = state
         project.setdefault("song", {})["idea"] = idea
@@ -2117,7 +2161,22 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         key="creative_pack_generate_full_release_pack",
     )
     if generate_pack:
-        result = generate_creative_release_pack(idea, preset, artist_name)
+        production_mode = not bool(st.session_state.get("developer_mode"))
+        gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider=_active_ai_provider())
+        if production_mode and not gate.get("ok"):
+            _show_api_quality_stop(gate)
+            return
+        result = generate_creative_release_pack(
+            idea,
+            preset,
+            artist_name,
+            production_mode=production_mode,
+            demo_mode=not production_mode,
+            provider_status=gate,
+        )
+        if not result.get("ok"):
+            _show_api_quality_stop(result.get("provider_status") or gate)
+            return
         export = export_creative_release_pack(project.get("title") or result["pack"].get("Suggested title") or "VelaFlow Release", result, artist_name)
         state.update(
             {
@@ -5335,6 +5394,11 @@ elif page == "Seller Studio":
         st.info(TONE_GUIDES.get(tone_style, ""), icon="ℹ️")
 
     if st.button("Generate Seller Content", type="primary", use_container_width=True):
+        production_mode = not bool(st.session_state.get("developer_mode"))
+        gate = _production_api_gate(active_provider, active_api_key) if production_mode else build_api_quality_gate(demo_mode=True, provider=active_provider)
+        if production_mode and not gate.get("ok"):
+            _show_api_quality_stop(gate)
+            st.stop()
         product_image_meta = (project.get("seller_studio", {}) or {}).get("product_image", {}) or {}
         result = generate_seller_content(
             product_name,
@@ -5348,6 +5412,8 @@ elif page == "Seller Studio":
             provider=active_provider,
             api_key=active_api_key,
             model_name=active_model,
+            production_mode=production_mode,
+            demo_mode=not production_mode,
         )
         if result.get("ok"):
             package = result["data"]
@@ -5488,13 +5554,20 @@ elif page == "Podcast Script Studio":
         )
 
     if st.button("Generate Podcast Script Package", type="primary", use_container_width=True, key="podcast_script_generate"):
+        production_mode = not bool(st.session_state.get("developer_mode"))
+        gate = _production_api_gate("gemini", str(gemini_status.get("api_key", "") or ""))
+        if production_mode and not gate.get("ok"):
+            _show_api_quality_stop(gate)
+            st.stop()
         result = generate_podcast_script_package(
             podcast_script_topic,
             podcast_script_tone,
             podcast_script_narrator,
             podcast_script_length,
             gemini_api_key=str(gemini_status.get("api_key", "") or ""),
-            require_gemini_success=bool(gemini_status.get("enabled")),
+            require_gemini_success=production_mode,
+            production_mode=production_mode,
+            demo_mode=not production_mode,
         )
         if result.get("ok"):
             package = result["data"]
@@ -6372,6 +6445,11 @@ elif page == "Video Prompt Studio":
         reference_style_notes = st.text_area("Reference style notes", value=state.get("reference_style_notes", ""), height=90, key="video_prompt_reference_notes", help="ใส่ reference mood/style เช่น โทนสี แสง ห้อง เสื้อผ้า หรือภาพอ้างอิงที่อยากให้คงที่")
         generate_video_prompt = st.button("Generate Storyboard + AI Video Prompts", type="primary", use_container_width=True, disabled=not bool(main_idea.strip()), key="video_prompt_generate")
     if generate_video_prompt:
+        production_mode = not bool(st.session_state.get("developer_mode"))
+        gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider="video_prompt_studio")
+        if production_mode and not gate.get("ok"):
+            _show_api_quality_stop(gate)
+            st.stop()
         package = build_video_prompt_package(
             project_type=project_type,
             main_idea=main_idea,
@@ -6380,7 +6458,13 @@ elif page == "Video Prompt Studio":
             target_platform=target_platform,
             clip_length=clip_length,
             reference_style_notes=reference_style_notes,
+            production_mode=production_mode,
+            api_key=str((_active_credential_status() or {}).get("api_key", "") or ""),
+            demo_mode=not production_mode,
         )
+        if not package.get("ok"):
+            _show_api_quality_stop(package.get("provider_status") or gate)
+            st.stop()
         state.update(
             {
                 "project_type": project_type,
@@ -6809,7 +6893,7 @@ elif page == "AI Settings":
         "AI Provider",
         list(provider_options),
         index=list(provider_options.values()).index(current_provider) if current_provider in provider_options.values() else 0,
-        help="เลือกผู้ให้บริการ AI หลักตั้งแต่ต้นงาน ถ้าไม่มี API key ระบบจะใช้ offline fallback",
+        help="เลือกผู้ให้บริการ AI หลักตั้งแต่ต้นงาน ถ้าไม่มี API key ระบบจะหยุด generation เพื่อรักษาคุณภาพ output",
     )
     selected_provider = provider_options[provider_label]
     if selected_provider != st.session_state.get("default_ai_provider"):
@@ -6951,7 +7035,7 @@ elif page == "AI Settings":
     st.write(f"xAI Grok model: {settings.xai_text_model}")
     st.write("xAI Grok configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("xai") or settings.xai_api_key))
     st.caption("Environment variables: GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, DEFAULT_AI_PROVIDER")
-    st.caption("No payment, cloud sync, online license, full video AI, packaging, or watermark enforcement was added.")
+    st.caption("Production generation stops when API is unavailable. Offline/template output is only for Developer Mode or clearly labeled demo preview.")
 
 elif page == "Artist Preset Manager":
     _render_artist_preset_manager()

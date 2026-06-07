@@ -46,6 +46,7 @@ from core.affiliate_engine import (
 from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_gemini_api_key, resolve_provider_credentials
+from core.api_quality_gate import API_QUALITY_WARNING, STATUS_MISSING_KEY, STATUS_PROVIDER_ERROR, STATUS_RATE_LIMITED, build_api_quality_gate
 from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
 from core.exporter import export_package
@@ -430,8 +431,8 @@ def main():
     missing_resolved = resolve_provider_credentials(settings=fake_settings, provider="xai", api_mode=API_MODE_OWN_KEY, user_api_keys={})
     assert_true(own_resolved["api_key"] == "user-gemini" and own_resolved["source"] == "user", "BYO user key priority failed")
     assert_true(beta_resolved["api_key"] == "env-openai" and beta_resolved["source"] == "velaflow_beta", "VelaFlow beta key resolution failed")
-    assert_true(missing_resolved["api_key"] == "" and missing_resolved["status"] == "Offline Fallback", "missing BYO key fallback failed")
-    assert_true(missing_resolved["warning"] == "Please add your own API key in AI Settings.", "missing own-key warning failed")
+    assert_true(missing_resolved["api_key"] == "" and missing_resolved["status"] == STATUS_MISSING_KEY, "missing BYO key should block production generation")
+    assert_true(missing_resolved["warning"] == API_QUALITY_WARNING, "missing own-key warning failed")
     saved_gemini_env = os.environ.pop("GEMINI_API_KEY", None)
     try:
         session_gemini = resolve_gemini_api_key(settings=fake_settings, session_state={"user_api_keys": {"gemini": "session-gemini"}})
@@ -654,11 +655,18 @@ def main():
     assert_true(TARGET_PLATFORM_OPTIONS and "Full Pipeline" in TARGET_PLATFORM_OPTIONS, "creator wizard target platforms failed")
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
     assert_true(["Creator Dashboard", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "AI Settings"] == song_only_pages, "V1 creative pack navigation should include dashboard, creator steps, and Settings")
+    provider_error_gate = build_api_quality_gate(api_key="fake-key", provider_error="429 quota exceeded", provider="gemini")
+    assert_true(provider_error_gate["status"] == STATUS_RATE_LIMITED and API_QUALITY_WARNING in provider_error_gate["message"], "provider rate-limit quality gate failed")
+    provider_failure_gate = build_api_quality_gate(api_key="fake-key", provider_error="Gemini model unavailable", provider="gemini")
+    assert_true(provider_failure_gate["status"] == STATUS_PROVIDER_ERROR and provider_failure_gate["offline_allowed"] is False, "provider error quality gate failed")
+    blocked_release_pack = generate_creative_release_pack("เพลงรัก", "Vela Moon Emotional Pop Rock", "Vela Moon", production_mode=True, api_key="", demo_mode=False)
+    assert_true(not blocked_release_pack["ok"] and blocked_release_pack["provider_status"]["status"] == STATUS_MISSING_KEY and blocked_release_pack["message"] == API_QUALITY_WARNING, "Song Studio production generation silently allowed missing API")
     release_pack = generate_creative_release_pack("เพลงเศร้าในออฟฟิศ", "Office Burnout", "Vela Moon")
     release_export = export_creative_release_pack("Smoke Creative Pack", release_pack, "Vela Moon", base_dir=out / "creative_pack")
     release_zip = Path((release_export.get("data") or {}).get("zip_path", ""))
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
+    assert_true(release_pack["provider_status"]["status"] == "Offline Demo Mode" and "Demo / Offline Preview" in release_txt, "offline release pack is not clearly labeled as demo preview")
     assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "PRODUCER NOTES" in release_txt and "Music style prompt for Suno/Udio" not in release_txt and "Suno Copy-Ready Block" not in release_txt, "creative release pack copy-ready text cleanup missing")
     assert_true("Weirdness:" in release_txt and "Style Influence:" in release_txt and "BPM:" in release_txt, "advanced Suno settings missing from release pack")
     assert_true("SUNO LYRICS FIELD" in release_txt and "SUNO STYLE OF MUSIC FIELD" in release_txt and release_pack["pack"]["SUNO LYRICS FIELD"].strip(), "Suno copy-ready fields missing")
@@ -1216,7 +1224,18 @@ def main():
         model_name="grok-4.3",
     )
     assert_true(seller_result["ok"], "seller content generation failed")
+    seller_production_missing = generate_seller_content(
+        product_name="Smoke Bottle",
+        product_category="Lifestyle Gadget",
+        target_audience="busy creators",
+        key_selling_points="easy to carry",
+        provider="xai",
+        api_key="",
+        production_mode=True,
+    )
+    assert_true(not seller_production_missing["ok"] and seller_production_missing["provider_status"]["status"] == STATUS_MISSING_KEY, "Seller Studio production generation silently allowed missing API")
     seller_package = seller_result["data"]
+    assert_true(seller_package["provider_status"]["status"] == "Offline Demo Mode" and seller_package["fallback_label"] == "Demo / Offline Preview", "Seller Studio demo output is not clearly labeled")
     assert_true("Review" in HOOK_STYLES and seller_package["hook_style"] == "Review", "seller hook style failed")
     assert_true(seller_package["active_ai_provider"] == "xai" and seller_package["active_ai_model"] == "grok-4.3", "seller xAI provider metadata failed")
     assert_true(3 <= len(seller_package["compressed_benefits"]) <= 6, "seller compressed benefits count failed")
@@ -1326,7 +1345,19 @@ def main():
         if saved_gemini_key is not None:
             os.environ["GEMINI_API_KEY"] = saved_gemini_key
     assert_true(podcast_script_result["ok"], "Podcast Script Studio generation failed")
+    podcast_script_blocked = generate_podcast_script_package(
+        topic="ทีมเงียบหลังประชุม",
+        podcast_tone="Vela After Work",
+        narrator="Male",
+        episode_length="10 min",
+        gemini_api_key="",
+        production_mode=True,
+        require_gemini_success=True,
+        demo_mode=False,
+    )
+    assert_true(not podcast_script_blocked["ok"] and podcast_script_blocked["provider_status"]["status"] == STATUS_MISSING_KEY, "Podcast Studio production generation silently allowed missing Gemini")
     podcast_script_package = podcast_script_result["data"]
+    assert_true((podcast_script_package["metadata"].get("provider_status") or {}).get("status") == "Offline Demo Mode", "Podcast Studio local story output is not labeled as demo")
     assert_true(set(REQUIRED_PODCAST_SCRIPT_SECTIONS).issubset(set(podcast_script_package)), "Podcast Script Studio missing output sections")
     saved_gemini_key = os.environ.pop("GEMINI_API_KEY", None)
     try:
@@ -2042,6 +2073,7 @@ def main():
         assert_true("One-Click Song Package" in main_source and "Generate Song Package" in main_source and "Download Full Package TXT" in main_source and "ทำเพลงพร้อม Suno/Udio" in main_source, "creator dashboard one-click song package missing")
         assert_true("Song Title Suggestions" in main_source and "Lyrics for Suno" in main_source and "Style for Suno" in main_source and "Producer Notes" in main_source and "Release Checklist" in main_source, "creator dashboard output blocks missing")
         assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools." in main_source, "creative pack generator UI missing")
+        assert_true("API_QUALITY_WARNING" in main_source and "_show_api_quality_stop" in main_source, "API quality gate warning missing from UI")
         assert_true("Gemini API Key" in main_source and "Gemini status:" in main_source and "Key source:" in main_source and "Gemini configure() result:" in main_source and "Gemini client initialization result:" in main_source and "Test Gemini Connection" in main_source, "Gemini settings diagnostics UI missing")
         assert_true("Choose preset" in main_source and "Enter song idea" in main_source and "Generate & Export" in main_source, "creative pack quick start missing")
         assert_true("sidebar_nav_creator_dashboard" in main_source and "sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source and "sidebar_nav_ai_settings" in main_source, "creative pack sidebar navigation missing")
@@ -2219,6 +2251,19 @@ def main():
             reference_style_notes="same woman, same room, warm shadow",
         )
         assert_true(video_prompt_package["ok"] and len(video_prompt_package["scene_list"]) == 3 and "Google Whisk" in video_prompt_package["video_prompt"], "video prompt studio package failed")
+        video_prompt_blocked = build_video_prompt_package(
+            project_type="Music MV",
+            main_idea="ฝนตกในห้องเก่า",
+            mood="sad pop",
+            visual_style="rainy cinematic apartment",
+            target_platform="Google Whisk",
+            clip_length="15s",
+            production_mode=True,
+            api_key="",
+            demo_mode=False,
+        )
+        assert_true(not video_prompt_blocked["ok"] and video_prompt_blocked["provider_status"]["status"] == STATUS_MISSING_KEY, "Video Prompt Studio production generation silently allowed missing API")
+        assert_true(video_prompt_package["provider_status"]["status"] == "Offline Demo Mode" and "Demo / Offline Preview" in video_prompt_package_to_text(video_prompt_package), "Video Prompt Studio demo output is not clearly labeled")
         assert_true(all(video_prompt_package.get("quality_report", {}).values()), "video prompt quality report failed")
         assert_true("no text" in video_prompt_package["negative_prompt"].lower() and "vertical 9:16" in video_prompt_package["whisk_prompt"], "video prompt safety/framing failed")
         assert_true("Sad Pop MV" in VIDEO_PROMPT_PRESETS and "WHISK IMAGE PROMPT" in video_prompt_package_to_text(video_prompt_package), "video prompt preset/text export failed")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, STATUS_MISSING_KEY, STATUS_PROVIDER_ERROR
 from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
 from providers.ai_provider import normalize_provider, provider_display_name
 from providers.gemini_provider import GeminiTextProvider
@@ -29,11 +30,11 @@ def build_provider_runtime_diagnostics(
         "provider": normalized,
         "provider_label": provider_display_name(normalized),
         "api_mode": api_mode,
-        "source": source or ("user" if key_present else "offline_fallback"),
+        "source": source or ("user" if key_present else "none"),
         "key_present": key_present,
         "runtime_ready": False,
-        "status": "Missing Key" if not key_present else "Ready",
-        "message": "Missing API key" if not key_present else "Runtime key is available",
+        "status": STATUS_MISSING_KEY if not key_present else STATUS_API_READY,
+        "message": API_QUALITY_WARNING if not key_present else "Runtime key is available",
         "checks": {},
     }
     if not key_present:
@@ -68,13 +69,13 @@ def build_provider_runtime_diagnostics(
         diagnostics["veo_render_capable"] = bool(veo_sdk_ok)
         diagnostics["runtime_ready"] = bool(client_initialized)
         if client_initialized and veo_sdk_ok:
-            diagnostics["status"] = "Ready"
+            diagnostics["status"] = STATUS_API_READY
             diagnostics["message"] = "Gemini runtime ready; Veo SDK available"
         elif client_initialized:
-            diagnostics["status"] = "Ready"
+            diagnostics["status"] = STATUS_API_READY
             diagnostics["message"] = f"Gemini runtime ready; Veo unavailable: {veo_sdk_message}"
         else:
-            diagnostics["status"] = "Provider Unavailable"
+            diagnostics["status"] = STATUS_PROVIDER_ERROR
             diagnostics["message"] = f"Gemini client initialization failed: {client_exception or client_init_result or 'unknown error'}"
         return diagnostics
 
@@ -82,7 +83,7 @@ def build_provider_runtime_diagnostics(
         sdk_ok, sdk_message = _import_status("openai")
         diagnostics["checks"] = {"OpenAI runtime ready": sdk_ok}
         diagnostics["runtime_ready"] = bool(sdk_ok)
-        diagnostics["status"] = "Ready" if sdk_ok else "Provider Unavailable"
+        diagnostics["status"] = STATUS_API_READY if sdk_ok else STATUS_PROVIDER_ERROR
         diagnostics["message"] = "OpenAI runtime ready" if sdk_ok else f"OpenAI SDK unavailable: {sdk_message}"
         return diagnostics
 
@@ -91,7 +92,7 @@ def build_provider_runtime_diagnostics(
         sdk_ok, sdk_message = _import_status("openai")
         diagnostics["checks"] = {"xAI Grok runtime ready": sdk_ok}
         diagnostics["runtime_ready"] = bool(sdk_ok)
-        diagnostics["status"] = "Ready" if sdk_ok else "Provider Unavailable"
+        diagnostics["status"] = STATUS_API_READY if sdk_ok else STATUS_PROVIDER_ERROR
         diagnostics["message"] = "xAI Grok runtime ready" if sdk_ok else f"OpenAI-compatible SDK unavailable: {sdk_message}"
         return diagnostics
 

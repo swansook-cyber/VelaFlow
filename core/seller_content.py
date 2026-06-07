@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
+from core.api_quality_gate import build_api_quality_gate, production_blocked_result
 from core.project_io import safe_name
 from core.paths import resolve_project_folder
 from core.visual_engine import apply_visual_engine_to_package
@@ -226,8 +227,13 @@ def generate_seller_content(
     provider: str = "offline",
     api_key: str = "",
     model_name: str = "",
+    production_mode: bool = False,
+    demo_mode: bool = True,
 ) -> Dict[str, Any]:
     try:
+        if production_mode and not str(api_key or "").strip():
+            return production_blocked_result(build_api_quality_gate(api_key="", demo_mode=False, provider=provider, key_source="none"))
+
         name = _clean(product_name) or "สินค้าแนะนำ"
         category = _clean(product_category) or "Lifestyle Product"
         audience = _clean(target_audience) or "คนที่กำลังมองหาของใช้คุ้มค่า"
@@ -316,6 +322,8 @@ def generate_seller_content(
             "broll_shot_ideas": broll,
             "active_ai_provider": provider,
             "active_ai_model": model_name,
+            "provider_status": build_api_quality_gate(api_key=str(api_key or ""), demo_mode=(demo_mode and not production_mode), provider=provider),
+            "fallback_label": "Demo / Offline Preview" if not str(api_key or "").strip() else "",
             "generated_at": datetime.now().isoformat(timespec="seconds"),
         }
         if api_key:
@@ -343,7 +351,7 @@ hashtags, ai_video_prompt, thumbnail_prompt, broll_shot_ideas
                     api_key=api_key,
                     prompt=prompt,
                     primary_model=model_name,
-                    offline_factory=lambda: json.dumps(package, ensure_ascii=False),
+                    offline_factory=None if production_mode else lambda: json.dumps(package, ensure_ascii=False),
                 )
                 ai_data = _extract_json(text)
                 for key in [
@@ -364,8 +372,15 @@ hashtags, ai_video_prompt, thumbnail_prompt, broll_shot_ideas
                     "30s": package.get("script_30s", []),
                     "60s": package.get("script_60s", []),
                 }
-            except Exception:
+                package["provider_status"] = build_api_quality_gate(api_key=api_key, demo_mode=False, provider=provider)
+                package["fallback_label"] = ""
+                package["provider_fallback_used"] = False
+            except Exception as exc:
+                if production_mode:
+                    return production_blocked_result(build_api_quality_gate(api_key=api_key, demo_mode=False, provider_error=exc, provider=provider, key_source="runtime"))
                 package["provider_fallback_used"] = True
+                package["provider_status"] = build_api_quality_gate(api_key=api_key, demo_mode=True, provider=provider)
+                package["fallback_label"] = "Demo / Offline Preview"
         package = apply_visual_engine_to_package(package, "seller", visual_settings)
         package = _polish_seller_package(package)
         return {"ok": True, "message": "Seller content generated", "data": package, "error": ""}
@@ -383,6 +398,8 @@ def seller_content_to_text(package: Dict[str, Any]) -> str:
         f"Target Audience: {package.get('target_audience', '')}",
         f"Tone Style: {package.get('tone_style', '')}",
         f"Hook Style: {package.get('hook_style', '')}",
+        f"Provider Status: {(package.get('provider_status') or {}).get('status', '-')}",
+        f"Generation Mode: {package.get('fallback_label') or 'API provider output'}",
         f"Product Image: {image.get('path') or 'not attached'}",
         f"Product Image Filename: {image.get('filename') or '-'}",
         f"Image Note: {image.get('note') or '-'}",
