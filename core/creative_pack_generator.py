@@ -105,6 +105,7 @@ RELEASE_PACK_FILES = {
     "hashtags.txt": "Hashtags",
     "youtube_description.txt": "YouTube description",
     "release_notes.txt": "Release notes",
+    "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
 
 
@@ -225,6 +226,169 @@ def _lyric_line_stats(lyrics: str) -> dict[str, Any]:
 def _lyrics_have_meta_text(lyrics: str) -> bool:
     lowered = str(lyrics or "").lower()
     return any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES)
+
+
+GENERIC_FILLER_PHRASES = [
+    "ให้ท่อนนี้",
+    "ร้องให้สุด",
+    "hook direction",
+    "lyrics direction",
+    "tiktok-ready",
+    "spotify-friendly",
+    "dynamic chorus lift",
+    "easy to remember",
+    "placeholder",
+    "lorem ipsum",
+]
+
+
+def _thai_char_count(text: str) -> int:
+    return len([ch for ch in str(text or "") if "\u0e00" <= ch <= "\u0e7f"])
+
+
+def _line_singability_score(lines: list[str]) -> int:
+    if not lines:
+        return 0
+    scores: list[int] = []
+    for line in lines:
+        length = max(len(_compact_line(line)), _thai_char_count(line))
+        score = 90
+        if length < 5:
+            score -= 25
+        if length > 42:
+            score -= min(35, length - 42)
+        if any(mark in line for mark in [":", ";", "http"]):
+            score -= 20
+        scores.append(max(0, min(100, score)))
+    return int(sum(scores) / max(1, len(scores)))
+
+
+def _generic_filler_hits(lyrics: str) -> list[str]:
+    lowered = str(lyrics or "").lower()
+    return [phrase for phrase in GENERIC_FILLER_PHRASES if phrase.lower() in lowered]
+
+
+def _chorus_is_weak(sections: dict[str, list[str]], hook_lines: list[str]) -> bool:
+    chorus = sections.get("Chorus", [])
+    if len(chorus) < 4:
+        return True
+    chorus_text = "\n".join(chorus)
+    hook_presence = sum(1 for line in hook_lines if line and line in chorus_text)
+    return hook_presence < min(2, len(hook_lines)) or _line_singability_score(chorus[:6]) < 58
+
+
+def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: str) -> dict[str, Any]:
+    sections = parse_lyric_sections(lyrics)
+    stats = _lyric_line_stats(lyrics)
+    hook_lines = _lines(improve_hook_singability(hook))
+    chorus_lines = sections.get("Chorus", [])
+    final_chorus_lines = sections.get("Final Chorus", [])
+    chorus_unique_payoff = len({_compact_line(line) for line in final_chorus_lines} - {_compact_line(line) for line in chorus_lines})
+    filler_hits = _generic_filler_hits(lyrics)
+    repeated_lines = int(stats.get("repeated_lines", 0))
+    hook_score = int(_score_hook_candidate("\n".join(hook_lines)).get("score", 0))
+    emotional_terms = [
+        "ใจ",
+        "คืน",
+        "น้ำตา",
+        "คิดถึง",
+        "รัก",
+        "เจ็บ",
+        "หวัง",
+        "ลืม",
+        "พูด",
+        "ฟัง",
+        "จริง",
+        "อ่อนโยน",
+    ]
+    emotional_hits = sum(1 for term in emotional_terms if term in lyrics)
+    line_count = int(stats.get("line_count", 0))
+    section_min_ok = all(stats["section_line_counts"].get(section, 0) >= minimum for section, minimum in COMMERCIAL_SECTION_MIN_LINES.items())
+    structure_ok = bool(section_min_ok and line_count >= 24)
+    repetition_score = max(0, min(100, 100 - repeated_lines * 9 - len(filler_hits) * 12))
+    singability_score = int((_line_singability_score(hook_lines) * 0.45) + (_line_singability_score(chorus_lines + final_chorus_lines) * 0.55))
+    emotional_score = max(0, min(100, 62 + emotional_hits * 4 + (8 if validate_concept_alignment(concept, lyrics).get("aligned") else -10)))
+    commercial_score = max(
+        0,
+        min(
+            100,
+            54
+            + (12 if structure_ok else -12)
+            + (10 if line_count >= 28 else -8)
+            + (10 if chorus_unique_payoff >= 2 else -10)
+            + (8 if score_song_title_candidate(title, concept).get("score", 0) >= 70 else -8)
+            + (6 if not filler_hits else -10),
+        ),
+    )
+    weak_chorus = _chorus_is_weak(sections, hook_lines)
+    repeated_hook_lines = max(0, len([_compact_line(line) for line in hook_lines if line]) - len({_compact_line(line) for line in hook_lines if line}))
+    scores = {
+        "Hook Score": hook_score,
+        "Emotional Score": emotional_score,
+        "Commercial Score": commercial_score,
+        "Repetition Score": repetition_score,
+        "Singability Score": singability_score,
+    }
+    return {
+        "scores": scores,
+        "overall_score": int(sum(scores.values()) / len(scores)),
+        "line_count": line_count,
+        "repeated_lines": repeated_lines,
+        "repeated_hooks": repeated_hook_lines,
+        "generic_filler_phrases": filler_hits,
+        "weak_chorus": weak_chorus,
+        "final_chorus_payoff_lines": chorus_unique_payoff,
+        "title_memorability_score": score_song_title_candidate(title, concept),
+        "structure_ok": bool(structure_ok),
+        "copy_ready_for_suno": (
+            not weak_chorus
+            and not filler_hits
+            and repeated_lines <= 6
+            and repeated_hook_lines == 0
+            and line_count >= 24
+            and chorus_unique_payoff >= 2
+            and not _lyrics_have_meta_text(lyrics)
+        ),
+    }
+
+
+def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
+    scores = report.get("scores") or {}
+    rows = [
+        "Lyrics Quality Engine",
+        f"Overall Score: {report.get('overall_score', 0)}",
+        f"Hook Score: {scores.get('Hook Score', 0)}",
+        f"Emotional Score: {scores.get('Emotional Score', 0)}",
+        f"Commercial Score: {scores.get('Commercial Score', 0)}",
+        f"Repetition Score: {scores.get('Repetition Score', 0)}",
+        f"Singability Score: {scores.get('Singability Score', 0)}",
+        f"Line Count: {report.get('line_count', 0)}",
+        f"Repeated Lines: {report.get('repeated_lines', 0)}",
+        f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
+        f"Weak Chorus: {report.get('weak_chorus', False)}",
+        f"Final Chorus Payoff Lines: {report.get('final_chorus_payoff_lines', 0)}",
+        f"Copy Ready for Suno: {report.get('copy_ready_for_suno', False)}",
+    ]
+    filler = report.get("generic_filler_phrases") or []
+    rows.append("Generic Filler Phrases: " + (", ".join(filler) if filler else "None"))
+    return "\n".join(rows)
+
+
+def _apply_lyrics_quality_engine(title: str, hook: str, lyrics: str, concept: str) -> tuple[str, dict[str, Any]]:
+    polished = polish_commercial_lyrics(lyrics, hook)
+    polished = _rewrite_disallowed_reused_lines(concept, polished)
+    polished = _ensure_commercial_song_length(concept, title, hook, polished)
+    report = _lyrics_quality_engine_report(title, hook, polished, concept)
+    if (
+        report["repeated_lines"] > 6
+        or report["weak_chorus"]
+        or report["generic_filler_phrases"]
+        or not report["copy_ready_for_suno"]
+    ):
+        polished = polish_commercial_lyrics(polished, hook)
+        polished = _ensure_commercial_song_length(concept, title, hook, polished)
+        report = _lyrics_quality_engine_report(title, hook, polished, concept)
+    return polished, report
 
 
 def _dedupe_non_hook_lines(section: str, lines: list[str], hook_lines: list[str], idea: str) -> list[str]:
@@ -861,6 +1025,20 @@ def _ensure_commercial_song_length(idea: str, title: str, hook: str, lyrics: str
                     _concept_rewrite_line(idea, section, payoff_index + 2, final_payoff=True),
                 ]
                 lines = _dedupe_non_hook_lines(section, lines, hook_lines, idea)
+            unique_final: list[str] = []
+            seen_final: set[str] = set()
+            for line in lines:
+                key = _compact_line(line)
+                if key and key not in seen_final:
+                    unique_final.append(line)
+                    seen_final.add(key)
+            lines = unique_final[:10]
+            fill_index = 0
+            while len(lines) < COMMERCIAL_SECTION_MIN_LINES["Final Chorus"]:
+                candidate = _concept_rewrite_line(idea, section, fill_index, final_payoff=True)
+                fill_index += 1
+                if _compact_line(candidate) not in {_compact_line(line) for line in lines}:
+                    lines.append(candidate)
         rendered_sections[section] = lines
     blocks = [f"[{section}]\n" + "\n".join(rendered_sections[section]) for section in COMMERCIAL_SECTION_ORDER]
     return "\n\n".join(blocks).strip()
@@ -937,6 +1115,8 @@ def generate_creative_release_pack(
         concept_alignment = validate_concept_alignment(concept, lyrics)
     if not validate_song_structure(lyrics)["ok"]:
         lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
+    lyrics, lyrics_quality_report = _apply_lyrics_quality_engine(title, hook, lyrics, concept)
+    concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _advanced_settings_for_preset(preset_name)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)
@@ -1002,6 +1182,7 @@ def generate_creative_release_pack(
                 f"Created at: {datetime.now().isoformat(timespec='seconds')}",
             ]
         ),
+        "Lyrics Quality Report": _format_lyrics_quality_report(lyrics_quality_report),
     }
     if preset_name.startswith("Vela Moon"):
         pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\n{caption_direction}"
@@ -1023,6 +1204,7 @@ def generate_creative_release_pack(
             },
             "concept_alignment": concept_alignment,
             "export_quality": export_quality,
+            "lyrics_quality_engine": lyrics_quality_report,
         },
         "generated_at": generated_at,
     }
@@ -1059,6 +1241,7 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "10. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
         "11. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
         "12. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "13. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 

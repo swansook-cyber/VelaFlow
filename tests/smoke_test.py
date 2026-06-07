@@ -669,13 +669,17 @@ def main():
         suno_style_zip_text = release_archive.read("suno_style_prompt.txt").decode("utf-8-sig")
         producer_notes_zip_text = release_archive.read("producer_notes.txt").decode("utf-8-sig")
         clean_release_pack_zip_text = release_archive.read("release_pack.txt").decode("utf-8-sig")
-    assert_true({"lyrics_only.txt", "suno_style_prompt.txt", "producer_notes.txt", "release_pack.txt", "advanced_suno_settings.txt"}.issubset(release_zip_names), "release ZIP missing copy-ready Suno files")
+    assert_true({"lyrics_only.txt", "suno_style_prompt.txt", "producer_notes.txt", "release_pack.txt", "advanced_suno_settings.txt", "lyrics_quality_report.txt"}.issubset(release_zip_names), "release ZIP missing copy-ready Suno files")
     assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "[Verse 1]" in lyrics_only_zip_text and "CORE GENRE" not in suno_style_zip_text and "VOCAL DIRECTION" not in suno_style_zip_text and "CORE GENRE" in producer_notes_zip_text, "release ZIP copy-ready Suno content failed")
     assert_true(clean_release_pack_zip_text.count("[Verse 1]") == 1 and clean_release_pack_zip_text.count("PRODUCER NOTES") == 1, "release_pack.txt duplicated lyrics or producer notes")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
     release_quality = release_pack["quality_report"]["export_quality"]
+    lyrics_quality = release_pack["quality_report"]["lyrics_quality_engine"]
     assert_true(release_quality["ok"] and not release_quality["duplicated_sections"] and not release_quality["meta_text_inside_lyrics"] and not release_quality["too_short_lyrics"], "creative release pack export quality gate failed")
     assert_true(release_quality["lyrics_line_stats"]["line_count"] >= 24 and release_quality["lyrics_line_stats"]["repeated_lines"] <= 8 and release_quality["final_chorus_has_payoff"], "creative release pack lyrics are too short, repetitive, or lack final payoff")
+    assert_true(all(key in lyrics_quality["scores"] for key in ["Hook Score", "Emotional Score", "Commercial Score", "Repetition Score", "Singability Score"]), "lyrics quality engine scores missing")
+    assert_true(lyrics_quality["copy_ready_for_suno"] and lyrics_quality["overall_score"] >= 60 and lyrics_quality["repeated_lines"] <= 6 and not lyrics_quality["weak_chorus"], "lyrics quality engine failed copy-ready gate")
+    assert_true("Lyrics Quality Engine" in release_pack["pack"]["Lyrics Quality Report"] and "LYRICS QUALITY REPORT" in release_txt, "lyrics quality report missing from release pack")
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
     love_release_pack = generate_creative_release_pack("เพลงรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
