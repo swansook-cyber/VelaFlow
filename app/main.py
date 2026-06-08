@@ -306,9 +306,7 @@ license_service = get_license_service()
 ensure_beta_runtime_dirs()
 
 
-DISPLAY_TEXT_FIXES = {
-    "เน€เธเธฅเธเนเธซเธกเนเธเธญเธเธเธฑเธ": "เพลงใหม่ของฉัน",
-}
+DISPLAY_TEXT_FIXES = {}
 
 WORKFLOW_DEFAULT_NAMES = {
     "Song Studio Only": "เพลงใหม่ของฉัน",

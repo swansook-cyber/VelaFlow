@@ -682,6 +682,8 @@ def main():
     assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "[Verse 1]" in lyrics_only_zip_text and "CORE GENRE" not in suno_style_zip_text and "VOCAL DIRECTION" not in suno_style_zip_text and "CORE GENRE" in producer_notes_zip_text, "release ZIP copy-ready Suno content failed")
     assert_true(clean_release_pack_zip_text.count("[Verse 1]") == 1 and clean_release_pack_zip_text.count("PRODUCER NOTES") == 1, "release_pack.txt duplicated lyrics or producer notes")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
+    lyric_field_lower = release_pack["pack"]["SUNO LYRICS FIELD"].lower()
+    hook_lower = release_pack["pack"]["Hook"].lower()
     release_quality = release_pack["quality_report"]["export_quality"]
     lyrics_quality = release_pack["quality_report"]["lyrics_quality_engine"]
     assert_true(release_quality["ok"] and not release_quality["duplicated_sections"] and not release_quality["meta_text_inside_lyrics"] and not release_quality["too_short_lyrics"], "creative release pack export quality gate failed")
@@ -691,6 +693,8 @@ def main():
     assert_true("Lyrics Quality Engine" in release_pack["pack"]["Lyrics Quality Report"] and "LYRICS QUALITY REPORT" in release_txt, "lyrics quality report missing from release pack")
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
+    assert_true(not any(item in hook_lower for item in forbidden_lyric_prompts) and not any(item in lyric_field_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into hook or Suno lyrics field")
+    assert_true("เน€เธ" not in release_pack["pack"]["Hook"] and "เน€เธ" not in release_pack["pack"]["SUNO LYRICS FIELD"], "mojibake Thai text leaked into hook or Suno lyrics")
     love_release_pack = generate_creative_release_pack("เพลงรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
     love_pack = love_release_pack["pack"]
     love_hook_lines = [line for line in love_pack["Hook"].splitlines() if line.strip()]
@@ -2095,6 +2099,8 @@ def main():
         clip_v2_fail_manifest = json.loads(Path((clip_v2_fail.get("data") or {}).get("manifest_path", "")).read_text(encoding="utf-8"))
         assert_true(not clip_v2_fail["ok"] and clip_v2_fail_manifest.get("fallback_used") is False and clip_v2_fail_manifest.get("final_video_path") == "", "Clip Studio V2 created fallback success")
         main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+        creative_source = (ROOT / "core" / "creative_pack_generator.py").read_text(encoding="utf-8")
+        assert_true(creative_source.count("def improve_hook_singability") == 1 and "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก" not in creative_source and "อารมณ์หลัก:" not in creative_source, "creative pack hook helper duplicate or unreachable fallback returned")
         assert_true("def _copy_to_clipboard_button" in main_source and "navigator.clipboard.writeText" in main_source and "document.execCommand('copy')" in main_source and "_clipboard_count" in main_source and "✓ Copied to clipboard" in main_source, "repeatable clipboard helper missing")
         assert_true('_copy_to_clipboard_button("Copy Lyrics for Suno"' in main_source and '_copy_to_clipboard_button("Copy Style for Suno"' in main_source and '_copy_to_clipboard_button("Copy Producer Notes"' in main_source, "Suno copy buttons are not wired to clipboard helper")
         assert_true("creative_pack_copy_suno_lyrics_button" not in main_source and "disabled=True" not in main_source[main_source.find("def _copy_to_clipboard_button"):main_source.find("def _restore_local_api_state")], "clipboard helper should not disable copy buttons")

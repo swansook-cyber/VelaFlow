@@ -182,6 +182,8 @@ INTERNAL_LYRIC_PHRASES = [
     "music style prompt",
 ]
 
+MOJIBAKE_MARKERS = ["เน" + "€" + "เธ"]
+
 REUSED_BREAKUP_MEMORY_LINES = [
     "ฉันเดินผ่านที่เดิม",
     "ทุกข้อความเก่า",
@@ -253,6 +255,11 @@ def _lines(text: str) -> list[str]:
 
 def _compact_line(text: str) -> str:
     return "".join(str(text or "").lower().split())
+
+
+def _contains_bad_output_marker(text: str) -> bool:
+    lowered = str(text or "").lower()
+    return any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES) or any(marker in str(text or "") for marker in MOJIBAKE_MARKERS)
 
 
 def _normalize_creative_controls(controls: dict[str, Any] | None) -> dict[str, Any]:
@@ -374,8 +381,7 @@ def _lyric_line_stats(lyrics: str) -> dict[str, Any]:
 
 
 def _lyrics_have_meta_text(lyrics: str) -> bool:
-    lowered = str(lyrics or "").lower()
-    return any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES)
+    return _contains_bad_output_marker(lyrics)
 
 
 GENERIC_FILLER_PHRASES = [
@@ -654,7 +660,10 @@ def _authentic_title_from_concept(idea: str, preset_name: str, current_title: st
         "human_emotional": [],
     }
     compatible = not scene_terms.get(scene) or any(term in title for term in scene_terms.get(scene, []))
-    if title and title not in generic and compatible and 4 <= len(_compact_line(title)) <= 18:
+    awkward_endings = ("เท่", "ยิ่ง", "ทั้งที่", "แล้ว", "ไหม", "หรือ")
+    awkward = title.endswith(awkward_endings)
+    hook_fragment = any(_compact_line(title) and _compact_line(title) in _compact_line(candidate) for candidate in _hook_candidates(title, idea))
+    if title and title not in generic and not awkward and not hook_fragment and compatible and 4 <= len(_compact_line(title)) <= 18:
         return title
     return options.get(scene, options["human_emotional"])[0]
 
@@ -799,7 +808,7 @@ def _clean_lyric_text(text: str) -> str:
     cleaned: list[str] = []
     for line in _remove_numeric_artifacts_from_lyrics(text).splitlines():
         lowered = line.strip().lower()
-        if any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES):
+        if _contains_bad_output_marker(line):
             continue
         if lowered.startswith("(") and lowered.endswith(")"):
             continue
@@ -809,13 +818,6 @@ def _clean_lyric_text(text: str) -> str:
 
 def remove_meta_lines_from_lyrics(text: str) -> str:
     return _clean_lyric_text(text)
-
-
-def improve_hook_singability(hook: str) -> str:
-    lines = _lines(remove_meta_lines_from_lyrics(hook))
-    if len(lines) < 3:
-        lines.extend(["ยังดังซ้ำ ๆ ในหัวใจ", "หัวใจก็ยิ่งจำ"])
-    return "\n".join(lines[:5])
 
 
 def polish_commercial_lyrics(text: str, hook: str = "") -> str:
@@ -918,6 +920,41 @@ def improve_hook_singability(hook: str) -> str:
         if key not in seen:
             clean.append(fallback)
             seen.add(key)
+    return "\n".join(clean[:5])
+
+
+def _sanitize_hook_text(hook: str, title: str = "", idea: str = "") -> str:
+    generic_lines = {"ฉันยังรัก", "ฉันยังรอ", "ฉันคิดถึง", "ยังอยู่ในใจ", "รัก", "คิดถึง", "ลืมไม่ลง", "เพลงรัก"}
+    lines = _lines(improve_hook_singability(hook))
+    clean: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        key = _compact_line(line)
+        if not key or key in seen:
+            continue
+        if _contains_bad_output_marker(line):
+            continue
+        if key in {_compact_line(item) for item in generic_lines}:
+            continue
+        clean.append(line)
+        seen.add(key)
+    title_line = str(title or "").strip()
+    title_key = _compact_line(title_line)
+    if title_line and 5 <= len(title_key) <= 24 and title_key not in seen and not any(title_key in _compact_line(line) for line in clean):
+        if len(clean) < 4:
+            clean.insert(0, title_line)
+        elif len(clean) >= 3:
+            clean[-1] = title_line
+    if len(clean) < 3:
+        scene_hooks = _advanced_scene_hooks(_song_scene_type(idea))
+        fallback = scene_hooks[0] if scene_hooks else "\n".join(["กี่คืนแล้วที่ยังไม่หาย", "ทั้งที่บอกใครว่าไม่เป็นไร", "ยิ่งทำเหมือนเดินต่อได้", "ยิ่งรู้ว่าข้างในยังหยุดอยู่"])
+        for line in _lines(fallback):
+            key = _compact_line(line)
+            if key and key not in seen:
+                clean.append(line)
+                seen.add(key)
+            if len(clean) >= 4:
+                break
     return "\n".join(clean[:5])
 
 
@@ -1100,14 +1137,6 @@ def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     if hook_direction:
         return _select_best_hook(title, hook_context)["hook"]
     return _select_best_hook(title, hook_context)["hook"]
-    lowered = str(idea or "").strip()
-    if "ออฟฟิศ" in lowered or "office" in lowered.lower():
-        return "\n".join(["ทำไมใจยังติดอยู่ที่โต๊ะเดิม", "ทั้งที่ไฟในตึกดับไปนานแล้ว", "ฉันแค่เหนื่อย หรือฉันไม่เหลือใคร"])
-    if "แฟน" in lowered or "เลิก" in lowered or "relationship" in lowered.lower():
-        return "\n".join(["ลืมเธอไม่ได้สักที", "แม้รู้ว่าเธอไม่กลับมา", "ใจยังเรียกชื่อเดิมทุกคืน"])
-    if "drive" in lowered.lower() or "ขับรถ" in lowered:
-        return "\n".join(["ถนนคืนนี้ยาวเกินไป", "ไฟเมืองยังพาใจกลับไปหาเธอ", "ยิ่งขับไกล ยิ่งลืมไม่ลง"])
-    return "\n".join([title, "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก", f"อารมณ์หลัก: {preset['mood']}"])
 
 
 def _respectful_truth_lyrics(title: str, hook: str) -> str:
@@ -1734,7 +1763,7 @@ def generate_creative_release_pack(
     concept = _control_enriched_concept(original_concept, controls)
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
-    hook = _apply_hook_style(hook, title, concept, str(controls.get("hook_style") or ""))
+    hook = _sanitize_hook_text(_apply_hook_style(hook, title, concept, str(controls.get("hook_style") or "")), title, concept)
     title_candidates = generate_song_title_candidates(idea=concept, hook_text=hook)
     original_title = title
     if title_candidates and (
@@ -1745,7 +1774,7 @@ def generate_creative_release_pack(
         title = title_candidates[0]["title"]
     title = _authentic_title_from_concept(concept, preset_name, title)
     if title != original_title:
-        hook = _apply_hook_style(_hook_from_idea(concept, title, preset), title, concept, str(controls.get("hook_style") or ""))
+        hook = _sanitize_hook_text(_apply_hook_style(_hook_from_idea(concept, title, preset), title, concept, str(controls.get("hook_style") or "")), title, concept)
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
     lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
@@ -1783,7 +1812,7 @@ def generate_creative_release_pack(
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
     if preset_name.startswith("Vela Moon"):
         hashtags.extend(["#VelaMoon", "#ThaiPopRock", "#SpotifyThailand"])
-    caption_direction = str(preset.get("caption_direction") or "เน€เธเธฅเธเธเธตเนเธชเธณเธซเธฃเธฑเธเธเธเธ—เธตเนเธขเธฑเธเธขเธดเนเธกเนเธ”เน เนเธ•เนเธเนเธฒเธเนเธเธขเธฑเธเนเธกเนเธซเธฒเธขเธ”เธต")
+    caption_direction = str(preset.get("caption_direction") or "A warm emotional caption for listeners who still smile while healing inside.")
     pack = {
         "SONG INFO": song_info,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
