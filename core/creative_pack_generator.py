@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -211,6 +212,40 @@ COMMERCIAL_SECTION_MIN_LINES = {
     "Outro": 1,
 }
 
+QUALITY_FIRST_STORY_TYPES = [
+    "Office Burnout",
+    "Night Drive",
+    "Lost Love",
+    "Quiet Love",
+    "Family",
+    "Self Growth",
+    "Friendship",
+    "Life Reflection",
+]
+
+QUALITY_FIRST_HOOK_STYLES = ["Question", "Regret", "Confession", "Conflict", "Hope", "Memory"]
+QUALITY_FIRST_MOODS = ["Emotional", "Bittersweet", "Hopeful", "Broken", "Warm", "Reflective"]
+
+STORY_TYPE_HINTS = {
+    "Office Burnout": "office burnout, desk, meeting, deadline, exhausted worker, after-work loneliness",
+    "Night Drive": "night drive, car, road, city lights, 2 AM, quiet thoughts while driving alone",
+    "Lost Love": "lost love, breakup memory, person who never came back, room after goodbye",
+    "Quiet Love": "quiet love, unspoken confession, close but afraid to say it, gentle emotional tension",
+    "Family": "family, home, parent waiting, dinner table, ordinary love that keeps someone going",
+    "Self Growth": "self growth, tired person learning to choose themselves, honest recovery, small brave steps",
+    "Friendship": "friendship, friend who disappeared, unread chat, old promise, growing apart quietly",
+    "Life Reflection": "life reflection, ordinary city life, time passing, questions after work, growing older softly",
+}
+
+MOOD_HINTS = {
+    "Emotional": "emotionally direct, vulnerable, sincere",
+    "Bittersweet": "bittersweet, warm pain, not hopeless",
+    "Hopeful": "hopeful release, soft light after pain",
+    "Broken": "broken, fragile, restrained heartbreak",
+    "Warm": "warm, comforting, human, forgiving",
+    "Reflective": "reflective, mature, quiet realization",
+}
+
 
 def _lines(text: str) -> list[str]:
     return [line.strip() for line in str(text or "").splitlines() if line.strip()]
@@ -218,6 +253,111 @@ def _lines(text: str) -> list[str]:
 
 def _compact_line(text: str) -> str:
     return "".join(str(text or "").lower().split())
+
+
+def _normalize_creative_controls(controls: dict[str, Any] | None) -> dict[str, Any]:
+    raw = controls or {}
+    normalized = {
+        "genre": str(raw.get("genre") or "").strip(),
+        "mood": str(raw.get("mood") or "").strip(),
+        "story_type": str(raw.get("story_type") or "").strip(),
+        "hook_style": str(raw.get("hook_style") or "").strip(),
+        "vocal_direction": str(raw.get("vocal_direction") or "").strip(),
+        "commercial_direction": str(raw.get("commercial_direction") or "").strip(),
+        "style_influence": raw.get("style_influence", ""),
+        "weirdness": raw.get("weirdness", ""),
+    }
+    if normalized["story_type"] not in QUALITY_FIRST_STORY_TYPES:
+        normalized["story_type"] = ""
+    if normalized["hook_style"] not in QUALITY_FIRST_HOOK_STYLES:
+        normalized["hook_style"] = ""
+    if normalized["mood"] not in QUALITY_FIRST_MOODS and normalized["mood"]:
+        normalized["mood"] = normalized["mood"]
+    return normalized
+
+
+def _controls_summary(controls: dict[str, Any]) -> str:
+    rows = []
+    labels = [
+        ("Genre", "genre"),
+        ("Mood", "mood"),
+        ("Story Type", "story_type"),
+        ("Hook Style", "hook_style"),
+        ("Vocal Direction", "vocal_direction"),
+        ("Style Influence", "style_influence"),
+        ("Weirdness", "weirdness"),
+        ("Commercial Direction", "commercial_direction"),
+    ]
+    for label, key in labels:
+        value = str(controls.get(key) or "").strip()
+        if value:
+            rows.append(f"{label}: {value}")
+    return "\n".join(rows)
+
+
+def _control_enriched_concept(concept: str, controls: dict[str, Any]) -> str:
+    hints = [str(concept or "").strip()]
+    story_type = str(controls.get("story_type") or "").strip()
+    mood = str(controls.get("mood") or "").strip()
+    hook_style = str(controls.get("hook_style") or "").strip()
+    if story_type:
+        hints.append(f"Story Type: {story_type}. {STORY_TYPE_HINTS.get(story_type, '')}")
+    if mood:
+        hints.append(f"Mood: {mood}. {MOOD_HINTS.get(mood, mood)}")
+    if hook_style:
+        hints.append(f"Hook Style: {hook_style}")
+    for key in ["genre", "vocal_direction", "commercial_direction"]:
+        value = str(controls.get(key) or "").strip()
+        if value:
+            hints.append(f"{key.replace('_', ' ').title()}: {value}")
+    return "\n".join([line for line in hints if line.strip()])
+
+
+def _apply_controls_to_preset(preset: dict[str, str], controls: dict[str, Any]) -> dict[str, str]:
+    enriched = dict(preset)
+    if controls.get("genre"):
+        enriched["style"] = f"{controls['genre']}, {enriched.get('style', '')}".strip(", ")
+    if controls.get("mood"):
+        enriched["mood"] = f"{controls['mood']} - {MOOD_HINTS.get(str(controls['mood']), str(controls['mood']))}"
+    if controls.get("vocal_direction"):
+        enriched["style"] = f"{enriched.get('style', '')}, {controls['vocal_direction']}".strip(", ")
+        enriched["lyrics_direction"] = f"{enriched.get('lyrics_direction', '')}. Vocal perspective: {controls['vocal_direction']}".strip()
+    if controls.get("commercial_direction"):
+        enriched["caption_direction"] = str(controls["commercial_direction"])
+    if controls.get("hook_style"):
+        enriched["hook_direction"] = f"{controls['hook_style']} hook; {enriched.get('hook_direction', '')}".strip("; ")
+    return enriched
+
+
+def _apply_advanced_setting_overrides(settings: dict[str, str], controls: dict[str, Any]) -> dict[str, str]:
+    output = dict(settings)
+    for key, label in [("weirdness", "Weirdness"), ("style_influence", "Style Influence")]:
+        value = controls.get(key)
+        if value in ("", None):
+            continue
+        try:
+            number = int(float(str(value).replace("%", "").strip()))
+        except ValueError:
+            continue
+        output[label] = f"{max(0, min(100, number))}%"
+    if controls.get("vocal_direction"):
+        output["Vocal Style Notes"] = str(controls["vocal_direction"])
+    if controls.get("commercial_direction"):
+        output["Commercial Direction"] = str(controls["commercial_direction"])
+    return output
+
+
+def _remove_numeric_artifacts_from_lyrics(text: str) -> str:
+    cleaned: list[str] = []
+    for raw in str(text or "").splitlines():
+        line = raw.rstrip()
+        stripped = line.strip()
+        if re.fullmatch(r"\d+", stripped):
+            continue
+        if not (stripped.startswith("[") and stripped.endswith("]")):
+            line = re.sub(r"\s+\d{1,3}$", "", line).rstrip()
+        cleaned.append(line)
+    return "\n".join(cleaned).strip()
 
 
 def _lyric_line_stats(lyrics: str) -> dict[str, Any]:
@@ -423,7 +563,7 @@ def _dedupe_non_hook_lines(section: str, lines: list[str], hook_lines: list[str]
                 key = _compact_line(candidate)
                 attempts += 1
             if key in seen:
-                candidate = f"{candidate} {fill_index}"
+                candidate = _clean_fallback_line(idea, section, fill_index)
                 key = _compact_line(candidate)
             output.append(candidate)
             seen.add(key)
@@ -431,6 +571,22 @@ def _dedupe_non_hook_lines(section: str, lines: list[str], hook_lines: list[str]
         output.append(line)
         seen.add(key)
     return output
+
+
+def _clean_fallback_line(idea: str, section: str, index: int) -> str:
+    scene = _song_scene_type(idea)
+    fallback_by_scene = {
+        "office_life": ["คืนนี้ขอวางบัตรพนักงานไว้ข้างประตู", "พรุ่งนี้ค่อยกลับไปเป็นคนเก่งอีกครั้ง"],
+        "night_drive": ["ฉันปล่อยไฟถนนสอนให้ช้าลง", "เพลงในรถค่อย ๆ พาฉันกลับมา"],
+        "breakup_memory": ["ให้ชื่อเธอเบาลงทีละคืน", "ฉันจะเก็บรักไว้เป็นเพลงสุดท้าย"],
+        "quiet_love": ["ถ้าพูดไม่ไหวก็ขอให้สายตาบอกแทน", "ความเงียบของฉันมีชื่อเธออยู่ในนั้น"],
+        "family": ["บ้านยังเปิดไฟรอฉันเหมือนเดิม", "คนที่โต๊ะกินข้าวไม่เคยถามว่าฉันเก่งแค่ไหน"],
+        "self_growth": ["วันนี้ฉันยอมเป็นคนธรรมดาที่ไม่หนีตัวเอง", "ก้าวเล็ก ๆ ก็ยังพาฉันไกลจากวันเดิม"],
+        "friendship": ["แชตเก่ายังอยู่เหมือนรูปถ่ายที่ไม่กล้าลบ", "บางคนหายไปแต่เสียงหัวเราะยังอยู่"],
+        "life_reflection": ["ปีที่ผ่านไปสอนให้ฉันพูดเบาลง", "บางคำตอบมาช้าแต่ยังพอทันใจ"],
+    }
+    lines = fallback_by_scene.get(scene) or ["ขอให้คืนนี้ผ่านไปอย่างซื่อตรง", "พรุ่งนี้ค่อยเริ่มใหม่ด้วยใจที่เบากว่าเดิม"]
+    return lines[index % len(lines)]
 
 
 def _concept_theme(idea: str) -> str:
@@ -450,6 +606,14 @@ def _song_scene_type(idea: str, preset_name: str = "") -> str:
     text = f"{idea} {preset_name}".lower()
     if _concept_theme(idea) == "respectful_truth":
         return "respectful_truth"
+    if any(word in text for word in ["family", "ครอบครัว", "พ่อ", "แม่", "บ้านรอ", "คนที่บ้าน", "โต๊ะกินข้าว", "กลับบ้าน"]):
+        return "family"
+    if any(word in text for word in ["self growth", "self-growth", "เติบโต", "เริ่มใหม่", "เลือกตัวเอง", "ชีวิตตัวเอง", "ไม่ยอมแพ้"]):
+        return "self_growth"
+    if any(word in text for word in ["friendship", "เพื่อน", "เพื่อนที่หาย", "แชตเก่า", "มิตรภาพ"]):
+        return "friendship"
+    if any(word in text for word in ["life reflection", "ทบทวนชีวิต", "ชีวิต", "เวลา", "โตขึ้น", "วัย", "ผ่านมา"]):
+        return "life_reflection"
     if any(word in text for word in ["ออฟฟิศ", "office", "working-life", "working life", "งาน", "ประชุม", "โต๊ะ", "หัวหน้า", "burnout", "desk"]):
         return "office_life"
     if any(word in text for word in ["ขับรถ", "รถ", "ถนน", "กลางคืน", "night drive", "night-drive", "drive", "road-trip", "car interior"]):
@@ -469,6 +633,10 @@ def _authentic_title_from_concept(idea: str, preset_name: str, current_title: st
         "breakup_memory": ["ลืมไม่ลง", "คืนที่ไม่มีเธอ", "คนที่ไม่กลับมา", "ยังเจ็บที่เดิม"],
         "quiet_love": ["รักที่ไม่พูดไป", "ถ้าใจยังรัก", "เก็บเธอไว้ในเพลง", "ยังเลือกเธอ"],
         "respectful_truth": ["พูดกันเบา ๆ", "ความจริงเบา ๆ", "คำที่ยังถนอม", "อย่าชนะด้วยคำแรง"],
+        "family": ["ไฟบ้านยังรอ", "กลับไปกอดบ้าน", "คนที่บ้านรอ", "โต๊ะข้าวเดิม"],
+        "self_growth": ["ค่อย ๆ กลับมา", "ยังเริ่มใหม่ได้", "วันนี้ไม่หนี", "พรุ่งนี้ของฉัน"],
+        "friendship": ["เพื่อนที่หายไป", "แชตที่เงียบไป", "รูปเก่ายังยิ้ม", "คำสัญญาเก่า"],
+        "life_reflection": ["ปีที่ผ่านไป", "คำตอบตอนโต", "คืนนี้ทบทวน", "เวลาไม่รอ"],
         "human_emotional": ["ยังไหวอยู่ไหม", "กี่คืนถึงพอ", "คำที่ค้างในใจ", "พรุ่งนี้ค่อยหาย"],
     }
     title = str(current_title or "").strip()
@@ -479,6 +647,10 @@ def _authentic_title_from_concept(idea: str, preset_name: str, current_title: st
         "breakup_memory": ["ลืม", "เธอ", "กลับมา", "เจ็บ", "คืน"],
         "quiet_love": ["รัก", "เธอ", "เพลง", "ใจ"],
         "respectful_truth": ["พูด", "คำ", "จริง", "เบา"],
+        "family": ["บ้าน", "รอ", "กอด", "โต๊ะ", "ข้าว"],
+        "self_growth": ["กลับ", "เริ่ม", "พรุ่งนี้", "หนี"],
+        "friendship": ["เพื่อน", "แชต", "รูป", "สัญญา"],
+        "life_reflection": ["ปี", "เวลา", "โต", "คืน"],
         "human_emotional": [],
     }
     compatible = not scene_terms.get(scene) or any(term in title for term in scene_terms.get(scene, []))
@@ -625,7 +797,7 @@ def _build_suno_style_prompt(preset_name: str, preset: dict[str, str], settings:
 
 def _clean_lyric_text(text: str) -> str:
     cleaned: list[str] = []
-    for line in str(text or "").splitlines():
+    for line in _remove_numeric_artifacts_from_lyrics(text).splitlines():
         lowered = line.strip().lower()
         if any(phrase in lowered for phrase in INTERNAL_LYRIC_PHRASES):
             continue
@@ -749,6 +921,102 @@ def improve_hook_singability(hook: str) -> str:
     return "\n".join(clean[:5])
 
 
+def _advanced_scene_hooks(scene: str) -> list[str]:
+    hooks = {
+        "family": [
+            "\n".join(["ใครบางคนยังเปิดไฟรอ", "แม้ฉันกลับไปพร้อมวันที่แพ้", "โลกไม่เคยถามว่าฉันไหวแค่ไหน", "แต่บ้านยังถามว่ากินข้าวหรือยัง"]),
+            "\n".join(["กลับบ้านได้ไหมคนเก่ง", "วางความเข้มแข็งไว้หน้าประตู", "ไม่ต้องชนะให้ใครดู", "แค่กลับไปกอดคนที่รอ"]),
+        ],
+        "self_growth": [
+            "\n".join(["วันนี้ฉันจะไม่หนี", "ถึงยังไม่ดีเท่าที่หวังไว้", "ถ้าแพ้ก็แพ้ด้วยใจที่ยังหายใจ", "พรุ่งนี้ค่อยเริ่มใหม่อีกที"]),
+            "\n".join(["ต้องเก่งแค่ไหนถึงจะพอ", "ถ้าข้างในยังเหนื่อยจนยืนไม่ไหว", "คืนนี้ขอเป็นคนธรรมดาได้ไหม", "แล้วพรุ่งนี้ค่อยกลับไปสู้ใหม่"]),
+        ],
+        "friendship": [
+            "\n".join(["เพื่อนที่หายไป", "ยังอยู่ในเรื่องตลกที่ฉันจำได้", "ถ้าวันหนึ่งเธอผ่านมาอ่านใจ", "รู้ไว้ฉันยังขอบคุณวันเก่า"]),
+            "\n".join(["เราไม่ได้ทะเลาะกันสักคำ", "แต่ทำไมวันนี้ไกลกันขนาดนี้", "แชตเก่ายังจำเสียงหัวเราะดี", "แค่ไม่มีใครพิมพ์กลับมา"]),
+        ],
+        "life_reflection": [
+            "\n".join(["ปีที่ผ่านไปถามฉันเบา ๆ", "ยังอยากเป็นคนเดิมอยู่ไหม", "ถ้าคำตอบยังหาไม่เจอไม่เป็นไร", "คืนนี้แค่ซื่อสัตย์กับใจพอ"]),
+            "\n".join(["โตขึ้นแล้วทำไมยังหลงทาง", "ทั้งที่เคยคิดว่าจะเข้าใจชีวิต", "บางคำตอบมาช้ากว่าที่คิด", "แต่ฉันยังอยากอยู่ฟังมัน"]),
+        ],
+    }
+    return hooks.get(scene, [])
+
+
+def _apply_hook_style(hook: str, title: str, idea: str, hook_style: str) -> str:
+    style = str(hook_style or "").strip()
+    if style not in QUALITY_FIRST_HOOK_STYLES:
+        return improve_hook_singability(hook)
+    lines = _lines(improve_hook_singability(hook))
+    scene = _song_scene_type(idea)
+    style_first_lines = {
+        "Question": {
+            "office_life": "ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม",
+            "night_drive": "ถนนยาวไปถึงไหนใจถึงจะลืม",
+            "breakup_memory": "กี่วันคืนผ่านไปทำไมยังเป็นฉันที่เจ็บ",
+            "quiet_love": "ถ้าใจยังเลือกเธออยู่ฉันควรพูดไหม",
+            "family": "ต้องไกลแค่ไหนถึงรู้ว่าบ้านยังรอ",
+            "friendship": "เราเงียบหายกันไปตั้งแต่เมื่อไร",
+            "self_growth": "ต้องเก่งแค่ไหนถึงจะพอ",
+            "life_reflection": "โตขึ้นแล้วทำไมยังหลงทาง",
+        },
+        "Regret": {
+            "office_life": "ไม่น่าปล่อยให้ตัวเองหายไปกับงาน",
+            "night_drive": "ไม่น่าขับผ่านทางเดิมในคืนที่ใจอ่อน",
+            "breakup_memory": "ไม่น่าเก็บคำลาที่ยังทำให้เจ็บ",
+            "quiet_love": "ไม่น่าเงียบจนเธอไม่เคยรู้",
+            "family": "ไม่น่าลืมโทรกลับหาคนที่รอ",
+            "friendship": "ไม่น่าปล่อยแชตนั้นเงียบไปนาน",
+            "self_growth": "ไม่น่าดุใจตัวเองมานานขนาดนี้",
+            "life_reflection": "ไม่น่ารีบโตจนลืมฟังใจ",
+        },
+        "Confession": {
+            "office_life": "ฉันเหนื่อยกว่ารอยยิ้มที่ทุกคนเห็น",
+            "night_drive": "ฉันยังขับรถหนีชื่อเธอไม่พ้น",
+            "breakup_memory": "ฉันยังเจ็บกับเรื่องที่บอกว่าเข้าใจ",
+            "quiet_love": "ฉันเก็บรักไว้จนเพลงนี้พูดแทน",
+            "family": "ฉันคิดถึงบ้านมากกว่าที่เคยบอก",
+            "friendship": "ฉันยังคิดถึงเพื่อนที่ไม่ได้โทรหา",
+            "self_growth": "ฉันไม่ได้เข้มแข็งเท่าที่แสดงออก",
+            "life_reflection": "ฉันยังไม่รู้ทางแต่ไม่อยากโกหกใจ",
+        },
+        "Conflict": {
+            "office_life": "ทั้งที่เลิกงานแล้วแต่ใจยังไม่เลิกเหนื่อย",
+            "night_drive": "ยิ่งขับไกลเท่าไรยิ่งกลับไปหาเธอ",
+            "breakup_memory": "ทั้งที่รู้ว่าจบแต่ใจยังเปิดประตู",
+            "quiet_love": "ยิ่งใกล้เธอเท่าไรยิ่งไม่กล้าพูด",
+            "family": "ยิ่งออกไปไกลยิ่งรู้ว่าบ้านอยู่ในใจ",
+            "friendship": "ยิ่งไม่มีเรื่องคุยยิ่งมีเรื่องให้คิดถึง",
+            "self_growth": "ยิ่งอยากชนะยิ่งเหมือนแพ้ตัวเอง",
+            "life_reflection": "ยิ่งโตขึ้นยิ่งไม่แน่ใจคำตอบ",
+        },
+        "Hope": {
+            "office_life": "พรุ่งนี้ฉันจะพาใจกลับบ้าน",
+            "night_drive": "อีกไฟแดงหนึ่งฉันจะยอมปล่อยเธอ",
+            "breakup_memory": "คืนสุดท้ายนี้ฉันจะคืนเธอให้เพลง",
+            "quiet_love": "ถ้าพรุ่งนี้ยังมีโอกาสฉันจะพูด",
+            "family": "กลับบ้านคืนนี้คงพอให้ใจสว่าง",
+            "friendship": "ถ้าเธอกลับมาเรายังเริ่มคุยใหม่ได้",
+            "self_growth": "พรุ่งนี้ฉันจะเริ่มใหม่แบบไม่เกลียดตัวเอง",
+            "life_reflection": "คำตอบอาจมาช้าแต่ฉันจะรอ",
+        },
+        "Memory": {
+            "office_life": "โต๊ะเดิมยังจำวันที่ฉันเกือบไม่ไหว",
+            "night_drive": "ไฟถนนยังจำคืนที่เธอลา",
+            "breakup_memory": "เพลงเดิมยังจำชื่อเธอแทนฉัน",
+            "quiet_love": "รอยยิ้มเธอยังอยู่ในคำที่ไม่พูด",
+            "family": "กลิ่นข้าวเย็นยังจำฉันได้เสมอ",
+            "friendship": "รูปเก่ายังหัวเราะแทนเราอยู่",
+            "self_growth": "กระจกยังจำวันที่ฉันไม่กล้ามอง",
+            "life_reflection": "ปีเก่ายังวางคำถามไว้ข้างเตียง",
+        },
+    }
+    first = style_first_lines.get(style, {}).get(scene)
+    if first:
+        lines = [first] + [line for line in lines if _compact_line(line) != _compact_line(first)]
+    return "\n".join(lines[:5])
+
+
 def _hook_candidates(title: str, idea: str) -> list[str]:
     idea_text = str(idea or "")
     scene = _song_scene_type(idea_text)
@@ -760,6 +1028,9 @@ def _hook_candidates(title: str, idea: str) -> list[str]:
             "\n".join(["อย่าพูดให้แพ้ชนะ", "พูดให้เรากลับมาใกล้กัน", "ความจริงจะไม่เจ็บเกินไป", "ถ้าใจยังเลือกถนอมน้ำคำ"]),
             "\n".join(["ถ้าใจยังรัก", "พูดกันดี ๆ ได้ไหม", "ให้ความจริงเป็นสะพาน", "ไม่ใช่กำแพงกลางใจ"]),
         ]
+    advanced_hooks = _advanced_scene_hooks(scene)
+    if advanced_hooks:
+        return advanced_hooks
     if scene == "office_life":
         return [
             "\n".join(["ยิ้มทั้งวันจนลืมถามตัวเอง", "ว่าเหนื่อยแค่ไหนถึงเรียกว่าไหว", "เลิกงานแล้วไฟตึกดับไป", "แต่ในหัวฉันยังประชุมอยู่"]),
@@ -891,6 +1162,51 @@ def _respectful_truth_lyrics(title: str, hook: str) -> str:
     )
 
 
+def _advanced_scene_pools(scene: str) -> dict[str, list[str]]:
+    return {
+        "family": {
+            "Intro": ["ไฟหน้าบ้านยังเปิดไว้เหมือนรู้ว่าฉันจะกลับช้า", "กลิ่นข้าวเย็นอุ่นซ้ำรออยู่ในครัวเล็ก ๆ"],
+            "Verse 1": ["ทั้งวันฉันพยายามเป็นคนเก่งให้คนอื่นเห็น", "รับคำชมในห้องประชุมแต่ไม่รู้จะยิ้มให้ใคร", "มือถือมีสายไม่ได้รับจากบ้านตอนรถติดไฟแดง", "ข้อความสั้น ๆ ถามว่าเหนื่อยไหมทำให้ตาฉันร้อน"],
+            "Pre-Chorus": ["ยิ่งโตขึ้นยิ่งเข้าใจคำว่ามีใครรอ", "ไม่ใช่เรื่องใหญ่โต แค่มีที่ให้กลับไป"],
+            "Chorus": ["คนที่บ้านยังรออยู่", "แม้ฉันจะกลับไปพร้อมวันที่แพ้", "ไม่ต้องเก่งให้ใครดูแล", "แค่กลับไปเป็นลูกคนเดิม"],
+            "Verse 2": ["แม่บอกกินข้าวก่อนค่อยเล่าเรื่องงานก็ได้", "พ่อทำเหมือนไม่ถามแต่ขยับเก้าอี้ให้ฉัน", "ความรักบางอย่างไม่เคยพูดดังในบ้านนั้น", "แต่มันอุ่นกว่าทุกเวทีที่ฉันเคยยืน"],
+            "Bridge": ["ถ้าโลกข้างนอกวัดฉันด้วยผลงาน", "บ้านยังวัดฉันด้วยลมหายใจ", "ฉันไม่ต้องชนะทุกอย่างก็ได้", "ขอแค่ยังกลับไปทันกอดเดิม"],
+            "Final Chorus": ["คนที่บ้านยังรออยู่", "คืนนี้ฉันจะไม่ฝืนเป็นคนเข้มแข็ง", "ถ้าทั้งวันไม่มีใครเห็นแผล", "ที่โต๊ะข้าวเดิมยังมีคนเห็นใจ", "ไม่ต้องเก่งให้ใครดูแล", "แค่กลับไปเป็นลูกคนเดิม"],
+            "Outro": ["ไฟหน้าบ้านดวงนั้นทำให้ฉันอยากมีพรุ่งนี้"],
+        },
+        "self_growth": {
+            "Intro": ["เช้านี้ฉันมองกระจกนานกว่าทุกวัน", "คนในนั้นดูเหนื่อยแต่ยังไม่ยอมหลบตา"],
+            "Verse 1": ["ฉันเคยคิดว่าต้องชนะถึงจะมีความหมาย", "เลยวิ่งจนลืมถามตัวเองว่าอยากไปไหน", "รองเท้าคู่เดิมพาฉันผ่านวันที่ไม่ไหว", "แต่วันนี้ฉันอยากเดินช้าลงให้ทันใจตัวเอง"],
+            "Pre-Chorus": ["ไม่ต้องเป็นคนใหม่ในคืนเดียว", "แค่ไม่กลับไปโกหกตัวเองอีกครั้ง"],
+            "Chorus": ["วันนี้ฉันจะไม่หนี", "ถึงยังไม่ดีเท่าที่หวังไว้", "ถ้าแพ้ก็แพ้ด้วยใจที่ยังหายใจ", "พรุ่งนี้ค่อยเริ่มใหม่อีกที"],
+            "Verse 2": ["ฉันลบข้อความที่เคยกดดันตัวเองไว้", "ปิดเสียงคนที่บอกว่าช้าไปแล้ว", "บางก้าวเล็กจนไม่มีใครเห็นรอยเท้า", "แต่มันไกลจากฉันคนเก่ามากพอ"],
+            "Bridge": ["ถ้าความฝันยังไม่มาถึงตรงนี้", "ฉันจะไม่ด่าวันที่ยังเดินทาง", "ชีวิตไม่ใช่การแข่งขันทุกสนาม", "บางครั้งการพักก็คือการไม่ยอมแพ้"],
+            "Final Chorus": ["วันนี้ฉันจะไม่หนี", "จะยืนตรงนี้กับแผลที่มี", "ถ้าแพ้ก็แพ้แต่ไม่ทิ้งชีวิตนี้", "ให้พรุ่งนี้เห็นฉันดีกว่าเดิม", "ไม่ต้องเป็นใครที่โลกปรบมือ", "แค่เป็นตัวเองที่ยังอยากไปต่อ"],
+            "Outro": ["ฉันปิดไฟแล้วบอกตัวเองว่าเก่งพอสำหรับวันนี้"],
+        },
+        "friendship": {
+            "Intro": ["แชตเก่ายังอยู่ตรงนั้นแต่ไม่มีใครพิมพ์ต่อ", "รูปที่เราเคยหัวเราะกันยังขึ้นเตือนทุกปี"],
+            "Verse 1": ["ฉันไม่รู้ว่าเราเริ่มห่างกันตั้งแต่ตอนไหน", "จากคุยกันทุกคืนเหลือแค่กดไลก์บางที", "ร้านเดิมยังเปิดเพลงเสียงดังเหมือนวันนั้น", "แต่เก้าอี้ฝั่งตรงข้ามเงียบจนแปลกไป"],
+            "Pre-Chorus": ["บางคนไม่ได้ทะเลาะกันก่อนหายไป", "แค่ชีวิตพาเราเดินคนละทาง"],
+            "Chorus": ["เพื่อนที่หายไป", "ยังอยู่ในเรื่องตลกที่ฉันจำได้", "ถ้าวันหนึ่งเธอผ่านมาอ่านใจ", "รู้ไว้ฉันยังขอบคุณวันเก่า"],
+            "Verse 2": ["ฉันเกือบพิมพ์ถามว่าเป็นยังไงบ้างหลายครั้ง", "แต่กลัวคำตอบสั้น ๆ จะยืนยันความไกล", "บางมิตรภาพไม่พังเพราะใครทำร้าย", "มันแค่เงียบลงเหมือนเพลงที่ค่อย ๆ จบ"],
+            "Bridge": ["ถ้าเรากลับไปสนิทเหมือนเดิมไม่ได้", "ก็ไม่เป็นไร ฉันจะไม่โทษเวลา", "แค่หวังว่าชีวิตเธอยังมีคนฟัง", "ในวันที่โลกทำให้เหนื่อยล้า"],
+            "Final Chorus": ["เพื่อนที่หายไป", "คืนนี้ฉันยิ้มให้รูปเก่าอีกครั้ง", "ถ้าวันหนึ่งเธอเหนื่อยกับทางของเธอบ้าง", "กลับมานั่งเงียบ ๆ ด้วยกันก็ได้", "ไม่ต้องเหมือนเดิมทุกอย่าง", "แค่รู้ว่าเราเคยสำคัญก็พอ"],
+            "Outro": ["ฉันไม่ได้ลบแชตนั้น แค่ปล่อยให้มันพักอยู่ตรงเดิม"],
+        },
+        "life_reflection": {
+            "Intro": ["คืนนี้เมืองเงียบกว่าความคิดในหัวฉัน", "ไฟห้องตรงข้ามดับไปทีละบาน"],
+            "Verse 1": ["ฉันนั่งนับปีที่ผ่านไปบนขอบเตียงเดิม", "บางฝันยังวางอยู่ในสมุดที่ไม่กล้าเปิด", "คนรอบตัวเริ่มมีคำตอบเป็นของตัวเอง", "ส่วนฉันยังถามคำถามเดิมด้วยเสียงที่เบาลง"],
+            "Pre-Chorus": ["ยิ่งโตขึ้นยิ่งรู้ว่าบางทางไม่มีป้าย", "ต้องเดินไปทั้งที่ยังไม่แน่ใจ"],
+            "Chorus": ["ปีที่ผ่านไปถามฉันเบา ๆ", "ยังอยากเป็นคนเดิมอยู่ไหม", "ถ้าคำตอบยังหาไม่เจอไม่เป็นไร", "คืนนี้แค่ซื่อสัตย์กับใจพอ"],
+            "Verse 2": ["ฉันเคยรีบจนลืมดูท้องฟ้าหลังเลิกงาน", "เคยกลัวช้ากว่าคนอื่นจนไม่ฟังเสียงตัวเอง", "บางความสำเร็จดังเกินไปจนใจว่างเปล่า", "บางวันธรรมดากลับสอนฉันมากกว่าเดิม"],
+            "Bridge": ["ถ้าวันพรุ่งนี้ไม่ได้เปลี่ยนทุกอย่าง", "ก็ขอให้ฉันเปลี่ยนวิธีมองมัน", "ชีวิตอาจไม่ใช่เส้นตรงที่ใครวาดไว้", "แต่ยังเป็นทางของฉันอยู่ดี"],
+            "Final Chorus": ["ปีที่ผ่านไปถามฉันเบา ๆ", "คืนนี้ฉันไม่รีบตอบใคร", "ถ้ายังไม่รู้ว่าจะไปทางไหน", "ก็ขอเดินด้วยใจที่ไม่โกหก", "คำตอบอาจมาช้ากว่าที่หวังไว้", "แต่ฉันจะอยู่ฟังมันจนเจอ"],
+            "Outro": ["ไฟดวงสุดท้ายในเมืองเหมือนบอกว่าไปช้า ๆ ก็ได้"],
+        },
+    }.get(scene, {})
+
+
 def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
     if _concept_theme(idea) == "respectful_truth":
         return _respectful_truth_lyrics(title, hook)
@@ -963,6 +1279,12 @@ def validate_concept_alignment(idea: str, lyrics: str) -> dict[str, Any]:
 def _concept_rewrite_line(idea: str, section: str, index: int, *, final_payoff: bool = False) -> str:
     theme = _concept_theme(idea)
     scene = _song_scene_type(idea)
+    advanced_pools = _advanced_scene_pools(scene)
+    if advanced_pools:
+        lines = advanced_pools.get(section) or advanced_pools.get("Verse 1") or [str(idea or "ความรู้สึกนี้").strip()]
+        if final_payoff and section == "Final Chorus" and len(lines) > 4:
+            return lines[(index + 2) % len(lines)]
+        return lines[index % len(lines)]
     if theme == "respectful_truth":
         pools = {
             "Intro": [
@@ -1399,16 +1721,20 @@ def generate_creative_release_pack(
     api_key: str = "",
     demo_mode: bool = True,
     provider_status: dict[str, Any] | None = None,
+    creative_controls: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     gate = provider_status or build_api_quality_gate(api_key=api_key, demo_mode=(demo_mode and not production_mode))
     if production_mode and not gate.get("ok"):
         return production_blocked_result(gate)
 
-    preset = CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])
-    concept = str(idea or "").strip() or preset["mood"]
+    base_preset = CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])
+    controls = _normalize_creative_controls(creative_controls)
+    preset = _apply_controls_to_preset(base_preset, controls)
+    original_concept = str(idea or "").strip() or preset["mood"]
+    concept = _control_enriched_concept(original_concept, controls)
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
-    hook = improve_hook_singability(hook)
+    hook = _apply_hook_style(hook, title, concept, str(controls.get("hook_style") or ""))
     title_candidates = generate_song_title_candidates(idea=concept, hook_text=hook)
     original_title = title
     if title_candidates and (
@@ -1419,7 +1745,7 @@ def generate_creative_release_pack(
         title = title_candidates[0]["title"]
     title = _authentic_title_from_concept(concept, preset_name, title)
     if title != original_title:
-        hook = improve_hook_singability(_hook_from_idea(concept, title, preset))
+        hook = _apply_hook_style(_hook_from_idea(concept, title, preset), title, concept, str(controls.get("hook_style") or ""))
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
     lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
@@ -1434,7 +1760,7 @@ def generate_creative_release_pack(
         lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
     lyrics, lyrics_quality_report = _apply_lyrics_quality_engine(title, hook, lyrics, concept)
     concept_alignment = validate_concept_alignment(concept, lyrics)
-    advanced_settings = _advanced_settings_for_preset(preset_name)
+    advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
     ai_producer_prompt = _build_ai_producer_prompt(preset_name, preset, advanced_settings)
     lyrics_only = _clean_lyric_text(lyrics)
@@ -1449,7 +1775,9 @@ def generate_creative_release_pack(
             "Hook:",
             hook,
             "Song Concept:",
-            f"{concept}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
+            f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
+            "Creative Controls:",
+            _controls_summary(controls) or "Default quality-first controls",
         ]
     )
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
@@ -1458,7 +1786,7 @@ def generate_creative_release_pack(
     caption_direction = str(preset.get("caption_direction") or "เน€เธเธฅเธเธเธตเนเธชเธณเธซเธฃเธฑเธเธเธเธ—เธตเนเธขเธฑเธเธขเธดเนเธกเนเธ”เน เนเธ•เนเธเนเธฒเธเนเธเธขเธฑเธเนเธกเนเธซเธฒเธขเธ”เธต")
     pack = {
         "SONG INFO": song_info,
-        "Song concept": f"{concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
+        "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Suggested title": title,
         "Hook": hook,
         "SUNO LYRICS FIELD": lyrics_only,
@@ -1525,6 +1853,7 @@ def generate_creative_release_pack(
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
             "api_quality_gate": gate,
+            "creative_controls": controls,
         },
         "generated_at": generated_at,
         "provider_status": gate,

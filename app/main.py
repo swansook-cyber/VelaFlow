@@ -2027,8 +2027,8 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
                     st.rerun()
                 go_to_page(target_section, target_page)
 
-    st.markdown("### One-Click Song Package")
-    st.caption("ใส่ไอเดียเพลงสั้น ๆ แล้ว VelaFlow จะจัดชุดเนื้อเพลง prompt และข้อความโปรโมตให้ copy ใช้ต่อได้ทันที")
+    st.markdown("### Advanced Song Package")
+    st.caption("ใส่ไอเดียเพลงและทิศทางสร้างสรรค์ เพื่อให้ VelaFlow สร้างเนื้อเพลง hook และ producer prompt ที่มีคุณภาพขึ้น")
     form_cols = st.columns(2)
     idea = form_cols[0].text_area("Song idea", value=state.get("idea", ""), height=120, key="creator_dashboard_song_idea", help="เช่น เพลงเศร้าในออฟฟิศ หรือ คนที่ยังลืมแฟนเก่าไม่ได้")
     mood = form_cols[1].text_input("Mood", value=state.get("mood", "emotional"), key="creator_dashboard_mood", help="อารมณ์เพลง เช่น เศร้า อบอุ่น เหงา มีหวัง")
@@ -2113,9 +2113,9 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
 
 
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
-    _page_header("AI Creative Pack Generator", "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.", project)
+    _page_header("AI Creative Pack Generator", "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools.", project)
     state = project.setdefault("creative_pack_v1", {})
-    st.info("Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.")
+    st.info("Quality-first music workspace: give VelaFlow stronger creative direction, then export clean lyrics and Suno/Udio prompts.")
     stage_cols = st.columns(4)
     stages = ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"]
     for idx, stage in enumerate(stages):
@@ -2126,16 +2126,16 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
 
     preset_names = list(CREATIVE_PACK_PRESETS)
     with st.container(border=True):
-        st.markdown("### Quick Start")
+        st.markdown("### Advanced Song Studio")
         q1, q2, q3 = st.columns(3)
-        q1.markdown("**1. Choose preset**")
-        q1.caption("Pick the creative direction.")
-        q2.markdown("**2. Enter song idea**")
-        q2.caption("Write one simple concept.")
-        q3.markdown("**3. Generate & Export**")
-        q3.caption("Download TXT or ZIP.")
+        q1.markdown("**Creative Guidance**")
+        q1.caption("Preset, genre, story, mood, and hook shape.")
+        q2.markdown("**Songwriting Quality**")
+        q2.caption("Memorable hook, human Thai lyrics, stronger final chorus.")
+        q3.markdown("**Suno/Udio Export**")
+        q3.caption("Lyrics, style prompt, producer notes, TXT and ZIP.")
     with st.container(border=True):
-        st.markdown("### Idea")
+        st.markdown("### Song Direction")
         c1, c2 = st.columns([2, 1])
         idea = c1.text_area(
             "Song idea / creative concept",
@@ -2151,7 +2151,22 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             key="creative_pack_preset",
         )
         artist_name = c2.text_input("Artist name", value=state.get("artist_name", str(project.get("artist") or DEFAULT_ARTIST)), key="creative_pack_artist")
-        st.caption("High-quality presets include Thai Sad Pop, Office Burnout, TikTok Emotional Hook, plus Vela Moon Signature Pop Rock presets for Spotify-friendly Thai emotional pop rock.")
+        genre_options = ["Thai Emotional Pop Rock", "Thai Sad Pop", "Easy Listening Pop Rock", "Acoustic Pop", "Pop Rock Ballad", "Indie Acoustic", "Dark Office Pop"]
+        mood_options = ["Emotional", "Bittersweet", "Hopeful", "Broken", "Warm", "Reflective"]
+        story_type_options = ["Office Burnout", "Night Drive", "Lost Love", "Quiet Love", "Family", "Self Growth", "Friendship", "Life Reflection"]
+        hook_style_options = ["Question", "Regret", "Confession", "Conflict", "Hope", "Memory"]
+        ac1, ac2, ac3 = st.columns(3)
+        genre = ac1.selectbox("Genre", genre_options, index=genre_options.index(state.get("genre", "Thai Emotional Pop Rock")) if state.get("genre") in genre_options else 0, key="creative_pack_genre")
+        mood = ac2.selectbox("Mood", mood_options, index=mood_options.index(state.get("mood", "Bittersweet")) if state.get("mood") in mood_options else 1, key="creative_pack_mood")
+        story_type = ac3.selectbox("Story Type", story_type_options, index=story_type_options.index(state.get("story_type", "Office Burnout")) if state.get("story_type") in story_type_options else 0, key="creative_pack_story_type")
+        hc1, hc2, hc3 = st.columns(3)
+        hook_style = hc1.selectbox("Hook Style", hook_style_options, index=hook_style_options.index(state.get("hook_style", "Question")) if state.get("hook_style") in hook_style_options else 0, key="creative_pack_hook_style")
+        style_influence = hc2.slider("Style Influence", min_value=0, max_value=100, value=int(state.get("style_influence", 70)), key="creative_pack_style_influence")
+        weirdness = hc3.slider("Weirdness", min_value=0, max_value=100, value=int(state.get("weirdness", 20)), key="creative_pack_weirdness")
+        vc1, vc2 = st.columns(2)
+        vocal_direction = vc1.text_input("Vocal Direction", value=state.get("vocal_direction", "Thai male vocal, warm expressive tone, clear pronunciation"), key="creative_pack_vocal_direction")
+        commercial_direction = vc2.text_area("Commercial Direction", value=state.get("commercial_direction", "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure"), height=90, key="creative_pack_commercial_direction")
+        st.caption("These controls are quality inputs. Different story, mood, and hook choices should create clearly different songs.")
 
     generate_pack = st.button(
         "Generate Full Release Pack",
@@ -2173,6 +2188,16 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             production_mode=production_mode,
             demo_mode=not production_mode,
             provider_status=gate,
+            creative_controls={
+                "genre": genre,
+                "mood": mood,
+                "story_type": story_type,
+                "hook_style": hook_style,
+                "vocal_direction": vocal_direction,
+                "style_influence": style_influence,
+                "weirdness": weirdness,
+                "commercial_direction": commercial_direction,
+            },
         )
         if not result.get("ok"):
             _show_api_quality_stop(result.get("provider_status") or gate)
@@ -2183,6 +2208,14 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 "idea": idea,
                 "preset": preset,
                 "artist_name": artist_name,
+                "genre": genre,
+                "mood": mood,
+                "story_type": story_type,
+                "hook_style": hook_style,
+                "vocal_direction": vocal_direction,
+                "style_influence": style_influence,
+                "weirdness": weirdness,
+                "commercial_direction": commercial_direction,
                 "release_pack": result,
                 "export": export.get("data", {}),
                 "last_error": export.get("error", ""),

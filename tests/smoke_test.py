@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -697,6 +698,46 @@ def main():
     assert_true(len(love_hook_lines) <= 5 and "ให้ท่อนนี้" not in love_pack["Hook"] and "ร้องให้สุด" not in love_pack["Hook"], "creative pack hook contains meta text")
     assert_true(love_release_pack["quality_report"]["selected_title_score"]["score"] >= 60 and love_release_pack["quality_report"]["selected_hook_score"]["score"] >= 60, "creative pack quality report scoring failed")
     assert_true(3 <= len(love_hook_lines) <= 5 and love_release_pack["quality_report"]["export_quality"]["hook_is_copy_ready"], "creative pack hook is not singable/copy-ready")
+    advanced_controls_pack = generate_creative_release_pack(
+        "พนักงานดีเด่น",
+        "Vela Moon Emotional Pop Rock",
+        "Vela Moon",
+        creative_controls={
+            "genre": "Thai Emotional Pop Rock",
+            "mood": "Bittersweet",
+            "story_type": "Office Burnout",
+            "hook_style": "Question",
+            "vocal_direction": "Thai male vocal, tired but honest office-worker tone",
+            "style_influence": 73,
+            "weirdness": 21,
+            "commercial_direction": "quality-first Thai office-life pop rock, memorable social-caption hook",
+        },
+    )
+    advanced_pack = advanced_controls_pack["pack"]
+    advanced_lyrics = advanced_pack["SUNO LYRICS FIELD"]
+    assert_true("ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม" in advanced_pack["Hook"], "question hook style did not shape office hook")
+    assert_true("โต๊ะ" in advanced_lyrics and "ประชุม" in advanced_lyrics and "Style Influence: 73%" in advanced_pack["Advanced Suno Settings"] and "Weirdness: 21%" in advanced_pack["Advanced Suno Settings"], "advanced Song Studio controls did not influence lyrics/settings")
+    assert_true(not any(line.strip().isdigit() for line in advanced_lyrics.splitlines()) and not re.search(r"\s(?:13|19)$", advanced_lyrics, re.MULTILINE), "numeric lyric artifacts were not removed")
+    benchmark_controls = [
+        ("กลับบ้านคนเดียว", "Family", "Hope", "บ้าน"),
+        ("ขับรถตอนตีสอง", "Night Drive", "Memory", "ถนน"),
+        ("ทำไมต้องฉัน", "Lost Love", "Question", "ทำไม"),
+        ("เพื่อนที่หายไป", "Friendship", "Conflict", "เพื่อน"),
+        ("คนที่บ้านรออยู่", "Family", "Confession", "บ้าน"),
+    ]
+    benchmark_titles: set[str] = set()
+    benchmark_hooks: set[str] = set()
+    for benchmark_idea, story_type, hook_style, required_term in benchmark_controls:
+        benchmark_pack = generate_creative_release_pack(
+            benchmark_idea,
+            "Vela Moon Emotional Pop Rock",
+            "Vela Moon",
+            creative_controls={"story_type": story_type, "hook_style": hook_style, "mood": "Reflective", "genre": "Thai Emotional Pop Rock"},
+        )["pack"]
+        benchmark_titles.add(benchmark_pack["Suggested title"])
+        benchmark_hooks.add(benchmark_pack["Hook"].splitlines()[0])
+        assert_true(required_term in benchmark_pack["SUNO LYRICS FIELD"] or required_term in benchmark_pack["Hook"], f"benchmark concept did not inject story details for {benchmark_idea}")
+    assert_true(len(benchmark_titles) >= 4 and len(benchmark_hooks) >= 4, "benchmark songs are not distinct enough")
     communication_concept = "ความจริงสำคัญ แต่วิธีพูดก็สำคัญพอกัน"
     communication_pack = generate_creative_release_pack(communication_concept, "Vela Moon Emotional Pop Rock", "Vela Moon")
     communication_lyrics = communication_pack["pack"]["Full lyrics"]
@@ -2070,12 +2111,12 @@ def main():
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Optional Creator Mastering" in main_source and "Polish AI-generated songs for clearer vocal, better loudness, and streaming-ready export." in main_source and "Generate Mastered WAV" in main_source and "Download Mastered WAV" in main_source, "Remaster Studio UI missing")
         assert_true("Creator Dashboard" in main_source and "Create Song Package" in main_source and "Create TikTok Hook" in main_source and "Create Podcast Clip" in main_source and "Create Affiliate Script" in main_source and "Open Advanced Tools" in main_source, "creator dashboard workflow cards missing")
-        assert_true("One-Click Song Package" in main_source and "Generate Song Package" in main_source and "Download Full Package TXT" in main_source and "ทำเพลงพร้อม Suno/Udio" in main_source, "creator dashboard one-click song package missing")
+        assert_true("Advanced Song Package" in main_source and "Generate Song Package" in main_source and "Download Full Package TXT" in main_source and "ทำเพลงพร้อม Suno/Udio" in main_source, "creator dashboard advanced song package missing")
         assert_true("Song Title Suggestions" in main_source and "Lyrics for Suno" in main_source and "Style for Suno" in main_source and "Producer Notes" in main_source and "Release Checklist" in main_source, "creator dashboard output blocks missing")
-        assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools." in main_source, "creative pack generator UI missing")
+        assert_true("AI Creative Pack Generator" in main_source and "Generate Full Release Pack" in main_source and "No Render" in main_source and "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools." in main_source and "Story Type" in main_source and "Hook Style" in main_source, "creative pack generator UI missing")
         assert_true("API_QUALITY_WARNING" in main_source and "_show_api_quality_stop" in main_source, "API quality gate warning missing from UI")
         assert_true("Gemini API Key" in main_source and "Gemini status:" in main_source and "Key source:" in main_source and "Gemini configure() result:" in main_source and "Gemini client initialization result:" in main_source and "Test Gemini Connection" in main_source, "Gemini settings diagnostics UI missing")
-        assert_true("Choose preset" in main_source and "Enter song idea" in main_source and "Generate & Export" in main_source, "creative pack quick start missing")
+        assert_true("Creative Guidance" in main_source and "Songwriting Quality" in main_source and "Suno/Udio Export" in main_source, "creative pack advanced song studio guidance missing")
         assert_true("sidebar_nav_creator_dashboard" in main_source and "sidebar_nav_idea" in main_source and "sidebar_nav_generate_song" in main_source and "sidebar_nav_generate_visual_pack" in main_source and "sidebar_nav_export_release_pack" in main_source and "sidebar_nav_ai_settings" in main_source, "creative pack sidebar navigation missing")
         assert_true("One Click Creator Flow" in main_source and "Generate Creator Package" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")
         assert_true("analyzing song" in main_source and "detecting hook" in main_source and "generating prompts" in main_source and "remastering audio" in main_source and "building creator package" in main_source and "complete" in main_source, "one-click progress stages missing")
