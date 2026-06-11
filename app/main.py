@@ -105,7 +105,7 @@ from core.creator_wizard import (
     suggest_project_name,
 )
 from core.creative_suggestions import build_creative_suggestions
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, get_release_ai_control_recommendation
 from core.emotional_arc import analyze_emotional_arc
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
@@ -2157,10 +2157,21 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         genre = ac1.selectbox("Genre", genre_options, index=genre_options.index(state.get("genre", "Thai Emotional Pop Rock")) if state.get("genre") in genre_options else 0, key="creative_pack_genre")
         mood = ac2.selectbox("Mood", mood_options, index=mood_options.index(state.get("mood", "Bittersweet")) if state.get("mood") in mood_options else 1, key="creative_pack_mood")
         story_type = ac3.selectbox("Story Type", story_type_options, index=story_type_options.index(state.get("story_type", "Office Burnout")) if state.get("story_type") in story_type_options else 0, key="creative_pack_story_type")
+        ai_recommendation = get_release_ai_control_recommendation(preset)
         hc1, hc2, hc3 = st.columns(3)
         hook_style = hc1.selectbox("Hook Style", hook_style_options, index=hook_style_options.index(state.get("hook_style", "Question")) if state.get("hook_style") in hook_style_options else 0, key="creative_pack_hook_style")
-        style_influence = hc2.slider("Style Influence", min_value=0, max_value=100, value=int(state.get("style_influence", 70)), key="creative_pack_style_influence")
-        weirdness = hc3.slider("Weirdness", min_value=0, max_value=100, value=int(state.get("weirdness", 20)), key="creative_pack_weirdness")
+        hc2.metric("Weirdness", f"{ai_recommendation['weirdness']}%", help="Auto by preset")
+        hc3.metric("Style Influence", f"{ai_recommendation['style_influence']}%", help="Auto by preset")
+        st.caption("AI Controls: Auto by preset. VelaFlow chooses safe values for commercial song quality.")
+        manual_ai_controls = False
+        weirdness = None
+        style_influence = None
+        with st.expander("Advanced Manual Override", expanded=False):
+            manual_ai_controls = st.checkbox("Use manual AI controls", value=bool(state.get("manual_ai_controls", False)), key="creative_pack_manual_ai_controls")
+            mc1, mc2 = st.columns(2)
+            weirdness = mc1.slider("Manual Weirdness", min_value=0, max_value=int(ai_recommendation["max_manual_weirdness"]), value=min(int(state.get("weirdness", ai_recommendation["weirdness"])), int(ai_recommendation["max_manual_weirdness"])), disabled=not manual_ai_controls, key="creative_pack_weirdness")
+            style_influence = mc2.slider("Manual Style Influence", min_value=55, max_value=85, value=max(55, min(85, int(state.get("style_influence", ai_recommendation["style_influence"])))), disabled=not manual_ai_controls, key="creative_pack_style_influence")
+            st.caption(f"Manual Weirdness is clamped to {ai_recommendation['max_manual_weirdness']} for this preset. Style Influence is clamped to 55-85.")
         vc1, vc2 = st.columns(2)
         vocal_direction = vc1.text_input("Vocal Direction", value=state.get("vocal_direction", "Thai male vocal, warm expressive tone, clear pronunciation"), key="creative_pack_vocal_direction")
         commercial_direction = vc2.text_area("Commercial Direction", value=state.get("commercial_direction", "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure"), height=90, key="creative_pack_commercial_direction")
@@ -2192,8 +2203,10 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 "story_type": story_type,
                 "hook_style": hook_style,
                 "vocal_direction": vocal_direction,
-                "style_influence": style_influence,
-                "weirdness": weirdness,
+                "style_influence": style_influence if manual_ai_controls else "",
+                "weirdness": weirdness if manual_ai_controls else "",
+                "ai_controls_mode": "Manual Override" if manual_ai_controls else "Auto by preset",
+                "_preset_name": preset,
                 "commercial_direction": commercial_direction,
             },
         )
@@ -2211,8 +2224,9 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 "story_type": story_type,
                 "hook_style": hook_style,
                 "vocal_direction": vocal_direction,
-                "style_influence": style_influence,
-                "weirdness": weirdness,
+                "style_influence": style_influence if manual_ai_controls else ai_recommendation["style_influence"],
+                "weirdness": weirdness if manual_ai_controls else ai_recommendation["weirdness"],
+                "manual_ai_controls": manual_ai_controls,
                 "commercial_direction": commercial_direction,
                 "release_pack": result,
                 "export": export.get("data", {}),
@@ -3029,6 +3043,7 @@ def _settings_from_ai_controls(controls: dict[str, Any]) -> dict[str, Any]:
         "reason_th": controls.get("reason", ""),
         "weirdness_range": list(controls.get("weirdness_range", ())),
         "style_influence_range": list(controls.get("style_influence_range", ())),
+        "mode": controls.get("mode", "Manual Override" if controls.get("manual") else "Auto by preset"),
         "manual": bool(controls.get("manual", False)),
     }
 
@@ -3546,11 +3561,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         selected_vocal_direction_name = st.selectbox("Vocal Direction", vocal_direction_names, index=vocal_direction_index, key="song_vocal_direction", help="เลือกทิศทางเสียงร้องและอารมณ์การถ่ายทอดของเพลง")
         selected_vocal_direction = get_vocal_direction(selected_vocal_direction_name)
         st.caption(selected_vocal_direction.get("description", ""))
-        current_ranges = {
-            "Weirdness": f"{selected_music_preset.get('weirdness_range', [8, 14])[0]}-{selected_music_preset.get('weirdness_range', [8, 14])[1]}",
-            "Style Influence": f"{selected_music_preset.get('style_influence_range', [55, 68])[0]}-{selected_music_preset.get('style_influence_range', [55, 68])[1]}",
-        }
-        st.caption(f"AI controls range: Weirdness {current_ranges['Weirdness']} / Style Influence {current_ranges['Style Influence']}")
+        recommended_ai_controls = get_recommended_ai_controls(selected_music_preset_name)
+        st.caption(f"AI Controls: Auto by preset · Weirdness {recommended_ai_controls['weirdness']}% · Style Influence {recommended_ai_controls['style_influence']}%")
         style_override = st.text_area("Music Style Prompt Override", value=preset.get("default_music_style_prompt", ""), height=120, help="แก้รายละเอียดดนตรีเพิ่มเติม ถ้าอยากระบุเครื่องดนตรีหรือโทนเพลงเอง")
         with st.expander("Preset Summary", expanded=not creator_mode):
             st.write(f"Genre: {preset.get('genre', '')}")

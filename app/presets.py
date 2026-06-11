@@ -71,6 +71,20 @@ DEFAULT_MUSIC_PRESET = "VelaFlow Default"
 DEFAULT_VOCAL_DIRECTION = "Male Emotional"
 _LAST_AI_CONTROLS: Dict[str, Tuple[int, int]] = {}
 
+RECOMMENDED_AI_CONTROLS: Dict[str, Tuple[int, int]] = {
+    "Vela Moon Emotional Pop Rock": (12, 68),
+    "Thai Sad Pop": (14, 70),
+    "Office Burnout": (18, 72),
+    "Viral TikTok Hook": (6, 82),
+    "Story Cinematic": (22, 58),
+    "Indie Acoustic": (16, 64),
+    "Dark Podcast Intro": (30, 50),
+    "VelaFlow Default": (12, 68),
+}
+
+STRICT_COMMERCIAL_PRESETS = {"Vela Moon Emotional Pop Rock", "Thai Sad Pop", "Office Burnout"}
+EXPERIMENTAL_MUSIC_PRESETS = {"Story Cinematic", "Dark Podcast Intro"}
+
 VOCAL_DIRECTION_PRESETS: Dict[str, VocalDirectionPreset] = {
     "Male Emotional": VocalDirectionPreset(
         name="Male Emotional",
@@ -165,27 +179,33 @@ def get_recommended_ai_controls(
     name = preset_name or DEFAULT_MUSIC_PRESET
     weirdness_range = _range_for_preset(name, "weirdness_range", (8, 14))
     style_range = _range_for_preset(name, "style_influence_range", (55, 68))
+    recommended_weirdness, recommended_style = RECOMMENDED_AI_CONTROLS.get(
+        name,
+        (int(sum(weirdness_range) / 2), int(sum(style_range) / 2)),
+    )
+    max_weirdness = 35 if name in EXPERIMENTAL_MUSIC_PRESETS else (25 if name in STRICT_COMMERCIAL_PRESETS else 35)
     if manual_weirdness is not None and manual_style_influence is not None:
+        weirdness = max(0, min(max_weirdness, int(manual_weirdness)))
+        style_influence = max(55, min(85, int(manual_style_influence)))
         return {
-            "weirdness": int(manual_weirdness),
-            "style_influence": int(manual_style_influence),
-            "reason": f"ใช้ค่าที่ผู้ใช้ตั้งเองสำหรับ {name}",
+            "weirdness": weirdness,
+            "style_influence": style_influence,
+            "reason": f"Manual override for {name}; values clamped for commercial safety.",
             "weirdness_range": weirdness_range,
             "style_influence_range": style_range,
+            "mode": "Manual Override",
             "manual": True,
         }
-    weirdness = random.randint(*weirdness_range)
-    style_influence = random.randint(*style_range)
-    last = _LAST_AI_CONTROLS.get(name)
-    if last == (weirdness, style_influence):
-        weirdness = weirdness_range[0] + ((weirdness - weirdness_range[0] + 1) % (weirdness_range[1] - weirdness_range[0] + 1))
+    weirdness = max(0, min(max_weirdness, recommended_weirdness))
+    style_influence = max(55, min(85, recommended_style))
     _LAST_AI_CONTROLS[name] = (weirdness, style_influence)
     return {
         "weirdness": weirdness,
         "style_influence": style_influence,
-        "reason": f"ค่าแนะนำจาก Music Preset: {name} เพื่อให้เพลงมีความต่างเล็กน้อยแต่ยังคุมโทนได้",
+        "reason": f"Auto by preset: safe recommended AI controls for {name}.",
         "weirdness_range": weirdness_range,
         "style_influence_range": style_range,
+        "mode": "Auto by preset",
         "manual": False,
     }
 

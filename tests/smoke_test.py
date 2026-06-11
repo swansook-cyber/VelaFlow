@@ -529,14 +529,15 @@ def main():
     assert_true(resolve_export_txt_filename({}, "", "Full Pipeline", export_text_with_title) == "เดินต่อ_Vela_Moon_Suno_Export.txt", "export filename parser fallback failed")
     default_controls = [get_recommended_ai_controls("VelaFlow Default") for _ in range(5)]
     default_pairs = {(item["weirdness"], item["style_influence"]) for item in default_controls}
-    assert_true(len(default_pairs) > 1, "recommended AI controls did not vary")
-    assert_true(all(8 <= item["weirdness"] <= 14 and 55 <= item["style_influence"] <= 68 for item in default_controls), "default AI controls out of range")
+    assert_true(default_pairs == {(12, 68)} and all(item["mode"] == "Auto by preset" and not item["manual"] for item in default_controls), "default AI controls should be deterministic auto-by-preset")
     tiktok_controls = get_recommended_ai_controls("Viral TikTok Hook")
     cinematic_controls = get_recommended_ai_controls("Story Cinematic")
-    assert_true(3 <= tiktok_controls["weirdness"] <= 8 and 70 <= tiktok_controls["style_influence"] <= 85, "TikTok AI controls out of range")
-    assert_true(15 <= cinematic_controls["weirdness"] <= 25 and 45 <= cinematic_controls["style_influence"] <= 60, "cinematic AI controls out of range")
-    manual_controls = get_recommended_ai_controls("VelaFlow Default", manual_weirdness=11, manual_style_influence=66)
-    assert_true(manual_controls["manual"] and manual_controls["weirdness"] == 11 and manual_controls["style_influence"] == 66, "manual AI controls not respected")
+    thai_sad_controls = get_recommended_ai_controls("Thai Sad Pop")
+    assert_true(tiktok_controls["weirdness"] == 6 and tiktok_controls["style_influence"] == 82, "TikTok AI controls recommendation failed")
+    assert_true(cinematic_controls["weirdness"] == 22 and cinematic_controls["style_influence"] == 58, "cinematic AI controls recommendation failed")
+    assert_true(thai_sad_controls["weirdness"] == 14 and thai_sad_controls["style_influence"] == 70 and thai_sad_controls["weirdness"] != 89, "Thai Sad Pop should never default to extreme Weirdness")
+    manual_controls = get_recommended_ai_controls("Vela Moon Emotional Pop Rock", manual_weirdness=89, manual_style_influence=99)
+    assert_true(manual_controls["manual"] and manual_controls["weirdness"] == 25 and manual_controls["style_influence"] == 85 and manual_controls["mode"] == "Manual Override", "manual AI controls not clamped safely")
     css = get_global_css()
     assert_true("Inter" in css and "data-testid=\"stMetric\"" in css and "section[data-testid=\"stSidebar\"]" in css, "global UI styles failed")
     assert_true("@media (max-width: 768px)" in css and "min-height: 2.72rem" in css and "padding-top: max(2.5rem" in css and "padding-left: 0.9rem" in css, "mobile UI styles failed")
@@ -799,8 +800,17 @@ def main():
         chorus_lines = {line for line in lyric_lines[chorus_index + 1:verse2_index] if line.strip()}
         final_lines = {line for line in lyric_lines[final_chorus_index + 1:outro_index] if line.strip()}
         assert_true(len(final_lines - chorus_lines) >= 2, f"{signature_preset} final chorus lacks payoff lines")
-    emotional_settings = generate_creative_release_pack("เพลง Vela Moon สำหรับคนที่ยังลืมไม่ได้", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]
-    assert_true("BPM: 85" in emotional_settings and "Weirdness: 20%" in emotional_settings and "Style Influence: 70%" in emotional_settings, "Vela Moon Emotional Pop Rock advanced settings failed")
+    emotional_settings = generate_creative_release_pack("Vela Moon emotional pop rock test", "Vela Moon Emotional Pop Rock", "Vela Moon")["pack"]["Advanced Suno Settings"]
+    assert_true("AI Controls: Auto by preset" in emotional_settings and "BPM: 85" in emotional_settings and "Weirdness: 12%" in emotional_settings and "Style Influence: 68%" in emotional_settings, "Vela Moon Emotional Pop Rock advanced settings failed")
+    thai_sad_release_settings = generate_creative_release_pack("Thai sad pop rain test", "Thai Sad Pop", "Vela Moon")["pack"]["Advanced Suno Settings"]
+    assert_true("AI Controls: Auto by preset" in thai_sad_release_settings and "Weirdness: 14%" in thai_sad_release_settings and "Style Influence: 70%" in thai_sad_release_settings and "Weirdness: 89%" not in thai_sad_release_settings, "Thai Sad Pop release controls should use safe preset values")
+    manual_release_settings = generate_creative_release_pack(
+        "Vela Moon manual control test",
+        "Vela Moon Emotional Pop Rock",
+        "Vela Moon",
+        creative_controls={"weirdness": 89, "style_influence": 99},
+    )["pack"]["Advanced Suno Settings"]
+    assert_true("AI Controls: Manual Override" in manual_release_settings and "Weirdness: 25%" in manual_release_settings and "Style Influence: 85%" in manual_release_settings, "Release pack manual AI controls were not clamped/recorded")
     producer_validation_pack = generate_creative_release_pack("ถ้าใจยังรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
     producer_validation_text = creative_release_pack_to_text(producer_validation_pack)
     producer_validation_prompt = producer_validation_pack["pack"]["AI PRODUCER PROMPT"]

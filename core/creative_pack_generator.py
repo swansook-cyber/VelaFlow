@@ -113,7 +113,8 @@ RELEASE_PACK_FILES = {
 
 DEFAULT_ADVANCED_SUNO_SETTINGS = {
     "BPM": "85",
-    "Weirdness": "20%",
+    "AI Controls": "Auto by preset",
+    "Weirdness": "14%",
     "Style Influence": "70%",
     "Vocal Style Notes": "Thai emotional vocal, warm expressive tone, clear pronunciation",
     "Arrangement Notes": "acoustic guitar intro, soft piano support, clean chorus lift, smooth fade outro",
@@ -124,14 +125,16 @@ DEFAULT_ADVANCED_SUNO_SETTINGS = {
 ADVANCED_SUNO_SETTINGS_BY_PRESET = {
     "Vela Moon Emotional Pop Rock": {
         "BPM": "85",
-        "Weirdness": "20%",
-        "Style Influence": "70%",
+        "AI Controls": "Auto by preset",
+        "Weirdness": "12%",
+        "Style Influence": "68%",
         "Vocal Style Notes": "Thai emotional male vocal, warm expressive tone, clear pronunciation",
         "Arrangement Notes": "acoustic guitar intro, clean electric guitar hook accents, soft piano support, gentle cymbal swells, wide dynamic chorus, emotional final chorus, smooth fade outro",
         "Commercial Direction": "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure",
     },
     "Vela Moon Late Night Drive": {
         "BPM": "82",
+        "AI Controls": "Auto by preset",
         "Weirdness": "25%",
         "Style Influence": "68%",
         "Vocal Style Notes": "Thai warm male vocal, intimate late-night delivery, soft emotional phrasing",
@@ -140,6 +143,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
     },
     "Vela Moon Heartbroken Anthem": {
         "BPM": "78",
+        "AI Controls": "Auto by preset",
         "Weirdness": "22%",
         "Style Influence": "72%",
         "Vocal Style Notes": "Thai emotional male vocal, vulnerable verse tone, powerful chorus release",
@@ -148,6 +152,7 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
     },
     "Vela Moon Easy Listening Pop Rock": {
         "BPM": "88",
+        "AI Controls": "Auto by preset",
         "Weirdness": "18%",
         "Style Influence": "75%",
         "Vocal Style Notes": "Thai clean male vocal, easy listening phrasing, friendly commercial tone",
@@ -156,13 +161,39 @@ ADVANCED_SUNO_SETTINGS_BY_PRESET = {
     },
     "Vela Moon Office Life Story": {
         "BPM": "84",
-        "Weirdness": "20%",
-        "Style Influence": "70%",
+        "AI Controls": "Auto by preset",
+        "Weirdness": "18%",
+        "Style Influence": "72%",
         "Vocal Style Notes": "Thai warm male vocal, conversational storytelling, hopeful final chorus",
         "Arrangement Notes": "quiet office-like intro, acoustic guitar pulse, clean electric guitar emotional fills, soft piano, steady drums, warm pad, hopeful final chorus",
         "Commercial Direction": "relatable Thai working-life pop rock for office listeners and emotional short clips",
     },
 }
+
+RELEASE_AI_CONTROL_RECOMMENDATIONS = {
+    "Vela Moon Emotional Pop Rock": (12, 68),
+    "Thai Sad Pop": (14, 70),
+    "Office Burnout": (18, 72),
+    "Viral TikTok Hook": (6, 82),
+    "TikTok Emotional Hook": (6, 82),
+    "Story Cinematic": (22, 58),
+    "Indie Acoustic": (16, 64),
+    "Dark Podcast Intro": (30, 50),
+}
+
+STRICT_RELEASE_PRESETS = {"Vela Moon Emotional Pop Rock", "Thai Sad Pop", "Office Burnout"}
+EXPERIMENTAL_RELEASE_PRESETS = {"Story Cinematic", "Dark Podcast Intro"}
+
+
+def get_release_ai_control_recommendation(preset_name: str) -> dict[str, Any]:
+    weirdness, style = RELEASE_AI_CONTROL_RECOMMENDATIONS.get(preset_name, (14, 70))
+    return {
+        "mode": "Auto by preset",
+        "weirdness": weirdness,
+        "style_influence": style,
+        "max_manual_weirdness": 35 if preset_name in EXPERIMENTAL_RELEASE_PRESETS else (25 if preset_name in STRICT_RELEASE_PRESETS else 35),
+        "style_influence_range": (55, 85),
+    }
 
 
 INTERNAL_LYRIC_PHRASES = [
@@ -273,6 +304,8 @@ def _normalize_creative_controls(controls: dict[str, Any] | None) -> dict[str, A
         "commercial_direction": str(raw.get("commercial_direction") or "").strip(),
         "style_influence": raw.get("style_influence", ""),
         "weirdness": raw.get("weirdness", ""),
+        "ai_controls_mode": str(raw.get("ai_controls_mode") or "").strip(),
+        "_preset_name": str(raw.get("_preset_name") or "").strip(),
     }
     if normalized["story_type"] not in QUALITY_FIRST_STORY_TYPES:
         normalized["story_type"] = ""
@@ -338,15 +371,25 @@ def _apply_controls_to_preset(preset: dict[str, str], controls: dict[str, Any]) 
 
 def _apply_advanced_setting_overrides(settings: dict[str, str], controls: dict[str, Any]) -> dict[str, str]:
     output = dict(settings)
-    for key, label in [("weirdness", "Weirdness"), ("style_influence", "Style Influence")]:
-        value = controls.get(key)
-        if value in ("", None):
-            continue
-        try:
-            number = int(float(str(value).replace("%", "").strip()))
-        except ValueError:
-            continue
-        output[label] = f"{max(0, min(100, number))}%"
+    preset_name = str(controls.get("_preset_name") or "")
+    manual_requested = any(controls.get(key) not in ("", None) for key in ["weirdness", "style_influence"])
+    max_weirdness = 35 if preset_name in EXPERIMENTAL_RELEASE_PRESETS else (25 if preset_name in STRICT_RELEASE_PRESETS else 35)
+    if manual_requested:
+        if controls.get("weirdness") not in ("", None):
+            try:
+                weirdness = int(float(str(controls.get("weirdness")).replace("%", "").strip()))
+                output["Weirdness"] = f"{max(0, min(max_weirdness, weirdness))}%"
+            except ValueError:
+                pass
+        if controls.get("style_influence") not in ("", None):
+            try:
+                style = int(float(str(controls.get("style_influence")).replace("%", "").strip()))
+                output["Style Influence"] = f"{max(55, min(85, style))}%"
+            except ValueError:
+                pass
+        output["AI Controls"] = "Manual Override"
+    else:
+        output["AI Controls"] = "Auto by preset"
     if controls.get("vocal_direction"):
         output["Vocal Style Notes"] = str(controls["vocal_direction"])
     if controls.get("commercial_direction"):
@@ -671,6 +714,11 @@ def _authentic_title_from_concept(idea: str, preset_name: str, current_title: st
 def _advanced_settings_for_preset(preset_name: str) -> dict[str, str]:
     settings = dict(DEFAULT_ADVANCED_SUNO_SETTINGS)
     settings.update(ADVANCED_SUNO_SETTINGS_BY_PRESET.get(preset_name, {}))
+    recommended = RELEASE_AI_CONTROL_RECOMMENDATIONS.get(preset_name)
+    if recommended:
+        settings["AI Controls"] = "Auto by preset"
+        settings["Weirdness"] = f"{recommended[0]}%"
+        settings["Style Influence"] = f"{recommended[1]}%"
     return settings
 
 
@@ -1758,6 +1806,7 @@ def generate_creative_release_pack(
 
     base_preset = CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])
     controls = _normalize_creative_controls(creative_controls)
+    controls["_preset_name"] = controls.get("_preset_name") or preset_name
     preset = _apply_controls_to_preset(base_preset, controls)
     original_concept = str(idea or "").strip() or preset["mood"]
     concept = _control_enriched_concept(original_concept, controls)
