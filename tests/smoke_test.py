@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -703,6 +703,32 @@ def main():
     assert_true(len(love_hook_lines) <= 5 and "ให้ท่อนนี้" not in love_pack["Hook"] and "ร้องให้สุด" not in love_pack["Hook"], "creative pack hook contains meta text")
     assert_true(love_release_pack["quality_report"]["selected_title_score"]["score"] >= 60 and love_release_pack["quality_report"]["selected_hook_score"]["score"] >= 60, "creative pack quality report scoring failed")
     assert_true(3 <= len(love_hook_lines) <= 5 and love_release_pack["quality_report"]["export_quality"]["hook_is_copy_ready"], "creative pack hook is not singable/copy-ready")
+    story_candidates = generate_story_candidates_v2("เพลงเศร้าในออฟฟิศ", "Office Burnout", mood="Bittersweet", story_type="Office Burnout")
+    assert_true(len(story_candidates) == 5 and all(item.get("objects") and item.get("scenes") for item in story_candidates), "Music V2 story candidates failed")
+    hook_candidates = generate_hook_candidates_v2("เพลงเศร้าในออฟฟิศ", story_candidates[0], "Office Burnout")
+    assert_true(len(hook_candidates) == 5 and all(3 <= len(item.get("lines", [])) <= 5 for item in hook_candidates), "Music V2 hook candidates failed")
+    title_candidates = generate_title_candidates_v2("เพลงเศร้าในออฟฟิศ", story_candidates[0], hook_candidates[0]["hook"], "Office Burnout")
+    assert_true(len(title_candidates) == 5 and all(item.get("title") for item in title_candidates), "Music V2 title candidates failed")
+    seed_bundle = generate_music_seed_candidates_v2("เพลงเศร้าในออฟฟิศ", "Office Burnout", mood="Bittersweet", story_type="Office Burnout")
+    assert_true(len(seed_bundle["story_candidates"]) == 5 and len(seed_bundle["hook_candidates"]) == 5 and len(seed_bundle["title_candidates"]) == 5, "Music V2 seed bundle count failed")
+    selected_seed = {
+        "story": seed_bundle["story_candidates"][0],
+        "hook": seed_bundle["hook_candidates"][0]["hook"],
+        "title": seed_bundle["title_candidates"][0]["title"],
+    }
+    seeded_pack = generate_creative_release_pack(
+        "เพลงเศร้าในออฟฟิศ",
+        "Office Burnout",
+        "Vela Moon",
+        creative_controls={"selected_seed": selected_seed, "story_type": "Office Burnout", "hook_style": "Question"},
+    )
+    seeded_lyrics = seeded_pack["pack"]["SUNO LYRICS FIELD"]
+    seeded_hook_first_line = selected_seed["hook"].splitlines()[0]
+    assert_true(seeded_hook_first_line in seeded_lyrics and "[Chorus]" in seeded_lyrics, "selected hook was not preserved in chorus")
+    assert_true("Selected Story:" in seeded_pack["pack"]["Selected Seed Summary"] and "Selected Objects:" in seeded_pack["pack"]["Selected Seed Summary"], "release pack missing selected seed summary")
+    assert_true(not any(item in seeded_lyrics.lower() for item in forbidden_lyric_prompts), "selected seed metadata leaked into Suno lyrics")
+    seeded_text = creative_release_pack_to_text(seeded_pack)
+    assert_true("Selected Seed Summary:" in seeded_text and "SUNO LYRICS FIELD" in seeded_text, "selected seed summary missing from release pack text")
     advanced_controls_pack = generate_creative_release_pack(
         "พนักงานดีเด่น",
         "Vela Moon Emotional Pop Rock",

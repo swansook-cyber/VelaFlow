@@ -306,6 +306,7 @@ def _normalize_creative_controls(controls: dict[str, Any] | None) -> dict[str, A
         "weirdness": raw.get("weirdness", ""),
         "ai_controls_mode": str(raw.get("ai_controls_mode") or "").strip(),
         "_preset_name": str(raw.get("_preset_name") or "").strip(),
+        "selected_seed": raw.get("selected_seed") if isinstance(raw.get("selected_seed"), dict) else None,
     }
     if normalized["story_type"] not in QUALITY_FIRST_STORY_TYPES:
         normalized["story_type"] = ""
@@ -1284,6 +1285,126 @@ def _advanced_scene_pools(scene: str) -> dict[str, list[str]]:
     }.get(scene, {})
 
 
+def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> list[dict[str, Any]]:
+    scene = _song_scene_type("\n".join([concept or "", preset_name or "", mood or "", story_type or ""]), preset_name)
+    banks = {
+        "office_life": [
+            ("โต๊ะตัวเดิม", "A worker smiles through a draining day until the parking lot becomes the first honest place.", ["coffee cup", "keyboard", "parking card"], ["morning desk", "empty meeting room", "parking lot after work"], "tired smile -> silent collapse -> self-return", "question hook about still being okay"),
+            ("ไฟตึกดับแล้ว", "The office lights are off, but the meeting still keeps talking inside the narrator's head.", ["monitor glow", "office light", "work bag"], ["late desk", "dark hallway", "train ride home"], "endurance -> overwhelm -> letting work go", "contradiction hook about work ending but tiredness staying"),
+            ("บัตรพนักงาน", "A good employee slowly realizes the badge is not the whole person.", ["employee badge", "report folder", "old shoes"], ["elevator mirror", "report pile", "front door at night"], "performance -> private fracture -> ordinary human rest", "confession hook behind the smile"),
+            ("แชตกลุ่มงาน", "A work chat notification interrupts a life that is already too quiet.", ["phone", "group chat", "cold dinner"], ["phone notification", "dinner alone", "bedroom with unread messages"], "interruption -> pressure -> self-protection", "object hook from a notification"),
+            ("ลานจอดรถ", "After work, the car becomes the only place where the narrator can admit they are not okay.", ["car key", "tail light", "parking ticket"], ["elevator to parking", "silent car", "last tail light"], "holding back -> quiet tears -> going home whole", "visual hook after work"),
+        ],
+        "night_drive": [
+            ("ไฟแดงตีสอง", "Driving at 2 AM turns every red light into an old memory.", ["red light", "steering wheel", "old song"], ["2 AM intersection", "rainy road", "home street"], "escape -> memory -> acceptance", "question hook about how far to drive before forgetting"),
+            ("เบาะข้าง ๆ", "An empty passenger seat makes the silence feel louder.", ["empty seat", "cold coffee", "windshield"], ["car interior", "old gas station", "city road"], "missing -> denial -> acceptance", "contradiction hook about distance"),
+            ("เพลงในรถ", "A song in the car remembers what the narrator tries to forget.", ["car radio", "city lights", "jacket"], ["traffic at night", "orange tunnel", "roadside stop"], "stillness -> pain -> release", "memory hook from an old song"),
+            ("ถนนเส้นเดิม", "The same road keeps asking the same emotional question.", ["exit sign", "tail light", "rain drops"], ["expressway", "rain glass", "missed exit"], "avoidance -> return -> new road", "road image question hook"),
+            ("ปลายทางว่างเปล่า", "The narrator knows no one waits at the destination but still keeps driving.", ["map app", "fuel gauge", "headlights"], ["deleted destination", "passing home", "parked in rain"], "lost -> facing truth -> self-return", "confession hook"),
+        ],
+    }
+    fallback = [
+        ("คำที่ค้างในใจ", "An unspoken feeling becomes a song instead of a conversation.", ["window", "notebook", "bedside light"], ["quiet room", "rainy window", "open notebook"], "holding back -> honesty -> release", "short question hook"),
+        ("คืนที่ไม่หาย", "One night makes the listener see themselves in the silence.", ["pillow", "phone", "water glass"], ["sleepless bed", "lit phone", "forced morning smile"], "silence -> ache -> honesty", "confession hook"),
+        ("ประโยคเดิม", "One ordinary sentence keeps returning with unusual weight.", ["message", "clock", "jacket"], ["message screen", "evening hallway", "lit room"], "stumble -> loop -> soft release", "object hook"),
+        ("พรุ่งนี้ค่อยหาย", "A person admits they are not healed yet but still wants tomorrow.", ["calendar", "shoes", "mirror"], ["morning mirror", "wet sidewalk", "bedroom light"], "strain -> acceptance -> small restart", "hope hook"),
+        ("ไฟดวงสุดท้าย", "The last light in a room keeps company with unfinished feelings.", ["lamp", "curtain", "songbook"], ["warm bedroom", "writing desk", "night window"], "lonely -> written out -> lighter", "visual hook"),
+    ]
+    source = banks.get(scene, fallback)
+    return [
+        {
+            "id": f"story_{idx:02d}",
+            "label": label,
+            "story_angle": angle,
+            "objects": objects[:3],
+            "scenes": scenes[:4],
+            "emotional_arc": arc,
+            "recommended_hook_direction": hook_direction,
+        }
+        for idx, (label, angle, objects, scenes, arc, hook_direction) in enumerate(source[:5], start=1)
+    ]
+
+
+def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, preset_name: str = "Thai Sad Pop") -> list[dict[str, Any]]:
+    story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
+    context = "\n".join([concept or "", story.get("label", ""), story.get("story_angle", ""), story.get("recommended_hook_direction", "")])
+    base_hooks = _hook_candidates(story.get("label") or _authentic_title_from_concept(context, preset_name, ""), context)
+    if not base_hooks:
+        base_hooks = [_hook_from_idea(context, story.get("label", "") or _authentic_title_from_concept(context, preset_name, ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"]))]
+    kinds = ["Visual Hook", "Contradiction Hook", "Emotional Hook", "Question Hook", "Object Hook"]
+    output = []
+    for idx, kind in enumerate(kinds, start=1):
+        hook = _sanitize_hook_text(base_hooks[(idx - 1) % len(base_hooks)], story.get("label", ""), context)
+        output.append({"id": f"hook_{idx:02d}", "type": kind, "hook": hook, "lines": _lines(hook)})
+    return output
+
+
+def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, hook: str = "", preset_name: str = "Thai Sad Pop") -> list[dict[str, str]]:
+    story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
+    objects = [str(item) for item in story.get("objects", []) if str(item).strip()]
+    scenes = [str(item) for item in story.get("scenes", []) if str(item).strip()]
+    blocked = {"รัก", "คิดถึง", "ลืมไม่ลง", "ยังรัก", "กลับมา", "ไม่ไหว"}
+    raw = [
+        ("object-based title", objects[0] if objects else story.get("label", "")),
+        ("scene-based title", scenes[-1] if scenes else story.get("label", "")),
+        ("phrase-based title", story.get("label", "")),
+        ("emotional title", _lines(hook)[0] if _lines(hook) else story.get("label", "")),
+        ("commercial-safe title", _authentic_title_from_concept(concept, preset_name, story.get("label", ""))),
+    ]
+    titles: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for idx, (kind, title) in enumerate(raw, start=1):
+        clean = str(title or story.get("label") or "เพลงของเรา").strip()
+        if clean in blocked:
+            clean = str(story.get("label") or _authentic_title_from_concept(concept, preset_name, clean))
+        key = _compact_line(clean)
+        if not key or key in seen:
+            clean = f"{story.get('label', 'Seed')} {idx}"
+            key = _compact_line(clean)
+        seen.add(key)
+        titles.append({"id": f"title_{idx:02d}", "type": kind, "title": clean})
+    return titles[:5]
+
+
+def generate_music_seed_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, Any]:
+    stories = generate_story_candidates_v2(concept, preset_name, mood, story_type)
+    story = stories[0] if stories else {}
+    hooks = generate_hook_candidates_v2(concept, story, preset_name)
+    titles = generate_title_candidates_v2(concept, story, hooks[0]["hook"] if hooks else "", preset_name)
+    return {"story_candidates": stories, "hook_candidates": hooks, "title_candidates": titles}
+
+
+def _selected_seed_summary(seed: dict[str, Any] | None) -> str:
+    if not seed:
+        return "No selected seed. Generated from concept and preset."
+    story = seed.get("story") or {}
+    return "\n".join(
+        [
+            f"Selected Story: {story.get('label', '')}",
+            f"Story Angle: {story.get('story_angle', '')}",
+            f"Selected Objects: {', '.join(story.get('objects', []) or [])}",
+            f"Selected Scenes: {', '.join(story.get('scenes', []) or [])}",
+            f"Selected Hook: {seed.get('hook', '')}",
+            f"Selected Title: {seed.get('title', '')}",
+        ]
+    ).strip()
+
+
+def _seed_enriched_concept(concept: str, seed: dict[str, Any] | None) -> str:
+    if not seed:
+        return concept
+    story = seed.get("story") or {}
+    parts = [
+        concept,
+        str(story.get("label") or ""),
+        str(story.get("story_angle") or ""),
+        " ".join(str(item) for item in story.get("objects", []) if str(item).strip()),
+        " ".join(str(item) for item in story.get("scenes", []) if str(item).strip()),
+        str(story.get("emotional_arc") or ""),
+    ]
+    return "\n".join(part for part in parts if str(part).strip())
+
+
 def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
     if _concept_theme(idea) == "respectful_truth":
         return _respectful_truth_lyrics(title, hook)
@@ -1807,9 +1928,10 @@ def generate_creative_release_pack(
     base_preset = CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])
     controls = _normalize_creative_controls(creative_controls)
     controls["_preset_name"] = controls.get("_preset_name") or preset_name
+    selected_seed = controls.get("selected_seed") if isinstance(controls.get("selected_seed"), dict) else None
     preset = _apply_controls_to_preset(base_preset, controls)
     original_concept = str(idea or "").strip() or preset["mood"]
-    concept = _control_enriched_concept(original_concept, controls)
+    concept = _seed_enriched_concept(_control_enriched_concept(original_concept, controls), selected_seed)
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
     hook = _sanitize_hook_text(_apply_hook_style(hook, title, concept, str(controls.get("hook_style") or "")), title, concept)
@@ -1822,8 +1944,16 @@ def generate_creative_release_pack(
     ):
         title = title_candidates[0]["title"]
     title = _authentic_title_from_concept(concept, preset_name, title)
+    if selected_seed:
+        selected_title = str(selected_seed.get("title") or "").strip()
+        selected_hook = str(selected_seed.get("hook") or "").strip()
+        if selected_title:
+            title = _authentic_title_from_concept(concept, preset_name, selected_title)
+        if selected_hook:
+            hook = _sanitize_hook_text(selected_hook, title, concept)
     if title != original_title:
-        hook = _sanitize_hook_text(_apply_hook_style(_hook_from_idea(concept, title, preset), title, concept, str(controls.get("hook_style") or "")), title, concept)
+        if not selected_seed:
+            hook = _sanitize_hook_text(_apply_hook_style(_hook_from_idea(concept, title, preset), title, concept, str(controls.get("hook_style") or "")), title, concept)
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
     lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
@@ -1856,6 +1986,8 @@ def generate_creative_release_pack(
             f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
             "Creative Controls:",
             _controls_summary(controls) or "Default quality-first controls",
+            "Selected Seed:",
+            _selected_seed_summary(selected_seed),
         ]
     )
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
@@ -1865,6 +1997,7 @@ def generate_creative_release_pack(
     pack = {
         "SONG INFO": song_info,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
+        "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
         "Hook": hook,
         "SUNO LYRICS FIELD": lyrics_only,
@@ -1955,6 +2088,8 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
             hook,
             "Song Concept:",
             concept,
+            "Selected Seed Summary:",
+            str(pack.get("Selected Seed Summary", "")).strip(),
         ]
     )
     sections = [

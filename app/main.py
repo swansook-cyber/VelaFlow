@@ -105,7 +105,7 @@ from core.creator_wizard import (
     suggest_project_name,
 )
 from core.creative_suggestions import build_creative_suggestions
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, get_release_ai_control_recommendation
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_music_seed_candidates_v2, get_release_ai_control_recommendation
 from core.emotional_arc import analyze_emotional_arc
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
@@ -2177,8 +2177,49 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         commercial_direction = vc2.text_area("Commercial Direction", value=state.get("commercial_direction", "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure"), height=90, key="creative_pack_commercial_direction")
         st.caption("These controls are quality inputs. Different story, mood, and hook choices should create clearly different songs.")
 
+    with st.container(border=True):
+        st.markdown("### Music V2 Seed Selection")
+        st.caption("Recommended quality path: choose a concrete story, hook, and title before generating full lyrics.")
+        if st.button("Generate Song Seeds", use_container_width=True, key="creative_pack_generate_song_seeds", disabled=not bool(str(idea or "").strip())):
+            state["seed_candidates"] = generate_music_seed_candidates_v2(str(idea or ""), preset, mood, story_type)
+            project["creative_pack_v1"] = state
+            _save_project()
+            st.rerun()
+        seed_candidates = state.get("seed_candidates") or {}
+        stories = seed_candidates.get("story_candidates") or []
+        hooks = seed_candidates.get("hook_candidates") or []
+        titles = seed_candidates.get("title_candidates") or []
+        selected_seed: dict[str, Any] | None = None
+        if stories and hooks and titles:
+            story_labels = [f"{item.get('id')}: {item.get('label')} - {item.get('story_angle')}" for item in stories]
+            hook_labels = [f"{item.get('id')}: {item.get('type')} - {str(item.get('hook', '')).splitlines()[0] if item.get('hook') else ''}" for item in hooks]
+            title_labels = [f"{item.get('id')}: {item.get('type')} - {item.get('title')}" for item in titles]
+            sc1, sc2, sc3 = st.columns(3)
+            story_choice = sc1.selectbox("Story Candidates", story_labels, index=min(int(state.get("story_seed_index", 0)), len(story_labels) - 1), key="creative_pack_story_seed_select")
+            hook_choice = sc2.selectbox("Hook Candidates", hook_labels, index=min(int(state.get("hook_seed_index", 0)), len(hook_labels) - 1), key="creative_pack_hook_seed_select")
+            title_choice = sc3.selectbox("Title Candidates", title_labels, index=min(int(state.get("title_seed_index", 0)), len(title_labels) - 1), key="creative_pack_title_seed_select")
+            story_index = story_labels.index(story_choice)
+            hook_index = hook_labels.index(hook_choice)
+            title_index = title_labels.index(title_choice)
+            selected_seed = {
+                "story": stories[story_index],
+                "hook": hooks[hook_index].get("hook", ""),
+                "title": titles[title_index].get("title", ""),
+            }
+            state["story_seed_index"] = story_index
+            state["hook_seed_index"] = hook_index
+            state["title_seed_index"] = title_index
+            with st.expander("Selected Seed Summary", expanded=False):
+                st.write(f"Story: {selected_seed['story'].get('label', '')}")
+                st.write(f"Objects: {', '.join(selected_seed['story'].get('objects', []) or [])}")
+                st.write(f"Scenes: {', '.join(selected_seed['story'].get('scenes', []) or [])}")
+                st.text_area("Selected Hook", value=selected_seed["hook"], height=120, key="creative_pack_selected_seed_hook")
+                st.write(f"Selected Title: {selected_seed['title']}")
+        else:
+            st.caption("Generate seeds first, or use Generate Full Release Pack to continue from concept and preset.")
+
     generate_pack = st.button(
-        "Generate Full Release Pack",
+        "Generate Full Lyrics from Selected Seed" if (state.get("seed_candidates") or {}).get("story_candidates") else "Generate Full Release Pack",
         type="primary",
         use_container_width=True,
         disabled=not bool(str(idea or "").strip()),
@@ -2207,6 +2248,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 "weirdness": weirdness if manual_ai_controls else "",
                 "ai_controls_mode": "Manual Override" if manual_ai_controls else "Auto by preset",
                 "_preset_name": preset,
+                "selected_seed": selected_seed,
                 "commercial_direction": commercial_direction,
             },
         )
