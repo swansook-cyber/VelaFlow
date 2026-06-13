@@ -729,6 +729,37 @@ def main():
     assert_true(not any(item in seeded_lyrics.lower() for item in forbidden_lyric_prompts), "selected seed metadata leaked into Suno lyrics")
     seeded_text = creative_release_pack_to_text(seeded_pack)
     assert_true("Selected Seed Summary:" in seeded_text and "SUNO LYRICS FIELD" in seeded_text, "selected seed summary missing from release pack text")
+    authority_seed = {
+        "story": {
+            "label": "โต๊ะตัวเดิม",
+            "story_angle": "A person faces being left alone after pretending to be fine at the same office desk.",
+            "objects": ["coffee cup", "keyboard", "parking card"],
+            "scenes": ["morning desk", "empty meeting room", "parking lot after work"],
+            "emotional_arc": "alone -> collapse -> honest acceptance",
+            "recommended_hook_direction": "question hook about having no one left",
+        },
+        "hook": "สุดท้ายไม่เหลือใคร\nโต๊ะตัวเดิมยังมองฉันอยู่\nยิ่งยิ้มเหมือนไหวเท่าไร\nข้างในยิ่งว่างเปล่า",
+        "title": "โต๊ะตัวเดิม",
+    }
+    authority_pack = generate_creative_release_pack(
+        "สุดท้ายไม่เหลือใคร",
+        "Office Burnout",
+        "Vela Moon",
+        creative_controls={"selected_seed": authority_seed, "story_type": "Office Burnout", "hook_style": "Question"},
+    )
+    authority_lyrics = authority_pack["pack"]["SUNO LYRICS FIELD"]
+    assert_true(authority_pack["pack"]["Suggested title"] == "โต๊ะตัวเดิม", "selected title did not become mandatory final title")
+    assert_true("โต๊ะ" in authority_lyrics and "ลานจอดรถ" in authority_lyrics and "ห้องประชุม" in authority_lyrics, "selected story did not affect lyrics")
+    assert_true("ไม่เหลือใคร" in authority_lyrics, "original concept was not preserved with selected story")
+    english_title_seed = dict(authority_seed)
+    english_title_seed["title"] = "coffee cup"
+    english_title_pack = generate_creative_release_pack(
+        "สุดท้ายไม่เหลือใคร",
+        "Office Burnout",
+        "Vela Moon",
+        creative_controls={"selected_seed": english_title_seed, "story_type": "Office Burnout", "hook_style": "Question"},
+    )
+    assert_true(not re.search(r"[A-Za-z]", english_title_pack["pack"]["Suggested title"]), "English object title leaked into Thai song title")
     advanced_controls_pack = generate_creative_release_pack(
         "พนักงานดีเด่น",
         "Vela Moon Emotional Pop Rock",

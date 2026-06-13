@@ -1341,8 +1341,8 @@ def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | 
 
 def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, hook: str = "", preset_name: str = "Thai Sad Pop") -> list[dict[str, str]]:
     story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
-    objects = [str(item) for item in story.get("objects", []) if str(item).strip()]
-    scenes = [str(item) for item in story.get("scenes", []) if str(item).strip()]
+    objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
+    scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
     blocked = {"รัก", "คิดถึง", "ลืมไม่ลง", "ยังรัก", "กลับมา", "ไม่ไหว"}
     raw = [
         ("object-based title", objects[0] if objects else story.get("label", "")),
@@ -1403,6 +1403,145 @@ def _seed_enriched_concept(concept: str, seed: dict[str, Any] | None) -> str:
         str(story.get("emotional_arc") or ""),
     ]
     return "\n".join(part for part in parts if str(part).strip())
+
+
+def _thai_seed_phrase(text: str) -> str:
+    phrase = str(text or "").strip()
+    translations = {
+        "coffee cup": "แก้วกาแฟ",
+        "keyboard": "คีย์บอร์ด",
+        "parking card": "บัตรจอดรถ",
+        "monitor glow": "แสงหน้าจอ",
+        "office light": "ไฟตึก",
+        "work bag": "กระเป๋าทำงาน",
+        "employee badge": "บัตรพนักงาน",
+        "report folder": "แฟ้มรายงาน",
+        "old shoes": "รองเท้าคู่เดิม",
+        "phone": "โทรศัพท์",
+        "group chat": "แชตกลุ่มงาน",
+        "cold dinner": "ข้าวเย็นชืด",
+        "car key": "กุญแจรถ",
+        "tail light": "ไฟท้ายรถ",
+        "parking ticket": "บัตรจอดรถ",
+        "red light": "ไฟแดง",
+        "steering wheel": "พวงมาลัย",
+        "old song": "เพลงเก่า",
+        "empty seat": "เบาะข้าง ๆ",
+        "cold coffee": "กาแฟเย็นชืด",
+        "windshield": "กระจกหน้ารถ",
+        "car radio": "วิทยุในรถ",
+        "city lights": "ไฟเมือง",
+        "jacket": "เสื้อแจ็กเก็ต",
+        "exit sign": "ป้ายทางออก",
+        "rain drops": "หยดฝน",
+        "map app": "แผนที่ในมือถือ",
+        "fuel gauge": "เข็มน้ำมัน",
+        "headlights": "ไฟหน้ารถ",
+        "window": "หน้าต่าง",
+        "notebook": "สมุดโน้ต",
+        "bedside light": "ไฟหัวเตียง",
+        "pillow": "หมอน",
+        "water glass": "แก้วน้ำ",
+        "message": "ข้อความ",
+        "clock": "นาฬิกา",
+        "calendar": "ปฏิทิน",
+        "shoes": "รองเท้า",
+        "mirror": "กระจก",
+        "lamp": "โคมไฟ",
+        "curtain": "ผ้าม่าน",
+        "songbook": "สมุดเพลง",
+        "morning desk": "โต๊ะเช้าเดิม",
+        "empty meeting room": "ห้องประชุมว่าง",
+        "parking lot after work": "ลานจอดรถหลังเลิกงาน",
+        "late desk": "โต๊ะทำงานดึก",
+        "dark hallway": "ทางเดินมืด",
+        "train ride home": "รถไฟกลับบ้าน",
+        "elevator mirror": "กระจกลิฟต์",
+        "report pile": "กองรายงาน",
+        "front door at night": "ประตูบ้านตอนกลางคืน",
+        "phone notification": "แจ้งเตือนในมือถือ",
+        "dinner alone": "มื้อเย็นคนเดียว",
+        "bedroom with unread messages": "ห้องนอนกับข้อความที่ยังไม่อ่าน",
+        "elevator to parking": "ลิฟต์ลงลานจอดรถ",
+        "silent car": "รถที่เงียบสนิท",
+        "last tail light": "ไฟท้ายดวงสุดท้าย",
+    }
+    return translations.get(phrase.lower(), phrase)
+
+
+def _selected_seed_title(seed: dict[str, Any] | None, concept: str) -> str:
+    if not seed:
+        return ""
+    raw_title = str(seed.get("title") or "").strip()
+    story = seed.get("story") or {}
+    title = _thai_seed_phrase(raw_title)
+    thai_concept = _thai_char_count(concept) > 0
+    if thai_concept and re.search(r"[A-Za-z]", title):
+        title = str(story.get("label") or "").strip() or _thai_seed_phrase(str((story.get("objects") or [""])[0]))
+    return title.strip()
+
+
+def _render_lyric_sections(sections: dict[str, list[str]]) -> str:
+    order = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]
+    rendered: list[str] = []
+    seen = set()
+    for section in order + [name for name in sections if name not in order]:
+        if section in seen or section not in sections:
+            continue
+        seen.add(section)
+        rendered.append(f"[{section}]")
+        rendered.extend(sections.get(section, []))
+        rendered.append("")
+    return "\n".join(rendered).strip()
+
+
+def _concept_anchor_line(concept: str) -> str:
+    text = str(concept or "")
+    if "ไม่เหลือใคร" in text:
+        return "สุดท้ายตรงนี้เหมือนไม่เหลือใครให้เรียกหา"
+    if "ความจริง" in text and "พูด" in text:
+        return "ความจริงยังสำคัญ แต่คำที่ใช้ก็สำคัญไม่แพ้กัน"
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    if 4 <= _thai_char_count(cleaned) <= 32:
+        return cleaned
+    return ""
+
+
+def _selected_story_lines(seed: dict[str, Any] | None, concept: str) -> dict[str, list[str]]:
+    if not seed:
+        return {}
+    story = seed.get("story") or {}
+    label = str(story.get("label") or "").strip()
+    objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
+    scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
+    first_object = objects[0] if objects else label
+    second_object = objects[1] if len(objects) > 1 else first_object
+    first_scene = scenes[0] if scenes else label
+    second_scene = scenes[1] if len(scenes) > 1 else first_scene
+    last_scene = scenes[-1] if scenes else first_scene
+    anchor = _concept_anchor_line(concept)
+    final_lines = [
+        f"จาก{label or first_object} ฉันค่อย ๆ ยอมรับความจริง",
+        anchor or f"ให้{last_scene}พาฉันกลับมาหาตัวเอง",
+    ]
+    return {
+        "Verse 1": [f"{first_object}ยังวางอยู่ตรง{first_scene}", f"ฉันยิ้มให้วันเดิมทั้งที่ข้างในเริ่มไม่ไหว"],
+        "Verse 2": [f"{second_scene}เงียบจนได้ยินเสียงใจตัวเอง", f"{second_object}เตือนว่าฉันฝืนมานานเกินไป"],
+        "Bridge": [f"{last_scene}กลายเป็นที่ที่ฉันพูดความจริงกับตัวเอง", anchor] if anchor else [f"{last_scene}กลายเป็นที่ที่ฉันพูดความจริงกับตัวเอง"],
+        "Final Chorus": final_lines,
+    }
+
+
+def _apply_selected_story_to_lyrics(lyrics: str, seed: dict[str, Any] | None, concept: str) -> str:
+    story_lines = _selected_story_lines(seed, concept)
+    if not story_lines:
+        return lyrics
+    sections = parse_lyric_sections(lyrics)
+    for section, lines in story_lines.items():
+        existing = sections.setdefault(section, [])
+        for line in reversed([item for item in lines if item and item not in existing]):
+            existing.insert(0, line)
+    return _render_lyric_sections(sections)
 
 
 def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
@@ -1945,10 +2084,10 @@ def generate_creative_release_pack(
         title = title_candidates[0]["title"]
     title = _authentic_title_from_concept(concept, preset_name, title)
     if selected_seed:
-        selected_title = str(selected_seed.get("title") or "").strip()
+        selected_title = _selected_seed_title(selected_seed, original_concept)
         selected_hook = str(selected_seed.get("hook") or "").strip()
         if selected_title:
-            title = _authentic_title_from_concept(concept, preset_name, selected_title)
+            title = selected_title
         if selected_hook:
             hook = _sanitize_hook_text(selected_hook, title, concept)
     if title != original_title:
@@ -1957,6 +2096,7 @@ def generate_creative_release_pack(
     lyrics = polish_commercial_lyrics(_lyrics(title, hook, concept, preset_name, preset), hook)
     lyrics = _rewrite_disallowed_reused_lines(concept, lyrics)
     lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
+    lyrics = _apply_selected_story_to_lyrics(lyrics, selected_seed, original_concept)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     if not concept_alignment["aligned"] and _concept_theme(concept) == "respectful_truth":
         hook = improve_hook_singability(_hook_from_idea(concept, title, preset))
