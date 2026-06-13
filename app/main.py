@@ -2160,47 +2160,76 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         ai_recommendation = get_release_ai_control_recommendation(preset)
         hc1, hc2, hc3 = st.columns(3)
         hook_style = hc1.selectbox("Hook Style", hook_style_options, index=hook_style_options.index(state.get("hook_style", "Question")) if state.get("hook_style") in hook_style_options else 0, key="creative_pack_hook_style")
-        hc2.metric("Weirdness", f"{ai_recommendation['weirdness']}%", help="Auto by preset")
-        hc3.metric("Style Influence", f"{ai_recommendation['style_influence']}%", help="Auto by preset")
-        st.caption("AI Controls: Auto by preset. VelaFlow chooses safe values for commercial song quality.")
+        hc2.metric("Recommended Weirdness", f"{ai_recommendation['weirdness']}%", help="Auto by preset")
+        hc3.metric("Recommended Style Influence", f"{ai_recommendation['style_influence']}%", help="Auto by preset")
+        st.caption("Recommended AI Controls: Auto by preset. VelaFlow chooses safe values for commercial song quality.")
+        if st.button("Reset to Recommended", use_container_width=True, key="creative_pack_reset_ai_controls"):
+            st.session_state["creative_pack_manual_ai_controls"] = False
+            st.session_state["creative_pack_weirdness"] = int(ai_recommendation["weirdness"])
+            st.session_state["creative_pack_style_influence"] = int(ai_recommendation["style_influence"])
+            state["manual_ai_controls"] = False
+            state["weirdness"] = int(ai_recommendation["weirdness"])
+            state["style_influence"] = int(ai_recommendation["style_influence"])
+            project["creative_pack_v1"] = state
+            _save_project()
+            st.rerun()
         manual_ai_controls = False
         weirdness = None
         style_influence = None
-        with st.expander("Advanced Manual Override", expanded=False):
+        vocal_direction = state.get("vocal_direction", "Thai male vocal, warm expressive tone, clear pronunciation")
+        commercial_direction = state.get("commercial_direction", "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure")
+        with st.expander("Advanced Creative Controls", expanded=False):
             manual_ai_controls = st.checkbox("Use manual AI controls", value=bool(state.get("manual_ai_controls", False)), key="creative_pack_manual_ai_controls")
+            if manual_ai_controls:
+                st.warning("Manual Override Active")
             mc1, mc2 = st.columns(2)
             weirdness = mc1.slider("Manual Weirdness", min_value=0, max_value=int(ai_recommendation["max_manual_weirdness"]), value=min(int(state.get("weirdness", ai_recommendation["weirdness"])), int(ai_recommendation["max_manual_weirdness"])), disabled=not manual_ai_controls, key="creative_pack_weirdness")
             style_influence = mc2.slider("Manual Style Influence", min_value=55, max_value=85, value=max(55, min(85, int(state.get("style_influence", ai_recommendation["style_influence"])))), disabled=not manual_ai_controls, key="creative_pack_style_influence")
             st.caption(f"Manual Weirdness is clamped to {ai_recommendation['max_manual_weirdness']} for this preset. Style Influence is clamped to 55-85.")
-        vc1, vc2 = st.columns(2)
-        vocal_direction = vc1.text_input("Vocal Direction", value=state.get("vocal_direction", "Thai male vocal, warm expressive tone, clear pronunciation"), key="creative_pack_vocal_direction")
-        commercial_direction = vc2.text_area("Commercial Direction", value=state.get("commercial_direction", "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure"), height=90, key="creative_pack_commercial_direction")
+            vc1, vc2 = st.columns(2)
+            vocal_direction = vc1.text_input("Vocal Direction", value=vocal_direction, key="creative_pack_vocal_direction")
+            commercial_direction = vc2.text_area("Commercial Direction", value=commercial_direction, height=90, key="creative_pack_commercial_direction")
         st.caption("These controls are quality inputs. Different story, mood, and hook choices should create clearly different songs.")
 
+    seed_candidates = state.get("seed_candidates") or {}
+    stories = seed_candidates.get("story_candidates") or []
+    hooks = seed_candidates.get("hook_candidates") or []
+    titles = seed_candidates.get("title_candidates") or []
+    has_seed_candidates = bool(stories and hooks and titles)
+    selected_seed: dict[str, Any] | None = None
+    generate_pack = False
     with st.container(border=True):
-        st.markdown("### Music V2 Seed Selection")
-        st.caption("Recommended quality path: choose a concrete story, hook, and title before generating full lyrics.")
-        if st.button("Generate Song Seeds", use_container_width=True, key="creative_pack_generate_song_seeds", disabled=not bool(str(idea or "").strip())):
-            state["seed_candidates"] = generate_music_seed_candidates_v2(str(idea or ""), preset, mood, story_type)
-            project["creative_pack_v1"] = state
-            _save_project()
-            st.rerun()
-        seed_candidates = state.get("seed_candidates") or {}
-        stories = seed_candidates.get("story_candidates") or []
-        hooks = seed_candidates.get("hook_candidates") or []
-        titles = seed_candidates.get("title_candidates") or []
-        selected_seed: dict[str, Any] | None = None
+        st.markdown("### Song Seed Selection")
+        st.caption("Step 1: Generate Song. Step 2: choose the strongest Story, Hook, and Title. Step 3: Generate Final Song.")
+        if not has_seed_candidates:
+            if st.button("Generate Song", type="primary", use_container_width=True, key="creative_pack_generate_song", disabled=not bool(str(idea or "").strip())):
+                state["seed_candidates"] = generate_music_seed_candidates_v2(str(idea or ""), preset, mood, story_type)
+                state["seed_source"] = {"idea": str(idea or ""), "preset": preset, "mood": mood, "story_type": story_type}
+                project["creative_pack_v1"] = state
+                _save_project()
+                st.rerun()
+            st.caption("Generate Song creates Story Candidates, Hook Candidates, and Title Candidates first.")
         if stories and hooks and titles:
-            story_labels = [f"{item.get('id')}: {item.get('label')} - {item.get('story_angle')}" for item in stories]
-            hook_labels = [f"{item.get('id')}: {item.get('type')} - {str(item.get('hook', '')).splitlines()[0] if item.get('hook') else ''}" for item in hooks]
-            title_labels = [f"{item.get('id')}: {item.get('type')} - {item.get('title')}" for item in titles]
-            sc1, sc2, sc3 = st.columns(3)
-            story_choice = sc1.selectbox("Story Candidates", story_labels, index=min(int(state.get("story_seed_index", 0)), len(story_labels) - 1), key="creative_pack_story_seed_select")
-            hook_choice = sc2.selectbox("Hook Candidates", hook_labels, index=min(int(state.get("hook_seed_index", 0)), len(hook_labels) - 1), key="creative_pack_hook_seed_select")
-            title_choice = sc3.selectbox("Title Candidates", title_labels, index=min(int(state.get("title_seed_index", 0)), len(title_labels) - 1), key="creative_pack_title_seed_select")
-            story_index = story_labels.index(story_choice)
-            hook_index = hook_labels.index(hook_choice)
-            title_index = title_labels.index(title_choice)
+            story_options = [f"{idx + 1}. {item.get('label')}" for idx, item in enumerate(stories)]
+            hook_options = [f"{idx + 1}. {item.get('type')}" for idx, item in enumerate(hooks)]
+            title_options = [f"{idx + 1}. {item.get('title')}" for idx, item in enumerate(titles)]
+            story_index = story_options.index(st.radio("Story Candidates", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
+            for idx, item in enumerate(stories):
+                with st.container(border=True):
+                    st.markdown(("**Selected Story**  " if idx == story_index else "**Story Candidate**  ") + str(item.get("label", "")))
+                    st.caption(str(item.get("story_angle", "")))
+                    st.write(f"Objects: {', '.join(item.get('objects', []) or [])}")
+                    st.write(f"Scenes: {', '.join(item.get('scenes', []) or [])}")
+            hook_index = hook_options.index(st.radio("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
+            for idx, item in enumerate(hooks):
+                with st.container(border=True):
+                    st.markdown(("**Selected Hook**" if idx == hook_index else "**Hook Candidate**") + f" — {item.get('type', '')}")
+                    st.text(str(item.get("hook", "")))
+            title_index = title_options.index(st.radio("Title Candidates", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
+            for idx, item in enumerate(titles):
+                with st.container(border=True):
+                    st.markdown(("**Selected Title**  " if idx == title_index else "**Title Candidate**  ") + str(item.get("title", "")))
+                    st.caption(str(item.get("type", "")))
             selected_seed = {
                 "story": stories[story_index],
                 "hook": hooks[hook_index].get("hook", ""),
@@ -2209,22 +2238,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             state["story_seed_index"] = story_index
             state["hook_seed_index"] = hook_index
             state["title_seed_index"] = title_index
-            with st.expander("Selected Seed Summary", expanded=False):
-                st.write(f"Story: {selected_seed['story'].get('label', '')}")
-                st.write(f"Objects: {', '.join(selected_seed['story'].get('objects', []) or [])}")
-                st.write(f"Scenes: {', '.join(selected_seed['story'].get('scenes', []) or [])}")
-                st.text_area("Selected Hook", value=selected_seed["hook"], height=120, key="creative_pack_selected_seed_hook")
-                st.write(f"Selected Title: {selected_seed['title']}")
-        else:
-            st.caption("Generate seeds first, or use Generate Full Release Pack to continue from concept and preset.")
-
-    generate_pack = st.button(
-        "Generate Full Lyrics from Selected Seed" if (state.get("seed_candidates") or {}).get("story_candidates") else "Generate Full Release Pack",
-        type="primary",
-        use_container_width=True,
-        disabled=not bool(str(idea or "").strip()),
-        key="creative_pack_generate_full_release_pack",
-    )
+            generate_pack = st.button("Generate Final Song", type="primary", use_container_width=True, disabled=not bool(str(idea or "").strip()), key="creative_pack_generate_final_song")
     if generate_pack:
         production_mode = not bool(st.session_state.get("developer_mode"))
         gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider=_active_ai_provider())
@@ -2292,7 +2306,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     pack = result.get("pack") or {}
     export_data = state.get("export") or {}
     if not pack:
-        st.caption("Ready when you are: choose a preset, enter a song idea, then click Generate Full Release Pack.")
+        st.caption("Ready when you are: choose a preset, enter a song idea, then click Generate Song.")
         return
 
     st.markdown("### Generate Song")
