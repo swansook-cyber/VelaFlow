@@ -1171,6 +1171,77 @@ def _select_best_hook(title: str, idea: str) -> dict[str, Any]:
     return scored[0] if scored else _score_hook_candidate(title)
 
 
+def _human_speech_score(lines: list[str]) -> int:
+    if not lines:
+        return 0
+    joined = " ".join(lines)
+    score = 72
+    spoken_markers = ["วันนี้", "คืนนี้", "เลิกงาน", "พัก", "เหนื่อย", "ยิ้ม", "กลับบ้าน", "พรุ่งนี้", "ก่อน", "ไหว"]
+    score += min(24, sum(5 for marker in spoken_markers if marker in joined))
+    abstract_markers = ["แสง", "เงา", "จักรวาล", "ความว่างเปล่า", "ปลายทาง", "โชคชะตา"]
+    score -= min(30, sum(8 for marker in abstract_markers if marker in joined))
+    if any(len(line.replace(" ", "")) > 34 for line in lines):
+        score -= 16
+    return max(0, min(100, score))
+
+
+def _score_hook_candidate(hook: str) -> dict[str, Any]:
+    lines = _lines(remove_meta_lines_from_lyrics(hook))
+    joined = " ".join(lines)
+    compact_len = len(joined.replace(" ", ""))
+    first_len = len(lines[0].replace(" ", "")) if lines else 999
+    caption_score = 72 + (18 if 8 <= first_len <= 28 else -10) + (8 if any(word in joined for word in ["เลิกงาน", "เหนื่อย", "พัก", "ยิ้ม", "พรุ่งนี้", "วันนี้"]) else 0)
+    tiktok_score = 70 + (14 if 3 <= len(lines) <= 5 else -12) + (10 if compact_len <= 92 else -12)
+    human_score = _human_speech_score(lines)
+    has_conflict = any(word in joined for word in ["แต่", "ทั้งที่", "ยิ่ง", "ยัง", "ไม่ต้อง", "ขอ"])
+    emotional_score = 68 + (14 if has_conflict else 0) + (10 if any(word in joined for word in ["เหนื่อย", "เจ็บ", "พักใจ", "คิดถึง", "รัก", "ไหว"]) else 0)
+    singability_score = _line_singability_score(lines)
+    memorability_score = 70 + (14 if lines and 8 <= first_len <= 28 else 0) + (8 if has_conflict else 0)
+    penalty = 0
+    weak_or_poetic = ["โต๊ะเดิมถึงดูไกล", "งานไม่เคยพูดว่ารักกัน", "ปลายทางว่างเปล่า", "จักรวาล", "เงาของหัวใจ"]
+    if any(item in joined for item in weak_or_poetic):
+        penalty += 34
+    if compact_len > 112:
+        penalty += 24
+    if any(word in joined.lower() for word in ["direction", "prompt", "hook friendly", "spotify-friendly", "tiktok-ready"]):
+        penalty += 80
+    if any(len(line.replace(" ", "")) > 38 for line in lines):
+        penalty += 14
+    score = int((caption_score + tiktok_score + human_score + emotional_score + singability_score + memorability_score) / 6 - penalty)
+    return {
+        "hook": "\n".join(lines),
+        "score": max(0, min(100, score)),
+        "caption_score": max(0, min(100, caption_score)),
+        "tiktok_score": max(0, min(100, tiktok_score)),
+        "human_speech_score": human_score,
+        "emotional_impact_score": max(0, min(100, emotional_score)),
+        "singability_score": max(0, min(100, singability_score)),
+        "memorability_score": max(0, min(100, memorability_score)),
+        "singability": max(0, min(100, singability_score)),
+        "memorability": max(0, min(100, memorability_score)),
+        "emotional_punch": max(0, min(100, emotional_score)),
+        "caption_potential": max(0, min(100, caption_score)),
+        "why": "Selected for caption clarity, natural Thai speech, emotional conflict, and singable short lines.",
+    }
+
+
+def _hook_from_brief_phrase(phrase: str, scene: str = "human_emotional") -> str:
+    clean = re.sub(r"\s+", " ", str(phrase or "")).strip()
+    if not clean:
+        return ""
+    if "เลิกงาน" in clean and "เหนื่อย" in clean:
+        return "\n".join(["นาฬิกาเลิกงาน", "แต่ใจยังไม่เลิกเหนื่อย", "ยิ้มมาทั้งวันจนลืมว่าข้างใน", "แค่อยากมีคืนหนึ่งที่ไม่ต้องไหว"])
+    if "พักใจ" in clean or "พัก" in clean:
+        return "\n".join(["พักใจก่อน", "พรุ่งนี้ค่อยว่ากัน", "วันนี้เก่งมากแล้ว", "ที่ยังผ่านมาได้"])
+    if "กลับบ้าน" in clean:
+        return "\n".join(["กลับบ้านก่อน", "วางความเก่งไว้หน้าประตู", "วันนี้เหนื่อยมามากพอแล้ว", "ให้คนที่รอกอดเราแทนโลกทั้งใบ"])
+    if len(clean.replace(" ", "")) <= 34:
+        return "\n".join([clean, "ถ้าพูดแทนใจได้สักครั้ง", "ขอให้ท่อนนี้พาฉันกลับมา", "เป็นคนเดิมที่ยังพอไหว"])
+    words = clean.split()
+    first = " ".join(words[:6]) if words else clean[:28]
+    return "\n".join([first, "พูดเบา ๆ แต่โดนใจ", "ยิ่งฟังยิ่งเห็นตัวเอง", "คืนนี้ขอพักใจสักคืน"])
+
+
 def _hook_from_idea(idea: str, title: str, preset: dict[str, str]) -> str:
     hook_direction = str(preset.get("hook_direction") or "").strip()
     hook_context = " ".join(
@@ -1360,6 +1431,27 @@ def _producer_brief_context(brief: dict[str, Any] | None) -> str:
     )
 
 
+def _hook_quality_summary_text(hook: str, title: str, concept: str) -> str:
+    hook_score = _score_hook_candidate(hook)
+    title_score = score_song_title_candidate(title, concept)
+    return "\n".join(
+        [
+            f"Selected Hook: {hook}",
+            f"Hook Score: {hook_score.get('score', 0)}",
+            f"Caption Score: {hook_score.get('caption_score', hook_score.get('caption_potential', 0))}",
+            f"TikTok Score: {hook_score.get('tiktok_score', 0)}",
+            f"Human Speech Score: {hook_score.get('human_speech_score', 0)}",
+            f"Emotional Impact Score: {hook_score.get('emotional_impact_score', hook_score.get('emotional_punch', 0))}",
+            f"Singability Score: {hook_score.get('singability_score', hook_score.get('singability', 0))}",
+            f"Memorability Score: {hook_score.get('memorability_score', hook_score.get('memorability', 0))}",
+            f"Why this hook was selected: {hook_score.get('why', 'Strongest balance of caption clarity, human speech, and singability.')}",
+            f"Selected Title: {title}",
+            f"Title Score: {title_score.get('score', 0)}",
+            "Why this title was selected: short, memorable, Thai-safe, and strong enough for a song title.",
+        ]
+    ).strip()
+
+
 def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "", producer_brief: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     scene = _song_scene_type("\n".join([concept or "", preset_name or "", mood or "", story_type or ""]), preset_name)
     banks = {
@@ -1405,6 +1497,7 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
             "human_experiences": human_experience_bank.get(scene, human_experience_bank["breakup_memory"])[idx - 1: idx + 2] or human_experience_bank.get(scene, [])[:3],
             "emotional_arc": arc,
             "recommended_hook_direction": " / ".join(part for part in [hook_direction, brief_context] if part).strip(),
+            "producer_brief": producer_brief or {},
         }
         for idx, (label, angle, objects, scenes, arc, hook_direction) in enumerate(source[:5], start=1)
     ]
@@ -1412,44 +1505,86 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
 
 def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, preset_name: str = "Thai Sad Pop") -> list[dict[str, Any]]:
     story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
+    producer_brief = story.get("producer_brief") if isinstance(story.get("producer_brief"), dict) else None
     context = "\n".join([concept or "", story.get("label", ""), story.get("story_angle", ""), story.get("recommended_hook_direction", ""), " ".join(story.get("human_experiences", []) or [])])
     base_hooks = _hook_candidates(story.get("label") or _authentic_title_from_concept(context, preset_name, ""), context)
+    brief_hooks = []
+    if producer_brief:
+        for key in ["Caption Line", "Shareable Angle"]:
+            hook_from_brief = _hook_from_brief_phrase(str(producer_brief.get(key) or ""), _song_scene_type(context, preset_name))
+            if hook_from_brief:
+                brief_hooks.append(hook_from_brief)
+    base_hooks = brief_hooks + base_hooks
     if not base_hooks:
         base_hooks = [_hook_from_idea(context, story.get("label", "") or _authentic_title_from_concept(context, preset_name, ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"]))]
     kinds = ["Visual Hook", "Contradiction Hook", "Emotional Hook", "Question Hook", "Object Hook"]
-    output = []
-    for idx, kind in enumerate(kinds, start=1):
-        hook = _sanitize_hook_text(base_hooks[(idx - 1) % len(base_hooks)], story.get("label", ""), context)
-        output.append({"id": f"hook_{idx:02d}", "type": kind, "hook": hook, "lines": _lines(hook)})
-    return output
+    ranked: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in base_hooks:
+        hook = _sanitize_hook_text(raw, story.get("label", ""), context, enforce_title=False)
+        key = _compact_line(hook)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        score = _score_hook_candidate(hook)
+        ranked.append({"hook": score["hook"], "lines": _lines(score["hook"]), "score": score})
+    ranked = sorted(ranked, key=lambda item: item["score"]["score"], reverse=True)
+    while len(ranked) < 5:
+        fallback = _sanitize_hook_text(_hook_from_idea(context, story.get("label", ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])), story.get("label", ""), context, enforce_title=False)
+        score = _score_hook_candidate(fallback)
+        ranked.append({"hook": score["hook"], "lines": _lines(score["hook"]), "score": score})
+    return [
+        {"id": f"hook_{idx:02d}", "type": kinds[(idx - 1) % len(kinds)], **item}
+        for idx, item in enumerate(ranked[:5], start=1)
+    ]
 
 
 def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, hook: str = "", preset_name: str = "Thai Sad Pop") -> list[dict[str, str]]:
     story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
+    scene = _song_scene_type("\n".join([concept or "", story.get("story_angle", ""), " ".join(story.get("human_experiences", []) or [])]), preset_name)
     objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
     scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
-    experiences = [_thai_seed_phrase(str(item)) for item in story.get("human_experiences", []) if str(item).strip()]
-    blocked = {"รัก", "คิดถึง", "ลืมไม่ลง", "ยังรัก", "กลับมา", "ไม่ไหว"}
-    raw = [
-        ("object-based title", objects[0] if objects else story.get("label", "")),
-        ("scene-based title", scenes[-1] if scenes else story.get("label", "")),
-        ("phrase-based title", story.get("label", "")),
-        ("emotional title", _lines(hook)[0] if _lines(hook) else story.get("label", "")),
-        ("commercial-safe title", _authentic_title_from_concept(concept, preset_name, story.get("label", ""))),
-    ]
+    preferred_by_scene = {
+        "office_life": ["โหมดพักร่าง", "ใจยังไม่เลิกงาน", "พักใจก่อน", "วันนี้เก่งมากแล้ว", "โต๊ะตัวเดิม", "กลับบ้านก่อน", "คืนนี้ขอพัก"],
+        "night_drive": ["ทางกลับใจ", "ไฟแดงตีสอง", "คืนนี้ขับไกล", "ถนนยังจำ", "เบาะข้าง ๆ"],
+        "breakup_memory": ["ข้อความสุดท้าย", "รูปเก่ายังยิ้ม", "ยังลืมไม่หมด", "คืนที่ยังคิดถึง"],
+        "respectful_truth": ["พูดกันเบา ๆ", "คำที่ถนอม", "ความจริงเบา ๆ", "อย่าชนะด้วยคำแรง"],
+        "family": ["ไฟบ้านยังรอ", "กลับบ้านก่อน", "คนที่บ้านรอ", "โต๊ะข้าวเดิม"],
+        "self_growth": ["ค่อย ๆ กลับมา", "วันนี้ยังไหว", "เริ่มใหม่เบา ๆ", "พรุ่งนี้ค่อยว่า"],
+    }
+    blocked = {"รัก", "คิดถึง", "เหนื่อย", "ไม่ไหว", "ลืมไม่ลง", "ยังรัก", "กลับมา", "coffee cup", "parking card"}
+    raw: list[tuple[str, str]] = []
+    raw.extend((f"title-v3-{idx}", title) for idx, title in enumerate(preferred_by_scene.get(scene, preferred_by_scene["office_life"]), start=1))
+    raw.extend(
+        [
+            ("object-based title", objects[0] if objects else ""),
+            ("scene-based title", scenes[-1] if scenes else ""),
+            ("phrase-based title", str(story.get("label") or "")),
+            ("emotional title", _lines(hook)[0] if _lines(hook) else ""),
+            ("commercial-safe title", _authentic_title_from_concept(concept, preset_name, str(story.get("label") or ""))),
+        ]
+    )
     titles: list[dict[str, str]] = []
     seen: set[str] = set()
-    for idx, (kind, title) in enumerate(raw, start=1):
-        clean = str(title or story.get("label") or "เพลงของเรา").strip()
-        if clean in blocked:
-            clean = str(story.get("label") or _authentic_title_from_concept(concept, preset_name, clean))
+    source_text = "\n".join([concept or "", hook or "", story.get("story_angle", ""), " ".join(story.get("human_experiences", []) or [])])
+    for idx, (kind, raw_title) in enumerate(raw, start=1):
+        clean = str(raw_title or "").strip()
+        if not clean:
+            continue
+        if clean.lower() in blocked or re.search(r"[A-Za-z]", clean):
+            clean = preferred_by_scene.get(scene, preferred_by_scene["office_life"])[0]
         key = _compact_line(clean)
         if not key or key in seen:
-            clean = f"{story.get('label', 'Seed')} {idx}"
-            key = _compact_line(clean)
+            continue
         seen.add(key)
-        titles.append({"id": f"title_{idx:02d}", "type": kind, "title": clean})
-    return titles[:5]
+        score_data = score_song_title_candidate(clean, source_text)
+        score = int(score_data.get("score", 0))
+        if len(key) > 18:
+            score -= 22
+        if clean in blocked:
+            score -= 60
+        titles.append({"id": f"title_{len(titles) + 1:02d}", "type": kind, "title": clean, "score": str(max(0, min(100, score)))})
+    return sorted(titles, key=lambda item: int(item.get("score", "0")), reverse=True)[:5]
 
 
 def generate_music_seed_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, Any]:
@@ -1714,12 +1849,31 @@ def _enforce_selected_hook_authority(lyrics: str, selected_hook: str) -> str:
     if not hook_lines:
         return lyrics
     sections = parse_lyric_sections(lyrics)
-    for section in ("Chorus", "Final Chorus"):
-        current = [line for line in sections.get(section, []) if line.strip()]
-        hook_block_present = all(line in current for line in hook_lines)
-        if not hook_block_present:
-            remaining = [line for line in current if line not in hook_lines]
-            sections[section] = hook_lines + remaining
+    strongest = hook_lines[:4]
+    chorus_fillers = [
+        "ยิ้มมาทั้งวันจนลืมว่าข้างใน",
+        "แค่อยากมีคืนหนึ่งที่ไม่ต้องไหว",
+        "พักใจก่อน พรุ่งนี้ค่อยว่ากัน",
+    ]
+    final_fillers = [
+        "วันนี้เก่งมากแล้วที่ยังผ่านมาได้",
+        "ถ้าคืนนี้ไม่ไหวก็ไม่ต้องฝืน",
+        "พรุ่งนี้ค่อยกลับไปสู้ใหม่",
+    ]
+    chorus = strongest[:]
+    for line in chorus_fillers:
+        if len(chorus) >= 5:
+            break
+        if line not in chorus:
+            chorus.append(line)
+    final_chorus = strongest[:]
+    for line in final_fillers:
+        if len(final_chorus) >= 6:
+            break
+        if line not in final_chorus:
+            final_chorus.append(line)
+    sections["Chorus"] = chorus[:6]
+    sections["Final Chorus"] = final_chorus[:6]
     return _render_lyric_sections(sections)
 
 
@@ -1878,7 +2032,7 @@ def _concept_rewrite_line(idea: str, section: str, index: int, *, final_payoff: 
     elif scene == "office_life":
         pools = {
             "Intro": [
-                "เช้าวันจันทร์ฉันวางกาแฟไว้ข้างคีย์บอร์ด",
+                "เช้าวันจันทร์ฉันวางกาแฟไว้บนโต๊ะข้างคีย์บอร์ด",
                 "แจ้งเตือนเด้งขึ้นมาก่อนจะได้หายใจ",
             ],
             "Verse 1": [
@@ -2335,6 +2489,7 @@ def generate_creative_release_pack(
     lyrics_only = _clean_lyric_text(lyrics)
     suno_style_prompt = _build_suno_style_prompt(preset_name, preset, advanced_settings)
     export_quality = _release_pack_quality_checks(title, hook, lyrics_only, suno_style_prompt)
+    hook_quality_summary = _hook_quality_summary_text(hook, title, concept)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -2360,6 +2515,7 @@ def generate_creative_release_pack(
     pack = {
         "SONG INFO": song_info,
         "Producer Brief": _producer_brief_to_text(producer_brief),
+        "Hook Quality Summary": hook_quality_summary,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -2465,18 +2621,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "VELAFLOW AI CREATIVE RELEASE PACK",
         song_info,
         "2. PRODUCER BRIEF\n" + str(pack.get("Producer Brief", "")).strip(),
-        "3. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "4. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "5. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "6. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "7. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "8. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "9. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "10. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "11. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "12. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "13. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "14. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "3. HOOK QUALITY SUMMARY\n" + str(pack.get("Hook Quality Summary", "")).strip(),
+        "4. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "5. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "6. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "7. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "8. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "9. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "10. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "11. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "12. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "13. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "14. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "15. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 

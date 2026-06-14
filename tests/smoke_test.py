@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _score_hook_candidate, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -713,6 +713,10 @@ def main():
     assert_true(len(seed_bundle["story_candidates"]) == 5 and len(seed_bundle["hook_candidates"]) == 5 and len(seed_bundle["title_candidates"]) == 5, "Music V2 seed bundle count failed")
     assert_true(seed_bundle.get("producer_brief") and seed_bundle["producer_brief"].get("Target Listener") and seed_bundle["producer_brief"].get("Shareable Angle"), "Producer Engine V1 brief missing")
     assert_true(all(item.get("human_experiences") for item in seed_bundle["story_candidates"]), "Producer Engine V1 human experience seeds missing")
+    hook_candidate_text = "\n".join(item["hook"] for item in seed_bundle["hook_candidates"])
+    assert_true("นาฬิกาเลิกงาน" in hook_candidate_text or "เลิกงานแล้ว" in hook_candidate_text, "Producer Brief caption/shareable line did not enter hook candidates")
+    assert_true(_score_hook_candidate("นาฬิกาเลิกงาน\nแต่ใจยังไม่เลิกเหนื่อย\nยิ้มมาทั้งวันจนลืมว่าข้างใน\nแค่อยากมีคืนหนึ่งที่ไม่ต้องไหว")["score"] > _score_hook_candidate("ทำไมโต๊ะเดิมถึงดูไกล\nงานไม่เคยพูดว่ารักกัน\nปลายทางว่างเปล่า\nใต้เงาของหัวใจ")["score"], "Hook Engine V2 did not prefer caption-like hook over abstract poetic hook")
+    assert_true(not re.search(r"[A-Za-z]", seed_bundle["title_candidates"][0]["title"]) and seed_bundle["title_candidates"][0]["title"] not in {"รัก", "คิดถึง", "เหนื่อย", "ไม่ไหว", "ลืมไม่ลง", "เลิกงานแล้วยังเหนื่อย"}, "Title Engine V3 selected weak, literal, or English title")
     selected_seed = {
         "story": seed_bundle["story_candidates"][0],
         "hook": seed_bundle["hook_candidates"][0]["hook"],
