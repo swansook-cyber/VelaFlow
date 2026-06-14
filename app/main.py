@@ -2110,6 +2110,63 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
     )
 
 
+def _render_quick_song(project: dict[str, Any]) -> None:
+    _page_header("Quick Song", "Fast daily song draft: idea, title, hook, lyrics, and Suno style only.", project)
+    state = project.setdefault("quick_song", {})
+    st.info("ใส่ไอเดียเพลง แล้วรับเนื้อเพลงกับ Style Prompt สำหรับ Suno/Udio แบบเร็วที่สุด")
+    idea = st.text_area("Song Idea", value=state.get("idea", ""), height=120, key="quick_song_idea", help="เช่น สุดท้ายไม่เหลือใคร หรือ เพลงเศร้าในออฟฟิศ")
+    preset_names = list(CREATIVE_PACK_PRESETS)
+    preset = st.selectbox(
+        "Preset",
+        preset_names,
+        index=preset_names.index(state.get("preset", "Vela Moon Emotional Pop Rock")) if state.get("preset") in preset_names else preset_names.index("Vela Moon Emotional Pop Rock"),
+        key="quick_song_preset",
+    )
+    if st.button("Generate Song", type="primary", use_container_width=True, key="quick_song_generate", disabled=not bool(str(idea or "").strip())):
+        production_mode = not bool(st.session_state.get("developer_mode"))
+        gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider=_active_ai_provider())
+        if production_mode and not gate.get("ok"):
+            _show_api_quality_stop(gate)
+            return
+        result = generate_creative_release_pack(
+            idea,
+            preset,
+            str(project.get("artist") or DEFAULT_ARTIST),
+            production_mode=production_mode,
+            demo_mode=not production_mode,
+            provider_status=gate,
+        )
+        if not result.get("ok"):
+            _show_api_quality_stop(result.get("provider_status") or gate)
+            return
+        state.update({"idea": idea, "preset": preset, "result": result})
+        project["quick_song"] = state
+        project.setdefault("song", {})["idea"] = idea
+        project["song"]["title"] = (result.get("pack") or {}).get("Suggested title", "")
+        project["song"]["complete_lyrics"] = (result.get("pack") or {}).get("Full lyrics", "")
+        project["song"]["style_prompt"] = (result.get("pack") or {}).get("SUNO STYLE OF MUSIC FIELD", "")
+        _save_project()
+        st.success("Quick Song ready")
+        st.rerun()
+
+    result = state.get("result") or {}
+    pack = result.get("pack") or {}
+    if not pack:
+        st.caption("Quick Song skips SEO, MV assets, hashtags, and release notes for speed.")
+        return
+
+    st.markdown("### Song Preview")
+    st.text_input("Song Title", value=pack.get("Suggested title", ""), key="quick_song_title")
+    st.text_area("Hook", value=pack.get("Hook", ""), height=110, key="quick_song_hook")
+    st.markdown("### Suno Package")
+    lyrics = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
+    st.text_area("A. Lyrics", value=lyrics, height=320, key="quick_song_lyrics")
+    _copy_to_clipboard_button("Copy Lyrics", str(st.session_state.get("quick_song_lyrics", lyrics) or ""), key="quick_song_copy_lyrics")
+    style_prompt = pack.get("SUNO STYLE OF MUSIC FIELD", "")
+    st.text_area("B. Music Style Prompt", value=style_prompt, height=150, key="quick_song_style")
+    _copy_to_clipboard_button("Copy Music Style Prompt", str(st.session_state.get("quick_song_style", style_prompt) or ""), key="quick_song_copy_style")
+
+
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
     _page_header("AI Creative Pack Generator", "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools.", project)
     state = project.setdefault("creative_pack_v1", {})
@@ -2309,68 +2366,68 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         st.caption("Ready when you are: choose a preset, enter a song idea, then click Generate Song.")
         return
 
-    st.markdown("### Generate Song")
+    st.markdown("### Title + Hook Preview")
     song_cols = st.columns(3)
     song_cols[0].metric("Suggested Title", pack.get("Suggested title", "-"))
     song_cols[1].metric("Preset", result.get("preset", "-"))
     song_cols[2].metric("Mode", "No Render")
     st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
+    st.markdown("### Suno Package")
+    st.caption("Copy A into Suno Lyrics. Copy B into Suno Style of Music.")
     lyrics_for_suno = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
-    st.text_area("Suno Lyrics Field", value=lyrics_for_suno, height=300, key="creative_pack_full_lyrics")
+    st.text_area("A. Lyrics", value=lyrics_for_suno, height=300, key="creative_pack_full_lyrics")
     _copy_to_clipboard_button("Copy Lyrics for Suno", str(st.session_state.get("creative_pack_full_lyrics", lyrics_for_suno) or ""), key="creative_pack_copy_suno_lyrics")
     style_for_suno = pack.get("SUNO STYLE OF MUSIC FIELD", "")
-    st.text_area("Suno Style of Music Field", value=style_for_suno, height=140, key="creative_pack_suno_style_field")
+    st.text_area("B. Music Style Prompt", value=style_for_suno, height=140, key="creative_pack_suno_style_field")
     _copy_to_clipboard_button("Copy Style for Suno", str(st.session_state.get("creative_pack_suno_style_field", style_for_suno) or ""), key="creative_pack_copy_suno_style")
-    producer_notes = pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", pack.get("Music style prompt for Suno/Udio", "")))
-    st.text_area("Producer Notes", value=producer_notes, height=260, key="creative_pack_music_style")
-    _copy_to_clipboard_button("Copy Producer Notes", str(st.session_state.get("creative_pack_music_style", producer_notes) or ""), key="creative_pack_copy_producer_notes")
-    st.text_area("Advanced Suno Settings", value=pack.get("Advanced Suno Settings", ""), height=150, key="creative_pack_advanced_suno_settings")
-
-    st.markdown("### Generate Visual Pack")
-    visual_cols = st.columns(2)
-    with visual_cols[0]:
+    with st.expander("Advanced Assets (optional)", expanded=False):
+        producer_notes = pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", pack.get("Music style prompt for Suno/Udio", "")))
+        st.text_area("Producer Notes", value=producer_notes, height=220, key="creative_pack_music_style")
+        _copy_to_clipboard_button("Copy Producer Notes", str(st.session_state.get("creative_pack_music_style", producer_notes) or ""), key="creative_pack_copy_producer_notes")
+        st.text_area("Advanced Suno Settings", value=pack.get("Advanced Suno Settings", ""), height=130, key="creative_pack_advanced_suno_settings")
+        st.markdown("#### Cover Prompts")
         cover_prompt = pack.get("Cover prompt", "")
-        st.text_area("Cover prompt", value=cover_prompt, height=140, key="creative_pack_cover_prompt")
+        st.text_area("Cover prompt", value=cover_prompt, height=130, key="creative_pack_cover_prompt")
         _copy_to_clipboard_button("Copy Cover Prompt", str(st.session_state.get("creative_pack_cover_prompt", cover_prompt) or ""), key="creative_pack_copy_cover")
+        st.markdown("#### MV Storyboard")
         storyboard_prompt = pack.get("MV storyboard prompt", "")
-        st.text_area("MV storyboard prompt", value=storyboard_prompt, height=170, key="creative_pack_mv_storyboard_prompt")
+        st.text_area("MV storyboard prompt", value=storyboard_prompt, height=160, key="creative_pack_mv_storyboard_prompt")
         _copy_to_clipboard_button("Copy MV Storyboard Prompt", str(st.session_state.get("creative_pack_mv_storyboard_prompt", storyboard_prompt) or ""), key="creative_pack_copy_storyboard")
-    with visual_cols[1]:
+        st.markdown("#### SEO / Hashtags / Release Notes")
         shorts_ideas = pack.get("Shorts/TikTok ideas", "")
-        st.text_area("Shorts/TikTok ideas", value=shorts_ideas, height=160, key="creative_pack_shorts_ideas")
+        st.text_area("Shorts/TikTok ideas", value=shorts_ideas, height=140, key="creative_pack_shorts_ideas")
         _copy_to_clipboard_button("Copy Shorts/TikTok Ideas", str(st.session_state.get("creative_pack_shorts_ideas", shorts_ideas) or ""), key="creative_pack_copy_shorts")
         caption = pack.get("Caption", "")
-        st.text_area("Caption", value=caption, height=110, key="creative_pack_caption")
+        st.text_area("Caption", value=caption, height=100, key="creative_pack_caption")
         _copy_to_clipboard_button("Copy Caption", str(st.session_state.get("creative_pack_caption", caption) or ""), key="creative_pack_copy_caption")
-        st.text_area("Hashtags", value=pack.get("Hashtags", ""), height=90, key="creative_pack_hashtags")
-
-    st.markdown("### Export Release Pack")
-    st.text_area("YouTube description", value=pack.get("YouTube description", ""), height=160, key="creative_pack_youtube_description")
-    st.text_area("Release notes", value=pack.get("Release notes", ""), height=120, key="creative_pack_release_notes")
-    txt_payload = creative_release_pack_to_text(result)
-    download_cols = st.columns(2)
-    txt_name = Path(str(export_data.get("txt_path") or "velaflow_release_pack.txt")).name
-    zip_path = Path(str(export_data.get("zip_path") or ""))
-    download_cols[0].download_button(
-        "Download TXT",
-        data=txt_payload.encode("utf-8-sig"),
-        file_name=txt_name,
-        mime="text/plain",
-        use_container_width=True,
-        key="creative_pack_download_txt",
-    )
-    if zip_path.is_file():
-        download_cols[1].download_button(
-            "Download ZIP",
-            data=zip_path.read_bytes(),
-            file_name=zip_path.name,
-            mime="application/zip",
+        st.text_area("Hashtags", value=pack.get("Hashtags", ""), height=80, key="creative_pack_hashtags")
+        st.text_area("YouTube description", value=pack.get("YouTube description", ""), height=150, key="creative_pack_youtube_description")
+        st.text_area("Release notes", value=pack.get("Release notes", ""), height=110, key="creative_pack_release_notes")
+        st.markdown("#### Export Release Pack")
+        txt_payload = creative_release_pack_to_text(result)
+        download_cols = st.columns(2)
+        txt_name = Path(str(export_data.get("txt_path") or "velaflow_release_pack.txt")).name
+        zip_path = Path(str(export_data.get("zip_path") or ""))
+        download_cols[0].download_button(
+            "Download TXT",
+            data=txt_payload.encode("utf-8-sig"),
+            file_name=txt_name,
+            mime="text/plain",
             use_container_width=True,
-            key="creative_pack_download_zip",
+            key="creative_pack_download_txt",
         )
-    elif state.get("last_error"):
-        download_cols[1].warning(state.get("last_error"))
+        if zip_path.is_file():
+            download_cols[1].download_button(
+                "Download ZIP",
+                data=zip_path.read_bytes(),
+                file_name=zip_path.name,
+                mime="application/zip",
+                use_container_width=True,
+                key="creative_pack_download_zip",
+            )
+        elif state.get("last_error"):
+            download_cols[1].warning(state.get("last_error"))
 
 
 def _render_one_click_creator_flow(project: dict[str, Any]) -> None:
@@ -4648,6 +4705,7 @@ if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
 
 PAGE_MODULES = {
     "Creator Dashboard": "creative_pack",
+    "Quick Song": "creative_pack",
     "Idea": "creative_pack",
     "Generate Song": "creative_pack",
     "Generate Visual Pack": "creative_pack",
@@ -4797,6 +4855,8 @@ with st.sidebar:
     if not developer_mode:
         if st.button("Creator Dashboard", use_container_width=True, key="sidebar_nav_creator_dashboard"):
             go_to_page("CREATE", "Creator Dashboard")
+        if st.button("Quick Song", use_container_width=True, key="sidebar_nav_quick_song"):
+            go_to_page("CREATE", "Quick Song")
         if st.button("Idea", use_container_width=True, key="sidebar_nav_idea"):
             go_to_page("CREATE", "Idea")
         if st.button("Generate Song", use_container_width=True, key="sidebar_nav_generate_song"):
@@ -5308,6 +5368,9 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
 
 if page == "Creator Dashboard":
     _render_creator_dashboard(project)
+
+elif page == "Quick Song":
+    _render_quick_song(project)
 
 elif page in {"Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"}:
     _render_ai_creative_pack_generator(project, page)

@@ -972,7 +972,7 @@ def improve_hook_singability(hook: str) -> str:
     return "\n".join(clean[:5])
 
 
-def _sanitize_hook_text(hook: str, title: str = "", idea: str = "") -> str:
+def _sanitize_hook_text(hook: str, title: str = "", idea: str = "", *, enforce_title: bool = True) -> str:
     generic_lines = {"ฉันยังรัก", "ฉันยังรอ", "ฉันคิดถึง", "ยังอยู่ในใจ", "รัก", "คิดถึง", "ลืมไม่ลง", "เพลงรัก"}
     lines = _lines(improve_hook_singability(hook))
     clean: list[str] = []
@@ -989,7 +989,7 @@ def _sanitize_hook_text(hook: str, title: str = "", idea: str = "") -> str:
         seen.add(key)
     title_line = str(title or "").strip()
     title_key = _compact_line(title_line)
-    if title_line and 5 <= len(title_key) <= 24 and title_key not in seen and not any(title_key in _compact_line(line) for line in clean):
+    if enforce_title and title_line and 5 <= len(title_key) <= 24 and title_key not in seen and not any(title_key in _compact_line(line) for line in clean):
         if len(clean) < 4:
             clean.insert(0, title_line)
         elif len(clean) >= 3:
@@ -1378,12 +1378,14 @@ def _selected_seed_summary(seed: dict[str, Any] | None) -> str:
     if not seed:
         return "No selected seed. Generated from concept and preset."
     story = seed.get("story") or {}
+    objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
+    scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
     return "\n".join(
         [
             f"Selected Story: {story.get('label', '')}",
             f"Story Angle: {story.get('story_angle', '')}",
-            f"Selected Objects: {', '.join(story.get('objects', []) or [])}",
-            f"Selected Scenes: {', '.join(story.get('scenes', []) or [])}",
+            f"Selected Objects: {', '.join(objects)}",
+            f"Selected Scenes: {', '.join(scenes)}",
             f"Selected Hook: {seed.get('hook', '')}",
             f"Selected Title: {seed.get('title', '')}",
         ]
@@ -1542,6 +1544,34 @@ def _apply_selected_story_to_lyrics(lyrics: str, seed: dict[str, Any] | None, co
         for line in reversed([item for item in lines if item and item not in existing]):
             existing.insert(0, line)
     return _render_lyric_sections(sections)
+
+
+def _repair_thai_mojibake(text: str) -> str:
+    value = str(text or "")
+    markers = ["เน€เธ", "เธ", "เธ", "เธฃ", "โ€", "ย "]
+    if not any(marker in value for marker in markers):
+        return value
+    try:
+        repaired = value.encode("cp874").decode("utf-8")
+    except UnicodeError:
+        return value
+    if _thai_char_count(repaired) >= _thai_char_count(value):
+        return repaired.replace("⁠", "").replace("โ\u0081\xa0", "").strip()
+    return value
+
+
+def _clean_release_text(value: str) -> str:
+    repaired = _repair_thai_mojibake(str(value or ""))
+    repaired = repaired.replace("TikTok-ready", "เหมาะกับท่อนฮุกสั้น").replace("Spotify-friendly", "ฟังง่ายแบบเพลงปล่อยจริง")
+    repaired = repaired.replace("hook direction", "hook idea").replace("lyrics direction", "lyric idea")
+    return repaired.strip()
+
+
+def _clean_release_pack_text(pack: dict[str, Any]) -> dict[str, Any]:
+    cleaned: dict[str, Any] = {}
+    for key, value in pack.items():
+        cleaned[key] = _clean_release_text(value) if isinstance(value, str) else value
+    return cleaned
 
 
 def _lyrics(title: str, hook: str, idea: str, preset_name: str, preset: dict[str, str]) -> str:
@@ -2089,7 +2119,7 @@ def generate_creative_release_pack(
         if selected_title:
             title = selected_title
         if selected_hook:
-            hook = _sanitize_hook_text(selected_hook, title, concept)
+            hook = _sanitize_hook_text(selected_hook, title, concept, enforce_title=False)
     if title != original_title:
         if not selected_seed:
             hook = _sanitize_hook_text(_apply_hook_style(_hook_from_idea(concept, title, preset), title, concept, str(controls.get("hook_style") or "")), title, concept)
@@ -2166,7 +2196,7 @@ def generate_creative_release_pack(
         "Hashtags": " ".join(hashtags),
         "YouTube description": (
             f"{title} - {artist_name}\n\n"
-            f"เพลงใหม่จาก VelaFlow concept: {concept}\n"
+            f"เพลงใหม่จาก VelaFlow concept: {original_concept}\n"
             "อารมณ์เพลงเน้นฮุกจำง่าย เนื้อหาเล่าเรื่องชัด และพร้อมนำไปต่อยอดใน Suno/Udio, Whisk, Flow, Veo, Runway หรือ Kling.\n\n"
             + " ".join(hashtags[:5])
         ),
@@ -2183,7 +2213,11 @@ def generate_creative_release_pack(
         "API Quality Gate": f"Status: {gate.get('status')}\nMessage: {gate.get('message')}\nOffline allowed: {gate.get('offline_allowed')}",
     }
     if preset_name.startswith("Vela Moon"):
-        pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\n{caption_direction}"
+        pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\nเพลงนี้สำหรับคนที่ยังฝืนยิ้ม ทั้งที่ข้างในอยากพักใจ"
+    pack = _clean_release_pack_text(pack)
+    title = str(pack.get("Suggested title") or title)
+    hook = str(pack.get("Hook") or hook)
+    lyrics = str(pack.get("Full lyrics") or lyrics)
     title_score = score_song_title_candidate(title, concept)
     hook_score = _score_hook_candidate(hook)
     return {
