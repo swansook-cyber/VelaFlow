@@ -2002,9 +2002,30 @@ def _read_creator_file(path: Path) -> str:
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
     _page_header("Creator Dashboard", "Simple tools for songs, hooks, podcasts, affiliate scripts, and release packages.", project)
     state = project.setdefault("creator_dashboard", {})
-    st.info("สร้างแพ็กเพลง เนื้อเพลง prompt caption และ checklist ได้ในหน้าเดียว โดยไม่ต้องใช้ระบบ render")
+    st.markdown(
+        """
+        <div class="vf-monitor-hero">
+          <span class="vf-monitor-pill">VelaFlow V1</span>
+          <span class="vf-monitor-pill">Creative Pack Generator</span>
+          <span class="vf-monitor-pill">No Render</span>
+          <h2>สร้างแพ็กเพลงและคอนเทนต์ให้พร้อมใช้งาน</h2>
+          <p>Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        """
+        <div class="vf-step-row">
+          <div class="vf-step vf-step-active">1. Choose preset</div>
+          <div class="vf-step">2. Enter song idea</div>
+          <div class="vf-step">3. Generate package</div>
+          <div class="vf-step">4. Copy to Suno/Udio</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    card_cols = st.columns(5)
     cards = [
         ("Create Song Package", "ทำเพลงพร้อม Suno/Udio", "Generate Song", "CREATE", "Song Studio Only"),
         ("Create TikTok Hook", "ทำไอเดียฮุกสั้น", "Hook Clip Studio", "PRODUCTION", "Full Pipeline"),
@@ -2012,10 +2033,14 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
         ("Create Affiliate Script", "ทำสคริปต์ขายสินค้า", "Affiliate Studio", "PRODUCTION", "Full Pipeline"),
         ("Open Advanced Tools", "เปิดเครื่องมือทั้งหมด", "Dashboard", "START", "Full Pipeline"),
     ]
+    card_html = "".join(
+        f'<div class="vf-monitor-card"><strong>{label}</strong><span>{help_text}</span></div>'
+        for label, help_text, *_ in cards
+    )
+    st.markdown(f'<div class="vf-monitor-grid">{card_html}</div>', unsafe_allow_html=True)
+    card_cols = st.columns(5)
     for col, (label, help_text, target_page, target_section, target_mode) in zip(card_cols, cards):
         with col:
-            st.markdown(f"**{label}**")
-            st.caption(help_text)
             if st.button("Open", key=f"creator_dashboard_card_{target_page}", use_container_width=True):
                 if target_mode != "Song Studio Only":
                     st.session_state.force_developer_mode = True
@@ -2025,7 +2050,7 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
                     st.rerun()
                 go_to_page(target_section, target_page)
 
-    st.markdown("### Advanced Song Package")
+    st.markdown('<div class="vf-section-title"><h3>Advanced Song Package</h3><span>Quality-first workspace</span></div>', unsafe_allow_html=True)
     st.caption("ใส่ไอเดียเพลงและทิศทางสร้างสรรค์ เพื่อให้ VelaFlow สร้างเนื้อเพลง hook และ producer prompt ที่มีคุณภาพขึ้น")
     form_cols = st.columns(2)
     idea = form_cols[0].text_area("Song idea", value=state.get("idea", ""), height=120, key="creator_dashboard_song_idea", help="เช่น เพลงเศร้าในออฟฟิศ หรือ คนที่ยังลืมแฟนเก่าไม่ได้")
@@ -2079,6 +2104,7 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
         st.caption("เริ่มจากไอเดียเพลง แล้วกด Generate Song Package")
         return
 
+    st.markdown('<div class="vf-section-title"><h3>Package Output</h3><span>Copy-ready blocks</span></div>', unsafe_allow_html=True)
     output_blocks = [
         ("Song Title Suggestions", pack.get("Suggested title", "")),
         ("Structured Lyrics", pack.get("Full lyrics", "")),
@@ -2092,6 +2118,7 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
         ("Release Checklist", "1. Copy lyrics into Suno/Udio\n2. Use the producer prompt as style guidance\n3. Generate 2-3 takes\n4. Pick the strongest hook\n5. Use cover prompt and captions for release"),
     ]
     for idx, (label, value) in enumerate(output_blocks):
+        st.markdown(f'<div class="vf-output-card"><h4>{label}</h4><p>พร้อม copy หรือแก้ไขก่อนนำไปใช้</p></div>', unsafe_allow_html=True)
         st.text_area(label, value=value, height=160 if len(str(value)) > 240 else 90, key=f"creator_dashboard_output_{idx}")
         _copy_to_clipboard_button(
             f"Copy {label}",
@@ -2113,7 +2140,17 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
 def _render_quick_song(project: dict[str, Any]) -> None:
     _page_header("Quick Song", "Fast daily song draft: idea, title, hook, lyrics, and Suno style only.", project)
     state = project.setdefault("quick_song", {})
-    st.info("ใส่ไอเดียเพลง แล้วรับเนื้อเพลงกับ Style Prompt สำหรับ Suno/Udio แบบเร็วที่สุด")
+    st.markdown(
+        """
+        <div class="vf-monitor-hero">
+          <span class="vf-monitor-pill">Quick Song</span>
+          <span class="vf-monitor-pill">Suno Package</span>
+          <h2>เขียนเพลงเร็ว แต่ยังได้แพ็กที่ copy ง่าย</h2>
+          <p>ใส่ไอเดียเพลง แล้วรับ Title, Hook, Lyrics และ Style Prompt สำหรับ Suno/Udio ในหน้าเดียว</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     idea = st.text_area("Song Idea", value=state.get("idea", ""), height=120, key="quick_song_idea", help="เช่น สุดท้ายไม่เหลือใคร หรือ เพลงเศร้าในออฟฟิศ")
     preset_names = list(CREATIVE_PACK_PRESETS)
     preset = st.selectbox(
@@ -2155,14 +2192,16 @@ def _render_quick_song(project: dict[str, Any]) -> None:
         st.caption("Quick Song skips SEO, MV assets, hashtags, and release notes for speed.")
         return
 
-    st.markdown("### Song Preview")
+    st.markdown('<div class="vf-section-title"><h3>Song Preview</h3><span>ตรวจชื่อและ hook ก่อน copy</span></div>', unsafe_allow_html=True)
     st.text_input("Song Title", value=pack.get("Suggested title", ""), key="quick_song_title")
     st.text_area("Hook", value=pack.get("Hook", ""), height=110, key="quick_song_hook")
-    st.markdown("### Suno Package")
+    st.markdown('<div class="vf-section-title"><h3>Suno Package</h3><span>A goes to Lyrics · B goes to Style</span></div>', unsafe_allow_html=True)
     lyrics = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
+    st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>Copy this into the Suno Lyrics box.</p></div>', unsafe_allow_html=True)
     st.text_area("A. Lyrics", value=lyrics, height=320, key="quick_song_lyrics")
     _copy_to_clipboard_button("Copy Lyrics", str(st.session_state.get("quick_song_lyrics", lyrics) or ""), key="quick_song_copy_lyrics")
     style_prompt = pack.get("SUNO STYLE OF MUSIC FIELD", "")
+    st.markdown('<div class="vf-output-card"><h4>B. Music Style Prompt</h4><p>Copy this into the Suno Style of Music box.</p></div>', unsafe_allow_html=True)
     st.text_area("B. Music Style Prompt", value=style_prompt, height=150, key="quick_song_style")
     _copy_to_clipboard_button("Copy Music Style Prompt", str(st.session_state.get("quick_song_style", style_prompt) or ""), key="quick_song_copy_style")
 
@@ -2170,18 +2209,27 @@ def _render_quick_song(project: dict[str, Any]) -> None:
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
     _page_header("AI Creative Pack Generator", "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools.", project)
     state = project.setdefault("creative_pack_v1", {})
-    st.info("Quality-first music workspace: give VelaFlow stronger creative direction, then export clean lyrics and Suno/Udio prompts.")
-    stage_cols = st.columns(4)
     stages = ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"]
-    for idx, stage in enumerate(stages):
-        if stage == active_stage:
-            stage_cols[idx].success(stage)
-        else:
-            stage_cols[idx].caption(stage)
+    step_html = "".join(
+        f'<div class="vf-step {"vf-step-active" if stage == active_stage else ""}">{idx + 1}. {stage}</div>'
+        for idx, stage in enumerate(stages)
+    )
+    st.markdown(
+        f"""
+        <div class="vf-monitor-hero">
+          <span class="vf-monitor-pill">Advanced Song Studio</span>
+          <span class="vf-monitor-pill">Quality First</span>
+          <h2>สร้างเพลงด้วยทิศทางชัดเจน ก่อนส่งเข้า Suno/Udio</h2>
+          <p>ให้ VelaFlow ช่วยเลือก story, hook, title แล้ว export lyrics + style prompt แบบสะอาด</p>
+        </div>
+        <div class="vf-step-row">{step_html}</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     preset_names = list(CREATIVE_PACK_PRESETS)
     with st.container(border=True):
-        st.markdown("### Advanced Song Studio")
+        st.markdown('<div class="vf-section-title"><h3>Advanced Song Studio</h3><span>Monitor view</span></div>', unsafe_allow_html=True)
         q1, q2, q3 = st.columns(3)
         q1.markdown("**Creative Guidance**")
         q1.caption("Preset, genre, story, mood, and hook shape.")
@@ -2190,7 +2238,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         q3.markdown("**Suno/Udio Export**")
         q3.caption("Lyrics, style prompt, producer notes, TXT and ZIP.")
     with st.container(border=True):
-        st.markdown("### Song Direction")
+        st.markdown('<div class="vf-section-title"><h3>Song Direction</h3><span>creative inputs</span></div>', unsafe_allow_html=True)
         c1, c2 = st.columns([2, 1])
         idea = c1.text_area(
             "Song idea / creative concept",
@@ -2256,7 +2304,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     selected_seed: dict[str, Any] | None = None
     generate_pack = False
     with st.container(border=True):
-        st.markdown("### Song Seed Selection")
+        st.markdown('<div class="vf-section-title"><h3>Song Seed Selection</h3><span>story · hook · title</span></div>', unsafe_allow_html=True)
         st.caption("Step 1: Generate Song. Step 2: choose the strongest Story, Hook, and Title. Step 3: Generate Final Song.")
         if not has_seed_candidates:
             if st.button("Generate Song", type="primary", use_container_width=True, key="creative_pack_generate_song", disabled=not bool(str(idea or "").strip())):
@@ -2366,19 +2414,21 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         st.caption("Ready when you are: choose a preset, enter a song idea, then click Generate Song.")
         return
 
-    st.markdown("### Title + Hook Preview")
+    st.markdown('<div class="vf-section-title"><h3>Title + Hook Preview</h3><span>final seed</span></div>', unsafe_allow_html=True)
     song_cols = st.columns(3)
     song_cols[0].metric("Suggested Title", pack.get("Suggested title", "-"))
     song_cols[1].metric("Preset", result.get("preset", "-"))
     song_cols[2].metric("Mode", "No Render")
     st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
-    st.markdown("### Suno Package")
+    st.markdown('<div class="vf-section-title"><h3>Suno Package</h3><span>copy-ready</span></div>', unsafe_allow_html=True)
     st.caption("Copy A into Suno Lyrics. Copy B into Suno Style of Music.")
     lyrics_for_suno = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
+    st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>เฉพาะ section tags + เนื้อเพลง ไม่มี producer notes ปน</p></div>', unsafe_allow_html=True)
     st.text_area("A. Lyrics", value=lyrics_for_suno, height=300, key="creative_pack_full_lyrics")
     _copy_to_clipboard_button("Copy Lyrics for Suno", str(st.session_state.get("creative_pack_full_lyrics", lyrics_for_suno) or ""), key="creative_pack_copy_suno_lyrics")
     style_for_suno = pack.get("SUNO STYLE OF MUSIC FIELD", "")
+    st.markdown('<div class="vf-output-card"><h4>B. Music Style Prompt</h4><p>Prompt สั้นสำหรับช่อง Style of Music ใน Suno</p></div>', unsafe_allow_html=True)
     st.text_area("B. Music Style Prompt", value=style_for_suno, height=140, key="creative_pack_suno_style_field")
     _copy_to_clipboard_button("Copy Style for Suno", str(st.session_state.get("creative_pack_suno_style_field", style_for_suno) or ""), key="creative_pack_copy_suno_style")
     with st.expander("Advanced Assets (optional)", expanded=False):
