@@ -711,10 +711,13 @@ def main():
     assert_true(len(title_candidates) == 5 and all(item.get("title") for item in title_candidates), "Music V2 title candidates failed")
     seed_bundle = generate_music_seed_candidates_v2("เพลงเศร้าในออฟฟิศ", "Office Burnout", mood="Bittersweet", story_type="Office Burnout")
     assert_true(len(seed_bundle["story_candidates"]) == 5 and len(seed_bundle["hook_candidates"]) == 5 and len(seed_bundle["title_candidates"]) == 5, "Music V2 seed bundle count failed")
+    assert_true(seed_bundle.get("producer_brief") and seed_bundle["producer_brief"].get("Target Listener") and seed_bundle["producer_brief"].get("Shareable Angle"), "Producer Engine V1 brief missing")
+    assert_true(all(item.get("human_experiences") for item in seed_bundle["story_candidates"]), "Producer Engine V1 human experience seeds missing")
     selected_seed = {
         "story": seed_bundle["story_candidates"][0],
         "hook": seed_bundle["hook_candidates"][0]["hook"],
         "title": seed_bundle["title_candidates"][0]["title"],
+        "producer_brief": seed_bundle["producer_brief"],
     }
     seeded_pack = generate_creative_release_pack(
         "เพลงเศร้าในออฟฟิศ",
@@ -723,12 +726,15 @@ def main():
         creative_controls={"selected_seed": selected_seed, "story_type": "Office Burnout", "hook_style": "Question"},
     )
     seeded_lyrics = seeded_pack["pack"]["SUNO LYRICS FIELD"]
-    seeded_hook_first_line = selected_seed["hook"].splitlines()[0]
-    assert_true(seeded_hook_first_line in seeded_lyrics and "[Chorus]" in seeded_lyrics, "selected hook was not preserved in chorus")
+    seeded_hook_lines = [line for line in selected_seed["hook"].splitlines() if line.strip()]
+    seeded_chorus = seeded_lyrics.split("[Chorus]", 1)[1].split("[Verse 2]", 1)[0]
+    seeded_final_chorus = seeded_lyrics.split("[Final Chorus]", 1)[1].split("[Outro]", 1)[0]
+    assert_true(all(line in seeded_chorus for line in seeded_hook_lines) and all(line in seeded_final_chorus for line in seeded_hook_lines), "selected hook was not preserved in chorus and final chorus")
+    assert_true("Producer Brief" in seeded_pack["pack"] and "Target Listener:" in seeded_pack["pack"]["Producer Brief"], "release pack missing Producer Brief")
     assert_true("Selected Story:" in seeded_pack["pack"]["Selected Seed Summary"] and "Selected Objects:" in seeded_pack["pack"]["Selected Seed Summary"], "release pack missing selected seed summary")
     assert_true(not any(item in seeded_lyrics.lower() for item in forbidden_lyric_prompts), "selected seed metadata leaked into Suno lyrics")
     seeded_text = creative_release_pack_to_text(seeded_pack)
-    assert_true("Selected Seed Summary:" in seeded_text and "SUNO LYRICS FIELD" in seeded_text, "selected seed summary missing from release pack text")
+    assert_true("Selected Seed Summary:" in seeded_text and "PRODUCER BRIEF" in seeded_text and "SUNO LYRICS FIELD" in seeded_text, "selected seed summary or producer brief missing from release pack text")
     authority_seed = {
         "story": {
             "label": "โต๊ะตัวเดิม",
@@ -875,7 +881,7 @@ def main():
     producer_validation_pack = generate_creative_release_pack("ถ้าใจยังรัก", "Vela Moon Emotional Pop Rock", "Vela Moon")
     producer_validation_text = creative_release_pack_to_text(producer_validation_pack)
     producer_validation_prompt = producer_validation_pack["pack"]["AI PRODUCER PROMPT"]
-    assert_true("4. PRODUCER NOTES\n" in producer_validation_text and "AI PRODUCER PROMPT" not in producer_validation_text, "Producer Notes section cleanup failed in TXT export")
+    assert_true("PRODUCER BRIEF\n" in producer_validation_text and "PRODUCER NOTES\n" in producer_validation_text and "AI PRODUCER PROMPT" not in producer_validation_text, "Producer Brief/Notes section cleanup failed in TXT export")
     producer_validation_prompt_lower = producer_validation_prompt.lower()
     assert_true("fingerpicked acoustic guitar + felt piano" in producer_validation_prompt_lower and "half-time emotional breakdown" in producer_validation_prompt_lower and "electric guitar counter melody" in producer_validation_prompt_lower, "Vela Moon Emotional Pop Rock dynamic arrangement intelligence missing")
     suno_style_field = producer_validation_pack["pack"]["SUNO STYLE OF MUSIC FIELD"]

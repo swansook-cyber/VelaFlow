@@ -2297,6 +2297,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         st.caption("These controls are quality inputs. Different story, mood, and hook choices should create clearly different songs.")
 
     seed_candidates = state.get("seed_candidates") or {}
+    producer_brief = seed_candidates.get("producer_brief") or {}
     stories = seed_candidates.get("story_candidates") or []
     hooks = seed_candidates.get("hook_candidates") or []
     titles = seed_candidates.get("title_candidates") or []
@@ -2315,6 +2316,15 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 st.rerun()
             st.caption("Generate Song creates Story Candidates, Hook Candidates, and Title Candidates first.")
         if stories and hooks and titles:
+            if producer_brief:
+                with st.container(border=True):
+                    st.markdown("**Producer Brief**")
+                    pb_cols = st.columns(2)
+                    pb_cols[0].write(f"Target Listener: {producer_brief.get('Target Listener', '')}")
+                    pb_cols[0].write(f"Core Emotion: {producer_brief.get('Core Emotion', '')}")
+                    pb_cols[1].write(f"Shareable Angle: {producer_brief.get('Shareable Angle', '')}")
+                    pb_cols[1].write(f"Caption Line: {producer_brief.get('Caption Line', '')}")
+                    st.caption(str(producer_brief.get("Song Promise", "")))
             story_options = [f"{idx + 1}. {item.get('label')}" for idx, item in enumerate(stories)]
             hook_options = [f"{idx + 1}. {item.get('type')}" for idx, item in enumerate(hooks)]
             title_options = [f"{idx + 1}. {item.get('title')}" for idx, item in enumerate(titles)]
@@ -2325,6 +2335,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                     st.caption(str(item.get("story_angle", "")))
                     st.write(f"Objects: {', '.join(item.get('objects', []) or [])}")
                     st.write(f"Scenes: {', '.join(item.get('scenes', []) or [])}")
+                    st.write(f"Experiences: {', '.join(item.get('human_experiences', []) or [])}")
             hook_index = hook_options.index(st.radio("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
             for idx, item in enumerate(hooks):
                 with st.container(border=True):
@@ -2339,6 +2350,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 "story": stories[story_index],
                 "hook": hooks[hook_index].get("hook", ""),
                 "title": titles[title_index].get("title", ""),
+                "producer_brief": producer_brief,
             }
             state["story_seed_index"] = story_index
             state["hook_seed_index"] = hook_index

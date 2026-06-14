@@ -1285,7 +1285,82 @@ def _advanced_scene_pools(scene: str) -> dict[str, list[str]]:
     }.get(scene, {})
 
 
-def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> list[dict[str, Any]]:
+def generate_producer_brief_v1(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, str]:
+    scene = _song_scene_type("\n".join([concept or "", preset_name or "", mood or "", story_type or ""]), preset_name)
+    brief_by_scene = {
+        "office_life": {
+            "Target Listener": "Office workers and first jobbers who look fine all day but feel exhausted after work.",
+            "Core Emotion": "exhausted",
+            "Shareable Angle": "เลิกงานแล้ว แต่ความเหนื่อยยังทำงานต่อ",
+            "Caption Line": "นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย",
+            "Song Promise": "This song gives tired workers permission to admit they are not okay and still go home whole.",
+        },
+        "night_drive": {
+            "Target Listener": "Lonely night drivers who use the road to process feelings they cannot say out loud.",
+            "Core Emotion": "longing",
+            "Shareable Angle": "ขับรถไปไกลแค่ไหน บางความคิดก็ยังนั่งอยู่ข้าง ๆ",
+            "Caption Line": "ถนนว่าง แต่ใจยังแน่นเหมือนเดิม",
+            "Song Promise": "This song turns a late-night drive into a soft place to face what still hurts.",
+        },
+        "breakup_memory": {
+            "Target Listener": "People after breakup who act healed but still carry small memories everywhere.",
+            "Core Emotion": "regret",
+            "Shareable Angle": "บางคนหายไป แต่ยังอยู่ในทุกความทรงจำ",
+            "Caption Line": "ไม่ได้รอให้กลับมา แค่ยังลืมไม่หมด",
+            "Song Promise": "This song lets listeners miss someone honestly without begging the past to return.",
+        },
+        "respectful_truth": {
+            "Target Listener": "Couples or close people who need honesty without using hard words.",
+            "Core Emotion": "healing",
+            "Shareable Angle": "ความจริงสำคัญ แต่วิธีพูดก็สำคัญพอกัน",
+            "Caption Line": "พูดตรง ๆ ได้ แต่อย่าลืมพูดเบา ๆ",
+            "Song Promise": "This song makes difficult truth feel like repair instead of a wound.",
+        },
+        "family": {
+            "Target Listener": "Working adults who look strong outside but still need the comfort of home.",
+            "Core Emotion": "healing",
+            "Shareable Angle": "ทั้งโลกถามหาผลงาน แต่ที่บ้านถามว่าเหนื่อยไหม",
+            "Caption Line": "กลับบ้านช้า แต่ยังมีคนรอ",
+            "Song Promise": "This song brings the listener back to the people who love them without conditions.",
+        },
+        "self_growth": {
+            "Target Listener": "People trying to restart quietly after a season of failing or feeling lost.",
+            "Core Emotion": "hope",
+            "Shareable Angle": "ไม่ต้องเริ่มใหม่ให้ใครเห็น แค่ไม่ทิ้งตัวเองก็พอ",
+            "Caption Line": "วันนี้ยังไม่เก่ง แต่อย่างน้อยยังไม่หนี",
+            "Song Promise": "This song gives a small honest push to keep going without pretending to be okay.",
+        },
+    }
+    fallback = {
+        "Target Listener": "Thai listeners who need a song that understands a private feeling clearly.",
+        "Core Emotion": "longing",
+        "Shareable Angle": "บางประโยคธรรมดา อยู่ในใจนานกว่าที่คิด",
+        "Caption Line": "บางความรู้สึกไม่ได้ดัง แต่ไม่เคยหายไป",
+        "Song Promise": "This song gives the listener one clear emotional sentence they can keep and share.",
+    }
+    brief = dict(brief_by_scene.get(scene, fallback))
+    brief["Scene Type"] = scene
+    brief["Preset"] = preset_name
+    return brief
+
+
+def _producer_brief_to_text(brief: dict[str, Any] | None) -> str:
+    data = brief or {}
+    keys = ["Target Listener", "Core Emotion", "Shareable Angle", "Caption Line", "Song Promise"]
+    return "\n".join(f"{key}: {data.get(key, '')}" for key in keys).strip()
+
+
+def _producer_brief_context(brief: dict[str, Any] | None) -> str:
+    if not brief:
+        return ""
+    return "\n".join(
+        str(brief.get(key) or "")
+        for key in ["Target Listener", "Core Emotion", "Shareable Angle", "Caption Line", "Song Promise"]
+        if str(brief.get(key) or "").strip()
+    )
+
+
+def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "", producer_brief: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     scene = _song_scene_type("\n".join([concept or "", preset_name or "", mood or "", story_type or ""]), preset_name)
     banks = {
         "office_life": [
@@ -1310,7 +1385,16 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
         ("พรุ่งนี้ค่อยหาย", "A person admits they are not healed yet but still wants tomorrow.", ["calendar", "shoes", "mirror"], ["morning mirror", "wet sidewalk", "bedroom light"], "strain -> acceptance -> small restart", "hope hook"),
         ("ไฟดวงสุดท้าย", "The last light in a room keeps company with unfinished feelings.", ["lamp", "curtain", "songbook"], ["warm bedroom", "writing desk", "night window"], "lonely -> written out -> lighter", "visual hook"),
     ]
+    human_experience_bank = {
+        "office_life": ["traffic jam after work", "unread work messages", "office lights turning off", "BTS/MRT ride home", "empty parking lot"],
+        "night_drive": ["traffic light at 2 AM", "empty passenger seat", "rain on windshield", "old song on car radio", "missed exit"],
+        "breakup_memory": ["old photo", "last conversation", "unread message", "coffee shop corner", "song that still hurts"],
+        "respectful_truth": ["quiet conversation", "soft apology", "phone left face down", "long silence", "one careful sentence"],
+        "family": ["dinner waiting at home", "front porch light", "mother's short message", "rice kept warm", "work bag by the door"],
+        "self_growth": ["morning mirror", "old shoes", "calendar page", "small restart", "slow walk home"],
+    }
     source = banks.get(scene, fallback)
+    brief_context = _producer_brief_context(producer_brief)
     return [
         {
             "id": f"story_{idx:02d}",
@@ -1318,8 +1402,9 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
             "story_angle": angle,
             "objects": objects[:3],
             "scenes": scenes[:4],
+            "human_experiences": human_experience_bank.get(scene, human_experience_bank["breakup_memory"])[idx - 1: idx + 2] or human_experience_bank.get(scene, [])[:3],
             "emotional_arc": arc,
-            "recommended_hook_direction": hook_direction,
+            "recommended_hook_direction": " / ".join(part for part in [hook_direction, brief_context] if part).strip(),
         }
         for idx, (label, angle, objects, scenes, arc, hook_direction) in enumerate(source[:5], start=1)
     ]
@@ -1327,7 +1412,7 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
 
 def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, preset_name: str = "Thai Sad Pop") -> list[dict[str, Any]]:
     story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
-    context = "\n".join([concept or "", story.get("label", ""), story.get("story_angle", ""), story.get("recommended_hook_direction", "")])
+    context = "\n".join([concept or "", story.get("label", ""), story.get("story_angle", ""), story.get("recommended_hook_direction", ""), " ".join(story.get("human_experiences", []) or [])])
     base_hooks = _hook_candidates(story.get("label") or _authentic_title_from_concept(context, preset_name, ""), context)
     if not base_hooks:
         base_hooks = [_hook_from_idea(context, story.get("label", "") or _authentic_title_from_concept(context, preset_name, ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"]))]
@@ -1343,6 +1428,7 @@ def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] |
     story = story_candidate or generate_story_candidates_v2(concept, preset_name)[0]
     objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
     scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
+    experiences = [_thai_seed_phrase(str(item)) for item in story.get("human_experiences", []) if str(item).strip()]
     blocked = {"รัก", "คิดถึง", "ลืมไม่ลง", "ยังรัก", "กลับมา", "ไม่ไหว"}
     raw = [
         ("object-based title", objects[0] if objects else story.get("label", "")),
@@ -1367,11 +1453,12 @@ def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] |
 
 
 def generate_music_seed_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, Any]:
-    stories = generate_story_candidates_v2(concept, preset_name, mood, story_type)
+    producer_brief = generate_producer_brief_v1(concept, preset_name, mood, story_type)
+    stories = generate_story_candidates_v2(concept, preset_name, mood, story_type, producer_brief)
     story = stories[0] if stories else {}
     hooks = generate_hook_candidates_v2(concept, story, preset_name)
     titles = generate_title_candidates_v2(concept, story, hooks[0]["hook"] if hooks else "", preset_name)
-    return {"story_candidates": stories, "hook_candidates": hooks, "title_candidates": titles}
+    return {"producer_brief": producer_brief, "story_candidates": stories, "hook_candidates": hooks, "title_candidates": titles}
 
 
 def _selected_seed_summary(seed: dict[str, Any] | None) -> str:
@@ -1380,12 +1467,14 @@ def _selected_seed_summary(seed: dict[str, Any] | None) -> str:
     story = seed.get("story") or {}
     objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
     scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
+    experiences = [_thai_seed_phrase(str(item)) for item in story.get("human_experiences", []) if str(item).strip()]
     return "\n".join(
         [
             f"Selected Story: {story.get('label', '')}",
             f"Story Angle: {story.get('story_angle', '')}",
             f"Selected Objects: {', '.join(objects)}",
             f"Selected Scenes: {', '.join(scenes)}",
+            f"Selected Experiences: {', '.join(experiences)}",
             f"Selected Hook: {seed.get('hook', '')}",
             f"Selected Title: {seed.get('title', '')}",
         ]
@@ -1402,7 +1491,9 @@ def _seed_enriched_concept(concept: str, seed: dict[str, Any] | None) -> str:
         str(story.get("story_angle") or ""),
         " ".join(str(item) for item in story.get("objects", []) if str(item).strip()),
         " ".join(str(item) for item in story.get("scenes", []) if str(item).strip()),
+        " ".join(str(item) for item in story.get("human_experiences", []) if str(item).strip()),
         str(story.get("emotional_arc") or ""),
+        _producer_brief_context(seed.get("producer_brief") if isinstance(seed.get("producer_brief"), dict) else None),
     ]
     return "\n".join(part for part in parts if str(part).strip())
 
@@ -1468,6 +1559,38 @@ def _thai_seed_phrase(text: str) -> str:
         "silent car": "รถที่เงียบสนิท",
         "last tail light": "ไฟท้ายดวงสุดท้าย",
     }
+    translations.update(
+        {
+            "traffic jam after work": "รถติดหลังเลิกงาน",
+            "unread work messages": "ข้อความงานที่ยังไม่ได้อ่าน",
+            "office lights turning off": "ไฟออฟฟิศที่ค่อย ๆ ดับ",
+            "bts/mrt ride home": "รถไฟฟ้ากลับบ้าน",
+            "empty parking lot": "ลานจอดรถว่างเปล่า",
+            "traffic light at 2 am": "ไฟแดงตอนตีสอง",
+            "empty passenger seat": "เบาะข้าง ๆ ที่ว่างเปล่า",
+            "rain on windshield": "ฝนบนกระจกหน้ารถ",
+            "old song on car radio": "เพลงเก่าในวิทยุรถ",
+            "missed exit": "ทางออกที่ขับเลยไป",
+            "old photo": "รูปเก่า",
+            "last conversation": "บทสนทนาสุดท้าย",
+            "unread message": "ข้อความที่ยังไม่ได้อ่าน",
+            "coffee shop corner": "มุมร้านกาแฟเดิม",
+            "song that still hurts": "เพลงที่ยังเจ็บอยู่",
+            "quiet conversation": "บทสนทนาเบา ๆ",
+            "soft apology": "คำขอโทษเบา ๆ",
+            "phone left face down": "โทรศัพท์ที่คว่ำหน้าไว้",
+            "long silence": "ความเงียบนานเกินไป",
+            "one careful sentence": "ประโยคที่ต้องถนอมกัน",
+            "dinner waiting at home": "มื้อเย็นที่บ้านยังรอ",
+            "front porch light": "ไฟหน้าบ้าน",
+            "mother's short message": "ข้อความสั้น ๆ จากแม่",
+            "rice kept warm": "ข้าวที่ยังอุ่นไว้",
+            "work bag by the door": "กระเป๋างานข้างประตู",
+            "morning mirror": "กระจกตอนเช้า",
+            "small restart": "การเริ่มใหม่เล็ก ๆ",
+            "slow walk home": "ทางกลับบ้านที่เดินช้าลง",
+        }
+    )
     return translations.get(phrase.lower(), phrase)
 
 
@@ -1521,6 +1644,8 @@ def _selected_story_lines(seed: dict[str, Any] | None, concept: str) -> dict[str
     first_scene = scenes[0] if scenes else label
     second_scene = scenes[1] if len(scenes) > 1 else first_scene
     last_scene = scenes[-1] if scenes else first_scene
+    first_experience = experiences[0] if experiences else first_scene
+    second_experience = experiences[1] if len(experiences) > 1 else last_scene
     anchor = _concept_anchor_line(concept)
     final_lines = [
         f"จาก{label or first_object} ฉันค่อย ๆ ยอมรับความจริง",
@@ -1534,6 +1659,44 @@ def _selected_story_lines(seed: dict[str, Any] | None, concept: str) -> dict[str
     }
 
 
+def _selected_story_lines(seed: dict[str, Any] | None, concept: str) -> dict[str, list[str]]:
+    if not seed:
+        return {}
+    story = seed.get("story") or {}
+    label = str(story.get("label") or "").strip()
+    objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
+    scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
+    experiences = [_thai_seed_phrase(str(item)) for item in story.get("human_experiences", []) if str(item).strip()]
+    first_object = objects[0] if objects else label
+    first_scene = scenes[0] if scenes else label
+    second_scene = scenes[1] if len(scenes) > 1 else first_scene
+    last_scene = scenes[-1] if scenes else first_scene
+    first_experience = experiences[0] if experiences else first_scene
+    second_experience = experiences[1] if len(experiences) > 1 else last_scene
+    anchor = _concept_anchor_line(concept)
+    bridge_lines = [
+        f"{last_scene}กลายเป็นที่ที่ฉันพูดความจริงกับตัวเอง",
+        f"อย่างน้อย{second_experience}ก็ทำให้ฉันยอมฟังตัวเอง",
+    ]
+    if anchor:
+        bridge_lines.append(anchor)
+    return {
+        "Verse 1": [
+            f"{first_object}ยังวางอยู่ตรง{first_scene}",
+            f"ใน{first_experience} ฉันเพิ่งรู้ว่าข้างในเริ่มไม่ไหว",
+        ],
+        "Verse 2": [
+            f"{second_scene}เงียบจนได้ยินเสียงใจตัวเอง",
+            f"{second_experience}เตือนว่าฉันฝืนมานานเกินไป",
+        ],
+        "Bridge": bridge_lines,
+        "Final Chorus": [
+            f"จาก{label or first_object} ฉันค่อย ๆ ยอมรับความจริง",
+            anchor or f"ให้{last_scene}พาฉันกลับมาหาตัวเอง",
+        ],
+    }
+
+
 def _apply_selected_story_to_lyrics(lyrics: str, seed: dict[str, Any] | None, concept: str) -> str:
     story_lines = _selected_story_lines(seed, concept)
     if not story_lines:
@@ -1543,6 +1706,20 @@ def _apply_selected_story_to_lyrics(lyrics: str, seed: dict[str, Any] | None, co
         existing = sections.setdefault(section, [])
         for line in reversed([item for item in lines if item and item not in existing]):
             existing.insert(0, line)
+    return _render_lyric_sections(sections)
+
+
+def _enforce_selected_hook_authority(lyrics: str, selected_hook: str) -> str:
+    hook_lines = [line for line in _lines(selected_hook) if line.strip()]
+    if not hook_lines:
+        return lyrics
+    sections = parse_lyric_sections(lyrics)
+    for section in ("Chorus", "Final Chorus"):
+        current = [line for line in sections.get(section, []) if line.strip()]
+        hook_block_present = all(line in current for line in hook_lines)
+        if not hook_block_present:
+            remaining = [line for line in current if line not in hook_lines]
+            sections[section] = hook_lines + remaining
     return _render_lyric_sections(sections)
 
 
@@ -2098,8 +2275,20 @@ def generate_creative_release_pack(
     controls = _normalize_creative_controls(creative_controls)
     controls["_preset_name"] = controls.get("_preset_name") or preset_name
     selected_seed = controls.get("selected_seed") if isinstance(controls.get("selected_seed"), dict) else None
+    producer_brief = None
+    if selected_seed and isinstance(selected_seed.get("producer_brief"), dict):
+        producer_brief = selected_seed.get("producer_brief")
+    if not producer_brief:
+        producer_brief = generate_producer_brief_v1(
+            str(idea or ""),
+            preset_name,
+            str(controls.get("mood") or ""),
+            str(controls.get("story_type") or ""),
+        )
     preset = _apply_controls_to_preset(base_preset, controls)
     original_concept = str(idea or "").strip() or preset["mood"]
+    if selected_seed:
+        selected_seed["producer_brief"] = producer_brief
     concept = _seed_enriched_concept(_control_enriched_concept(original_concept, controls), selected_seed)
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
@@ -2137,6 +2326,8 @@ def generate_creative_release_pack(
     if not validate_song_structure(lyrics)["ok"]:
         lyrics = _ensure_commercial_song_length(concept, title, hook, lyrics)
     lyrics, lyrics_quality_report = _apply_lyrics_quality_engine(title, hook, lyrics, concept)
+    if selected_seed and selected_seed.get("hook"):
+        lyrics = _enforce_selected_hook_authority(lyrics, str(selected_seed.get("hook") or ""))
     concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
@@ -2156,6 +2347,8 @@ def generate_creative_release_pack(
             f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}",
             "Creative Controls:",
             _controls_summary(controls) or "Default quality-first controls",
+            "Producer Brief:",
+            _producer_brief_to_text(producer_brief),
             "Selected Seed:",
             _selected_seed_summary(selected_seed),
         ]
@@ -2166,6 +2359,7 @@ def generate_creative_release_pack(
     caption_direction = str(preset.get("caption_direction") or "A warm emotional caption for listeners who still smile while healing inside.")
     pack = {
         "SONG INFO": song_info,
+        "Producer Brief": _producer_brief_to_text(producer_brief),
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -2237,6 +2431,7 @@ def generate_creative_release_pack(
             "concept_alignment": concept_alignment,
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
+            "producer_brief": producer_brief,
             "api_quality_gate": gate,
             "creative_controls": controls,
         },
@@ -2269,18 +2464,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
     sections = [
         "VELAFLOW AI CREATIVE RELEASE PACK",
         song_info,
-        "2. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "3. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "4. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "5. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "6. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "7. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "8. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "9. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "10. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "11. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "12. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "13. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "2. PRODUCER BRIEF\n" + str(pack.get("Producer Brief", "")).strip(),
+        "3. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "4. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "5. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "6. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "7. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "8. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "9. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "10. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "11. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "12. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "13. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "14. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 
