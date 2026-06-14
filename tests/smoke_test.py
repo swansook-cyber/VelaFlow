@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _score_hook_candidate, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _score_hook_candidate, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -799,8 +799,11 @@ def main():
     advanced_non_chorus = re.sub(r"\[Chorus\].*?\[Verse 2\]", "[Verse 2]", advanced_lyrics, flags=re.S)
     assert_true("Human Experience Report" in advanced_pack and "Relatability Score:" in advanced_pack["Human Experience Report"], "Human Experience Report missing from release pack")
     assert_true("Emotional Arc Report" in advanced_pack and "Arc Score:" in advanced_pack["Emotional Arc Report"], "Emotional Arc Report missing from release pack")
+    assert_true("Thai Natural Speech Report" in advanced_pack and "Human Speech Score:" in advanced_pack["Thai Natural Speech Report"], "Thai Natural Speech Report missing from release pack")
+    assert_true("Caption Score:" in advanced_pack["Thai Natural Speech Report"], "Caption Score missing from Thai Natural Speech Report")
     assert_true("Human Relatability Score:" in advanced_pack["Lyrics Quality Report"], "Human Relatability Score missing from lyrics quality report")
     assert_true("Emotional Arc Score:" in advanced_pack["Lyrics Quality Report"], "Emotional Arc Score missing from lyrics quality report")
+    assert_true("Thai Naturalness Score:" in advanced_pack["Lyrics Quality Report"], "Thai Naturalness Score missing from lyrics quality report")
     assert_true("ไม่อยากลาออก" in advanced_bridge and "แค่อยากกลับมาเป็นตัวเอง" in advanced_bridge, "Bridge did not become emotional truth")
     assert_true("วันนี้เก่งมากแล้วที่ยังผ่านมาได้" in advanced_lyrics.split("[Final Chorus]", 1)[1], "Final Chorus missing emotional payoff line")
     emotional_sections = [
@@ -813,6 +816,12 @@ def main():
     assert_true(sum("เหนื่อย" in section for section in emotional_sections) < len(emotional_sections), "lyrics repeat the same emotional message in every section")
     assert_true("วันนี้เก่งมากแล้ว" in advanced_non_chorus or "ยิ้มได้ ไม่ได้แปลว่าไหว" in advanced_non_chorus or "ไม่อยากลาออก แค่อยากพัก" in advanced_non_chorus, "caption-quality line missing outside chorus")
     assert_true(not any(term in advanced_lyrics for term in ["ไฟล์ Excel", "แก้วกาแฟ", "คีย์บอร์ด", "บัตรจอดรถ"]), "object narration still dominates lyrics")
+    natural_sample = "[Verse 1]\nความเหนื่อยล้ากัดกินหัวใจ\nความทรงจำยังตราตรึง\nฉันต้องอดทนต่อไป\n[Chorus]\nนาฬิกาเลิกงาน\nแต่ใจยังไม่เลิกเหนื่อย\nยิ้มมาทั้งวันจนลืมว่าข้างใน\nแค่อยากมีคืนหนึ่งที่ไม่ต้องไหว"
+    natural_rewrite, natural_report = _apply_thai_natural_speech_engine(natural_sample, "พนักงานดีเด่น", "Vela Moon Emotional Pop Rock", "นาฬิกาเลิกงาน\nแต่ใจยังไม่เลิกเหนื่อย")
+    assert_true(_ai_phrase_count("ความทรงจำยังตราตรึงและกัดกินหัวใจ") >= 2, "AI phrase detection did not count literary phrases")
+    assert_true("ไม่ไหวแล้วจริง ๆ" in natural_rewrite and "พรุ่งนี้ค่อยว่ากัน" in natural_rewrite and "ตราตรึง" not in natural_rewrite, "Thai Natural Speech rewrite layer failed")
+    assert_true("นาฬิกาเลิกงาน" in natural_rewrite and "แต่ใจยังไม่เลิกเหนื่อย" in natural_rewrite, "Thai Natural Speech rewrote protected hook")
+    assert_true(natural_report["Human Rewrite Count"] >= 2 and natural_report["AI Phrase Count"] == 0, "Thai Natural Speech report did not record rewrites cleanly")
     benchmark_controls = [
         ("กลับบ้านคนเดียว", "Family", "Hope", "บ้าน"),
         ("ขับรถตอนตีสอง", "Night Drive", "Memory", "ถนน"),

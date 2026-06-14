@@ -109,6 +109,7 @@ RELEASE_PACK_FILES = {
     "release_notes.txt": "Release notes",
     "human_experience_report.txt": "Human Experience Report",
     "emotional_arc_report.txt": "Emotional Arc Report",
+    "thai_natural_speech_report.txt": "Thai Natural Speech Report",
     "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
 
@@ -508,6 +509,67 @@ HUMAN_MOMENT_LIBRARY: dict[str, dict[str, Any]] = {
     },
 }
 
+THAI_SPEECH_LIBRARY: dict[str, list[str]] = {
+    "office_life": [
+        "ไม่ไหวแล้ว",
+        "ขอพักก่อน",
+        "แค่อยากนอน",
+        "วันนี้พอแค่นี้ได้ไหม",
+        "เหนื่อยว่ะ",
+        "พรุ่งนี้ค่อยว่ากัน",
+        "ไม่ได้ขี้เกียจ แค่หมดแรง",
+    ],
+    "breakup_memory": [
+        "ยังคิดถึงอยู่เลย",
+        "ไม่ได้ลืม",
+        "แค่ไม่ทักไป",
+        "ไม่ได้เกลียด",
+        "แค่ไม่กล้ากลับไป",
+        "ยังจำวันที่เธออยู่ได้",
+    ],
+    "loneliness": [
+        "อยู่คนเดียวจนชิน",
+        "แต่ก็ไม่ชินสักที",
+        "ไม่มีใครก็อยู่ได้",
+        "แต่บางวันก็เหงา",
+    ],
+    "self_growth": [
+        "เก่งแค่ไหนก็เหนื่อยเป็น",
+        "บางวันก็อยากยอมแพ้",
+        "แค่ผ่านวันนี้ไปให้ได้",
+    ],
+}
+
+AI_LITERARY_PHRASES = [
+    "ตราตรึง",
+    "โหยหา",
+    "เว้าวอน",
+    "พร่ำเพรียก",
+    "กัดกินหัวใจ",
+    "ห้วงคำนึง",
+    "ดวงหทัย",
+    "ร้าวรานเกินบรรยาย",
+    "ดั่ง",
+    "ประหนึ่ง",
+]
+
+THAI_NATURAL_REWRITE_RULES = [
+    ("ฉันพยายามก้าวผ่าน", "พยายามไม่คิดถึงแล้ว"),
+    ("ความเหนื่อยล้ากัดกินหัวใจ", "ไม่ไหวแล้วจริง ๆ"),
+    ("ความทรงจำยังตราตรึง", "ยังคิดถึงอยู่เลย"),
+    ("ฉันต้องอดทนต่อไป", "พรุ่งนี้ค่อยว่ากัน"),
+    ("กัดกินหัวใจ", "ทำให้ไม่ไหวแล้วจริง ๆ"),
+    ("ยังตราตรึง", "ยังติดอยู่ในใจ"),
+    ("ห้วงคำนึง", "ความคิดในหัว"),
+    ("ดวงหทัย", "หัวใจ"),
+    ("โหยหา", "ยังคิดถึง"),
+    ("เว้าวอน", "อยากขอ"),
+    ("พร่ำเพรียก", "เรียกหา"),
+    ("ร้าวรานเกินบรรยาย", "เจ็บจนพูดไม่ออก"),
+    ("ดั่ง", "เหมือน"),
+    ("ประหนึ่ง", "เหมือน"),
+]
+
 
 def _thai_char_count(text: str) -> int:
     return len([ch for ch in str(text or "") if "\u0e00" <= ch <= "\u0e7f"])
@@ -577,6 +639,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     emotional_score = max(0, min(100, 62 + emotional_hits * 4 + (8 if validate_concept_alignment(concept, lyrics).get("aligned") else -10)))
     human_relatability_score = _human_relatability_score(lyrics, concept)
     emotional_arc_score = _emotional_arc_score(lyrics, concept)
+    thai_naturalness_score = _thai_naturalness_score(lyrics, concept)
     commercial_score = max(
         0,
         min(
@@ -599,6 +662,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Singability Score": singability_score,
         "Human Relatability Score": human_relatability_score,
         "Emotional Arc Score": emotional_arc_score,
+        "Thai Naturalness Score": thai_naturalness_score,
     }
     return {
         "scores": scores,
@@ -635,6 +699,7 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Singability Score: {scores.get('Singability Score', 0)}",
         f"Human Relatability Score: {scores.get('Human Relatability Score', 0)}",
         f"Emotional Arc Score: {scores.get('Emotional Arc Score', 0)}",
+        f"Thai Naturalness Score: {scores.get('Thai Naturalness Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
         f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
@@ -1012,6 +1077,125 @@ def _emotional_arc_report_text(lyrics: str, concept: str, preset_name: str = "",
             f"Resolution: {arc.get('Resolution', '')}",
             f"Final Payoff Line: {arc.get('Final Payoff Line', '')}",
             f"Arc Score: {_emotional_arc_score(lyrics, concept, preset_name, producer_brief)}",
+        ]
+    ).strip()
+
+
+def _thai_speech_scene(concept: str, preset_name: str = "") -> str:
+    scene = _song_scene_type(concept, preset_name)
+    if scene in {"office_life", "breakup_memory", "self_growth"}:
+        return scene
+    if any(word in f"{concept} {preset_name}".lower() for word in ["เหงา", "คนเดียว", "lonely", "alone"]):
+        return "loneliness"
+    return "self_growth"
+
+
+def _ai_phrase_count(text: str) -> int:
+    value = str(text or "")
+    return sum(value.count(phrase) for phrase in AI_LITERARY_PHRASES)
+
+
+def _rewrite_line_to_natural_thai(line: str, scene: str) -> tuple[str, bool]:
+    rewritten = str(line or "")
+    changed = False
+    for old, new in THAI_NATURAL_REWRITE_RULES:
+        if old in rewritten:
+            rewritten = rewritten.replace(old, new)
+            changed = True
+    if scene == "office_life":
+        if "อดทน" in rewritten and "พรุ่งนี้ค่อยว่ากัน" not in rewritten:
+            rewritten = "พรุ่งนี้ค่อยว่ากัน"
+            changed = True
+        if "เหนื่อยล้า" in rewritten:
+            rewritten = rewritten.replace("เหนื่อยล้า", "เหนื่อย")
+            changed = True
+    elif scene == "breakup_memory":
+        if "ความทรงจำ" in rewritten and "ยังคิดถึงอยู่เลย" not in rewritten:
+            rewritten = "ยังคิดถึงอยู่เลย"
+            changed = True
+    return rewritten.strip(), changed
+
+
+def _caption_potential_score(lyrics: str, concept: str, preset_name: str = "") -> int:
+    scene = _thai_speech_scene(concept, preset_name)
+    speech_lines = THAI_SPEECH_LIBRARY.get(scene, [])
+    lines = _lines(lyrics)
+    score = 54
+    score += min(26, sum(7 for pattern in speech_lines if pattern in lyrics))
+    short_direct_lines = [line for line in lines if 6 <= _thai_char_count(line) <= 28 and not line.startswith("[")]
+    score += min(14, len(short_direct_lines) * 2)
+    if any(line in lyrics for line in ["วันนี้เก่งมากแล้ว", "พรุ่งนี้ค่อยว่ากัน", "ไม่ได้ลืม", "ไม่ไหวแล้ว"]):
+        score += 10
+    score -= min(30, _ai_phrase_count(lyrics) * 8)
+    return max(0, min(100, score))
+
+
+def _thai_naturalness_score(lyrics: str, concept: str, preset_name: str = "") -> int:
+    scene = _thai_speech_scene(concept, preset_name)
+    speech_lines = THAI_SPEECH_LIBRARY.get(scene, [])
+    score = 62
+    score += min(24, sum(6 for pattern in speech_lines if pattern in lyrics))
+    score += min(12, sum(1 for line in _lines(lyrics) if 7 <= _thai_char_count(line) <= 34))
+    score -= min(40, _ai_phrase_count(lyrics) * 10)
+    return max(0, min(100, score))
+
+
+def _apply_thai_natural_speech_engine(lyrics: str, concept: str, preset_name: str = "", protected_hook: str = "") -> tuple[str, dict[str, Any]]:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, _thai_natural_speech_report(lyrics, concept, preset_name, 0)
+    scene = _thai_speech_scene(concept, preset_name)
+    hook_score = int(_score_hook_candidate(protected_hook).get("score", 0)) if protected_hook else 0
+    protected_lines = set(_lines(protected_hook)) if hook_score >= 70 else set()
+    rewrite_count = 0
+    for section, lines in list(sections.items()):
+        rewritten_lines: list[str] = []
+        for line in lines:
+            if line in protected_lines and section in {"Chorus", "Final Chorus"}:
+                rewritten_lines.append(line)
+                continue
+            rewritten, changed = _rewrite_line_to_natural_thai(line, scene)
+            if changed:
+                rewrite_count += 1
+            rewritten_lines.append(rewritten)
+        sections[section] = rewritten_lines
+    if scene == "office_life":
+        bridge = sections.setdefault("Bridge", [])
+        if not any("ไม่ไหวแล้ว" in line or "ไม่อยากลาออก" in line for line in bridge):
+            bridge.insert(0, "ไม่ไหวแล้วจริง ๆ")
+            rewrite_count += 1
+    text = _render_lyric_sections(sections)
+    return text, _thai_natural_speech_report(text, concept, preset_name, rewrite_count)
+
+
+def _most_relatable_line(lyrics: str, concept: str, preset_name: str = "") -> str:
+    scene = _thai_speech_scene(concept, preset_name)
+    candidates = THAI_SPEECH_LIBRARY.get(scene, []) + ["วันนี้เก่งมากแล้ว", "ยิ้มได้ ไม่ได้แปลว่าไหว", "พรุ่งนี้ค่อยว่ากัน"]
+    for candidate in candidates:
+        if candidate in lyrics:
+            return candidate
+    lines = [line for line in _lines(lyrics) if not line.startswith("[") and 6 <= _thai_char_count(line) <= 34]
+    return lines[0] if lines else ""
+
+
+def _thai_natural_speech_report(lyrics: str, concept: str, preset_name: str = "", rewrite_count: int = 0) -> dict[str, Any]:
+    return {
+        "Human Speech Score": _thai_naturalness_score(lyrics, concept, preset_name),
+        "Caption Score": _caption_potential_score(lyrics, concept, preset_name),
+        "AI Phrase Count": _ai_phrase_count(lyrics),
+        "Human Rewrite Count": rewrite_count,
+        "Most Relatable Line": _most_relatable_line(lyrics, concept, preset_name),
+    }
+
+
+def _thai_natural_speech_report_text(report: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"Human Speech Score: {report.get('Human Speech Score', 0)}",
+            f"Caption Score: {report.get('Caption Score', 0)}",
+            f"AI Phrase Count: {report.get('AI Phrase Count', 0)}",
+            f"Human Rewrite Count: {report.get('Human Rewrite Count', 0)}",
+            f"Most Relatable Line: {report.get('Most Relatable Line', '')}",
         ]
     ).strip()
 
@@ -2837,6 +3021,7 @@ def generate_creative_release_pack(
         lyrics = _enforce_selected_hook_authority(lyrics, str(selected_seed.get("hook") or ""))
     lyrics = _apply_human_experience_engine(lyrics, concept, preset_name)
     lyrics = _apply_emotional_arc_engine(lyrics, concept, preset_name, producer_brief)
+    lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
     lyrics_quality_report = _lyrics_quality_engine_report(title, hook, lyrics, concept)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
@@ -2848,6 +3033,7 @@ def generate_creative_release_pack(
     hook_quality_summary = _hook_quality_summary_text(hook, title, concept)
     human_experience_report = _human_experience_report_text(lyrics_only, concept, preset_name)
     emotional_arc_report = _emotional_arc_report_text(lyrics_only, concept, preset_name, producer_brief)
+    thai_natural_speech_report_text = _thai_natural_speech_report_text(thai_natural_speech_report)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -2876,6 +3062,7 @@ def generate_creative_release_pack(
         "Hook Quality Summary": hook_quality_summary,
         "Human Experience Report": human_experience_report,
         "Emotional Arc Report": emotional_arc_report,
+        "Thai Natural Speech Report": thai_natural_speech_report_text,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -2947,6 +3134,7 @@ def generate_creative_release_pack(
             "concept_alignment": concept_alignment,
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
+            "thai_natural_speech": thai_natural_speech_report,
             "producer_brief": producer_brief,
             "api_quality_gate": gate,
             "creative_controls": controls,
@@ -2984,18 +3172,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "3. HOOK QUALITY SUMMARY\n" + str(pack.get("Hook Quality Summary", "")).strip(),
         "4. HUMAN EXPERIENCE REPORT\n" + str(pack.get("Human Experience Report", "")).strip(),
         "5. EMOTIONAL ARC REPORT\n" + str(pack.get("Emotional Arc Report", "")).strip(),
-        "6. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "7. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "8. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "9. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "10. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "11. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "12. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "13. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "14. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "15. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "16. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "17. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "6. THAI NATURAL SPEECH REPORT\n" + str(pack.get("Thai Natural Speech Report", "")).strip(),
+        "7. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "8. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "9. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "10. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "11. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "12. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "13. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "14. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "15. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "16. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "17. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "18. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 
