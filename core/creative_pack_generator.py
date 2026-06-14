@@ -110,6 +110,7 @@ RELEASE_PACK_FILES = {
     "human_experience_report.txt": "Human Experience Report",
     "emotional_arc_report.txt": "Emotional Arc Report",
     "thai_natural_speech_report.txt": "Thai Natural Speech Report",
+    "relatability_report.txt": "Relatability Report",
     "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
 
@@ -640,6 +641,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     human_relatability_score = _human_relatability_score(lyrics, concept)
     emotional_arc_score = _emotional_arc_score(lyrics, concept)
     thai_naturalness_score = _thai_naturalness_score(lyrics, concept)
+    relatability_score = int(_relatability_report(lyrics, hook, concept).get("Relatability Score", 0))
     commercial_score = max(
         0,
         min(
@@ -663,6 +665,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Human Relatability Score": human_relatability_score,
         "Emotional Arc Score": emotional_arc_score,
         "Thai Naturalness Score": thai_naturalness_score,
+        "Relatability Score": relatability_score,
     }
     return {
         "scores": scores,
@@ -700,6 +703,7 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Human Relatability Score: {scores.get('Human Relatability Score', 0)}",
         f"Emotional Arc Score: {scores.get('Emotional Arc Score', 0)}",
         f"Thai Naturalness Score: {scores.get('Thai Naturalness Score', 0)}",
+        f"Relatability Score: {scores.get('Relatability Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
         f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
@@ -1198,6 +1202,123 @@ def _thai_natural_speech_report_text(report: dict[str, Any]) -> str:
             f"Most Relatable Line: {report.get('Most Relatable Line', '')}",
         ]
     ).strip()
+
+
+def _relatable_phrase_bank(concept: str, preset_name: str = "") -> list[str]:
+    scene = _thai_speech_scene(concept, preset_name)
+    phrases = list(THAI_SPEECH_LIBRARY.get(scene, []))
+    profile = _human_moment_profile(concept, preset_name)
+    phrases.extend(profile.get("captions") or [])
+    phrases.extend(
+        [
+            "ยิ้มได้ ไม่ได้แปลว่าไหว",
+            "ไม่อยากลาออก แค่อยากพัก",
+            "วันนี้เก่งมากแล้ว",
+            "พรุ่งนี้ค่อยว่ากัน",
+            "ไม่ได้ลืม",
+            "ยังคิดถึงอยู่เลย",
+            "อยู่คนเดียวจนชิน",
+            "แต่ก็ไม่ชินสักที",
+        ]
+    )
+    seen: set[str] = set()
+    output: list[str] = []
+    for phrase in phrases:
+        key = _compact_line(phrase)
+        if key and key not in seen:
+            seen.add(key)
+            output.append(phrase)
+    return output
+
+
+def _line_relatability_scores(line: str, concept: str = "", preset_name: str = "") -> dict[str, int]:
+    text = str(line or "").strip()
+    compact_len = _thai_char_count(text)
+    bank = _relatable_phrase_bank(concept, preset_name)
+    contains_bank = any(phrase and phrase in text for phrase in bank)
+    has_plain_conflict = any(token in text for token in ["แต่", "ไม่ได้", "ไม่อยาก", "แค่", "ยัง", "พรุ่งนี้", "วันนี้"])
+    ai_count = _ai_phrase_count(text)
+    human = 62 + (22 if contains_bank else 0) + (8 if has_plain_conflict else 0) - min(30, ai_count * 12)
+    caption = 58 + (20 if 6 <= compact_len <= 28 else -8) + (14 if contains_bank else 0) - min(24, ai_count * 10)
+    comment = 56 + (18 if any(token in text for token in ["ไม่ไหว", "จริง", "ใช่", "ไหม", "ว่ะ", "พัก"]) else 0) + (10 if contains_bank else 0)
+    share = 58 + (18 if contains_bank else 0) + (10 if has_plain_conflict else 0) - min(20, max(0, compact_len - 38))
+    sing = 62 + (16 if 6 <= compact_len <= 32 else -12) + (8 if " " in text or compact_len <= 18 else 0)
+    recognition = 58 + (18 if contains_bank else 0) + (10 if any(token in text for token in ["เหนื่อย", "คิดถึง", "เหงา", "พัก", "ไหว", "ลืม"]) else 0)
+    return {
+        "Human Relatability": max(0, min(100, human)),
+        "Caption Potential": max(0, min(100, caption)),
+        "Comment Potential": max(0, min(100, comment)),
+        "Shareability": max(0, min(100, share)),
+        "Singability": max(0, min(100, sing)),
+        "Emotional Recognition": max(0, min(100, recognition)),
+    }
+
+
+def _weighted_relatability_score(scores: dict[str, int]) -> int:
+    weights = {
+        "Human Relatability": 0.24,
+        "Caption Potential": 0.2,
+        "Comment Potential": 0.14,
+        "Shareability": 0.18,
+        "Singability": 0.12,
+        "Emotional Recognition": 0.12,
+    }
+    return int(sum(scores.get(key, 0) * weight for key, weight in weights.items()))
+
+
+def _rank_relatable_lines(lyrics: str, concept: str = "", preset_name: str = "") -> list[dict[str, Any]]:
+    ranked: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for line in _lines(lyrics):
+        if line.startswith("["):
+            continue
+        key = _compact_line(line)
+        if not key or key in seen or _thai_char_count(line) < 4:
+            continue
+        seen.add(key)
+        scores = _line_relatability_scores(line, concept, preset_name)
+        ranked.append({"line": line, "scores": scores, "Relatability Score": _weighted_relatability_score(scores)})
+    return sorted(ranked, key=lambda item: item["Relatability Score"], reverse=True)
+
+
+def _relatability_report(lyrics: str, hook: str, concept: str = "", preset_name: str = "") -> dict[str, Any]:
+    combined = "\n".join([hook or "", lyrics or ""])
+    ranked = _rank_relatable_lines(combined, concept, preset_name)
+    best = ranked[0] if ranked else {"line": "", "scores": {}, "Relatability Score": 0}
+    captions = [item["line"] for item in ranked if item["scores"].get("Caption Potential", 0) >= 70][:3]
+    while len(captions) < 3:
+        for phrase in _relatable_phrase_bank(concept, preset_name):
+            if phrase not in captions:
+                captions.append(phrase)
+            if len(captions) >= 3:
+                break
+    best_tiktok = next((item for item in ranked if item["scores"].get("Shareability", 0) >= 70 and item["scores"].get("Singability", 0) >= 70), best)
+    return {
+        "Relatability Score": best.get("Relatability Score", 0),
+        "Caption Potential": best.get("scores", {}).get("Caption Potential", 0),
+        "Comment Potential": best.get("scores", {}).get("Comment Potential", 0),
+        "Shareability": best.get("scores", {}).get("Shareability", 0),
+        "Most Relatable Line": best.get("line", ""),
+        "Best Caption Line": captions[0] if captions else "",
+        "Best TikTok Line": best_tiktok.get("line", ""),
+        "Top Captions": captions[:3],
+    }
+
+
+def _relatability_report_text(report: dict[str, Any]) -> str:
+    captions = report.get("Top Captions") or []
+    rows = [
+        f"Relatability Score: {report.get('Relatability Score', 0)}",
+        f"Caption Potential: {report.get('Caption Potential', 0)}",
+        f"Comment Potential: {report.get('Comment Potential', 0)}",
+        f"Shareability: {report.get('Shareability', 0)}",
+        f"Most Relatable Line: {report.get('Most Relatable Line', '')}",
+        f"Best Caption Line: {report.get('Best Caption Line', '')}",
+        f"Best TikTok Line: {report.get('Best TikTok Line', '')}",
+        "Top Captions:",
+    ]
+    rows.extend(f"{idx}. {caption}" for idx, caption in enumerate(captions[:3], start=1))
+    return "\n".join(rows).strip()
 
 
 def _authentic_title_from_concept(idea: str, preset_name: str, current_title: str) -> str:
@@ -1732,12 +1853,32 @@ def _score_hook_candidate(hook: str) -> dict[str, Any]:
         penalty += 80
     if any(len(line.replace(" ", "")) > 38 for line in lines):
         penalty += 14
-    score = int((caption_score + tiktok_score + human_score + emotional_score + singability_score + memorability_score) / 6 - penalty)
+    relatability_data = _relatability_report(joined, hook, joined, "")
+    relatability_score = int(relatability_data.get("Relatability Score", 0))
+    comment_score = int(relatability_data.get("Comment Potential", 0))
+    shareability_score = int(relatability_data.get("Shareability", 0))
+    score = int(
+        (
+            caption_score
+            + tiktok_score
+            + human_score
+            + emotional_score
+            + singability_score
+            + memorability_score
+            + relatability_score
+            + comment_score
+        )
+        / 8
+        - penalty
+    )
     return {
         "hook": "\n".join(lines),
         "score": max(0, min(100, score)),
         "caption_score": max(0, min(100, caption_score)),
         "tiktok_score": max(0, min(100, tiktok_score)),
+        "relatability_score": max(0, min(100, relatability_score)),
+        "comment_potential_score": max(0, min(100, comment_score)),
+        "shareability_score": max(0, min(100, shareability_score)),
         "human_speech_score": human_score,
         "emotional_impact_score": max(0, min(100, emotional_score)),
         "singability_score": max(0, min(100, singability_score)),
@@ -2116,6 +2257,8 @@ def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] |
         seen.add(key)
         score_data = score_song_title_candidate(clean, source_text)
         score = int(score_data.get("score", 0))
+        title_relatability = _weighted_relatability_score(_line_relatability_scores(clean, source_text, preset_name))
+        score = int((score * 0.72) + (title_relatability * 0.28))
         if len(key) > 18:
             score -= 22
         if clean in blocked:
@@ -3034,6 +3177,8 @@ def generate_creative_release_pack(
     human_experience_report = _human_experience_report_text(lyrics_only, concept, preset_name)
     emotional_arc_report = _emotional_arc_report_text(lyrics_only, concept, preset_name, producer_brief)
     thai_natural_speech_report_text = _thai_natural_speech_report_text(thai_natural_speech_report)
+    relatability_report = _relatability_report(lyrics_only, hook, concept, preset_name)
+    relatability_report_text = _relatability_report_text(relatability_report)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -3063,6 +3208,7 @@ def generate_creative_release_pack(
         "Human Experience Report": human_experience_report,
         "Emotional Arc Report": emotional_arc_report,
         "Thai Natural Speech Report": thai_natural_speech_report_text,
+        "Relatability Report": relatability_report_text,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -3135,6 +3281,7 @@ def generate_creative_release_pack(
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
             "thai_natural_speech": thai_natural_speech_report,
+            "relatability": relatability_report,
             "producer_brief": producer_brief,
             "api_quality_gate": gate,
             "creative_controls": controls,
@@ -3173,18 +3320,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "4. HUMAN EXPERIENCE REPORT\n" + str(pack.get("Human Experience Report", "")).strip(),
         "5. EMOTIONAL ARC REPORT\n" + str(pack.get("Emotional Arc Report", "")).strip(),
         "6. THAI NATURAL SPEECH REPORT\n" + str(pack.get("Thai Natural Speech Report", "")).strip(),
-        "7. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "8. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "9. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "10. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "11. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "12. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "13. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "14. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "15. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "16. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "17. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "18. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "7. RELATABILITY REPORT\n" + str(pack.get("Relatability Report", "")).strip(),
+        "8. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "9. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "10. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "11. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "12. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "13. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "14. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "15. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "16. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "17. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "18. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "19. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 

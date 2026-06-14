@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _score_hook_candidate, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _relatability_report, _score_hook_candidate, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -801,9 +801,13 @@ def main():
     assert_true("Emotional Arc Report" in advanced_pack and "Arc Score:" in advanced_pack["Emotional Arc Report"], "Emotional Arc Report missing from release pack")
     assert_true("Thai Natural Speech Report" in advanced_pack and "Human Speech Score:" in advanced_pack["Thai Natural Speech Report"], "Thai Natural Speech Report missing from release pack")
     assert_true("Caption Score:" in advanced_pack["Thai Natural Speech Report"], "Caption Score missing from Thai Natural Speech Report")
+    assert_true("Relatability Report" in advanced_pack and "Relatability Score:" in advanced_pack["Relatability Report"], "Relatability Report missing from release pack")
+    assert_true("Most Relatable Line:" in advanced_pack["Relatability Report"] and "Best Caption Line:" in advanced_pack["Relatability Report"] and "Best TikTok Line:" in advanced_pack["Relatability Report"], "Relatability Report missing line selections")
+    assert_true("Top Captions:" in advanced_pack["Relatability Report"] and "1." in advanced_pack["Relatability Report"] and "2." in advanced_pack["Relatability Report"] and "3." in advanced_pack["Relatability Report"], "Relatability Report missing top captions")
     assert_true("Human Relatability Score:" in advanced_pack["Lyrics Quality Report"], "Human Relatability Score missing from lyrics quality report")
     assert_true("Emotional Arc Score:" in advanced_pack["Lyrics Quality Report"], "Emotional Arc Score missing from lyrics quality report")
     assert_true("Thai Naturalness Score:" in advanced_pack["Lyrics Quality Report"], "Thai Naturalness Score missing from lyrics quality report")
+    assert_true("Relatability Score:" in advanced_pack["Lyrics Quality Report"], "Relatability Score missing from lyrics quality report")
     assert_true("ไม่อยากลาออก" in advanced_bridge and "แค่อยากกลับมาเป็นตัวเอง" in advanced_bridge, "Bridge did not become emotional truth")
     assert_true("วันนี้เก่งมากแล้วที่ยังผ่านมาได้" in advanced_lyrics.split("[Final Chorus]", 1)[1], "Final Chorus missing emotional payoff line")
     emotional_sections = [
@@ -822,6 +826,9 @@ def main():
     assert_true("ไม่ไหวแล้วจริง ๆ" in natural_rewrite and "พรุ่งนี้ค่อยว่ากัน" in natural_rewrite and "ตราตรึง" not in natural_rewrite, "Thai Natural Speech rewrite layer failed")
     assert_true("นาฬิกาเลิกงาน" in natural_rewrite and "แต่ใจยังไม่เลิกเหนื่อย" in natural_rewrite, "Thai Natural Speech rewrote protected hook")
     assert_true(natural_report["Human Rewrite Count"] >= 2 and natural_report["AI Phrase Count"] == 0, "Thai Natural Speech report did not record rewrites cleanly")
+    relatable_report = _relatability_report(advanced_lyrics, advanced_pack["Hook"], "พนักงานดีเด่น", "Vela Moon Emotional Pop Rock")
+    assert_true(relatable_report["Relatability Score"] > 0 and len(relatable_report["Top Captions"]) == 3, "Relatability Ranking Engine did not generate scores and top captions")
+    assert_true(_score_hook_candidate("ยิ้มได้ ไม่ได้แปลว่าไหว\nไม่อยากลาออก แค่อยากพัก\nวันนี้เก่งมากแล้ว")["score"] > _score_hook_candidate("ความรู้สึกอันลึกซึ้งภายในใจ\nความทรงจำยังตราตรึงมิรู้เลือน")["score"], "Hook ranking did not prefer relatable caption-like hook")
     benchmark_controls = [
         ("กลับบ้านคนเดียว", "Family", "Hope", "บ้าน"),
         ("ขับรถตอนตีสอง", "Night Drive", "Memory", "ถนน"),
