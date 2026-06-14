@@ -107,6 +107,7 @@ RELEASE_PACK_FILES = {
     "hashtags.txt": "Hashtags",
     "youtube_description.txt": "YouTube description",
     "release_notes.txt": "Release notes",
+    "human_experience_report.txt": "Human Experience Report",
     "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
 
@@ -441,6 +442,71 @@ GENERIC_FILLER_PHRASES = [
     "lorem ipsum",
 ]
 
+HUMAN_MOMENT_LIBRARY: dict[str, dict[str, Any]] = {
+    "office_life": {
+        "primary": "pretending to be okay while exhausted",
+        "secondary": "wanting rest, not escape",
+        "moments": [
+            "ยิ้มได้ ไม่ได้แปลว่าไหว",
+            "ฉันปิดคอมแล้ว แต่หัวใจยังไม่ยอมพัก",
+            "ไม่อยากลาออก แค่อยากหายเหนื่อย",
+            "มีบางอย่างในใจที่ยังไม่กล้าตอบ",
+            "วันนี้เก่งมากแล้ว ที่ยังผ่านมาได้",
+            "เช้านี้ก็เริ่มเหมือนทุกวันอีกแล้ว",
+            "พรุ่งนี้ค่อยว่ากัน",
+        ],
+        "captions": [
+            "วันนี้เก่งมากแล้ว",
+            "ไม่อยากลาออก แค่อยากพัก",
+            "ยิ้มได้ ไม่ได้แปลว่าไหว",
+            "พรุ่งนี้ค่อยว่ากัน",
+        ],
+    },
+    "breakup_memory": {
+        "primary": "pretending not to care after checking the phone",
+        "secondary": "hearing an old song and losing the act",
+        "moments": [
+            "ฉันทำเหมือนไม่รอ ทั้งที่ยังเหลือที่ว่างให้เธอ",
+            "เพลงเดิมดังขึ้นมา แล้วใจฉันก็เงียบไม่ลง",
+            "ลบแชตไปแล้ว แต่ยังลบความรู้สึกไม่ได้",
+            "ผ่านที่เดิมทีไร ก็เหมือนใจเดินช้าลงทุกครั้ง",
+        ],
+        "captions": [
+            "ลบแชตได้ แต่ลบใจไม่ได้",
+            "ทำเหมือนไม่รอ ทั้งที่ยังจำ",
+            "เพลงเดิมยังทำให้ใจสะดุด",
+        ],
+    },
+    "loneliness": {
+        "primary": "being alone in a quiet room",
+        "secondary": "scrolling without knowing who to call",
+        "moments": [
+            "ห้องเงียบเกินไปสำหรับคนที่เหนื่อยมาทั้งวัน",
+            "เลื่อนหน้าจอไปเรื่อย ๆ แต่ไม่รู้จะทักหาใคร",
+            "มื้อเย็นคนเดียวไม่ได้เจ็บ แค่เงียบกว่าที่คิด",
+        ],
+        "captions": [
+            "เงียบกว่าที่คิด",
+            "ไม่รู้จะทักหาใคร",
+            "คนเดียวก็ไหว แค่บางคืนมันเหนื่อย",
+        ],
+    },
+    "self_growth": {
+        "primary": "trying again while feeling behind",
+        "secondary": "hiding fear under responsibility",
+        "moments": [
+            "ฉันไม่ได้ช้า แค่กำลังพาตัวเองกลับมา",
+            "กลัวเหมือนเดิม แต่วันนี้ยังลองอีกครั้ง",
+            "บางวันแค่ไม่ยอมแพ้ก็ใช้แรงทั้งใจแล้ว",
+        ],
+        "captions": [
+            "วันนี้ยังลองอีกครั้ง",
+            "ค่อย ๆ กลับมาก็ได้",
+            "ไม่ยอมแพ้ก็เก่งมากแล้ว",
+        ],
+    },
+}
+
 
 def _thai_char_count(text: str) -> int:
     return len([ch for ch in str(text or "") if "\u0e00" <= ch <= "\u0e7f"])
@@ -508,6 +574,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     repetition_score = max(0, min(100, 100 - repeated_lines * 9 - len(filler_hits) * 12))
     singability_score = int((_line_singability_score(hook_lines) * 0.45) + (_line_singability_score(chorus_lines + final_chorus_lines) * 0.55))
     emotional_score = max(0, min(100, 62 + emotional_hits * 4 + (8 if validate_concept_alignment(concept, lyrics).get("aligned") else -10)))
+    human_relatability_score = _human_relatability_score(lyrics, concept)
     commercial_score = max(
         0,
         min(
@@ -528,6 +595,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Commercial Score": commercial_score,
         "Repetition Score": repetition_score,
         "Singability Score": singability_score,
+        "Human Relatability Score": human_relatability_score,
     }
     return {
         "scores": scores,
@@ -562,6 +630,7 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Commercial Score: {scores.get('Commercial Score', 0)}",
         f"Repetition Score: {scores.get('Repetition Score', 0)}",
         f"Singability Score: {scores.get('Singability Score', 0)}",
+        f"Human Relatability Score: {scores.get('Human Relatability Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
         f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
@@ -673,6 +742,117 @@ def _song_scene_type(idea: str, preset_name: str = "") -> str:
     if any(word in text for word in ["พูดไม่ได้", "ไม่กล้าบอก", "แอบรัก", "รัก", "love"]):
         return "quiet_love"
     return "human_emotional"
+
+
+def _human_moment_profile(concept: str, preset_name: str = "") -> dict[str, Any]:
+    text = f"{concept} {preset_name}".lower()
+    if any(word in text for word in ["เหงา", "คนเดียว", "lonely", "alone"]):
+        return HUMAN_MOMENT_LIBRARY["loneliness"]
+    scene = _song_scene_type(concept, preset_name)
+    if scene in {"office_life", "breakup_memory", "self_growth"}:
+        return HUMAN_MOMENT_LIBRARY[scene]
+    if scene in {"family", "life_reflection"}:
+        return HUMAN_MOMENT_LIBRARY["self_growth"]
+    return HUMAN_MOMENT_LIBRARY["loneliness"]
+
+
+def _rewrite_object_narration_line(line: str, scene: str) -> str:
+    stripped = str(line or "").strip()
+    if not stripped:
+        return stripped
+    if scene == "office_life":
+        if any(token in stripped for token in ["Excel", "ไฟล์", "คอม"]):
+            return "ฉันปิดคอมแล้ว แต่หัวใจยังไม่ยอมพัก"
+        if any(token in stripped for token in ["แจ้งเตือน", "ข้อความงาน", "แชตกลุ่ม", "unread"]):
+            return "มีบางอย่างในใจที่ยังไม่กล้าตอบ"
+        if any(token in stripped for token in ["แก้วกาแฟ", "กาแฟ", "คีย์บอร์ด", "โต๊ะ"]):
+            return "ที่โต๊ะเดิม ฉันเพิ่งรู้ว่าตัวเองฝืนมานาน"
+        if any(token in stripped for token in ["บัตรจอดรถ", "ลานจอดรถ", "parking"]):
+            return "ตรงลานจอดรถ ฉันไม่อยากลาออก แค่อยากหายเหนื่อย"
+    if scene == "breakup_memory":
+        if any(token in stripped for token in ["แชต", "ข้อความ", "โทรศัพท์", "รูปเก่า"]):
+            return "ลบออกจากหน้าจอได้ แต่ยังลบออกจากใจไม่ได้"
+        if any(token in stripped for token in ["เพลง", "ร้าน", "ที่เดิม"]):
+            return "แค่เสียงเดิมดังขึ้นมา ใจก็กลับไปยืนอยู่วันนั้น"
+    return stripped
+
+
+def _caption_line_outside_chorus(sections: dict[str, list[str]], captions: list[str]) -> bool:
+    body_lines: list[str] = []
+    for section, lines in sections.items():
+        if section not in {"Chorus", "Final Chorus"}:
+            body_lines.extend(lines)
+    body_text = "\n".join(body_lines)
+    return any(caption in body_text for caption in captions)
+
+
+def _apply_human_experience_engine(lyrics: str, concept: str, preset_name: str = "") -> str:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics
+    scene = _song_scene_type(concept, preset_name)
+    profile = _human_moment_profile(concept, preset_name)
+    captions = list(profile.get("captions") or [])
+    for section, lines in list(sections.items()):
+        if section in {"Chorus", "Final Chorus"}:
+            continue
+        rewritten: list[str] = []
+        for line in lines:
+            candidate = _rewrite_object_narration_line(line, scene)
+            if candidate and candidate not in rewritten:
+                rewritten.append(candidate)
+        sections[section] = rewritten
+    if scene == "office_life":
+        bridge = sections.setdefault("Bridge", [])
+        has_parking = any("ลานจอดรถ" in line for line in bridge)
+        emotional_bridge = [
+            "ตรงลานจอดรถ ฉันเพิ่งยอมรับว่าตัวเองเหนื่อยจริง ๆ" if has_parking else "ไม่อยากลาออก",
+            "ไม่อยากลาออก แค่อยากพัก",
+            "ไม่อยากหนีไปไหน",
+            "แค่อยากกลับมาเป็นตัวเอง",
+        ]
+        merged = []
+        for index, line in enumerate(emotional_bridge + bridge):
+            if index >= len(emotional_bridge) and any(token in line for token in ["ลานจอดรถ", "แค่อยากหายเหนื่อย"]):
+                continue
+            if line and line not in merged:
+                merged.append(line)
+        sections["Bridge"] = merged[:5]
+    if captions and not _caption_line_outside_chorus(sections, captions):
+        target = sections.setdefault("Verse 2", [])
+        caption = captions[0]
+        if caption not in target:
+            target.insert(0, caption)
+    return _render_lyric_sections(sections)
+
+
+def _human_relatability_score(lyrics: str, concept: str, preset_name: str = "") -> int:
+    profile = _human_moment_profile(concept, preset_name)
+    captions = profile.get("captions") or []
+    moments = profile.get("moments") or []
+    text = str(lyrics or "")
+    score = 58
+    score += min(18, sum(6 for caption in captions if caption in text))
+    score += min(18, sum(4 for moment in moments if moment in text))
+    if any(phrase in text for phrase in ["ไม่อยากลาออก", "ยิ้มได้ ไม่ได้แปลว่าไหว", "วันนี้เก่งมากแล้ว", "พรุ่งนี้ค่อยว่ากัน"]):
+        score += 12
+    object_terms = ["แก้วกาแฟ", "คีย์บอร์ด", "บัตรจอดรถ", "ไฟล์ Excel", "ข้อความงาน"]
+    score -= min(24, sum(text.count(term) * 6 for term in object_terms))
+    return max(0, min(100, score))
+
+
+def _human_experience_report_text(lyrics: str, concept: str, preset_name: str = "") -> str:
+    profile = _human_moment_profile(concept, preset_name)
+    captions = list(profile.get("captions") or [])
+    score = _human_relatability_score(lyrics, concept, preset_name)
+    return "\n".join(
+        [
+            f"Primary Human Moment: {profile.get('primary', '')}",
+            f"Secondary Human Moment: {profile.get('secondary', '')}",
+            "Caption Candidates: " + (", ".join(captions[:4]) if captions else "None"),
+            f"Relatability Score: {score}",
+        ]
+    ).strip()
 
 
 def _authentic_title_from_concept(idea: str, preset_name: str, current_title: str) -> str:
@@ -2482,6 +2662,8 @@ def generate_creative_release_pack(
     lyrics, lyrics_quality_report = _apply_lyrics_quality_engine(title, hook, lyrics, concept)
     if selected_seed and selected_seed.get("hook"):
         lyrics = _enforce_selected_hook_authority(lyrics, str(selected_seed.get("hook") or ""))
+    lyrics = _apply_human_experience_engine(lyrics, concept, preset_name)
+    lyrics_quality_report = _lyrics_quality_engine_report(title, hook, lyrics, concept)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
@@ -2490,6 +2672,7 @@ def generate_creative_release_pack(
     suno_style_prompt = _build_suno_style_prompt(preset_name, preset, advanced_settings)
     export_quality = _release_pack_quality_checks(title, hook, lyrics_only, suno_style_prompt)
     hook_quality_summary = _hook_quality_summary_text(hook, title, concept)
+    human_experience_report = _human_experience_report_text(lyrics_only, concept, preset_name)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -2516,6 +2699,7 @@ def generate_creative_release_pack(
         "SONG INFO": song_info,
         "Producer Brief": _producer_brief_to_text(producer_brief),
         "Hook Quality Summary": hook_quality_summary,
+        "Human Experience Report": human_experience_report,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -2622,18 +2806,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         song_info,
         "2. PRODUCER BRIEF\n" + str(pack.get("Producer Brief", "")).strip(),
         "3. HOOK QUALITY SUMMARY\n" + str(pack.get("Hook Quality Summary", "")).strip(),
-        "4. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "5. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "6. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "7. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "8. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "9. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "10. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "11. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "12. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "13. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "14. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "15. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "4. HUMAN EXPERIENCE REPORT\n" + str(pack.get("Human Experience Report", "")).strip(),
+        "5. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "6. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "7. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "8. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "9. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "10. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "11. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "12. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "13. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "14. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "15. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "16. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 

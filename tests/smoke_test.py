@@ -794,6 +794,13 @@ def main():
     assert_true("ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม" in advanced_pack["Hook"], "question hook style did not shape office hook")
     assert_true("โต๊ะ" in advanced_lyrics and "ประชุม" in advanced_lyrics and "Style Influence: 73%" in advanced_pack["Advanced Suno Settings"] and "Weirdness: 21%" in advanced_pack["Advanced Suno Settings"], "advanced Song Studio controls did not influence lyrics/settings")
     assert_true(not any(line.strip().isdigit() for line in advanced_lyrics.splitlines()) and not re.search(r"\s(?:13|19)$", advanced_lyrics, re.MULTILINE), "numeric lyric artifacts were not removed")
+    advanced_bridge = advanced_lyrics.split("[Bridge]", 1)[1].split("[Final Chorus]", 1)[0]
+    advanced_non_chorus = re.sub(r"\[Chorus\].*?\[Verse 2\]", "[Verse 2]", advanced_lyrics, flags=re.S)
+    assert_true("Human Experience Report" in advanced_pack and "Relatability Score:" in advanced_pack["Human Experience Report"], "Human Experience Report missing from release pack")
+    assert_true("Human Relatability Score:" in advanced_pack["Lyrics Quality Report"], "Human Relatability Score missing from lyrics quality report")
+    assert_true("ไม่อยากลาออก" in advanced_bridge and "แค่อยากกลับมาเป็นตัวเอง" in advanced_bridge, "Bridge did not become emotional truth")
+    assert_true("วันนี้เก่งมากแล้ว" in advanced_non_chorus or "ยิ้มได้ ไม่ได้แปลว่าไหว" in advanced_non_chorus or "ไม่อยากลาออก แค่อยากพัก" in advanced_non_chorus, "caption-quality line missing outside chorus")
+    assert_true(not any(term in advanced_lyrics for term in ["ไฟล์ Excel", "แก้วกาแฟ", "คีย์บอร์ด", "บัตรจอดรถ"]), "object narration still dominates lyrics")
     benchmark_controls = [
         ("กลับบ้านคนเดียว", "Family", "Hope", "บ้าน"),
         ("ขับรถตอนตีสอง", "Night Drive", "Memory", "ถนน"),
