@@ -735,6 +735,7 @@ def main():
     seeded_final_chorus = seeded_lyrics.split("[Final Chorus]", 1)[1].split("[Outro]", 1)[0]
     assert_true(all(line in seeded_chorus for line in seeded_hook_lines) and all(line in seeded_final_chorus for line in seeded_hook_lines), "selected hook was not preserved in chorus and final chorus")
     assert_true("Producer Brief" in seeded_pack["pack"] and "Target Listener:" in seeded_pack["pack"]["Producer Brief"], "release pack missing Producer Brief")
+    assert_true("Starting Emotion:" in seeded_pack["pack"]["Producer Brief"] and "Final Payoff Line:" in seeded_pack["pack"]["Producer Brief"], "Producer Brief missing emotional arc fields")
     assert_true("Selected Story:" in seeded_pack["pack"]["Selected Seed Summary"] and "Selected Objects:" in seeded_pack["pack"]["Selected Seed Summary"], "release pack missing selected seed summary")
     assert_true(not any(item in seeded_lyrics.lower() for item in forbidden_lyric_prompts), "selected seed metadata leaked into Suno lyrics")
     seeded_text = creative_release_pack_to_text(seeded_pack)
@@ -797,8 +798,19 @@ def main():
     advanced_bridge = advanced_lyrics.split("[Bridge]", 1)[1].split("[Final Chorus]", 1)[0]
     advanced_non_chorus = re.sub(r"\[Chorus\].*?\[Verse 2\]", "[Verse 2]", advanced_lyrics, flags=re.S)
     assert_true("Human Experience Report" in advanced_pack and "Relatability Score:" in advanced_pack["Human Experience Report"], "Human Experience Report missing from release pack")
+    assert_true("Emotional Arc Report" in advanced_pack and "Arc Score:" in advanced_pack["Emotional Arc Report"], "Emotional Arc Report missing from release pack")
     assert_true("Human Relatability Score:" in advanced_pack["Lyrics Quality Report"], "Human Relatability Score missing from lyrics quality report")
+    assert_true("Emotional Arc Score:" in advanced_pack["Lyrics Quality Report"], "Emotional Arc Score missing from lyrics quality report")
     assert_true("ไม่อยากลาออก" in advanced_bridge and "แค่อยากกลับมาเป็นตัวเอง" in advanced_bridge, "Bridge did not become emotional truth")
+    assert_true("วันนี้เก่งมากแล้วที่ยังผ่านมาได้" in advanced_lyrics.split("[Final Chorus]", 1)[1], "Final Chorus missing emotional payoff line")
+    emotional_sections = [
+        advanced_lyrics.split("[Verse 1]", 1)[1].split("[Pre-Chorus]", 1)[0],
+        advanced_lyrics.split("[Pre-Chorus]", 1)[1].split("[Chorus]", 1)[0],
+        advanced_lyrics.split("[Chorus]", 1)[1].split("[Verse 2]", 1)[0],
+        advanced_lyrics.split("[Verse 2]", 1)[1].split("[Bridge]", 1)[0],
+        advanced_bridge,
+    ]
+    assert_true(sum("เหนื่อย" in section for section in emotional_sections) < len(emotional_sections), "lyrics repeat the same emotional message in every section")
     assert_true("วันนี้เก่งมากแล้ว" in advanced_non_chorus or "ยิ้มได้ ไม่ได้แปลว่าไหว" in advanced_non_chorus or "ไม่อยากลาออก แค่อยากพัก" in advanced_non_chorus, "caption-quality line missing outside chorus")
     assert_true(not any(term in advanced_lyrics for term in ["ไฟล์ Excel", "แก้วกาแฟ", "คีย์บอร์ด", "บัตรจอดรถ"]), "object narration still dominates lyrics")
     benchmark_controls = [

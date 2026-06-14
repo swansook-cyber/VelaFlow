@@ -108,6 +108,7 @@ RELEASE_PACK_FILES = {
     "youtube_description.txt": "YouTube description",
     "release_notes.txt": "Release notes",
     "human_experience_report.txt": "Human Experience Report",
+    "emotional_arc_report.txt": "Emotional Arc Report",
     "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
 
@@ -575,6 +576,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     singability_score = int((_line_singability_score(hook_lines) * 0.45) + (_line_singability_score(chorus_lines + final_chorus_lines) * 0.55))
     emotional_score = max(0, min(100, 62 + emotional_hits * 4 + (8 if validate_concept_alignment(concept, lyrics).get("aligned") else -10)))
     human_relatability_score = _human_relatability_score(lyrics, concept)
+    emotional_arc_score = _emotional_arc_score(lyrics, concept)
     commercial_score = max(
         0,
         min(
@@ -596,6 +598,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Repetition Score": repetition_score,
         "Singability Score": singability_score,
         "Human Relatability Score": human_relatability_score,
+        "Emotional Arc Score": emotional_arc_score,
     }
     return {
         "scores": scores,
@@ -631,6 +634,7 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Repetition Score: {scores.get('Repetition Score', 0)}",
         f"Singability Score: {scores.get('Singability Score', 0)}",
         f"Human Relatability Score: {scores.get('Human Relatability Score', 0)}",
+        f"Emotional Arc Score: {scores.get('Emotional Arc Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
         f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
@@ -851,6 +855,163 @@ def _human_experience_report_text(lyrics: str, concept: str, preset_name: str = 
             f"Secondary Human Moment: {profile.get('secondary', '')}",
             "Caption Candidates: " + (", ".join(captions[:4]) if captions else "None"),
             f"Relatability Score: {score}",
+        ]
+    ).strip()
+
+
+def _emotional_arc_for_scene(scene: str) -> dict[str, str]:
+    arcs = {
+        "office_life": {
+            "Starting Emotion": "pretending to be okay",
+            "Conflict": "work follows the listener home",
+            "Emotional Peak": "admitting I am not okay",
+            "Resolution": "allowing rest without guilt",
+            "Final Payoff Line": "วันนี้เก่งมากแล้วที่ยังผ่านมาได้",
+            "Bridge Truth Line": "ไม่อยากลาออก แค่อยากหายเหนื่อย",
+            "Soft Landing": "พรุ่งนี้ค่อยว่ากัน",
+        },
+        "breakup_memory": {
+            "Starting Emotion": "pretending not to miss someone",
+            "Conflict": "small memories still trigger pain",
+            "Emotional Peak": "accepting they will not return",
+            "Resolution": "choosing to let yourself heal",
+            "Final Payoff Line": "ไม่ได้ลืม แค่ไม่รอแล้ว",
+            "Bridge Truth Line": "ไม่ได้ลืม แค่ไม่อยากรอแล้ว",
+            "Soft Landing": "คืนนี้ขอให้ใจเบาลง",
+        },
+        "night_drive": {
+            "Starting Emotion": "driving away from a feeling",
+            "Conflict": "the road keeps returning the same memory",
+            "Emotional Peak": "realizing distance cannot erase the heart",
+            "Resolution": "going home with softer acceptance",
+            "Final Payoff Line": "ขับไปไกลแค่ไหน สุดท้ายต้องกลับมาหาใจตัวเอง",
+            "Bridge Truth Line": "ไม่ได้อยากหนี แค่อยากเงียบพอจะฟังใจตัวเอง",
+            "Soft Landing": "ไฟท้ายค่อย ๆ พาฉันกลับมา",
+        },
+        "respectful_truth": {
+            "Starting Emotion": "holding back difficult truth",
+            "Conflict": "honesty may hurt if spoken too harshly",
+            "Emotional Peak": "choosing gentle truth over winning",
+            "Resolution": "repairing the relationship with softer words",
+            "Final Payoff Line": "พูดกันเบา ๆ ก็ยังรักษาเราไว้ได้",
+            "Bridge Truth Line": "ความจริงไม่ต้องดัง ก็ยังจริงอยู่ดี",
+            "Soft Landing": "ขอให้คำพูดพาเรากลับมา",
+        },
+        "family": {
+            "Starting Emotion": "trying to be strong outside",
+            "Conflict": "responsibility makes the listener forget they need comfort",
+            "Emotional Peak": "admitting home is still needed",
+            "Resolution": "returning to unconditional love",
+            "Final Payoff Line": "ไม่ต้องเก่งทั้งโลก แค่กลับบ้านก็พอ",
+            "Bridge Truth Line": "ไม่ได้อยากชนะทุกอย่าง แค่อยากมีที่ให้พักใจ",
+            "Soft Landing": "ไฟบ้านยังรอเหมือนเดิม",
+        },
+        "self_growth": {
+            "Starting Emotion": "feeling behind",
+            "Conflict": "trying again while hiding fear",
+            "Emotional Peak": "accepting that rest is not failure",
+            "Resolution": "choosing a small honest restart",
+            "Final Payoff Line": "ค่อย ๆ กลับมา ก็ยังเรียกว่าไปต่อ",
+            "Bridge Truth Line": "ไม่ได้เข้มแข็ง แค่ยังไม่ทิ้งตัวเอง",
+            "Soft Landing": "พรุ่งนี้ค่อยเริ่มใหม่เบา ๆ",
+        },
+    }
+    return dict(arcs.get(scene, {
+        "Starting Emotion": "holding a private feeling",
+        "Conflict": "the feeling becomes harder to hide",
+        "Emotional Peak": "saying the truth to yourself",
+        "Resolution": "letting the heart breathe again",
+        "Final Payoff Line": "ขอให้ฉันกลับมาเป็นฉันอีกครั้ง",
+        "Bridge Truth Line": "ไม่ได้เข้มแข็ง แค่ไม่มีที่ให้ล้ม",
+        "Soft Landing": "คืนนี้ขอให้ใจเบาลง",
+    }))
+
+
+def _apply_emotional_arc_engine(lyrics: str, concept: str, preset_name: str = "", producer_brief: dict[str, Any] | None = None) -> str:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics
+    scene = _song_scene_type(concept, preset_name)
+    arc = _emotional_arc_for_scene(scene)
+    if producer_brief:
+        arc.update({key: str(producer_brief.get(key) or arc.get(key, "")) for key in arc.keys()})
+    if scene == "office_life":
+        sections["Bridge"] = [
+            "ไม่อยากลาออก แค่อยากหายเหนื่อย",
+            "ไม่อยากหนีไปไหน",
+            "แค่อยากกลับมาเป็นตัวเอง",
+            "ยิ้มได้ ไม่ได้แปลว่าไหว",
+        ]
+        pre = sections.setdefault("Pre-Chorus", [])
+        tension = "ยิ่งทำเหมือนไม่เป็นไร ยิ่งรู้ว่าข้างในเริ่มไม่ไหว"
+        if tension not in pre:
+            pre.insert(0, tension)
+    elif scene == "breakup_memory":
+        sections["Bridge"] = [
+            "ไม่ได้ลืม แค่ไม่อยากรอแล้ว",
+            "ไม่ได้เกลียดเธอ แค่ต้องกลับมารักตัวเอง",
+            "ถ้าเธอไม่กลับมา ฉันก็ต้องไปต่อ",
+        ]
+    else:
+        truth = arc.get("Bridge Truth Line", "")
+        bridge = [truth] if truth else []
+        bridge.extend(line for line in sections.get("Bridge", []) if line and line not in bridge)
+        sections["Bridge"] = bridge[:4]
+    final_payoff = str(arc.get("Final Payoff Line") or "").strip()
+    final_chorus = sections.setdefault("Final Chorus", [])
+    if final_payoff and final_payoff not in final_chorus:
+        final_chorus.append(final_payoff)
+    if scene == "office_life":
+        for line in ["ถ้าคืนนี้ไม่ไหวก็ไม่ต้องฝืน", "พรุ่งนี้ค่อยว่ากัน"]:
+            if line not in final_chorus:
+                final_chorus.append(line)
+    outro = sections.setdefault("Outro", [])
+    soft_landing = str(arc.get("Soft Landing") or "").strip()
+    if soft_landing:
+        sections["Outro"] = [soft_landing]
+    elif not outro:
+        sections["Outro"] = ["คืนนี้ขอให้ใจเบาลง"]
+    return _render_lyric_sections(sections)
+
+
+def _emotional_arc_score(lyrics: str, concept: str, preset_name: str = "", producer_brief: dict[str, Any] | None = None) -> int:
+    sections = parse_lyric_sections(lyrics)
+    scene = _song_scene_type(concept, preset_name)
+    arc = _emotional_arc_for_scene(scene)
+    if producer_brief:
+        arc.update({key: str(producer_brief.get(key) or arc.get(key, "")) for key in arc.keys()})
+    score = 46
+    bridge = "\n".join(sections.get("Bridge", []))
+    final_chorus = "\n".join(sections.get("Final Chorus", []))
+    pre_chorus = "\n".join(sections.get("Pre-Chorus", []))
+    if str(arc.get("Bridge Truth Line", "")).split(" ")[0] in bridge or any(token in bridge for token in ["ไม่อยากลาออก", "ไม่ได้ลืม", "ไม่ได้เข้มแข็ง", "ยิ้มได้ ไม่ได้แปลว่าไหว"]):
+        score += 22
+    if str(arc.get("Final Payoff Line", "")) in final_chorus:
+        score += 22
+    if any(token in pre_chorus for token in ["เริ่มไม่ไหว", "ยิ่ง", "เก็บ", "กลัว", "พูด"]):
+        score += 8
+    section_texts = [" ".join(sections.get(section, [])) for section in ["Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus"]]
+    compact = [_compact_line(text)[:28] for text in section_texts if text.strip()]
+    if len(set(compact)) >= min(5, len(compact)):
+        score += 12
+    if all("เหนื่อย" in text for text in section_texts if text.strip()):
+        score -= 20
+    return max(0, min(100, score))
+
+
+def _emotional_arc_report_text(lyrics: str, concept: str, preset_name: str = "", producer_brief: dict[str, Any] | None = None) -> str:
+    scene = _song_scene_type(concept, preset_name)
+    arc = _emotional_arc_for_scene(scene)
+    if producer_brief:
+        arc.update({key: str(producer_brief.get(key) or arc.get(key, "")) for key in arc.keys()})
+    return "\n".join(
+        [
+            f"Starting Emotion: {arc.get('Starting Emotion', '')}",
+            f"Conflict: {arc.get('Conflict', '')}",
+            f"Emotional Peak: {arc.get('Emotional Peak', '')}",
+            f"Resolution: {arc.get('Resolution', '')}",
+            f"Final Payoff Line: {arc.get('Final Payoff Line', '')}",
+            f"Arc Score: {_emotional_arc_score(lyrics, concept, preset_name, producer_brief)}",
         ]
     ).strip()
 
@@ -1590,6 +1751,7 @@ def generate_producer_brief_v1(concept: str, preset_name: str = "Thai Sad Pop", 
         "Song Promise": "This song gives the listener one clear emotional sentence they can keep and share.",
     }
     brief = dict(brief_by_scene.get(scene, fallback))
+    brief.update(_emotional_arc_for_scene(scene))
     brief["Scene Type"] = scene
     brief["Preset"] = preset_name
     return brief
@@ -1597,7 +1759,18 @@ def generate_producer_brief_v1(concept: str, preset_name: str = "Thai Sad Pop", 
 
 def _producer_brief_to_text(brief: dict[str, Any] | None) -> str:
     data = brief or {}
-    keys = ["Target Listener", "Core Emotion", "Shareable Angle", "Caption Line", "Song Promise"]
+    keys = [
+        "Target Listener",
+        "Core Emotion",
+        "Shareable Angle",
+        "Caption Line",
+        "Song Promise",
+        "Starting Emotion",
+        "Conflict",
+        "Emotional Peak",
+        "Resolution",
+        "Final Payoff Line",
+    ]
     return "\n".join(f"{key}: {data.get(key, '')}" for key in keys).strip()
 
 
@@ -2663,6 +2836,7 @@ def generate_creative_release_pack(
     if selected_seed and selected_seed.get("hook"):
         lyrics = _enforce_selected_hook_authority(lyrics, str(selected_seed.get("hook") or ""))
     lyrics = _apply_human_experience_engine(lyrics, concept, preset_name)
+    lyrics = _apply_emotional_arc_engine(lyrics, concept, preset_name, producer_brief)
     lyrics_quality_report = _lyrics_quality_engine_report(title, hook, lyrics, concept)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
@@ -2673,6 +2847,7 @@ def generate_creative_release_pack(
     export_quality = _release_pack_quality_checks(title, hook, lyrics_only, suno_style_prompt)
     hook_quality_summary = _hook_quality_summary_text(hook, title, concept)
     human_experience_report = _human_experience_report_text(lyrics_only, concept, preset_name)
+    emotional_arc_report = _emotional_arc_report_text(lyrics_only, concept, preset_name, producer_brief)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -2700,6 +2875,7 @@ def generate_creative_release_pack(
         "Producer Brief": _producer_brief_to_text(producer_brief),
         "Hook Quality Summary": hook_quality_summary,
         "Human Experience Report": human_experience_report,
+        "Emotional Arc Report": emotional_arc_report,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -2807,18 +2983,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "2. PRODUCER BRIEF\n" + str(pack.get("Producer Brief", "")).strip(),
         "3. HOOK QUALITY SUMMARY\n" + str(pack.get("Hook Quality Summary", "")).strip(),
         "4. HUMAN EXPERIENCE REPORT\n" + str(pack.get("Human Experience Report", "")).strip(),
-        "5. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "6. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "7. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "8. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "9. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "10. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "11. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "12. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "13. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "14. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "15. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "16. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "5. EMOTIONAL ARC REPORT\n" + str(pack.get("Emotional Arc Report", "")).strip(),
+        "6. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "7. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "8. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "9. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "10. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "11. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "12. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "13. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "14. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "15. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "16. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "17. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 
