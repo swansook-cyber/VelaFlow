@@ -808,6 +808,13 @@ def main():
     assert_true("Emotional Arc Score:" in advanced_pack["Lyrics Quality Report"], "Emotional Arc Score missing from lyrics quality report")
     assert_true("Thai Naturalness Score:" in advanced_pack["Lyrics Quality Report"], "Thai Naturalness Score missing from lyrics quality report")
     assert_true("Relatability Score:" in advanced_pack["Lyrics Quality Report"], "Relatability Score missing from lyrics quality report")
+    critic_report = advanced_controls_pack["quality_report"].get("critic_engine", {})
+    rewrite_report = advanced_controls_pack["quality_report"].get("rewrite_engine", {})
+    commercial_report = advanced_controls_pack["quality_report"].get("commercial_score_engine", {})
+    assert_true({"Hook Strength", "Title Quality", "Chorus Quality", "Emotional Arc", "Relatability"}.issubset((critic_report.get("scores") or {}).keys()), "Critic Engine report missing required score dimensions")
+    assert_true(isinstance(rewrite_report.get("actions"), list) and rewrite_report.get("after", {}).get("overall", 0) >= rewrite_report.get("before", {}).get("overall", 0), "Rewrite Engine did not keep best version")
+    assert_true({"Commercial Potential", "TikTok Potential", "Caption Potential", "Singability", "Emotional Impact", "Overall Commercial Score"}.issubset(commercial_report.keys()), "Commercial Score Engine missing required dimensions")
+    assert_true(0 <= commercial_report.get("Overall Commercial Score", -1) <= 100, "Commercial Score Engine overall score out of range")
     assert_true("ไม่อยากลาออก" in advanced_bridge and "แค่อยากกลับมาเป็นตัวเอง" in advanced_bridge, "Bridge did not become emotional truth")
     assert_true("วันนี้เก่งมากแล้วที่ยังผ่านมาได้" in advanced_lyrics.split("[Final Chorus]", 1)[1], "Final Chorus missing emotional payoff line")
     emotional_sections = [
