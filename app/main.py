@@ -2000,7 +2000,7 @@ def _read_creator_file(path: Path) -> str:
 
 
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
-    _page_header("Creator Dashboard", "Simple tools for songs, hooks, podcasts, affiliate scripts, and release packages.", project)
+    _page_header("Creator Dashboard", "Single-path music creation for release-ready Suno/Udio packs.", project)
     state = project.setdefault("creator_dashboard", {})
     st.markdown(
         """
@@ -2008,8 +2008,8 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
           <span class="vf-monitor-pill">VelaFlow V1</span>
           <span class="vf-monitor-pill">Creative Pack Generator</span>
           <span class="vf-monitor-pill">No Render</span>
-          <h2>สร้างแพ็กเพลงและคอนเทนต์ให้พร้อมใช้งาน</h2>
-          <p>Create lyrics, prompts, storyboard, captions, and release package. Render outside with your favorite tools.</p>
+          <h2>เริ่มจากไอเดียเพลง แล้วจบที่ Release Pack พร้อมใช้</h2>
+          <p>One focused path: generate candidates, choose the best story/hook/title, then export a clean Suno/Udio release pack.</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -2017,28 +2017,24 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
     st.markdown(
         """
         <div class="vf-step-row">
-          <div class="vf-step vf-step-active">1. Choose preset</div>
-          <div class="vf-step">2. Enter song idea</div>
-          <div class="vf-step">3. Generate package</div>
-          <div class="vf-step">4. Copy to Suno/Udio</div>
+          <div class="vf-step vf-step-active">1. Song Idea</div>
+          <div class="vf-step">2. Generate Candidates</div>
+          <div class="vf-step">3. Select Story / Hook / Title</div>
+          <div class="vf-step">4. Generate Final Release Pack</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     cards = [
-        ("Create Song Package", "ทำเพลงพร้อม Suno/Udio", "Generate Song", "CREATE", "Song Studio Only"),
-        ("Create TikTok Hook", "ทำไอเดียฮุกสั้น", "Hook Clip Studio", "PRODUCTION", "Full Pipeline"),
-        ("Create Podcast Clip", "ทำสคริปต์พอดแคสต์", "Podcast Studio", "PODCAST", "Podcast Studio (Beta)"),
-        ("Create Affiliate Script", "ทำสคริปต์ขายสินค้า", "Affiliate Studio", "PRODUCTION", "Full Pipeline"),
-        ("Open Advanced Tools", "เปิดเครื่องมือทั้งหมด", "Dashboard", "START", "Full Pipeline"),
+        ("Start Music Creation", "ไปที่ Seed Selection workflow", "Generate Song", "CREATE", "Song Studio Only"),
     ]
     card_html = "".join(
         f'<div class="vf-monitor-card"><strong>{label}</strong><span>{help_text}</span></div>'
         for label, help_text, *_ in cards
     )
     st.markdown(f'<div class="vf-monitor-grid">{card_html}</div>', unsafe_allow_html=True)
-    card_cols = st.columns(5)
+    card_cols = st.columns(1)
     for col, (label, help_text, target_page, target_section, target_mode) in zip(card_cols, cards):
         with col:
             if st.button("Open", key=f"creator_dashboard_card_{target_page}", use_container_width=True):
@@ -2049,92 +2045,7 @@ def _render_creator_dashboard(project: dict[str, Any]) -> None:
                     st.session_state.pending_navigation = {"section": target_section, "page": target_page}
                     st.rerun()
                 go_to_page(target_section, target_page)
-
-    st.markdown('<div class="vf-section-title"><h3>Advanced Song Package</h3><span>Quality-first workspace</span></div>', unsafe_allow_html=True)
-    st.caption("ใส่ไอเดียเพลงและทิศทางสร้างสรรค์ เพื่อให้ VelaFlow สร้างเนื้อเพลง hook และ producer prompt ที่มีคุณภาพขึ้น")
-    form_cols = st.columns(2)
-    idea = form_cols[0].text_area("Song idea", value=state.get("idea", ""), height=120, key="creator_dashboard_song_idea", help="เช่น เพลงเศร้าในออฟฟิศ หรือ คนที่ยังลืมแฟนเก่าไม่ได้")
-    mood = form_cols[1].text_input("Mood", value=state.get("mood", "emotional"), key="creator_dashboard_mood", help="อารมณ์เพลง เช่น เศร้า อบอุ่น เหงา มีหวัง")
-    genre = form_cols[0].selectbox(
-        "Genre",
-        list(CREATIVE_PACK_PRESETS),
-        index=list(CREATIVE_PACK_PRESETS).index(state.get("genre", "Vela Moon Emotional Pop Rock")) if state.get("genre") in CREATIVE_PACK_PRESETS else list(CREATIVE_PACK_PRESETS).index("Vela Moon Emotional Pop Rock"),
-        key="creator_dashboard_genre",
-    )
-    vocal_style = form_cols[1].text_input("Vocal style", value=state.get("vocal_style", "Thai male vocal, warm emotional tone"), key="creator_dashboard_vocal_style")
-    language = form_cols[0].selectbox("Language", ["Thai", "English", "Thai + English"], index=["Thai", "English", "Thai + English"].index(state.get("language", "Thai")) if state.get("language") in {"Thai", "English", "Thai + English"} else 0, key="creator_dashboard_language")
-    if st.button("Generate Song Package", type="primary", use_container_width=True, key="creator_dashboard_generate_song_package"):
-        combined_idea = "\n".join(
-            [
-                str(idea or "").strip(),
-                f"Mood: {mood}",
-                f"Vocal style: {vocal_style}",
-                f"Language: {language}",
-            ]
-        ).strip()
-        production_mode = not bool(st.session_state.get("developer_mode"))
-        gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider=_active_ai_provider())
-        if production_mode and not gate.get("ok"):
-            _show_api_quality_stop(gate)
-            return
-        result = generate_creative_release_pack(
-            combined_idea,
-            genre,
-            str(project.get("artist") or DEFAULT_ARTIST),
-            production_mode=production_mode,
-            demo_mode=not production_mode,
-            provider_status=gate,
-        )
-        if not result.get("ok"):
-            _show_api_quality_stop(result.get("provider_status") or gate)
-            return
-        state.update({"idea": idea, "mood": mood, "genre": genre, "vocal_style": vocal_style, "language": language, "result": result})
-        project["creator_dashboard"] = state
-        project.setdefault("song", {})["idea"] = idea
-        project["song"]["title"] = (result.get("pack") or {}).get("Suggested title", "")
-        project["song"]["complete_lyrics"] = (result.get("pack") or {}).get("Full lyrics", "")
-        project["song"]["style_prompt"] = (result.get("pack") or {}).get("AI PRODUCER PROMPT", (result.get("pack") or {}).get("AI Producer Prompt", (result.get("pack") or {}).get("Music style prompt for Suno/Udio", "")))
-        _save_project()
-        st.success("Song package ready")
-        st.rerun()
-
-    result = state.get("result") or {}
-    pack = result.get("pack") or {}
-    if not pack:
-        st.caption("เริ่มจากไอเดียเพลง แล้วกด Generate Song Package")
-        return
-
-    st.markdown('<div class="vf-section-title"><h3>Package Output</h3><span>Copy-ready blocks</span></div>', unsafe_allow_html=True)
-    output_blocks = [
-        ("Song Title Suggestions", pack.get("Suggested title", "")),
-        ("Structured Lyrics", pack.get("Full lyrics", "")),
-        ("Lyrics for Suno", pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))),
-        ("Style for Suno", pack.get("SUNO STYLE OF MUSIC FIELD", "")),
-        ("Producer Notes", pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", ""))),
-        ("SEO Caption", pack.get("Caption", "")),
-        ("YouTube Description", pack.get("YouTube description", "")),
-        ("Hashtags", pack.get("Hashtags", "")),
-        ("Cover Prompt", pack.get("Cover prompt", "")),
-        ("Release Checklist", "1. Copy lyrics into Suno/Udio\n2. Use the producer prompt as style guidance\n3. Generate 2-3 takes\n4. Pick the strongest hook\n5. Use cover prompt and captions for release"),
-    ]
-    for idx, (label, value) in enumerate(output_blocks):
-        st.markdown(f'<div class="vf-output-card"><h4>{label}</h4><p>พร้อม copy หรือแก้ไขก่อนนำไปใช้</p></div>', unsafe_allow_html=True)
-        st.text_area(label, value=value, height=160 if len(str(value)) > 240 else 90, key=f"creator_dashboard_output_{idx}")
-        _copy_to_clipboard_button(
-            f"Copy {label}",
-            str(st.session_state.get(f"creator_dashboard_output_{idx}", value) or ""),
-            key=f"creator_dashboard_copy_{idx}",
-        )
-
-    txt_payload = creative_release_pack_to_text(result)
-    st.download_button(
-        "Download Full Package TXT",
-        data=txt_payload.encode("utf-8-sig"),
-        file_name="velaflow_song_package.txt",
-        mime="text/plain",
-        use_container_width=True,
-        key="creator_dashboard_download_txt",
-    )
+    st.caption("Normal mode now uses one music path only. Advanced tools stay available in Developer Mode.")
 
 
 def _render_quick_song(project: dict[str, Any]) -> None:
@@ -2263,11 +2174,18 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         mood = ac2.selectbox("Mood", mood_options, index=mood_options.index(state.get("mood", "Bittersweet")) if state.get("mood") in mood_options else 1, key="creative_pack_mood")
         story_type = ac3.selectbox("Story Type", story_type_options, index=story_type_options.index(state.get("story_type", "Office Burnout")) if state.get("story_type") in story_type_options else 0, key="creative_pack_story_type")
         ai_recommendation = get_release_ai_control_recommendation(preset)
-        hc1, hc2, hc3 = st.columns(3)
+        hc1, hc2 = st.columns([1, 2])
         hook_style = hc1.selectbox("Hook Style", hook_style_options, index=hook_style_options.index(state.get("hook_style", "Question")) if state.get("hook_style") in hook_style_options else 0, key="creative_pack_hook_style")
-        hc2.metric("Recommended Weirdness", f"{ai_recommendation['weirdness']}%", help="Auto by preset")
-        hc3.metric("Recommended Style Influence", f"{ai_recommendation['style_influence']}%", help="Auto by preset")
-        st.caption("Recommended AI Controls: Auto by preset. VelaFlow chooses safe values for commercial song quality.")
+        hc2.markdown(
+            f"""
+            <div class="vf-output-card">
+              <h4>AI Quality Mode: Auto Optimized</h4>
+              <p>VelaFlow chooses safe producer controls for this preset.</p>
+              <small>Weirdness {ai_recommendation['weirdness']}% · Style Influence {ai_recommendation['style_influence']}%</small>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         if st.button("Reset to Recommended", use_container_width=True, key="creative_pack_reset_ai_controls"):
             st.session_state["creative_pack_manual_ai_controls"] = False
             st.session_state["creative_pack_weirdness"] = int(ai_recommendation["weirdness"])
@@ -2305,16 +2223,16 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     selected_seed: dict[str, Any] | None = None
     generate_pack = False
     with st.container(border=True):
-        st.markdown('<div class="vf-section-title"><h3>Song Seed Selection</h3><span>story · hook · title</span></div>', unsafe_allow_html=True)
-        st.caption("Step 1: Generate Song. Step 2: choose the strongest Story, Hook, and Title. Step 3: Generate Final Song.")
+        st.markdown('<div class="vf-section-title"><h3>Seed Selection</h3><span>story · hook · title</span></div>', unsafe_allow_html=True)
+        st.caption("Song Idea → Generate Candidates → Select Story/Hook/Title → Generate Final Release Pack")
         if not has_seed_candidates:
-            if st.button("Generate Song", type="primary", use_container_width=True, key="creative_pack_generate_song", disabled=not bool(str(idea or "").strip())):
+            if st.button("Generate Candidates", type="primary", use_container_width=True, key="creative_pack_generate_song", disabled=not bool(str(idea or "").strip())):
                 state["seed_candidates"] = generate_music_seed_candidates_v2(str(idea or ""), preset, mood, story_type)
                 state["seed_source"] = {"idea": str(idea or ""), "preset": preset, "mood": mood, "story_type": story_type}
                 project["creative_pack_v1"] = state
                 _save_project()
                 st.rerun()
-            st.caption("Generate Song creates Story Candidates, Hook Candidates, and Title Candidates first.")
+            st.caption("Generate Candidates creates Story, Hook, and Title options before final lyrics.")
         if stories and hooks and titles:
             if producer_brief:
                 with st.container(border=True):
@@ -2328,34 +2246,47 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             story_options = [f"{idx + 1}. {item.get('label')}" for idx, item in enumerate(stories)]
             hook_options = [f"{idx + 1}. {item.get('type')}" for idx, item in enumerate(hooks)]
             title_options = [f"{idx + 1}. {item.get('title')}" for idx, item in enumerate(titles)]
-            story_index = story_options.index(st.radio("Story Candidates", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
-            for idx, item in enumerate(stories):
-                with st.container(border=True):
+            s_col, h_col, t_col = st.columns(3)
+            story_index = story_options.index(s_col.radio("Story Candidates", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
+            hook_index = hook_options.index(h_col.radio("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
+            title_index = title_options.index(t_col.radio("Title Candidates", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
+            selected_story = stories[story_index]
+            selected_hook = hooks[hook_index]
+            selected_title = titles[title_index]
+            st.markdown(
+                f"""
+                <div class="vf-output-card">
+                  <h4>Selected Seed</h4>
+                  <p><strong>Story:</strong> {selected_story.get('label', '')}</p>
+                  <p><strong>Hook:</strong><br>{str(selected_hook.get('hook', '')).replace(chr(10), '<br>')}</p>
+                  <p><strong>Title:</strong> {selected_title.get('title', '')}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.expander("View all candidate details", expanded=False):
+                for idx, item in enumerate(stories):
                     st.markdown(("**Selected Story**  " if idx == story_index else "**Story Candidate**  ") + str(item.get("label", "")))
                     st.caption(str(item.get("story_angle", "")))
                     st.write(f"Objects: {', '.join(item.get('objects', []) or [])}")
                     st.write(f"Scenes: {', '.join(item.get('scenes', []) or [])}")
                     st.write(f"Experiences: {', '.join(item.get('human_experiences', []) or [])}")
-            hook_index = hook_options.index(st.radio("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
-            for idx, item in enumerate(hooks):
-                with st.container(border=True):
+                for idx, item in enumerate(hooks):
                     st.markdown(("**Selected Hook**" if idx == hook_index else "**Hook Candidate**") + f" — {item.get('type', '')}")
                     st.text(str(item.get("hook", "")))
-            title_index = title_options.index(st.radio("Title Candidates", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
-            for idx, item in enumerate(titles):
-                with st.container(border=True):
+                for idx, item in enumerate(titles):
                     st.markdown(("**Selected Title**  " if idx == title_index else "**Title Candidate**  ") + str(item.get("title", "")))
                     st.caption(str(item.get("type", "")))
             selected_seed = {
-                "story": stories[story_index],
-                "hook": hooks[hook_index].get("hook", ""),
-                "title": titles[title_index].get("title", ""),
+                "story": selected_story,
+                "hook": selected_hook.get("hook", ""),
+                "title": selected_title.get("title", ""),
                 "producer_brief": producer_brief,
             }
             state["story_seed_index"] = story_index
             state["hook_seed_index"] = hook_index
             state["title_seed_index"] = title_index
-            generate_pack = st.button("Generate Final Song", type="primary", use_container_width=True, disabled=not bool(str(idea or "").strip()), key="creative_pack_generate_final_song")
+            generate_pack = st.button("Generate Final Release Pack", type="primary", use_container_width=True, disabled=not bool(str(idea or "").strip()), key="creative_pack_generate_final_song")
     if generate_pack:
         production_mode = not bool(st.session_state.get("developer_mode"))
         gate = _production_api_gate() if production_mode else build_api_quality_gate(demo_mode=True, provider=_active_ai_provider())
@@ -2423,10 +2354,10 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     pack = result.get("pack") or {}
     export_data = state.get("export") or {}
     if not pack:
-        st.caption("Ready when you are: choose a preset, enter a song idea, then click Generate Song.")
+        st.caption("Ready when you are: enter a song idea, then click Generate Candidates.")
         return
 
-    st.markdown('<div class="vf-section-title"><h3>Title + Hook Preview</h3><span>final seed</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="vf-section-title"><h3>Final Release Pack</h3><span>selected seed output</span></div>', unsafe_allow_html=True)
     song_cols = st.columns(3)
     song_cols[0].metric("Suggested Title", pack.get("Suggested title", "-"))
     song_cols[1].metric("Preset", result.get("preset", "-"))
@@ -2434,7 +2365,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     st.text_area("Song concept", value=pack.get("Song concept", ""), height=110, key="creative_pack_song_concept")
     st.text_area("Hook", value=pack.get("Hook", ""), height=120, key="creative_pack_hook")
     st.markdown('<div class="vf-section-title"><h3>Suno Package</h3><span>copy-ready</span></div>', unsafe_allow_html=True)
-    st.caption("Copy A into Suno Lyrics. Copy B into Suno Style of Music.")
+    st.caption("A goes to Suno Lyrics. B goes to Suno Style of Music.")
     lyrics_for_suno = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
     st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>เฉพาะ section tags + เนื้อเพลง ไม่มี producer notes ปน</p></div>', unsafe_allow_html=True)
     st.text_area("A. Lyrics", value=lyrics_for_suno, height=300, key="creative_pack_full_lyrics")
@@ -2443,7 +2374,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     st.markdown('<div class="vf-output-card"><h4>B. Music Style Prompt</h4><p>Prompt สั้นสำหรับช่อง Style of Music ใน Suno</p></div>', unsafe_allow_html=True)
     st.text_area("B. Music Style Prompt", value=style_for_suno, height=140, key="creative_pack_suno_style_field")
     _copy_to_clipboard_button("Copy Style for Suno", str(st.session_state.get("creative_pack_suno_style_field", style_for_suno) or ""), key="creative_pack_copy_suno_style")
-    with st.expander("Advanced Assets (optional)", expanded=False):
+    with st.expander("Release Extras", expanded=False):
         producer_notes = pack.get("PRODUCER NOTES", pack.get("AI PRODUCER PROMPT", pack.get("Music style prompt for Suno/Udio", "")))
         st.text_area("Producer Notes", value=producer_notes, height=220, key="creative_pack_music_style")
         _copy_to_clipboard_button("Copy Producer Notes", str(st.session_state.get("creative_pack_music_style", producer_notes) or ""), key="creative_pack_copy_producer_notes")
