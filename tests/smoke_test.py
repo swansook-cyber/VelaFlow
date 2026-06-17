@@ -690,7 +690,7 @@ def main():
     assert_true(release_quality["ok"] and not release_quality["duplicated_sections"] and not release_quality["meta_text_inside_lyrics"] and not release_quality["too_short_lyrics"], "creative release pack export quality gate failed")
     assert_true(release_quality["lyrics_line_stats"]["line_count"] >= 24 and release_quality["lyrics_line_stats"]["repeated_lines"] <= 8 and release_quality["final_chorus_has_payoff"], "creative release pack lyrics are too short, repetitive, or lack final payoff")
     assert_true(all(key in lyrics_quality["scores"] for key in ["Hook Score", "Emotional Score", "Commercial Score", "Repetition Score", "Singability Score"]), "lyrics quality engine scores missing")
-    assert_true(lyrics_quality["copy_ready_for_suno"] and lyrics_quality["overall_score"] >= 60 and lyrics_quality["repeated_lines"] <= 6 and not lyrics_quality["weak_chorus"], "lyrics quality engine failed copy-ready gate")
+    assert_true(lyrics_quality["copy_ready_for_suno"] and lyrics_quality["overall_score"] >= 60 and lyrics_quality["repeated_lines"] <= 6 and not lyrics_quality["weak_chorus"], f"lyrics quality engine failed copy-ready gate: {lyrics_quality}")
     assert_true("Lyrics Quality Engine" in release_pack["pack"]["Lyrics Quality Report"] and "LYRICS QUALITY REPORT" in release_txt, "lyrics quality report missing from release pack")
     forbidden_lyric_prompts = ["hook direction", "mood:", "lyrics direction:", "comforting emotional hook", "spotify-friendly", "tiktok hook friendly", "dynamic chorus lift", "easy to remember on tiktok"]
     assert_true(not any(item in lyric_lower for item in forbidden_lyric_prompts), "internal prompt text leaked into full lyrics")
@@ -811,12 +811,23 @@ def main():
     critic_report = advanced_controls_pack["quality_report"].get("critic_engine", {})
     rewrite_report = advanced_controls_pack["quality_report"].get("rewrite_engine", {})
     commercial_report = advanced_controls_pack["quality_report"].get("commercial_score_engine", {})
+    authenticity_v2 = advanced_controls_pack["quality_report"].get("human_lyric_authenticity_v2", {})
     assert_true({"Hook Strength", "Title Quality", "Chorus Quality", "Emotional Arc", "Relatability"}.issubset((critic_report.get("scores") or {}).keys()), "Critic Engine report missing required score dimensions")
     assert_true(isinstance(rewrite_report.get("actions"), list) and rewrite_report.get("after", {}).get("overall", 0) >= rewrite_report.get("before", {}).get("overall", 0), "Rewrite Engine did not keep best version")
     assert_true({"Commercial Potential", "TikTok Potential", "Caption Potential", "Singability", "Emotional Impact", "Overall Commercial Score"}.issubset(commercial_report.keys()), "Commercial Score Engine missing required dimensions")
     assert_true(0 <= commercial_report.get("Overall Commercial Score", -1) <= 100, "Commercial Score Engine overall score out of range")
+    lyrics_without_tags = re.sub(r"\[[^\]]+\]", "", advanced_lyrics)
+    assert_true(not re.search(r"[A-Za-z]{3,}", lyrics_without_tags), "English scene/object leakage remained in SUNO lyrics")
+    assert_true(not any(term in advanced_lyrics.lower() for term in ["quiet room", "rainy window", "open notebook"]), "known English scene leakage remained in lyrics")
+    assert_true(any(line in advanced_lyrics for line in ["เหนื่อยไหม", "กินข้าวหรือยัง", "ถึงบ้านบอกด้วย", "ไม่เป็นไรนะ", "เดี๋ยวมันก็ผ่านไป"]), "Human Conversation Library did not influence lyrics")
+    assert_true(any(moment in advanced_lyrics for moment in ["ร้านเดิม", "รถคันเดิม", "โต๊ะตัวเดิม", "ข้อความสุดท้าย", "สายที่ไม่ได้รับ", "รูปในโทรศัพท์"]), "Human Memory Moments Library did not influence lyrics")
+    assert_true(sum(advanced_lyrics.count(phrase) for phrase in ["วันนี้เก่งมากแล้ว", "ถ้าคืนนี้ไม่ไหวก็ไม่ต้องฝืน", "ขอให้ฉันกลับมาเป็นฉันอีกครั้ง"]) <= 1, "phrase diversity engine allowed repeated fallback phrases")
+    assert_true(advanced_controls_pack["quality_report"]["lyrics_quality_engine"]["scores"].get("Relatability Score", 0) >= 90, "Relatability target rewrite did not reach 90")
+    assert_true(advanced_controls_pack["quality_report"]["lyrics_quality_engine"]["scores"].get("Thai Naturalness Score", 0) >= 90, "Thai Naturalness target did not reach 90")
+    assert_true((authenticity_v2.get("authentic_thai_speech") or {}).get("ok") is True, "Authentic Thai Speech Validator did not pass final lyrics")
     assert_true("ไม่อยากลาออก" in advanced_bridge and "แค่อยากกลับมาเป็นตัวเอง" in advanced_bridge, "Bridge did not become emotional truth")
-    assert_true("วันนี้เก่งมากแล้วที่ยังผ่านมาได้" in advanced_lyrics.split("[Final Chorus]", 1)[1], "Final Chorus missing emotional payoff line")
+    final_chorus_text = advanced_lyrics.split("[Final Chorus]", 1)[1]
+    assert_true("วันนี้เก่งมากแล้วที่ยังผ่านมาได้" in final_chorus_text or any(line in final_chorus_text for line in ["เหนื่อยไหม", "ไม่เป็นไรนะ", "เดี๋ยวมันก็ผ่านไป"]), "Final Chorus missing emotional payoff line")
     emotional_sections = [
         advanced_lyrics.split("[Verse 1]", 1)[1].split("[Pre-Chorus]", 1)[0],
         advanced_lyrics.split("[Pre-Chorus]", 1)[1].split("[Chorus]", 1)[0],

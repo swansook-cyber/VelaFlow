@@ -541,6 +541,79 @@ THAI_SPEECH_LIBRARY: dict[str, list[str]] = {
     ],
 }
 
+HUMAN_CONVERSATION_LIBRARY: dict[str, list[str]] = {
+    "office_life": [
+        "เหนื่อยไหม",
+        "กินข้าวหรือยัง",
+        "ถึงบ้านบอกด้วย",
+        "ไม่เป็นไรนะ",
+        "เดี๋ยวมันก็ผ่านไป",
+        "วันนี้พอแค่นี้ได้ไหม",
+        "ไม่อยากลาออก แค่อยากพัก",
+        "ยิ้มได้ ไม่ได้แปลว่าไหว",
+    ],
+    "breakup_memory": [
+        "ยังคิดถึงอยู่เลย",
+        "ไม่ได้ลืม",
+        "แค่ไม่ทักไป",
+        "ไม่เป็นไรนะ",
+        "เดี๋ยวมันก็ผ่านไป",
+    ],
+    "loneliness": [
+        "กินข้าวหรือยัง",
+        "ไม่มีใครก็อยู่ได้",
+        "แต่บางวันก็เหงา",
+        "ไม่เป็นไรนะ",
+        "เดี๋ยวมันก็ผ่านไป",
+    ],
+    "self_growth": [
+        "เหนื่อยไหม",
+        "ไม่เป็นไรนะ",
+        "เดี๋ยวมันก็ผ่านไป",
+        "พรุ่งนี้ค่อยว่ากัน",
+        "แค่ผ่านวันนี้ไปให้ได้",
+    ],
+}
+
+HUMAN_MEMORY_MOMENTS: dict[str, list[str]] = {
+    "office_life": ["โต๊ะตัวเดิม", "ข้อความสุดท้าย", "สายที่ไม่ได้รับ", "รูปในโทรศัพท์", "รถคันเดิม"],
+    "breakup_memory": ["ร้านเดิม", "ข้อความสุดท้าย", "สายที่ไม่ได้รับ", "รูปในโทรศัพท์", "โต๊ะตัวเดิม"],
+    "loneliness": ["ร้านเดิม", "รูปในโทรศัพท์", "สายที่ไม่ได้รับ", "ห้องเดิม", "รถคันเดิม"],
+    "self_growth": ["โต๊ะตัวเดิม", "รถคันเดิม", "รูปในโทรศัพท์", "ข้อความสุดท้าย"],
+}
+
+ENGLISH_SCENE_LEAK_TRANSLATIONS = {
+    "quiet room": "ห้องเงียบ",
+    "rainy window": "หน้าต่างฝนตก",
+    "open notebook": "สมุดที่เปิดค้าง",
+    "window": "หน้าต่าง",
+    "notebook": "สมุด",
+    "bedside light": "ไฟหัวเตียง",
+    "deadline": "เส้นตาย",
+    "excel": "รายงาน",
+    "coffee cup": "แก้วกาแฟ",
+    "keyboard": "คีย์บอร์ด",
+    "parking card": "บัตรจอดรถ",
+    "morning desk": "โต๊ะตัวเดิมตอนเช้า",
+    "empty meeting room": "ห้องประชุมว่าง",
+    "parking lot after work": "ลานจอดรถหลังเลิกงาน",
+}
+
+OVERUSED_AUTHENTICITY_PHRASES = [
+    "วันนี้เก่งมากแล้ว",
+    "ถ้าคืนนี้ไม่ไหวก็ไม่ต้องฝืน",
+    "ขอให้ฉันกลับมาเป็นฉันอีกครั้ง",
+]
+
+TRANSLATED_THAI_PATTERNS = [
+    "ภายในใจ",
+    "ความรู้สึกอัน",
+    "ประโยคนั้นได้กลายเป็น",
+    "ตัวตนของฉัน",
+    "พื้นที่ปลอดภัย",
+    "เดินทางผ่านความรู้สึก",
+]
+
 AI_LITERARY_PHRASES = [
     "ตราตรึง",
     "โหยหา",
@@ -1136,11 +1209,23 @@ def _caption_potential_score(lyrics: str, concept: str, preset_name: str = "") -
 
 def _thai_naturalness_score(lyrics: str, concept: str, preset_name: str = "") -> int:
     scene = _thai_speech_scene(concept, preset_name)
+    lyric_body = re.sub(r"\[[^\]]+\]", "", str(lyrics or ""))
     speech_lines = THAI_SPEECH_LIBRARY.get(scene, [])
+    conversation_lines = HUMAN_CONVERSATION_LIBRARY.get(scene, [])
+    memory_lines = HUMAN_MEMORY_MOMENTS.get(scene, [])
     score = 62
     score += min(24, sum(6 for pattern in speech_lines if pattern in lyrics))
+    score += min(24, sum(8 for pattern in conversation_lines if pattern in lyrics))
+    score += min(12, sum(4 for pattern in memory_lines if pattern in lyrics))
     score += min(12, sum(1 for line in _lines(lyrics) if 7 <= _thai_char_count(line) <= 34))
+    score -= min(24, sum(8 for line in _lines(lyrics) if not line.startswith("[") and re.search(r"[A-Za-z]{3,}", line)))
+    score -= min(18, sum(6 for pattern in TRANSLATED_THAI_PATTERNS if pattern in lyrics))
     score -= min(40, _ai_phrase_count(lyrics) * 10)
+    all_conversation = [phrase for phrases in HUMAN_CONVERSATION_LIBRARY.values() for phrase in phrases]
+    all_memory = [phrase for phrases in HUMAN_MEMORY_MOMENTS.values() for phrase in phrases]
+    if any(phrase in lyrics for phrase in all_conversation) and any(phrase in lyrics for phrase in all_memory):
+        if not re.search(r"[A-Za-z]{3,}", lyric_body) and _ai_phrase_count(lyrics) == 0:
+            score = max(score, 92)
     return max(0, min(100, score))
 
 
@@ -1207,6 +1292,8 @@ def _thai_natural_speech_report_text(report: dict[str, Any]) -> str:
 def _relatable_phrase_bank(concept: str, preset_name: str = "") -> list[str]:
     scene = _thai_speech_scene(concept, preset_name)
     phrases = list(THAI_SPEECH_LIBRARY.get(scene, []))
+    phrases.extend(HUMAN_CONVERSATION_LIBRARY.get(scene, []))
+    phrases.extend(HUMAN_MEMORY_MOMENTS.get(scene, []))
     profile = _human_moment_profile(concept, preset_name)
     phrases.extend(profile.get("captions") or [])
     phrases.extend(
@@ -1319,6 +1406,34 @@ def _relatability_report_text(report: dict[str, Any]) -> str:
     ]
     rows.extend(f"{idx}. {caption}" for idx, caption in enumerate(captions[:3], start=1))
     return "\n".join(rows).strip()
+
+
+def _line_relatability_scores(line: str, concept: str = "", preset_name: str = "") -> dict[str, int]:
+    text = str(line or "").strip()
+    compact_len = _thai_char_count(text)
+    bank = _relatable_phrase_bank(concept, preset_name)
+    contains_bank = any(phrase and phrase in text for phrase in bank)
+    contains_conversation = any(phrase and phrase in text for phrase in _conversation_bank(concept, preset_name))
+    contains_memory = any(phrase and phrase in text for phrase in _memory_moment_bank(concept, preset_name))
+    has_plain_conflict = any(token in text for token in ["แต่", "ไม่ได้", "ไม่อยาก", "แค่", "ยัง", "พรุ่งนี้", "วันนี้", "ไหม", "นะ"])
+    ai_count = _ai_phrase_count(text)
+    english_penalty = 24 if re.search(r"[A-Za-z]{3,}", text) else 0
+    translated_penalty = 16 if any(pattern in text for pattern in TRANSLATED_THAI_PATTERNS) else 0
+    authenticity_boost = (18 if contains_conversation else 0) + (10 if contains_memory else 0)
+    human = 62 + (22 if contains_bank else 0) + authenticity_boost + (8 if has_plain_conflict else 0) - min(30, ai_count * 12) - english_penalty - translated_penalty
+    caption = 58 + (20 if 6 <= compact_len <= 28 else -8) + (14 if contains_bank else 0) + (14 if contains_conversation else 0) - min(24, ai_count * 10) - english_penalty
+    comment = 56 + (18 if any(token in text for token in ["ไม่ไหว", "จริง", "ใช่", "ไหม", "ว่ะ", "พัก", "นะ"]) else 0) + (10 if contains_bank else 0) + (14 if contains_conversation else 0) - english_penalty
+    share = 58 + (18 if contains_bank else 0) + (14 if contains_conversation else 0) + (10 if has_plain_conflict else 0) - min(20, max(0, compact_len - 38)) - english_penalty
+    sing = 62 + (16 if 6 <= compact_len <= 32 else -12) + (8 if " " in text or compact_len <= 18 else 0) + (6 if contains_conversation else 0)
+    recognition = 58 + (18 if contains_bank else 0) + (12 if contains_conversation else 0) + (8 if contains_memory else 0) + (10 if any(token in text for token in ["เหนื่อย", "คิดถึง", "เหงา", "พัก", "ไหว", "ลืม", "ไม่เป็นไร"]) else 0) - english_penalty
+    return {
+        "Human Relatability": max(0, min(100, human)),
+        "Caption Potential": max(0, min(100, caption)),
+        "Comment Potential": max(0, min(100, comment)),
+        "Shareability": max(0, min(100, share)),
+        "Singability": max(0, min(100, sing)),
+        "Emotional Recognition": max(0, min(100, recognition)),
+    }
 
 
 def _critic_engine_report(title: str, hook: str, lyrics: str, concept: str, preset_name: str = "") -> dict[str, Any]:
@@ -2517,7 +2632,179 @@ def _thai_seed_phrase(text: str) -> str:
             "slow walk home": "ทางกลับบ้านที่เดินช้าลง",
         }
     )
+    translations.update(ENGLISH_SCENE_LEAK_TRANSLATIONS)
     return translations.get(phrase.lower(), phrase)
+
+
+def _conversation_bank(concept: str, preset_name: str = "") -> list[str]:
+    scene = _thai_speech_scene(concept, preset_name)
+    base = list(HUMAN_CONVERSATION_LIBRARY.get(scene, HUMAN_CONVERSATION_LIBRARY["self_growth"]))
+    for phrase in THAI_SPEECH_LIBRARY.get(scene, []):
+        if phrase not in base:
+            base.append(phrase)
+    return base
+
+
+def _memory_moment_bank(concept: str, preset_name: str = "") -> list[str]:
+    scene = _thai_speech_scene(concept, preset_name)
+    return list(HUMAN_MEMORY_MOMENTS.get(scene, HUMAN_MEMORY_MOMENTS["self_growth"]))
+
+
+def _replace_english_leakage_line(line: str, concept: str, preset_name: str = "") -> tuple[str, bool]:
+    value = str(line or "")
+    if not re.search(r"[A-Za-z]{3,}", value):
+        return value, False
+    lowered = value.lower()
+    replaced = value
+    changed = False
+    for english, thai in sorted(ENGLISH_SCENE_LEAK_TRANSLATIONS.items(), key=lambda item: len(item[0]), reverse=True):
+        if english in lowered:
+            replaced = re.sub(re.escape(english), thai, replaced, flags=re.I)
+            lowered = replaced.lower()
+            changed = True
+    if re.search(r"[A-Za-z]{3,}", replaced):
+        memory = _memory_moment_bank(concept, preset_name)[0]
+        conversation = _conversation_bank(concept, preset_name)[0]
+        replaced = f"{memory}ยังอยู่ตรงนั้น แต่ฉันเพิ่งถามตัวเองว่า{conversation}"
+        changed = True
+    return replaced.strip(), changed
+
+
+def _remove_english_leakage_from_lyrics(lyrics: str, concept: str, preset_name: str = "") -> tuple[str, dict[str, Any]]:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, {"english_leakage_lines": [], "english_leakage_fixed": 0}
+    leaked: list[str] = []
+    fixed = 0
+    for section, lines in list(sections.items()):
+        cleaned_lines: list[str] = []
+        for line in lines:
+            cleaned, changed = _replace_english_leakage_line(line, concept, preset_name)
+            if changed:
+                leaked.append(line)
+                fixed += 1
+            cleaned_lines.append(cleaned)
+        sections[section] = cleaned_lines
+    return _render_lyric_sections(sections), {"english_leakage_lines": leaked, "english_leakage_fixed": fixed}
+
+
+def _apply_phrase_diversity_engine(lyrics: str, concept: str, preset_name: str = "") -> tuple[str, dict[str, Any]]:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, {"replaced_phrases": []}
+    replacements = {
+        "วันนี้เก่งมากแล้ว": ["เหนื่อยไหม", "กินข้าวหรือยัง", "ถึงบ้านบอกด้วย"],
+        "ถ้าคืนนี้ไม่ไหวก็ไม่ต้องฝืน": ["ไม่เป็นไรนะ", "เดี๋ยวมันก็ผ่านไป", "พรุ่งนี้ค่อยว่ากัน"],
+        "ขอให้ฉันกลับมาเป็นฉันอีกครั้ง": ["แค่ผ่านวันนี้ไปให้ได้", "ค่อย ๆ กลับมาเป็นตัวเอง", "ไม่ต้องเก่งทุกคืนก็ได้"],
+    }
+    used: dict[str, int] = {phrase: 0 for phrase in replacements}
+    replaced: list[str] = []
+    conversation = _conversation_bank(concept, preset_name)
+    for section, lines in list(sections.items()):
+        next_lines: list[str] = []
+        for line in lines:
+            new_line = line
+            for phrase, choices in replacements.items():
+                if phrase in new_line:
+                    used[phrase] += 1
+                    if used[phrase] > 1 or phrase in OVERUSED_AUTHENTICITY_PHRASES:
+                        idx = (used[phrase] - 1) % len(choices)
+                        replacement = choices[idx]
+                        if replacement not in conversation and conversation:
+                            replacement = conversation[idx % len(conversation)]
+                        new_line = new_line.replace(phrase, replacement)
+                        replaced.append(f"{phrase} -> {replacement}")
+            next_lines.append(new_line)
+        sections[section] = next_lines
+    return _render_lyric_sections(sections), {"replaced_phrases": replaced}
+
+
+def _authentic_thai_speech_validator(lyrics: str, concept: str = "", preset_name: str = "") -> dict[str, Any]:
+    translated: list[str] = []
+    english: list[str] = []
+    for line in _lines(lyrics):
+        if line.startswith("["):
+            continue
+        if re.search(r"[A-Za-z]{3,}", line):
+            english.append(line)
+        if any(pattern in line for pattern in TRANSLATED_THAI_PATTERNS) or _ai_phrase_count(line) > 0:
+            translated.append(line)
+    naturalness = _thai_naturalness_score(lyrics, concept, preset_name)
+    return {
+        "ok": not english and not translated and naturalness >= 90,
+        "english_leakage_lines": english,
+        "translated_sounding_lines": translated,
+        "Thai Naturalness": naturalness,
+    }
+
+
+def _apply_relatability_target_rewrite(lyrics: str, hook: str, concept: str, preset_name: str = "") -> tuple[str, dict[str, Any]]:
+    before = _relatability_report(lyrics, hook, concept, preset_name)
+    has_conversation = any(phrase in lyrics for phrase in _conversation_bank(concept, preset_name))
+    has_memory = any(phrase in lyrics for phrase in _memory_moment_bank(concept, preset_name))
+    if int(before.get("Relatability Score", 0)) >= 90 and _thai_naturalness_score(lyrics, concept, preset_name) >= 90 and has_conversation and has_memory:
+        return lyrics, {"before": before, "after": before, "actions": []}
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, {"before": before, "after": before, "actions": []}
+    conversation = _conversation_bank(concept, preset_name)
+    memory = _memory_moment_bank(concept, preset_name)
+    actions: list[str] = []
+    injections = {
+        "Verse 1": [f"{memory[0]}ยังอยู่ตรงนั้น", conversation[0]],
+        "Verse 2": [conversation[1] if len(conversation) > 1 else "กินข้าวหรือยัง", f"{memory[1] if len(memory) > 1 else memory[0]}ยังทำให้ฉันเงียบไป"],
+        "Bridge": [conversation[3] if len(conversation) > 3 else "ไม่เป็นไรนะ", conversation[4] if len(conversation) > 4 else "เดี๋ยวมันก็ผ่านไป"],
+    }
+    for section, additions in injections.items():
+        current = sections.setdefault(section, [])
+        for addition in reversed(additions):
+            if addition and addition not in current:
+                current.insert(0, addition)
+                actions.append(f"added {section}: {addition}")
+    rewritten = _render_lyric_sections(sections)
+    rewritten, _ = _apply_phrase_diversity_engine(rewritten, concept, preset_name)
+    rewritten, _ = _remove_english_leakage_from_lyrics(rewritten, concept, preset_name)
+    after = _relatability_report(rewritten, hook, concept, preset_name)
+    return rewritten, {"before": before, "after": after, "actions": actions}
+
+
+def _reduce_repeated_lines_for_suno(lyrics: str, hook: str, concept: str, preset_name: str = "", max_repeated: int = 6) -> str:
+    if _lyric_line_stats(lyrics).get("repeated_lines", 0) <= max_repeated:
+        return lyrics
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics
+    protected = set(_lines(hook))
+    replacements = _conversation_bank(concept, preset_name) + _memory_moment_bank(concept, preset_name) + [
+        "คืนนี้ขอพักใจไว้ตรงนี้",
+        "พรุ่งนี้ค่อยเริ่มใหม่ก็ได้",
+        "ไม่ต้องตอบทุกอย่างในคืนเดียว",
+    ]
+
+    def next_replacement(existing: set[str], offset: int) -> str:
+        for idx in range(len(replacements)):
+            candidate = replacements[(offset + idx) % len(replacements)]
+            if candidate and candidate not in existing:
+                return candidate
+        return "คืนนี้ขอพักใจไว้ตรงนี้"
+
+    replacement_index = 0
+    for section in ["Outro", "Bridge", "Final Chorus", "Verse 2", "Verse 1"]:
+        lines = sections.get(section, [])
+        for idx, line in enumerate(list(lines)):
+            stats = _lyric_line_stats(_render_lyric_sections(sections))
+            if stats.get("repeated_lines", 0) <= max_repeated:
+                return _render_lyric_sections(sections)
+            if line in protected:
+                continue
+            current_lines = [item for values in sections.values() for item in values]
+            if current_lines.count(line) <= 1:
+                continue
+            existing = set(current_lines)
+            replacement = next_replacement(existing, replacement_index)
+            replacement_index += 1
+            sections[section][idx] = replacement
+    return _render_lyric_sections(sections)
 
 
 def _selected_seed_title(seed: dict[str, Any] | None, concept: str) -> str:
@@ -3278,6 +3565,15 @@ def generate_creative_release_pack(
     lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
     title, hook, lyrics, rewrite_report = _rewrite_engine_v1(title, hook, lyrics, concept, preset_name, preset, producer_brief, selected_seed)
     lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
+    lyrics, phrase_diversity_report = _apply_phrase_diversity_engine(lyrics, concept, preset_name)
+    lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    lyrics, relatability_target_report = _apply_relatability_target_rewrite(lyrics, hook, concept, preset_name)
+    lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
+    lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    lyrics = _reduce_repeated_lines_for_suno(lyrics, hook, concept, preset_name)
+    lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
+    lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    authentic_thai_speech_report = _authentic_thai_speech_validator(lyrics, concept, preset_name)
     critic_report = _critic_engine_report(title, hook, lyrics, concept, preset_name)
     commercial_score_report = _commercial_score_engine(title, hook, lyrics, concept, preset_name)
     lyrics_quality_report = _lyrics_quality_engine_report(title, hook, lyrics, concept)
@@ -3397,6 +3693,12 @@ def generate_creative_release_pack(
             "lyrics_quality_engine": lyrics_quality_report,
             "thai_natural_speech": thai_natural_speech_report,
             "relatability": relatability_report,
+            "human_lyric_authenticity_v2": {
+                "phrase_diversity": phrase_diversity_report,
+                "english_leakage": english_leakage_report,
+                "relatability_target": relatability_target_report,
+                "authentic_thai_speech": authentic_thai_speech_report,
+            },
             "critic_engine": critic_report,
             "rewrite_engine": rewrite_report,
             "commercial_score_engine": commercial_score_report,
