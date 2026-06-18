@@ -111,8 +111,204 @@ RELEASE_PACK_FILES = {
     "emotional_arc_report.txt": "Emotional Arc Report",
     "thai_natural_speech_report.txt": "Thai Natural Speech Report",
     "relatability_report.txt": "Relatability Report",
+    "diversity_report.txt": "Diversity Report",
     "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
+
+
+DIVERSITY_MEMORY_PATH = Path("data/diversity_memory.json")
+DIVERSITY_MEMORY_LIMIT = 20
+DIVERSITY_COOLDOWN_PHRASES = [
+    "พักใจก่อน",
+    "ใจยังไม่เลิกงาน",
+    "คืนนี้ขอพัก",
+    "นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย",
+    "เหนื่อยไหม",
+    "ไม่เป็นไรนะ",
+    "พรุ่งนี้ค่อยว่ากัน",
+    "ถึงบ้านบอกด้วย",
+    "มีบางอย่างในใจที่ยังไม่กล้าตอบ",
+]
+DIVERSITY_UNDERUSED_STORY_TYPES = {
+    "Friendship",
+    "Family",
+    "Parents",
+    "Dreams",
+    "Life Lessons",
+    "Childhood",
+    "Rural Life",
+    "Self Discovery",
+    "Second Chances",
+}
+
+
+def _default_diversity_memory() -> dict[str, list[str]]:
+    return {
+        "recent_titles": [],
+        "recent_hooks": [],
+        "recent_opening_lines": [],
+        "recent_story_types": [],
+        "recent_phrases": [],
+    }
+
+
+def load_diversity_memory(path: str | Path = DIVERSITY_MEMORY_PATH) -> dict[str, list[str]]:
+    memory_path = Path(path)
+    default = _default_diversity_memory()
+    try:
+        if not memory_path.exists():
+            memory_path.parent.mkdir(parents=True, exist_ok=True)
+            memory_path.write_text(json.dumps(default, ensure_ascii=False, indent=2), encoding="utf-8")
+            return default
+        data = json.loads(memory_path.read_text(encoding="utf-8") or "{}")
+        if not isinstance(data, dict):
+            return default
+        out = default.copy()
+        for key in default:
+            values = data.get(key, [])
+            out[key] = [str(item) for item in values[-DIVERSITY_MEMORY_LIMIT:] if str(item).strip()] if isinstance(values, list) else []
+        return out
+    except Exception:
+        return default
+
+
+def save_diversity_memory(memory: dict[str, list[str]], path: str | Path = DIVERSITY_MEMORY_PATH) -> dict[str, list[str]]:
+    clean = _default_diversity_memory()
+    for key in clean:
+        values = memory.get(key, []) if isinstance(memory, dict) else []
+        clean[key] = [str(item) for item in values if str(item).strip()][-DIVERSITY_MEMORY_LIMIT:] if isinstance(values, list) else []
+    memory_path = Path(path)
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    memory_path.write_text(json.dumps(clean, ensure_ascii=False, indent=2), encoding="utf-8")
+    return clean
+
+
+def _diversity_key(value: str) -> str:
+    text = re.sub(r"[\W_]+", "", str(value or "").lower(), flags=re.UNICODE)
+    return re.sub(r"\s+", "", text)
+
+
+def _similarity_ratio(a: str, b: str) -> float:
+    a_key = _diversity_key(a)
+    b_key = _diversity_key(b)
+    if not a_key or not b_key:
+        return 0.0
+    if a_key == b_key:
+        return 1.0
+    shorter, longer = sorted([a_key, b_key], key=len)
+    if len(shorter) >= 4 and shorter in longer:
+        return min(0.95, len(shorter) / max(1, len(longer)) + 0.25)
+    a_grams = {a_key[idx: idx + 2] for idx in range(max(1, len(a_key) - 1))}
+    b_grams = {b_key[idx: idx + 2] for idx in range(max(1, len(b_key) - 1))}
+    if not a_grams or not b_grams:
+        return 0.0
+    return len(a_grams & b_grams) / max(1, len(a_grams | b_grams))
+
+
+def _novelty_score(value: str, recent_values: list[str], *, cluster_terms: list[str] | None = None) -> int:
+    clean = str(value or "").strip()
+    if not clean:
+        return 0
+    max_similarity = max((_similarity_ratio(clean, recent) for recent in recent_values), default=0.0)
+    score = 100 - int(max_similarity * 72)
+    compact = _diversity_key(clean)
+    for term in cluster_terms or []:
+        if _diversity_key(term) and _diversity_key(term) in compact:
+            cluster_count = sum(1 for recent in recent_values if _diversity_key(term) in _diversity_key(recent))
+            score -= min(30, cluster_count * 8)
+    return max(0, min(100, score))
+
+
+def score_title_novelty(title: str, memory: dict[str, list[str]] | None = None) -> int:
+    memory = memory or load_diversity_memory()
+    return _novelty_score(title, memory.get("recent_titles", []), cluster_terms=["พัก", "ใจ", "เหนื่อย", "งาน"])
+
+
+def score_hook_novelty(hook: str, memory: dict[str, list[str]] | None = None) -> int:
+    memory = memory or load_diversity_memory()
+    lines = _lines(hook)
+    opening = lines[0] if lines else hook
+    hook_score = _novelty_score(hook, memory.get("recent_hooks", []), cluster_terms=["พัก", "ใจ", "เหนื่อย", "งาน"])
+    opening_score = _novelty_score(opening, memory.get("recent_opening_lines", []), cluster_terms=["พัก", "ใจ", "เหนื่อย", "งาน"])
+    return int((hook_score * 0.7) + (opening_score * 0.3))
+
+
+def score_phrase_novelty(text: str, memory: dict[str, list[str]] | None = None) -> int:
+    memory = memory or load_diversity_memory()
+    recent_phrases = [*memory.get("recent_phrases", []), *DIVERSITY_COOLDOWN_PHRASES]
+    lines = _lines(text)
+    if not lines:
+        return _novelty_score(text, recent_phrases)
+    scores = [_novelty_score(line, recent_phrases, cluster_terms=["พัก", "ใจ", "เหนื่อย", "งาน"]) for line in lines]
+    return int(sum(scores) / max(1, len(scores)))
+
+
+def score_story_novelty(story_type: str, memory: dict[str, list[str]] | None = None) -> int:
+    memory = memory or load_diversity_memory()
+    recent = memory.get("recent_story_types", [])
+    score = _novelty_score(story_type, recent)
+    if story_type in DIVERSITY_UNDERUSED_STORY_TYPES and story_type not in recent[-8:]:
+        score = min(100, score + 12)
+    if story_type == "Office Burnout":
+        score -= min(35, recent[-10:].count("Office Burnout") * 12)
+    return max(0, min(100, score))
+
+
+def _extract_recent_phrases(title: str, hook: str, lyrics: str) -> list[str]:
+    candidates = [title, *_lines(hook), *_lines(lyrics)[:8]]
+    seen: set[str] = set()
+    out: list[str] = []
+    for phrase in candidates:
+        clean = str(phrase or "").strip()
+        key = _diversity_key(clean)
+        if clean and key and key not in seen:
+            out.append(clean)
+            seen.add(key)
+    return out[:10]
+
+
+def _update_diversity_memory(title: str, hook: str, lyrics: str, story_type: str = "", path: str | Path = DIVERSITY_MEMORY_PATH) -> dict[str, list[str]]:
+    memory = load_diversity_memory(path)
+    opening = _lines(hook)[0] if _lines(hook) else ""
+    updates = {
+        "recent_titles": [title],
+        "recent_hooks": [hook],
+        "recent_opening_lines": [opening],
+        "recent_story_types": [story_type or "Unknown"],
+        "recent_phrases": _extract_recent_phrases(title, hook, lyrics),
+    }
+    for key, values in updates.items():
+        memory[key].extend([str(item) for item in values if str(item).strip()])
+        memory[key] = memory[key][-DIVERSITY_MEMORY_LIMIT:]
+    return save_diversity_memory(memory, path)
+
+
+def build_diversity_report(title: str, hook: str, lyrics: str, story_type: str = "", memory: dict[str, list[str]] | None = None) -> dict[str, Any]:
+    memory = memory or load_diversity_memory()
+    title_score = score_title_novelty(title, memory)
+    hook_score = score_hook_novelty(hook, memory)
+    story_score = score_story_novelty(story_type, memory)
+    vocabulary_score = score_phrase_novelty("\n".join([hook, lyrics]), memory)
+    overall = int((title_score * 0.25) + (hook_score * 0.3) + (story_score * 0.2) + (vocabulary_score * 0.25))
+    return {
+        "Title Novelty Score": title_score,
+        "Hook Novelty Score": hook_score,
+        "Story Novelty Score": story_score,
+        "Vocabulary Novelty Score": vocabulary_score,
+        "Overall Diversity Score": max(0, min(100, overall)),
+    }
+
+
+def _diversity_report_text(report: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            f"Title Novelty Score: {report.get('Title Novelty Score', 0)}",
+            f"Hook Novelty Score: {report.get('Hook Novelty Score', 0)}",
+            f"Story Novelty Score: {report.get('Story Novelty Score', 0)}",
+            f"Vocabulary Novelty Score: {report.get('Vocabulary Novelty Score', 0)}",
+            f"Overall Diversity Score: {report.get('Overall Diversity Score', 0)}",
+        ]
+    )
 
 
 DEFAULT_ADVANCED_SUNO_SETTINGS = {
@@ -2391,7 +2587,7 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
     }
     source = banks.get(scene, fallback)
     brief_context = _producer_brief_context(producer_brief)
-    return [
+    story_candidates = [
         {
             "id": f"story_{idx:02d}",
             "label": label,
@@ -2402,9 +2598,11 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
             "emotional_arc": arc,
             "recommended_hook_direction": " / ".join(part for part in [hook_direction, brief_context] if part).strip(),
             "producer_brief": producer_brief or {},
+            "story_novelty_score": score_story_novelty(story_type or scene),
         }
         for idx, (label, angle, objects, scenes, arc, hook_direction) in enumerate(source[:5], start=1)
     ]
+    return sorted(story_candidates, key=lambda item: int(item.get("story_novelty_score", 0)), reverse=True)[:5]
 
 
 def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | None = None, preset_name: str = "Thai Sad Pop") -> list[dict[str, Any]]:
@@ -2431,11 +2629,17 @@ def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | 
             continue
         seen.add(key)
         score = _score_hook_candidate(hook)
+        novelty = score_hook_novelty(score["hook"])
+        score["hook_novelty_score"] = novelty
+        score["score"] = max(0, min(100, int((int(score.get("score", 0)) * 0.72) + (novelty * 0.28))))
         ranked.append({"hook": score["hook"], "lines": _lines(score["hook"]), "score": score})
     ranked = sorted(ranked, key=lambda item: item["score"]["score"], reverse=True)
     while len(ranked) < 5:
         fallback = _sanitize_hook_text(_hook_from_idea(context, story.get("label", ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])), story.get("label", ""), context, enforce_title=False)
         score = _score_hook_candidate(fallback)
+        novelty = score_hook_novelty(score["hook"])
+        score["hook_novelty_score"] = novelty
+        score["score"] = max(0, min(100, int((int(score.get("score", 0)) * 0.72) + (novelty * 0.28))))
         ranked.append({"hook": score["hook"], "lines": _lines(score["hook"]), "score": score})
     return [
         {"id": f"hook_{idx:02d}", "type": kinds[(idx - 1) % len(kinds)], **item}
@@ -2485,11 +2689,13 @@ def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] |
         score = int(score_data.get("score", 0))
         title_relatability = _weighted_relatability_score(_line_relatability_scores(clean, source_text, preset_name))
         score = int((score * 0.72) + (title_relatability * 0.28))
+        title_novelty = score_title_novelty(clean)
+        score = int((score * 0.72) + (title_novelty * 0.28))
         if len(key) > 18:
             score -= 22
         if clean in blocked:
             score -= 60
-        titles.append({"id": f"title_{len(titles) + 1:02d}", "type": kind, "title": clean, "score": str(max(0, min(100, score)))})
+        titles.append({"id": f"title_{len(titles) + 1:02d}", "type": kind, "title": clean, "score": str(max(0, min(100, score))), "title_novelty_score": str(title_novelty)})
     return sorted(titles, key=lambda item: int(item.get("score", "0")), reverse=True)[:5]
 
 
@@ -3590,6 +3796,8 @@ def generate_creative_release_pack(
     thai_natural_speech_report_text = _thai_natural_speech_report_text(thai_natural_speech_report)
     relatability_report = _relatability_report(lyrics_only, hook, concept, preset_name)
     relatability_report_text = _relatability_report_text(relatability_report)
+    diversity_report = build_diversity_report(title, hook, lyrics_only, str(controls.get("story_type") or _song_scene_type(concept, preset_name)))
+    diversity_report_text = _diversity_report_text(diversity_report)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -3620,6 +3828,7 @@ def generate_creative_release_pack(
         "Emotional Arc Report": emotional_arc_report,
         "Thai Natural Speech Report": thai_natural_speech_report_text,
         "Relatability Report": relatability_report_text,
+        "Diversity Report": diversity_report_text,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -3672,6 +3881,7 @@ def generate_creative_release_pack(
     title = str(pack.get("Suggested title") or title)
     hook = str(pack.get("Hook") or hook)
     lyrics = str(pack.get("Full lyrics") or lyrics)
+    _update_diversity_memory(title, hook, lyrics_only, str(controls.get("story_type") or _song_scene_type(concept, preset_name)))
     title_score = score_song_title_candidate(title, concept)
     hook_score = _score_hook_candidate(hook)
     return {
@@ -3693,6 +3903,7 @@ def generate_creative_release_pack(
             "lyrics_quality_engine": lyrics_quality_report,
             "thai_natural_speech": thai_natural_speech_report,
             "relatability": relatability_report,
+            "diversity": diversity_report,
             "human_lyric_authenticity_v2": {
                 "phrase_diversity": phrase_diversity_report,
                 "english_leakage": english_leakage_report,
@@ -3741,18 +3952,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "5. EMOTIONAL ARC REPORT\n" + str(pack.get("Emotional Arc Report", "")).strip(),
         "6. THAI NATURAL SPEECH REPORT\n" + str(pack.get("Thai Natural Speech Report", "")).strip(),
         "7. RELATABILITY REPORT\n" + str(pack.get("Relatability Report", "")).strip(),
-        "8. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "9. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "10. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "11. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "12. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "13. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "14. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "15. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "16. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "17. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "18. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "19. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "8. DIVERSITY REPORT\n" + str(pack.get("Diversity Report", "")).strip(),
+        "9. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "10. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "11. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "12. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "13. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "14. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "15. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "16. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "17. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "18. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "19. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "20. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 

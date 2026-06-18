@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _relatability_report, _score_hook_candidate, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _relatability_report, _score_hook_candidate, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_story_candidates_v2, generate_title_candidates_v2, load_diversity_memory, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -668,6 +668,25 @@ def main():
     release_zip = Path((release_export.get("data") or {}).get("zip_path", ""))
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
+    diversity_memory_path = out / "diversity_memory.json"
+    saved_diversity_memory = save_diversity_memory(
+        {
+            "recent_titles": ["พักใจก่อน", "ใจยังไม่เลิกงาน", "คืนนี้ขอพัก"],
+            "recent_hooks": ["นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย\nเหนื่อยไหม\nพรุ่งนี้ค่อยว่ากัน"],
+            "recent_opening_lines": ["นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย"],
+            "recent_story_types": ["Office Burnout"] * 8,
+            "recent_phrases": ["เหนื่อยไหม", "ไม่เป็นไรนะ", "พรุ่งนี้ค่อยว่ากัน", "ถึงบ้านบอกด้วย", "มีบางอย่างในใจที่ยังไม่กล้าตอบ"],
+        },
+        diversity_memory_path,
+    )
+    loaded_diversity_memory = load_diversity_memory(diversity_memory_path)
+    assert_true(loaded_diversity_memory["recent_titles"] == saved_diversity_memory["recent_titles"], "diversity memory file save/load failed")
+    assert_true(score_title_novelty("พักใจก่อน", loaded_diversity_memory) < score_title_novelty("โต๊ะตัวเดิม", loaded_diversity_memory), "repeated titles were not penalized")
+    assert_true(score_hook_novelty("นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย\nเหนื่อยไหม\nพรุ่งนี้ค่อยว่ากัน", loaded_diversity_memory) < score_hook_novelty("แสงหน้าบ้านยังรอ\nให้ฉันวางวันที่หนักไว้\nคืนนี้แค่กลับไปเป็นคนธรรมดา", loaded_diversity_memory), "repeated hooks were not penalized")
+    assert_true(score_phrase_novelty("เหนื่อยไหม\nไม่เป็นไรนะ\nพรุ่งนี้ค่อยว่ากัน", loaded_diversity_memory) < score_phrase_novelty("แสงหน้าบ้านยังเปิดรอ\nมือแม่ยังเก็บข้าวไว้\nคืนนี้ฉันอยากกลับไปพักจริง ๆ", loaded_diversity_memory), "repeated phrases were not penalized")
+    diversity_report = build_diversity_report("พักใจก่อน", "นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย", "เหนื่อยไหม\nพรุ่งนี้ค่อยว่ากัน", "Office Burnout", loaded_diversity_memory)
+    assert_true("Overall Diversity Score" in diversity_report and diversity_report["Overall Diversity Score"] < 80, "diversity report scoring failed repeated content")
+    assert_true("Diversity Report" in release_pack["pack"] and "Overall Diversity Score:" in release_pack["pack"]["Diversity Report"] and "DIVERSITY REPORT" in release_txt, "DIVERSITY REPORT missing from release pack")
     assert_true(release_pack["provider_status"]["status"] == "Offline Demo Mode" and "Demo / Offline Preview" in release_txt, "offline release pack is not clearly labeled as demo preview")
     assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "PRODUCER NOTES" in release_txt and "Music style prompt for Suno/Udio" not in release_txt and "Suno Copy-Ready Block" not in release_txt, "creative release pack copy-ready text cleanup missing")
     assert_true("Weirdness:" in release_txt and "Style Influence:" in release_txt and "BPM:" in release_txt, "advanced Suno settings missing from release pack")
@@ -679,7 +698,7 @@ def main():
         suno_style_zip_text = release_archive.read("suno_style_prompt.txt").decode("utf-8-sig")
         producer_notes_zip_text = release_archive.read("producer_notes.txt").decode("utf-8-sig")
         clean_release_pack_zip_text = release_archive.read("release_pack.txt").decode("utf-8-sig")
-    assert_true({"lyrics_only.txt", "suno_style_prompt.txt", "producer_notes.txt", "release_pack.txt", "advanced_suno_settings.txt", "lyrics_quality_report.txt"}.issubset(release_zip_names), "release ZIP missing copy-ready Suno files")
+    assert_true({"lyrics_only.txt", "suno_style_prompt.txt", "producer_notes.txt", "release_pack.txt", "advanced_suno_settings.txt", "lyrics_quality_report.txt", "diversity_report.txt"}.issubset(release_zip_names), "release ZIP missing copy-ready Suno files")
     assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "[Verse 1]" in lyrics_only_zip_text and "CORE GENRE" not in suno_style_zip_text and "VOCAL DIRECTION" not in suno_style_zip_text and "CORE GENRE" in producer_notes_zip_text, "release ZIP copy-ready Suno content failed")
     assert_true(clean_release_pack_zip_text.count("[Verse 1]") == 1 and clean_release_pack_zip_text.count("PRODUCER NOTES") == 1, "release_pack.txt duplicated lyrics or producer notes")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
