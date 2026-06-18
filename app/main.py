@@ -2065,10 +2065,11 @@ def _render_quick_song(project: dict[str, Any]) -> None:
     idea = st.text_area("Song Idea", value=state.get("idea", ""), height=120, key="quick_song_idea", help="เช่น สุดท้ายไม่เหลือใคร หรือ เพลงเศร้าในออฟฟิศ")
     preset_names = list(CREATIVE_PACK_PRESETS)
     preset = st.selectbox(
-        "Preset",
+        "แนวเพลงหลัก",
         preset_names,
         index=preset_names.index(state.get("preset", "Vela Moon Emotional Pop Rock")) if state.get("preset") in preset_names else preset_names.index("Vela Moon Emotional Pop Rock"),
         key="quick_song_preset",
+        format_func=_thai_option_label(PRESET_LABELS_TH),
     )
     if st.button("Generate Song", type="primary", use_container_width=True, key="quick_song_generate", disabled=not bool(str(idea or "").strip())):
         production_mode = not bool(st.session_state.get("developer_mode"))
@@ -2117,6 +2118,74 @@ def _render_quick_song(project: dict[str, Any]) -> None:
     _copy_to_clipboard_button("Copy Music Style Prompt", str(st.session_state.get("quick_song_style", style_prompt) or ""), key="quick_song_copy_style")
 
 
+PRESET_LABELS_TH = {
+    "Vela Moon Emotional Pop Rock": "ป๊อปร็อกอารมณ์ลึก",
+    "Vela Moon Late Night Drive": "ขับรถกลางคืน",
+    "Vela Moon Heartbroken Anthem": "เพลงอกหักพลังใหญ่",
+    "Vela Moon Easy Listening Pop Rock": "ป๊อปร็อกฟังง่าย",
+    "Vela Moon Office Life Story": "เรื่องราวคนทำงาน",
+    "Thai Sad Pop": "ไทยป๊อปเศร้า",
+    "Office Burnout": "เรื่องราวคนทำงาน",
+    "Lonely Night Drive": "ขับรถกลางคืน",
+    "Broken Relationship": "รักที่แตกสลาย",
+    "TikTok Emotional Hook": "ฮุกอารมณ์สำหรับ TikTok",
+    "Viral TikTok Hook": "ฮุกไวรัลสำหรับ TikTok",
+    "Indie Acoustic": "อินดี้อบอุ่น",
+    "Dark Podcast Intro": "อินโทรพอดแคสต์ดาร์ก",
+    "Story Cinematic": "เล่าเรื่องแบบภาพยนตร์",
+}
+
+GENRE_LABELS_TH = {
+    "Thai Emotional Pop Rock": "ป๊อปร็อกอารมณ์ไทย",
+    "Thai Sad Pop": "ไทยป๊อปเศร้า",
+    "Easy Listening Pop Rock": "ป๊อปร็อกฟังง่าย",
+    "Acoustic Pop": "อะคูสติกป๊อป",
+    "Pop Rock Ballad": "ป๊อปร็อกบัลลาด",
+    "Indie Acoustic": "อินดี้อะคูสติก",
+    "Dark Office Pop": "ป๊อปเรื่องงานโทนดาร์ก",
+}
+
+MOOD_LABELS_TH = {
+    "Emotional": "อารมณ์ลึก",
+    "Bittersweet": "หวานปนเศร้า",
+    "Hopeful": "มีความหวัง",
+    "Broken": "แตกสลาย",
+    "Warm": "อบอุ่น",
+    "Reflective": "ทบทวนใจ",
+    "Sad": "เศร้า",
+    "Nostalgic": "คิดถึงวันเก่า",
+    "Lonely": "เหงา",
+}
+
+STORY_TYPE_LABELS_TH = {
+    "Office Burnout": "ชีวิตการทำงาน",
+    "Night Drive": "ขับรถกลางคืน",
+    "Lost Love": "รักที่หายไป",
+    "Quiet Love": "รักเงียบ ๆ",
+    "Family": "ครอบครัว",
+    "Self Growth": "เติบโตกับตัวเอง",
+    "Friendship": "มิตรภาพ",
+    "Life Reflection": "ทบทวนชีวิต",
+    "Love": "ความรัก",
+    "Breakup": "อกหัก",
+    "Dream": "ความฝัน",
+}
+
+HOOK_STYLE_LABELS_TH = {
+    "Question": "คำถาม",
+    "Regret": "ความเสียดาย",
+    "Confession": "การยอมรับความจริง",
+    "Conflict": "ความขัดแย้ง",
+    "Hope": "ความหวัง",
+    "Memory": "ความทรงจำ",
+    "Payoff": "ข้อสรุปของหัวใจ",
+}
+
+
+def _thai_option_label(labels: dict[str, str]):
+    return lambda value: labels.get(str(value), str(value))
+
+
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
     _page_header("AI Creative Pack Generator", "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools.", project)
     state = project.setdefault("creative_pack_v1", {})
@@ -2149,70 +2218,69 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         q3.markdown("**Suno/Udio Export**")
         q3.caption("Lyrics, style prompt, producer notes, TXT and ZIP.")
     with st.container(border=True):
-        st.markdown('<div class="vf-section-title"><h3>Song Direction</h3><span>creative inputs</span></div>', unsafe_allow_html=True)
-        c1, c2 = st.columns([2, 1])
-        idea = c1.text_area(
-            "Song idea / creative concept",
+        st.markdown('<div class="vf-section-title"><h3>สร้างเพลง</h3><span>ใส่ไอเดียหลักก่อน</span></div>', unsafe_allow_html=True)
+        idea = st.text_area(
+            "Song Idea",
             value=state.get("idea", str((project.get("song", {}) or {}).get("idea") or "")),
-            height=150,
+            height=130,
             key="creative_pack_idea",
             help="ใส่ไอเดียสั้น ๆ เช่น เพลงเศร้าในออฟฟิศ หรือ รักคนที่ไม่กลับมา",
         )
-        preset = c2.selectbox(
-            "Quality Preset",
+        preset = st.selectbox(
+            "แนวเพลงหลัก",
             preset_names,
             index=preset_names.index(state.get("preset", "Thai Sad Pop")) if state.get("preset") in preset_names else 0,
             key="creative_pack_preset",
+            format_func=_thai_option_label(PRESET_LABELS_TH),
         )
-        artist_name = c2.text_input("Artist name", value=state.get("artist_name", str(project.get("artist") or DEFAULT_ARTIST)), key="creative_pack_artist")
+        artist_name = st.text_input("ชื่อศิลปิน", value=state.get("artist_name", str(project.get("artist") or DEFAULT_ARTIST)), key="creative_pack_artist")
         genre_options = ["Thai Emotional Pop Rock", "Thai Sad Pop", "Easy Listening Pop Rock", "Acoustic Pop", "Pop Rock Ballad", "Indie Acoustic", "Dark Office Pop"]
         mood_options = ["Emotional", "Bittersweet", "Hopeful", "Broken", "Warm", "Reflective"]
         story_type_options = ["Office Burnout", "Night Drive", "Lost Love", "Quiet Love", "Family", "Self Growth", "Friendship", "Life Reflection"]
         hook_style_options = ["Question", "Regret", "Confession", "Conflict", "Hope", "Memory"]
-        ac1, ac2, ac3 = st.columns(3)
-        genre = ac1.selectbox("Genre", genre_options, index=genre_options.index(state.get("genre", "Thai Emotional Pop Rock")) if state.get("genre") in genre_options else 0, key="creative_pack_genre")
-        mood = ac2.selectbox("Mood", mood_options, index=mood_options.index(state.get("mood", "Bittersweet")) if state.get("mood") in mood_options else 1, key="creative_pack_mood")
-        story_type = ac3.selectbox("Story Type", story_type_options, index=story_type_options.index(state.get("story_type", "Office Burnout")) if state.get("story_type") in story_type_options else 0, key="creative_pack_story_type")
         ai_recommendation = get_release_ai_control_recommendation(preset)
-        hc1, hc2 = st.columns([1, 2])
-        hook_style = hc1.selectbox("Hook Style", hook_style_options, index=hook_style_options.index(state.get("hook_style", "Question")) if state.get("hook_style") in hook_style_options else 0, key="creative_pack_hook_style")
-        hc2.markdown(
+        st.markdown(
             f"""
             <div class="vf-output-card">
-              <h4>AI Quality Mode: Auto Optimized</h4>
-              <p>VelaFlow chooses safe producer controls for this preset.</p>
-              <small>Weirdness {ai_recommendation['weirdness']}% · Style Influence {ai_recommendation['style_influence']}%</small>
+              <h4>AI Quality Mode</h4>
+              <p>VelaFlow เลือกค่าที่เหมาะสมให้อัตโนมัติ<br>เพื่อคุณภาพเพลงที่ดีที่สุด</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("Reset to Recommended", use_container_width=True, key="creative_pack_reset_ai_controls"):
-            st.session_state["creative_pack_manual_ai_controls"] = False
-            st.session_state["creative_pack_weirdness"] = int(ai_recommendation["weirdness"])
-            st.session_state["creative_pack_style_influence"] = int(ai_recommendation["style_influence"])
-            state["manual_ai_controls"] = False
-            state["weirdness"] = int(ai_recommendation["weirdness"])
-            state["style_influence"] = int(ai_recommendation["style_influence"])
-            project["creative_pack_v1"] = state
-            _save_project()
-            st.rerun()
+        genre = state.get("genre", "Thai Emotional Pop Rock") if state.get("genre") in genre_options else "Thai Emotional Pop Rock"
+        mood = state.get("mood", "Bittersweet") if state.get("mood") in mood_options else "Bittersweet"
+        story_type = state.get("story_type", "Office Burnout") if state.get("story_type") in story_type_options else "Office Burnout"
+        hook_style = state.get("hook_style", "Question") if state.get("hook_style") in hook_style_options else "Question"
         manual_ai_controls = False
         weirdness = None
         style_influence = None
         vocal_direction = state.get("vocal_direction", "Thai male vocal, warm expressive tone, clear pronunciation")
         commercial_direction = state.get("commercial_direction", "Spotify-friendly Thai pop rock, TikTok-ready emotional hook, radio-friendly structure")
         with st.expander("Advanced Creative Controls", expanded=False):
-            manual_ai_controls = st.checkbox("Use manual AI controls", value=bool(state.get("manual_ai_controls", False)), key="creative_pack_manual_ai_controls")
+            genre = st.selectbox("แนวดนตรี", genre_options, index=genre_options.index(genre), key="creative_pack_genre", format_func=_thai_option_label(GENRE_LABELS_TH))
+            mood = st.selectbox("อารมณ์เพลง", mood_options, index=mood_options.index(mood), key="creative_pack_mood", format_func=_thai_option_label(MOOD_LABELS_TH))
+            story_type = st.selectbox("ประเภทเรื่องราว", story_type_options, index=story_type_options.index(story_type), key="creative_pack_story_type", format_func=_thai_option_label(STORY_TYPE_LABELS_TH))
+            hook_style = st.selectbox("รูปแบบฮุก", hook_style_options, index=hook_style_options.index(hook_style), key="creative_pack_hook_style", format_func=_thai_option_label(HOOK_STYLE_LABELS_TH))
+            if st.button("Reset to Recommended", use_container_width=True, key="creative_pack_reset_ai_controls"):
+                st.session_state["creative_pack_manual_ai_controls"] = False
+                st.session_state["creative_pack_weirdness"] = int(ai_recommendation["weirdness"])
+                st.session_state["creative_pack_style_influence"] = int(ai_recommendation["style_influence"])
+                state["manual_ai_controls"] = False
+                state["weirdness"] = int(ai_recommendation["weirdness"])
+                state["style_influence"] = int(ai_recommendation["style_influence"])
+                project["creative_pack_v1"] = state
+                _save_project()
+                st.rerun()
+            manual_ai_controls = st.checkbox("ปรับค่า AI เอง", value=bool(state.get("manual_ai_controls", False)), key="creative_pack_manual_ai_controls")
             if manual_ai_controls:
                 st.warning("Manual Override Active")
-            mc1, mc2 = st.columns(2)
-            weirdness = mc1.slider("Manual Weirdness", min_value=0, max_value=int(ai_recommendation["max_manual_weirdness"]), value=min(int(state.get("weirdness", ai_recommendation["weirdness"])), int(ai_recommendation["max_manual_weirdness"])), disabled=not manual_ai_controls, key="creative_pack_weirdness")
-            style_influence = mc2.slider("Manual Style Influence", min_value=55, max_value=85, value=max(55, min(85, int(state.get("style_influence", ai_recommendation["style_influence"])))), disabled=not manual_ai_controls, key="creative_pack_style_influence")
-            st.caption(f"Manual Weirdness is clamped to {ai_recommendation['max_manual_weirdness']} for this preset. Style Influence is clamped to 55-85.")
-            vc1, vc2 = st.columns(2)
-            vocal_direction = vc1.text_input("Vocal Direction", value=vocal_direction, key="creative_pack_vocal_direction")
-            commercial_direction = vc2.text_area("Commercial Direction", value=commercial_direction, height=90, key="creative_pack_commercial_direction")
-        st.caption("These controls are quality inputs. Different story, mood, and hook choices should create clearly different songs.")
+            weirdness = st.slider("ความแปลกใหม่ (ขั้นสูง)", min_value=0, max_value=int(ai_recommendation["max_manual_weirdness"]), value=min(int(state.get("weirdness", ai_recommendation["weirdness"])), int(ai_recommendation["max_manual_weirdness"])), disabled=not manual_ai_controls, key="creative_pack_weirdness")
+            style_influence = st.slider("อิทธิพลของสไตล์ (ขั้นสูง)", min_value=55, max_value=85, value=max(55, min(85, int(state.get("style_influence", ai_recommendation["style_influence"])))), disabled=not manual_ai_controls, key="creative_pack_style_influence")
+            st.caption(f"ระบบจำกัดความแปลกใหม่ไม่เกิน {ai_recommendation['max_manual_weirdness']} สำหรับแนวเพลงนี้ และจำกัดอิทธิพลของสไตล์ไว้ที่ 55-85")
+            vocal_direction = st.text_input("ทิศทางเสียงร้อง", value=vocal_direction, key="creative_pack_vocal_direction")
+            commercial_direction = st.text_area("ทิศทางเชิงพาณิชย์", value=commercial_direction, height=90, key="creative_pack_commercial_direction")
+        st.caption("เลือกไอเดีย แนวเพลงหลัก และชื่อศิลปินก่อน ส่วนรายละเอียดขั้นสูงเปิดใช้เมื่ออยากกำกับเพลงละเอียดขึ้น")
 
     seed_candidates = state.get("seed_candidates") or {}
     producer_brief = seed_candidates.get("producer_brief") or {}
@@ -2223,16 +2291,16 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     selected_seed: dict[str, Any] | None = None
     generate_pack = False
     with st.container(border=True):
-        st.markdown('<div class="vf-section-title"><h3>Seed Selection</h3><span>story · hook · title</span></div>', unsafe_allow_html=True)
-        st.caption("Song Idea → Generate Candidates → Select Story/Hook/Title → Generate Final Release Pack")
+        st.markdown('<div class="vf-section-title"><h3>เลือกแกนเพลง</h3><span>story · hook · title</span></div>', unsafe_allow_html=True)
+        st.caption("Song Idea → Generate Song → Select Story/Hook/Title → Generate Final Release Pack")
         if not has_seed_candidates:
-            if st.button("Generate Candidates", type="primary", use_container_width=True, key="creative_pack_generate_song", disabled=not bool(str(idea or "").strip())):
+            if st.button("Generate Song", type="primary", use_container_width=True, key="creative_pack_generate_song", disabled=not bool(str(idea or "").strip())):
                 state["seed_candidates"] = generate_music_seed_candidates_v2(str(idea or ""), preset, mood, story_type)
                 state["seed_source"] = {"idea": str(idea or ""), "preset": preset, "mood": mood, "story_type": story_type}
                 project["creative_pack_v1"] = state
                 _save_project()
                 st.rerun()
-            st.caption("Generate Candidates creates Story, Hook, and Title options before final lyrics.")
+            st.caption("ระบบจะสร้างตัวเลือก Story, Hook และ Title ก่อนเขียนเพลงเต็ม")
         if stories and hooks and titles:
             if producer_brief:
                 with st.container(border=True):
@@ -2246,10 +2314,9 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             story_options = [f"{idx + 1}. {item.get('label')}" for idx, item in enumerate(stories)]
             hook_options = [f"{idx + 1}. {item.get('type')}" for idx, item in enumerate(hooks)]
             title_options = [f"{idx + 1}. {item.get('title')}" for idx, item in enumerate(titles)]
-            s_col, h_col, t_col = st.columns(3)
-            story_index = story_options.index(s_col.radio("Story Candidates", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
-            hook_index = hook_options.index(h_col.radio("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
-            title_index = title_options.index(t_col.radio("Title Candidates", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
+            story_index = story_options.index(st.selectbox("Story Candidates", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
+            hook_index = hook_options.index(st.selectbox("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
+            title_index = title_options.index(st.selectbox("Title Candidates", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
             selected_story = stories[story_index]
             selected_hook = hooks[hook_index]
             selected_title = titles[title_index]
@@ -2354,7 +2421,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
     pack = result.get("pack") or {}
     export_data = state.get("export") or {}
     if not pack:
-        st.caption("Ready when you are: enter a song idea, then click Generate Candidates.")
+        st.caption("ใส่ไอเดียเพลง แล้วกด Generate Song เพื่อเริ่มเลือกแกนเพลง")
         return
 
     st.markdown('<div class="vf-section-title"><h3>Final Release Pack</h3><span>selected seed output</span></div>', unsafe_allow_html=True)
