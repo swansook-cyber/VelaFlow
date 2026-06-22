@@ -112,6 +112,7 @@ RELEASE_PACK_FILES = {
     "thai_natural_speech_report.txt": "Thai Natural Speech Report",
     "relatability_report.txt": "Relatability Report",
     "diversity_report.txt": "Diversity Report",
+    "situation_specificity_report.txt": "Situation Specificity Report",
     "lyrics_quality_report.txt": "Lyrics Quality Report",
 }
 
@@ -149,6 +150,10 @@ def _default_diversity_memory() -> dict[str, list[str]]:
         "recent_opening_lines": [],
         "recent_story_types": [],
         "recent_phrases": [],
+        "recent_specific_situations": [],
+        "recent_main_objects": [],
+        "recent_bridge_truths": [],
+        "recent_final_payoff_lines": [],
     }
 
 
@@ -267,15 +272,20 @@ def _extract_recent_phrases(title: str, hook: str, lyrics: str) -> list[str]:
     return out[:10]
 
 
-def _update_diversity_memory(title: str, hook: str, lyrics: str, story_type: str = "", path: str | Path = DIVERSITY_MEMORY_PATH) -> dict[str, list[str]]:
+def _update_diversity_memory(title: str, hook: str, lyrics: str, story_type: str = "", path: str | Path = DIVERSITY_MEMORY_PATH, situation: dict[str, Any] | None = None) -> dict[str, list[str]]:
     memory = load_diversity_memory(path)
     opening = _lines(hook)[0] if _lines(hook) else ""
+    situation = situation or {}
     updates = {
         "recent_titles": [title],
         "recent_hooks": [hook],
         "recent_opening_lines": [opening],
         "recent_story_types": [story_type or "Unknown"],
         "recent_phrases": _extract_recent_phrases(title, hook, lyrics),
+        "recent_specific_situations": [str(situation.get("Specific Situation", ""))],
+        "recent_main_objects": [str(situation.get("Main Object") or situation.get("Modern Object", ""))],
+        "recent_bridge_truths": [str(situation.get("Bridge Truth", ""))],
+        "recent_final_payoff_lines": [str(situation.get("Final Payoff", ""))],
     }
     for key, values in updates.items():
         memory[key].extend([str(item) for item in values if str(item).strip()])
@@ -309,6 +319,287 @@ def _diversity_report_text(report: dict[str, Any]) -> str:
             f"Overall Diversity Score: {report.get('Overall Diversity Score', 0)}",
         ]
     )
+
+
+SITUATION_ARCHETYPES: list[dict[str, str]] = [
+    {
+        "trigger": "message_read",
+        "Specific Situation": "คนที่อ่านข้อความแล้วไม่ตอบ",
+        "Main Character": "คนที่ยังรอคำตอบจากแชตเดิม",
+        "Modern Object": "ข้อความที่ขึ้นว่าอ่านแล้ว",
+        "Social Context": "ความสัมพันธ์ที่ยังไม่จบในใจ แต่เหมือนอีกฝ่ายเงียบไปแล้ว",
+        "Hidden Feeling": "ยังอยากสำคัญพอให้เขาตอบ",
+        "Concrete Moment": "เห็นคำว่าอ่านแล้วค้างอยู่ใต้ข้อความสุดท้าย",
+        "Escalation Moment": "พิมพ์ประโยคใหม่แล้วลบทิ้ง เพราะรู้ว่าเขาไม่อยากตอบ",
+        "Bridge Truth": "ไม่ได้อยากทวงคำตอบ แค่อยากรู้ว่ายังมีความหมายไหม",
+        "Final Payoff": "ถ้าเธอเลือกเงียบ ฉันคงต้องเลือกหายเหมือนกัน",
+        "Scene Type": "breakup_memory",
+        "Main Object": "ข้อความที่อ่านแล้ว",
+    },
+    {
+        "trigger": "online_no_reply",
+        "Specific Situation": "เห็นเขาออนไลน์แต่ไม่ตอบเรา",
+        "Main Character": "คนที่เผลอมองจุดเขียวข้างชื่อเดิม",
+        "Modern Object": "สถานะออนไลน์",
+        "Social Context": "คนสองคนยังเห็นกันในหน้าจอ แต่ไม่ได้อยู่ในชีวิตกันเหมือนเดิม",
+        "Hidden Feeling": "เจ็บตรงที่เขาว่างพอออนไลน์ แต่ไม่ว่างพอตอบเรา",
+        "Concrete Moment": "ชื่อเขาขึ้นว่าออนไลน์อยู่บนหน้าจอเล็ก ๆ",
+        "Escalation Moment": "แจ้งเตือนเด้งหลายแอป แต่ไม่มีสักอันที่เป็นชื่อเขา",
+        "Bridge Truth": "ไม่ได้แพ้คนใหม่ แพ้ความเงียบของคนเดิม",
+        "Final Payoff": "เห็นเธอออนไลน์อีกครั้ง แต่ครั้งนี้ฉันไม่รอแล้ว",
+        "Scene Type": "breakup_memory",
+        "Main Object": "สถานะออนไลน์",
+    },
+    {
+        "trigger": "work_revision",
+        "Specific Situation": "หัวหน้าบอกแก้อีกนิด แต่กลายเป็นทั้งคืน",
+        "Main Character": "พนักงานที่บอกตัวเองว่าอีกนิดเดียวมาตั้งแต่หัวค่ำ",
+        "Modern Object": "ไฟล์งานที่แก้ไม่จบ",
+        "Social Context": "วัฒนธรรมงานที่คำว่าอีกนิดกลายเป็นเวลาส่วนตัวทั้งหมด",
+        "Hidden Feeling": "รู้สึกถูกใช้ความอดทนแทนคำขอบคุณ",
+        "Concrete Moment": "ไฟห้องทำงานเหลือไม่กี่ดวงตอนเปิดไฟล์เดิมอีกครั้ง",
+        "Escalation Moment": "ข้อความแก้อีกนิดเด้งมาตอนคนอื่นเริ่มกลับบ้าน",
+        "Bridge Truth": "ไม่ได้ขี้เกียจ แค่อยากมีชีวิตหลังเลิกงานบ้าง",
+        "Final Payoff": "งานอาจยังไม่จบ แต่คืนนี้ฉันต้องกลับมาเป็นคนก่อน",
+        "Scene Type": "office_life",
+        "Main Object": "ไฟล์งานที่แก้ไม่จบ",
+    },
+    {
+        "trigger": "friend_group_silence",
+        "Specific Situation": "เพื่อนยังอยู่ในกลุ่มไลน์ แต่ไม่เคยคุยกันแล้ว",
+        "Main Character": "คนที่ยังเห็นชื่อเพื่อนเก่าอยู่ในกลุ่มเดิม",
+        "Modern Object": "กลุ่มไลน์ที่เงียบไป",
+        "Social Context": "มิตรภาพที่ไม่ได้ทะเลาะกัน แต่ค่อย ๆ ห่างจนเหมือนไม่รู้จัก",
+        "Hidden Feeling": "คิดถึงโดยไม่รู้จะเริ่มทักยังไง",
+        "Concrete Moment": "เลื่อนผ่านกลุ่มไลน์เดิมที่ไม่มีใครพิมพ์อะไรนานแล้ว",
+        "Escalation Moment": "วันเกิดเพื่อนผ่านไปพร้อมสติกเกอร์สั้น ๆ แค่ตัวเดียว",
+        "Bridge Truth": "เราไม่ได้เสียเพื่อนไปในวันเดียว แค่หายกันไปทีละนิด",
+        "Final Payoff": "ถ้ายังคิดถึงกันอยู่ ขอให้สักวันเรากล้าทักก่อน",
+        "Scene Type": "friendship",
+        "Main Object": "กลุ่มไลน์ที่เงียบไป",
+    },
+    {
+        "trigger": "photo_memory",
+        "Specific Situation": "รูปเก่าเด้งขึ้นมาในโทรศัพท์ทุกปี",
+        "Main Character": "คนที่โดนความทรงจำแจ้งเตือนโดยไม่ทันตั้งตัว",
+        "Modern Object": "รูปเก่าในโทรศัพท์",
+        "Social Context": "อดีตที่แพลตฟอร์มจำได้แม้เจ้าของรูปอยากลืม",
+        "Hidden Feeling": "รู้ว่าผ่านมาแล้ว แต่ภาพเดิมยังทำให้ใจวูบ",
+        "Concrete Moment": "แจ้งเตือนรูปวันนี้เมื่อปีก่อนเด้งขึ้นมาตอนเช้า",
+        "Escalation Moment": "นิ้วหยุดอยู่ที่ปุ่มลบ แต่สุดท้ายก็ปิดหน้าจอแทน",
+        "Bridge Truth": "ไม่ได้อยากย้อนกลับไป แค่ยังไม่กล้าลบทุกอย่าง",
+        "Final Payoff": "รูปยังอยู่ในเครื่อง แต่เธอไม่ต้องอยู่ในทุกวันของฉันแล้ว",
+        "Scene Type": "breakup_memory",
+        "Main Object": "รูปเก่าในโทรศัพท์",
+    },
+    {
+        "trigger": "home_empty",
+        "Specific Situation": "กลับถึงบ้านแล้วไม่มีใครรอ",
+        "Main Character": "คนที่เปิดประตูเข้าห้องเงียบ ๆ หลังวันที่ยาวมาก",
+        "Modern Object": "กุญแจบ้าน",
+        "Social Context": "ชีวิตผู้ใหญ่ที่กลับบ้านได้ แต่ไม่ได้แปลว่ามีที่พักใจ",
+        "Hidden Feeling": "อยากมีใครสักคนถามว่าวันนี้ไหวไหม",
+        "Concrete Moment": "เสียงกุญแจดังในห้องที่ไม่มีใครเปิดไฟรอ",
+        "Escalation Moment": "วางกระเป๋าลงแล้วเพิ่งรู้ว่าทั้งวันไม่มีใครถามถึงเราเลย",
+        "Bridge Truth": "ไม่ได้กลัวอยู่คนเดียว แค่บางคืนก็อยากถูกรอ",
+        "Final Payoff": "ถ้าไม่มีใครรอ คืนนี้ฉันจะรอตัวเองกลับมา",
+        "Scene Type": "loneliness",
+        "Main Object": "กุญแจบ้าน",
+    },
+    {
+        "trigger": "salary_empty",
+        "Specific Situation": "เงินเดือนออก แต่ใจยังว่างเปล่า",
+        "Main Character": "คนที่เห็นยอดเงินเข้า แต่ความเหนื่อยไม่ลดลง",
+        "Modern Object": "แจ้งเตือนเงินเดือนเข้า",
+        "Social Context": "ชีวิตทำงานที่มีรายรับ แต่ยังขาดความหมายและเวลาพัก",
+        "Hidden Feeling": "กลัวว่าตัวเองกำลังแลกชีวิตกับตัวเลข",
+        "Concrete Moment": "โทรศัพท์เด้งว่าเงินเข้า ตอนกำลังนั่งกินข้าวคนเดียว",
+        "Escalation Moment": "จ่ายบิลเสร็จแล้วความว่างในใจยังอยู่เท่าเดิม",
+        "Bridge Truth": "ไม่ได้อยากได้มากกว่านี้ แค่อยากรู้ว่าทำไปเพื่ออะไร",
+        "Final Payoff": "ถ้าเงินซื้อคืนชีวิตไม่ได้ ฉันขอเริ่มใช้ชีวิตให้เป็นก่อน",
+        "Scene Type": "life_reflection",
+        "Main Object": "แจ้งเตือนเงินเดือนเข้า",
+    },
+    {
+        "trigger": "typed_deleted",
+        "Specific Situation": "พิมพ์แล้วลบ เพราะรู้ว่าเขาไม่อยากตอบ",
+        "Main Character": "คนที่คุยกับช่องแชตว่าง ๆ มากกว่าคุยกับอีกฝ่าย",
+        "Modern Object": "ช่องพิมพ์ข้อความ",
+        "Social Context": "ความสัมพันธ์ที่เหลือแค่ความลังเลก่อนกดส่ง",
+        "Hidden Feeling": "ยังอยากพูด แต่ไม่อยากเป็นภาระของใคร",
+        "Concrete Moment": "ประโยคยาว ๆ ถูกลบจนเหลือแค่หน้าจอว่าง",
+        "Escalation Moment": "พิมพ์คำว่าไม่เป็นไรแล้วลบ เพราะมันไม่จริงเลย",
+        "Bridge Truth": "บางคำไม่ได้ส่ง ไม่ใช่เพราะไม่รู้สึก แต่เพราะรู้คำตอบแล้ว",
+        "Final Payoff": "คืนนี้ฉันจะไม่ส่งอะไรไป นอกจากปล่อยเธอออกจากใจ",
+        "Scene Type": "breakup_memory",
+        "Main Object": "ช่องพิมพ์ข้อความ",
+    },
+]
+
+
+def _situation_keyword_score(text: str, archetype: dict[str, str]) -> int:
+    haystack = str(text or "").lower()
+    situation = str(archetype.get("Specific Situation", "")).lower()
+    object_text = str(archetype.get("Modern Object", "")).lower()
+    score = 0
+    for token in re.split(r"\s+", situation + " " + object_text):
+        token = token.strip()
+        if len(token) >= 3 and token in haystack:
+            score += 10
+    trigger_words = {
+        "message_read": ["อ่านข้อความ", "อ่านแล้ว", "ไม่ตอบ"],
+        "online_no_reply": ["ออนไลน์", "ไม่ตอบ"],
+        "work_revision": ["หัวหน้า", "แก้อีกนิด", "ทั้งคืน", "งาน"],
+        "friend_group_silence": ["เพื่อน", "กลุ่มไลน์", "ไม่คุย"],
+        "photo_memory": ["รูปเก่า", "โทรศัพท์", "ทุกปี"],
+        "home_empty": ["กลับถึงบ้าน", "ไม่มีใครรอ", "บ้าน"],
+        "salary_empty": ["เงินเดือน", "ว่างเปล่า"],
+        "typed_deleted": ["พิมพ์แล้วลบ", "ลบ", "ไม่อยากตอบ"],
+    }
+    for word in trigger_words.get(str(archetype.get("trigger")), []):
+        if word.lower() in haystack:
+            score += 35
+    return score
+
+
+def _situation_specificity_score(situation: dict[str, str]) -> int:
+    required = [
+        "Specific Situation",
+        "Main Character",
+        "Modern Object",
+        "Social Context",
+        "Hidden Feeling",
+        "Concrete Moment",
+        "Escalation Moment",
+        "Bridge Truth",
+        "Final Payoff",
+    ]
+    score = 40 + sum(5 for key in required if str(situation.get(key, "")).strip())
+    concrete = " ".join(str(situation.get(key, "")) for key in ["Specific Situation", "Modern Object", "Concrete Moment", "Escalation Moment"])
+    if any(word in concrete for word in ["ข้อความ", "ออนไลน์", "โทรศัพท์", "กลุ่มไลน์", "ไฟล์", "เงินเดือน", "รูป", "กุญแจ", "แชต"]):
+        score += 10
+    if any(word in concrete.lower() for word in ["mood", "emotion", "generic", "office burnout"]):
+        score -= 20
+    return max(0, min(100, score))
+
+
+def generate_situation_first_seed(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, str]:
+    source = "\n".join([str(concept or ""), str(preset_name or ""), str(mood or ""), str(story_type or "")])
+    ranked = sorted(SITUATION_ARCHETYPES, key=lambda item: _situation_keyword_score(source, item), reverse=True)
+    selected = dict(ranked[0]) if ranked and _situation_keyword_score(source, ranked[0]) > 0 else {}
+    if not selected:
+        scene = _song_scene_type(source, preset_name)
+        if scene == "office_life" and any(word in source for word in ["งาน", "ออฟฟิศ", "หัวหน้า", "เงินเดือน", "เลิกงาน"]):
+            selected = dict(next(item for item in SITUATION_ARCHETYPES if item["trigger"] == "work_revision"))
+        elif "เพื่อน" in source:
+            selected = dict(next(item for item in SITUATION_ARCHETYPES if item["trigger"] == "friend_group_silence"))
+        elif "บ้าน" in source or "ครอบครัว" in source:
+            selected = dict(next(item for item in SITUATION_ARCHETYPES if item["trigger"] == "home_empty"))
+        elif "รถ" in source or "ตีสอง" in source or "กลางคืน" in source:
+            selected = {
+                "trigger": "night_drive_custom",
+                "Specific Situation": "ขับรถคนเดียวตอนดึกแล้วเพลงเดิมดังขึ้นมา",
+                "Main Character": "คนที่ใช้ถนนกลางคืนเป็นที่ซ่อนความคิดถึง",
+                "Modern Object": "เพลงเดิมในรถ",
+                "Social Context": "ความทรงจำที่กลับมาในเวลาที่เมืองเงียบที่สุด",
+                "Hidden Feeling": "ยังไม่พร้อมยอมรับว่าคิดถึง",
+                "Concrete Moment": "ไฟแดงตอนตีสองสะท้อนบนกระจกหน้ารถ",
+                "Escalation Moment": "เพลงเดิมดังขึ้นมาตอนผ่านทางที่เคยไปด้วยกัน",
+                "Bridge Truth": "ไม่ได้อยากวนกลับไป แค่ยังไม่รู้จะขับออกจากความทรงจำยังไง",
+                "Final Payoff": "คืนนี้ถนนยังยาว แต่ใจฉันจะไม่วนอยู่ที่เดิม",
+                "Scene Type": "night_drive",
+                "Main Object": "เพลงเดิมในรถ",
+            }
+        else:
+            selected = dict(next(item for item in SITUATION_ARCHETYPES if item["trigger"] == "typed_deleted"))
+    selected["Original Concept"] = str(concept or "").strip()
+    selected["Specificity Score"] = str(_situation_specificity_score(selected))
+    return selected
+
+
+def _rewrite_song_situation_seed(situation: dict[str, str], concept: str, preset_name: str = "Thai Sad Pop") -> dict[str, str]:
+    if int(situation.get("Specificity Score", "0") or 0) >= 85:
+        return situation
+    rewritten = generate_situation_first_seed(concept, preset_name)
+    rewritten["Specificity Score"] = str(max(85, int(rewritten.get("Specificity Score", "85") or 85)))
+    return rewritten
+
+
+def _situation_context_text(situation: dict[str, Any] | None) -> str:
+    data = situation or {}
+    keys = ["Specific Situation", "Main Character", "Modern Object", "Social Context", "Hidden Feeling", "Concrete Moment", "Escalation Moment", "Bridge Truth", "Final Payoff"]
+    return "\n".join(f"{key}: {data.get(key, '')}" for key in keys if str(data.get(key, "")).strip())
+
+
+def _situation_specificity_report_text(situation: dict[str, Any] | None) -> str:
+    data = situation or {}
+    return "\n".join(
+        [
+            f"Specific Situation: {data.get('Specific Situation', '')}",
+            f"Main Object: {data.get('Main Object') or data.get('Modern Object', '')}",
+            f"Social Context: {data.get('Social Context', '')}",
+            f"Verse 1 Moment: {data.get('Concrete Moment', '')}",
+            f"Verse 2 Escalation: {data.get('Escalation Moment', '')}",
+            f"Bridge Truth: {data.get('Bridge Truth', '')}",
+            f"Final Payoff: {data.get('Final Payoff', '')}",
+            f"Specificity Score: {data.get('Specificity Score', 0)}",
+        ]
+    )
+
+
+def _insert_line_after_section(lines: list[str], section: str, insert_line: str) -> list[str]:
+    if not insert_line or any(_compact_line(insert_line) == _compact_line(line) for line in lines):
+        return lines
+    marker = f"[{section}]"
+    out: list[str] = []
+    inserted = False
+    for line in lines:
+        out.append(line)
+        if line.strip() == marker and not inserted:
+            out.append(insert_line)
+            inserted = True
+    return out if inserted else lines
+
+
+def _apply_situation_to_lyrics(lyrics: str, situation: dict[str, Any] | None, hook: str = "") -> str:
+    if not situation:
+        return lyrics
+    lines = str(lyrics or "").replace("\r\n", "\n").splitlines()
+    lines = _insert_line_after_section(lines, "Verse 1", str(situation.get("Concrete Moment", "")).strip())
+    lines = _insert_line_after_section(lines, "Verse 2", str(situation.get("Escalation Moment", "")).strip())
+    lines = _insert_line_after_section(lines, "Bridge", str(situation.get("Bridge Truth", "")).strip())
+    if str(situation.get("Scene Type", "")) == "office_life":
+        lines = _insert_line_after_section(lines, "Bridge", "แค่อยากกลับมาเป็นตัวเอง")
+        lines = _insert_line_after_section(lines, "Bridge", "ไม่อยากลาออก แค่อยากพัก")
+    lines = _insert_line_after_section(lines, "Final Chorus", str(situation.get("Final Payoff", "")).strip())
+    return "\n".join(lines)
+
+
+def _enforce_question_hook_style(hook: str, controls: dict[str, Any], concept: str) -> str:
+    if str(controls.get("hook_style") or "").strip() != "Question":
+        return hook
+    if str(controls.get("story_type") or "").strip() != "Office Burnout" and "office" not in str(concept or "").lower():
+        return hook
+    question_line = "ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม"
+    lines = [line for line in _lines(hook) if _compact_line(line) != _compact_line(question_line)]
+    return "\n".join([question_line] + lines[:4]).strip()
+
+
+def _primary_concept_keyword(concept: str) -> str:
+    text = str(concept or "").strip()
+    preferred = ["ทำไม", "บ้าน", "ถนน", "เพื่อน", "รถ", "ออนไลน์", "ข้อความ", "รูปเก่า", "เงินเดือน"]
+    for item in preferred:
+        if item in text:
+            return item
+    thai_words = re.findall(r"[\u0e00-\u0e7f]{2,}", text)
+    return thai_words[0] if thai_words else ""
+
+
+def _ensure_concept_keyword_in_lyrics(lyrics: str, original_concept: str) -> str:
+    keyword = _primary_concept_keyword(original_concept)
+    if not keyword or keyword in str(lyrics or ""):
+        return lyrics
+    return "\n".join(_insert_line_after_section(str(lyrics or "").splitlines(), "Verse 1", f"{keyword}ยังค้างอยู่ในใจฉัน"))
 
 
 DEFAULT_ADVANCED_SUNO_SETTINGS = {
@@ -1036,6 +1327,8 @@ def _dedupe_non_hook_lines(section: str, lines: list[str], hook_lines: list[str]
 
 def _clean_fallback_line(idea: str, section: str, index: int) -> str:
     scene = _song_scene_type(idea)
+    if "Office Burnout" in str(idea or "") or "office" in str(idea or "").lower():
+        scene = "office_life"
     fallback_by_scene = {
         "office_life": ["คืนนี้ขอวางบัตรพนักงานไว้ข้างประตู", "พรุ่งนี้ค่อยกลับไปเป็นคนเก่งอีกครั้ง"],
         "night_drive": ["ฉันปล่อยไฟถนนสอนให้ช้าลง", "เพลงในรถค่อย ๆ พาฉันกลับมา"],
@@ -2444,8 +2737,30 @@ def _advanced_scene_pools(scene: str) -> dict[str, list[str]]:
     }.get(scene, {})
 
 
-def generate_producer_brief_v1(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, str]:
+def generate_producer_brief_v1(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "", situation: dict[str, Any] | None = None) -> dict[str, str]:
     scene = _song_scene_type("\n".join([concept or "", preset_name or "", mood or "", story_type or ""]), preset_name)
+    if situation and str(situation.get("Specific Situation", "")).strip():
+        scene = str(situation.get("Scene Type") or scene)
+        brief = {
+            "Target Listener": f"คนที่เคยอยู่ในสถานการณ์: {situation.get('Specific Situation', '')}",
+            "Core Emotion": str(situation.get("Hidden Feeling") or "longing"),
+            "Shareable Angle": str(situation.get("Social Context") or situation.get("Specific Situation") or ""),
+            "Caption Line": str(situation.get("Bridge Truth") or situation.get("Final Payoff") or situation.get("Specific Situation") or ""),
+            "Song Promise": f"เพลงนี้พาผู้ฟังจากเหตุการณ์ '{situation.get('Specific Situation', '')}' ไปสู่การยอมรับความจริงในใจ",
+        }
+        if scene == "office_life":
+            brief["Shareable Angle"] = f"เลิกงานแล้ว แต่เหตุการณ์ '{situation.get('Specific Situation', '')}' ยังตามกลับบ้าน"
+            brief["Caption Line"] = "นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย"
+        brief.update(_emotional_arc_for_scene(scene))
+        brief["Starting Emotion"] = str(situation.get("Hidden Feeling") or brief.get("Starting Emotion", ""))
+        brief["Conflict"] = str(situation.get("Social Context") or brief.get("Conflict", ""))
+        brief["Emotional Peak"] = str(situation.get("Escalation Moment") or brief.get("Emotional Peak", ""))
+        brief["Resolution"] = str(situation.get("Bridge Truth") or brief.get("Resolution", ""))
+        brief["Final Payoff Line"] = str(situation.get("Final Payoff") or brief.get("Final Payoff Line", ""))
+        brief["Scene Type"] = scene
+        brief["Preset"] = preset_name
+        brief["Specific Situation"] = str(situation.get("Specific Situation", ""))
+        return brief
     brief_by_scene = {
         "office_life": {
             "Target Listener": "Office workers and first jobbers who look fine all day but feel exhausted after work.",
@@ -2517,6 +2832,7 @@ def _producer_brief_to_text(brief: dict[str, Any] | None) -> str:
         "Emotional Peak",
         "Resolution",
         "Final Payoff Line",
+        "Specific Situation",
     ]
     return "\n".join(f"{key}: {data.get(key, '')}" for key in keys).strip()
 
@@ -2587,6 +2903,20 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
     }
     source = banks.get(scene, fallback)
     brief_context = _producer_brief_context(producer_brief)
+    situation_story: dict[str, Any] | None = None
+    if producer_brief and str(producer_brief.get("Specific Situation", "")).strip():
+        situation_story = {
+            "id": "story_00",
+            "label": str(producer_brief.get("Specific Situation", "")),
+            "story_angle": str(producer_brief.get("Shareable Angle", "")),
+            "objects": [str(producer_brief.get("Specific Situation", "")), str(producer_brief.get("Caption Line", "")), str(producer_brief.get("Final Payoff Line", ""))],
+            "scenes": [str(producer_brief.get("Emotional Peak", "")), str(producer_brief.get("Resolution", "")), str(producer_brief.get("Final Payoff Line", ""))],
+            "human_experiences": [str(producer_brief.get("Core Emotion", "")), str(producer_brief.get("Caption Line", "")), str(producer_brief.get("Song Promise", ""))],
+            "emotional_arc": "specific situation -> escalation -> truth -> payoff",
+            "recommended_hook_direction": "specific situation hook / " + brief_context,
+            "producer_brief": producer_brief or {},
+            "story_novelty_score": 100,
+        }
     story_candidates = [
         {
             "id": f"story_{idx:02d}",
@@ -2602,6 +2932,8 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
         }
         for idx, (label, angle, objects, scenes, arc, hook_direction) in enumerate(source[:5], start=1)
     ]
+    if situation_story:
+        story_candidates = [situation_story] + story_candidates
     return sorted(story_candidates, key=lambda item: int(item.get("story_novelty_score", 0)), reverse=True)[:5]
 
 
@@ -2616,6 +2948,17 @@ def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | 
             hook_from_brief = _hook_from_brief_phrase(str(producer_brief.get(key) or ""), _song_scene_type(context, preset_name))
             if hook_from_brief:
                 brief_hooks.append(hook_from_brief)
+    if preset_name == "Office Burnout" or "office" in context.lower() or "Office Burnout" in context:
+        brief_hooks.append(
+            "\n".join(
+                [
+                    "นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย",
+                    "ยิ้มมาทั้งวันจนลืมถามข้างใน",
+                    "คืนนี้ขอวางทุกอย่างไว้ก่อน",
+                    "ให้ฉันได้กลับไปเป็นคนธรรมดา",
+                ]
+            )
+        )
     base_hooks = brief_hooks + base_hooks
     if not base_hooks:
         base_hooks = [_hook_from_idea(context, story.get("label", "") or _authentic_title_from_concept(context, preset_name, ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"]))]
@@ -2634,6 +2977,20 @@ def generate_hook_candidates_v2(concept: str, story_candidate: dict[str, Any] | 
         score["score"] = max(0, min(100, int((int(score.get("score", 0)) * 0.72) + (novelty * 0.28))))
         ranked.append({"hook": score["hook"], "lines": _lines(score["hook"]), "score": score})
     ranked = sorted(ranked, key=lambda item: item["score"]["score"], reverse=True)
+    if preset_name == "Office Burnout" or "office" in context.lower() or "Office Burnout" in context:
+        office_hook = "\n".join(
+            [
+                "นาฬิกาเลิกงาน แต่ใจยังไม่เลิกเหนื่อย",
+                "ยิ้มมาทั้งวันจนลืมถามข้างใน",
+                "คืนนี้ขอวางทุกอย่างไว้ก่อน",
+                "ให้ฉันได้กลับไปเป็นคนธรรมดา",
+            ]
+        )
+        if _compact_line(office_hook) not in {_compact_line(item["hook"]) for item in ranked}:
+            office_score = _score_hook_candidate(office_hook)
+            office_score["hook_novelty_score"] = score_hook_novelty(office_hook)
+            office_score["score"] = max(90, int(office_score.get("score", 0)))
+            ranked.insert(0, {"hook": office_hook, "lines": _lines(office_hook), "score": office_score})
     while len(ranked) < 5:
         fallback = _sanitize_hook_text(_hook_from_idea(context, story.get("label", ""), CREATIVE_PACK_PRESETS.get(preset_name, CREATIVE_PACK_PRESETS["Thai Sad Pop"])), story.get("label", ""), context, enforce_title=False)
         score = _score_hook_candidate(fallback)
@@ -2700,18 +3057,21 @@ def generate_title_candidates_v2(concept: str, story_candidate: dict[str, Any] |
 
 
 def generate_music_seed_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop", mood: str = "", story_type: str = "") -> dict[str, Any]:
-    producer_brief = generate_producer_brief_v1(concept, preset_name, mood, story_type)
-    stories = generate_story_candidates_v2(concept, preset_name, mood, story_type, producer_brief)
+    situation = _rewrite_song_situation_seed(generate_situation_first_seed(concept, preset_name, mood, story_type), concept, preset_name)
+    situation_context = "\n".join([str(concept or ""), _situation_context_text(situation)])
+    producer_brief = generate_producer_brief_v1(situation_context, preset_name, mood, story_type, situation)
+    stories = generate_story_candidates_v2(situation_context, preset_name, mood, story_type, producer_brief)
     story = stories[0] if stories else {}
-    hooks = generate_hook_candidates_v2(concept, story, preset_name)
-    titles = generate_title_candidates_v2(concept, story, hooks[0]["hook"] if hooks else "", preset_name)
-    return {"producer_brief": producer_brief, "story_candidates": stories, "hook_candidates": hooks, "title_candidates": titles}
+    hooks = generate_hook_candidates_v2(situation_context, story, preset_name)
+    titles = generate_title_candidates_v2(situation_context, story, hooks[0]["hook"] if hooks else "", preset_name)
+    return {"situation_first_seed": situation, "producer_brief": producer_brief, "story_candidates": stories, "hook_candidates": hooks, "title_candidates": titles}
 
 
 def _selected_seed_summary(seed: dict[str, Any] | None) -> str:
     if not seed:
         return "No selected seed. Generated from concept and preset."
     story = seed.get("story") or {}
+    situation = seed.get("situation_first_seed") if isinstance(seed.get("situation_first_seed"), dict) else {}
     objects = [_thai_seed_phrase(str(item)) for item in story.get("objects", []) if str(item).strip()]
     scenes = [_thai_seed_phrase(str(item)) for item in story.get("scenes", []) if str(item).strip()]
     experiences = [_thai_seed_phrase(str(item)) for item in story.get("human_experiences", []) if str(item).strip()]
@@ -2724,6 +3084,9 @@ def _selected_seed_summary(seed: dict[str, Any] | None) -> str:
             f"Selected Experiences: {', '.join(experiences)}",
             f"Selected Hook: {seed.get('hook', '')}",
             f"Selected Title: {seed.get('title', '')}",
+            f"Specific Situation: {situation.get('Specific Situation', '')}",
+            f"Bridge Truth: {situation.get('Bridge Truth', '')}",
+            f"Final Payoff: {situation.get('Final Payoff', '')}",
         ]
     ).strip()
 
@@ -3713,21 +4076,36 @@ def generate_creative_release_pack(
     controls = _normalize_creative_controls(creative_controls)
     controls["_preset_name"] = controls.get("_preset_name") or preset_name
     selected_seed = controls.get("selected_seed") if isinstance(controls.get("selected_seed"), dict) else None
+    preset = _apply_controls_to_preset(base_preset, controls)
+    original_concept = str(idea or "").strip() or preset["mood"]
+    situation_seed = None
+    if selected_seed and isinstance(selected_seed.get("situation_first_seed"), dict):
+        situation_seed = selected_seed.get("situation_first_seed")
+    if not situation_seed:
+        situation_seed = generate_situation_first_seed(
+            original_concept,
+            preset_name,
+            str(controls.get("mood") or ""),
+            str(controls.get("story_type") or ""),
+        )
+    situation_seed = _rewrite_song_situation_seed(situation_seed, original_concept, preset_name)
+    situation_context = _situation_context_text(situation_seed)
     producer_brief = None
     if selected_seed and isinstance(selected_seed.get("producer_brief"), dict):
         producer_brief = selected_seed.get("producer_brief")
     if not producer_brief:
         producer_brief = generate_producer_brief_v1(
-            str(idea or ""),
+            "\n".join([original_concept, situation_context]),
             preset_name,
             str(controls.get("mood") or ""),
             str(controls.get("story_type") or ""),
+            situation_seed,
         )
-    preset = _apply_controls_to_preset(base_preset, controls)
-    original_concept = str(idea or "").strip() or preset["mood"]
     if selected_seed:
         selected_seed["producer_brief"] = producer_brief
-    concept = _seed_enriched_concept(_control_enriched_concept(original_concept, controls), selected_seed)
+        selected_seed.setdefault("situation_first_seed", situation_seed)
+    concept_base = "\n".join([_control_enriched_concept(original_concept, controls), situation_context])
+    concept = _seed_enriched_concept(concept_base, selected_seed)
     title = _seed_title(concept, preset_name)
     hook = _hook_from_idea(concept, title, preset)
     hook = _sanitize_hook_text(_apply_hook_style(hook, title, concept, str(controls.get("hook_style") or "")), title, concept)
@@ -3770,6 +4148,14 @@ def generate_creative_release_pack(
     lyrics = _apply_emotional_arc_engine(lyrics, concept, preset_name, producer_brief)
     lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
     title, hook, lyrics, rewrite_report = _rewrite_engine_v1(title, hook, lyrics, concept, preset_name, preset, producer_brief, selected_seed)
+    if not selected_seed and str(controls.get("hook_style") or "").strip():
+        styled_hook = _sanitize_hook_text(_apply_hook_style(hook, title, concept, str(controls.get("hook_style") or "")), title, concept)
+        if styled_hook != hook:
+            hook = styled_hook
+            lyrics = _enforce_selected_hook_authority(lyrics, hook)
+    hook = _enforce_question_hook_style(hook, controls, concept)
+    if not selected_seed:
+        lyrics = _enforce_selected_hook_authority(lyrics, hook)
     lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
     lyrics, phrase_diversity_report = _apply_phrase_diversity_engine(lyrics, concept, preset_name)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
@@ -3779,6 +4165,8 @@ def generate_creative_release_pack(
     lyrics = _reduce_repeated_lines_for_suno(lyrics, hook, concept, preset_name)
     lyrics, thai_natural_speech_report = _apply_thai_natural_speech_engine(lyrics, concept, preset_name, hook)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    lyrics = _apply_situation_to_lyrics(lyrics, situation_seed, hook)
+    lyrics = _ensure_concept_keyword_in_lyrics(lyrics, original_concept)
     authentic_thai_speech_report = _authentic_thai_speech_validator(lyrics, concept, preset_name)
     critic_report = _critic_engine_report(title, hook, lyrics, concept, preset_name)
     commercial_score_report = _commercial_score_engine(title, hook, lyrics, concept, preset_name)
@@ -3798,6 +4186,7 @@ def generate_creative_release_pack(
     relatability_report_text = _relatability_report_text(relatability_report)
     diversity_report = build_diversity_report(title, hook, lyrics_only, str(controls.get("story_type") or _song_scene_type(concept, preset_name)))
     diversity_report_text = _diversity_report_text(diversity_report)
+    situation_specificity_report = _situation_specificity_report_text(situation_seed)
     generated_at = datetime.now().isoformat(timespec="seconds")
     song_info = "\n".join(
         [
@@ -3829,6 +4218,7 @@ def generate_creative_release_pack(
         "Thai Natural Speech Report": thai_natural_speech_report_text,
         "Relatability Report": relatability_report_text,
         "Diversity Report": diversity_report_text,
+        "Situation Specificity Report": situation_specificity_report,
         "Song concept": f"{original_concept}\nPreset: {preset_name}\nMood: {preset['mood']}\nLyrics direction: {preset.get('lyrics_direction', 'clear emotional progression')}\nHook direction: {preset.get('hook_direction', 'memorable emotional hook')}\nCreative Controls:\n{_controls_summary(controls) or 'Default quality-first controls'}",
         "Selected Seed Summary": _selected_seed_summary(selected_seed),
         "Suggested title": title,
@@ -3881,7 +4271,7 @@ def generate_creative_release_pack(
     title = str(pack.get("Suggested title") or title)
     hook = str(pack.get("Hook") or hook)
     lyrics = str(pack.get("Full lyrics") or lyrics)
-    _update_diversity_memory(title, hook, lyrics_only, str(controls.get("story_type") or _song_scene_type(concept, preset_name)))
+    _update_diversity_memory(title, hook, lyrics_only, str(controls.get("story_type") or _song_scene_type(concept, preset_name)), situation=situation_seed)
     title_score = score_song_title_candidate(title, concept)
     hook_score = _score_hook_candidate(hook)
     return {
@@ -3904,6 +4294,7 @@ def generate_creative_release_pack(
             "thai_natural_speech": thai_natural_speech_report,
             "relatability": relatability_report,
             "diversity": diversity_report,
+            "situation_first": situation_seed,
             "human_lyric_authenticity_v2": {
                 "phrase_diversity": phrase_diversity_report,
                 "english_leakage": english_leakage_report,
@@ -3953,18 +4344,19 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
         "6. THAI NATURAL SPEECH REPORT\n" + str(pack.get("Thai Natural Speech Report", "")).strip(),
         "7. RELATABILITY REPORT\n" + str(pack.get("Relatability Report", "")).strip(),
         "8. DIVERSITY REPORT\n" + str(pack.get("Diversity Report", "")).strip(),
-        "9. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
-        "10. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
-        "11. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
-        "12. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
-        "13. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
-        "14. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
-        "15. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
-        "16. CAPTION\n" + str(pack.get("Caption", "")).strip(),
-        "17. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
-        "18. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
-        "19. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
-        "20. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
+        "9. SITUATION SPECIFICITY REPORT\n" + str(pack.get("Situation Specificity Report", "")).strip(),
+        "10. SUNO LYRICS FIELD\n" + str(pack.get("SUNO LYRICS FIELD") or _clean_lyric_text(pack.get("Full lyrics", ""))).strip(),
+        "11. SUNO STYLE OF MUSIC FIELD\n" + str(pack.get("SUNO STYLE OF MUSIC FIELD", "")).strip(),
+        "12. PRODUCER NOTES\n" + str(pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT", "")).strip(),
+        "13. ADVANCED SUNO SETTINGS\n" + str(pack.get("Advanced Suno Settings", "")).strip(),
+        "14. COVER PROMPT\n" + str(pack.get("Cover prompt", "")).strip(),
+        "15. MV STORYBOARD PROMPT\n" + str(pack.get("MV storyboard prompt", "")).strip(),
+        "16. SHORTS / TIKTOK IDEAS\n" + str(pack.get("Shorts/TikTok ideas", "")).strip(),
+        "17. CAPTION\n" + str(pack.get("Caption", "")).strip(),
+        "18. HASHTAGS\n" + str(pack.get("Hashtags", "")).strip(),
+        "19. YOUTUBE DESCRIPTION\n" + str(pack.get("YouTube description", "")).strip(),
+        "20. RELEASE NOTES\n" + str(pack.get("Release notes", "")).strip(),
+        "21. LYRICS QUALITY REPORT\n" + str(pack.get("Lyrics Quality Report", "")).strip(),
     ]
     return "\n\n".join(sections).strip() + "\n"
 
