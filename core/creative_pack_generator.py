@@ -750,13 +750,7 @@ def _apply_situation_to_lyrics(lyrics: str, situation: dict[str, Any] | None, ho
 
 
 def _enforce_question_hook_style(hook: str, controls: dict[str, Any], concept: str) -> str:
-    if str(controls.get("hook_style") or "").strip() != "Question":
-        return hook
-    if str(controls.get("story_type") or "").strip() != "Office Burnout" and "office" not in str(concept or "").lower():
-        return hook
-    question_line = "ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม"
-    lines = [line for line in _lines(hook) if _compact_line(line) != _compact_line(question_line)]
-    return "\n".join([question_line] + lines[:4]).strip()
+    return hook
 
 
 def _primary_concept_keyword(concept: str) -> str:
@@ -852,6 +846,691 @@ def _ensure_situation_section_minimums(lyrics: str, situation: dict[str, Any] | 
             if len(lines) >= minimum:
                 break
     return _render_lyric_sections(sections)
+
+
+STRICT_TEMPLATE_BANNED_LINES = [
+    "ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม",
+    "พรุ่งนี้ค่อยกลับไปเป็นคนเก่งอีกครั้ง",
+    "คืนนี้ขอให้ใจเบาลง",
+    "ไม่ได้ลืม แค่ไม่อยากรอแล้ว",
+    "เงียบกว่าที่คิด",
+    "ไม่รู้จะทักหาใคร",
+    "พักใจก่อน",
+    "คืนนี้ขอพัก",
+    "ใจยังไม่เลิกงาน",
+]
+
+
+def _detect_story_blueprint_type(idea: str, situation: dict[str, Any] | None = None) -> str:
+    text = "\n".join([str(idea or ""), _situation_context_text(situation)]).lower()
+    checks = [
+        ("dog_loss", ["หมา", "สุนัข", "12 ปี", "จากไป", "dog"]),
+        ("aging_father", ["พ่อ", "แก่", "อายุ", "father"]),
+        ("secret_crush_friend", ["แอบชอบ", "เพื่อนสนิท", "crush"]),
+        ("read_no_reply", ["อ่านแล้ว", "ไม่ตอบ", "ไม่อยากตอบ", "พิมพ์แล้วลบ", "read", "seen", "waiting for someone", "never replies"]),
+        ("old_photo", ["รูปเก่า", "เด้ง", "photo", "gallery"]),
+        ("boss_revision", ["boss", "revision", "one more", "หัวหน้า", "แก้อีกนิด", "เดดไลน์", "deadline"]),
+        ("friend_group_fade", ["เพื่อน", "กลุ่มไลน์", "หาย", "group"]),
+        ("first_car_broken", ["รถคันแรก", "รถเสีย", "รถพัง", "car broken"]),
+        ("move_out_home", ["ย้ายออก", "ออกจากบ้าน", "บ้าน", "move out"]),
+        ("graduation_rain", ["ฝนตก", "รับปริญญา", "graduation"]),
+        ("broken_phone_photos", ["โทรศัพท์พัง", "รูปยังอยู่", "phone broken"]),
+    ]
+    for key, words in checks:
+        if any(word in text for word in words):
+            return key
+    return str((situation or {}).get("trigger") or "specific_life")
+
+
+def _story_blueprint_v2(idea: str, situation: dict[str, Any] | None = None) -> dict[str, Any]:
+    kind = _detect_story_blueprint_type(idea, None)
+    if kind == "specific_life":
+        kind = _detect_story_blueprint_type(idea, situation)
+    blueprints: dict[str, dict[str, Any]] = {
+        "dog_loss": {
+            "title": "ประตูที่ยังรอ",
+            "protagonist": "เจ้าของที่ยังเผลอรอเสียงเท้าเดิม",
+            "situation": "บ้านเงียบหลังหมาที่เลี้ยงมานานจากไป",
+            "location": "หน้าบ้านกับประตูรั้วตอนเย็น",
+            "object": "ปลอกคอเก่า",
+            "action": "เผลอเปิดประตูรอเหมือนทุกวัน",
+            "conflict": "ยังติดนิสัยรอให้มันวิ่งกลับมาหา",
+            "progression": ["เผลอรอ", "บ้านเงียบผิดปกติ", "ยอมรับว่าความรักยังอยู่"],
+            "bridge_realization": "นิสัยบางอย่างยังอยู่ แม้เจ้าของเสียงเท้านั้นไม่กลับมาแล้ว",
+            "payoff": "รักยังเฝ้าประตูอยู่ แม้การลากลับมาไม่ได้",
+            "hook": ["ทุกเย็นยังเผลอเปิดประตูรอ", "ทั้งที่ไม่มีใครวิ่งมาหาแล้ว", "ปลอกคอเก่ายังวางอยู่ที่เดิม", "แต่เสียงเท้านั้นไม่กลับมา"],
+        },
+        "aging_father": {
+            "title": "มือพ่อช้าลง",
+            "protagonist": "ลูกที่เพิ่งสังเกตว่าพ่อแก่ลงทุกปี",
+            "situation": "เห็นพ่อทำสิ่งเดิมช้าลงกว่าเมื่อก่อน",
+            "location": "โต๊ะกินข้าวที่บ้าน",
+            "object": "แก้วน้ำของพ่อ",
+            "action": "มองมือพ่อค่อย ๆ วางแก้วลง",
+            "conflict": "กลัวเวลาพาพ่อไกลออกไปแต่ไม่กล้าพูด",
+            "progression": ["เห็นความเปลี่ยนแปลง", "จำพ่อคนเดิม", "อยากใช้เวลาที่เหลือให้ดี"],
+            "bridge_realization": "คนที่เคยพาเราเดิน วันนี้อาจอยากให้เราเดินช้าลงข้างเขา",
+            "payoff": "ถ้าเวลาทำให้พ่อช้าลง ฉันจะไม่รีบผ่านวันเหล่านี้",
+            "hook": ["มือพ่อช้าลงทุกปี", "แต่ฉันเพิ่งเห็นในวันนี้", "คนที่เคยจับมือให้เดิน", "กำลังรอให้ฉันหันกลับไป"],
+        },
+        "secret_crush_friend": {
+            "title": "เพื่อนคำเดิม",
+            "protagonist": "คนที่แอบรักเพื่อนสนิทแต่เก็บไว้",
+            "situation": "นั่งข้างเพื่อนที่เล่าเรื่องคนอื่นให้ฟัง",
+            "location": "ร้านข้าวหลังเลิกเรียนหรือเลิกงาน",
+            "object": "แก้วน้ำสองใบ",
+            "action": "ยิ้มรับทั้งที่ในใจเจ็บ",
+            "conflict": "อยากบอกแต่กลัวเสียคำว่าเพื่อน",
+            "progression": ["อยู่ใกล้", "เก็บความรู้สึก", "เลือกถนอมความสัมพันธ์"],
+            "bridge_realization": "บางคำไม่พูดออกไป ไม่ใช่เพราะไม่รัก แต่เพราะกลัวเสียเธอ",
+            "payoff": "ถ้าเป็นได้แค่เพื่อน ฉันก็ยังอยากอยู่ตรงนี้ให้ดีที่สุด",
+            "hook": ["คำว่าเพื่อนมันใกล้เกินไป", "ใกล้จนฉันไม่กล้าพูดว่ารัก", "นั่งข้างเธอทุกวัน", "แต่ต้องเก็บใจไว้คนเดียว"],
+        },
+        "read_no_reply": {
+            "title": "อ่านแล้วไม่ตอบ",
+            "protagonist": "คนที่รอข้อความจากชื่อเดิม",
+            "situation": "เห็นสถานะอ่านแล้วใต้ข้อความสุดท้าย",
+            "location": "หน้าจอโทรศัพท์ตอนกลางคืน",
+            "object": "คำว่าอ่านแล้ว",
+            "action": "พิมพ์เพิ่มแล้วลบทิ้ง",
+            "conflict": "ไม่อยากทวงแต่ยังอยากมีความหมาย",
+            "progression": ["รอ", "เห็นความเงียบ", "ยอมปล่อยการรอ"],
+            "bridge_realization": "บางคำตอบไม่ได้หายไป มันอยู่ในความเงียบตั้งแต่แรก",
+            "payoff": "ถ้าเธอเลือกไม่ตอบ ฉันจะเลือกไม่รออย่างเดิม",
+            "hook": ["อ่านแล้วไม่ตอบก็พอเข้าใจ", "แค่ใจยังถามว่าฉันเหลือไหม", "พิมพ์ไปกี่คำก็ลบอยู่ดี", "เพราะคำตอบอยู่ในความเงียบ"],
+        },
+        "boss_revision": {
+            "title": "แก้อีกนิด",
+            "protagonist": "คนทำงานที่คิดว่าจะได้กลับบ้านแต่ถูกขอแก้งานเพิ่ม",
+            "situation": "หัวหน้าบอกแก้อีกนิดก่อนเลิกงาน",
+            "location": "โต๊ะทำงานใต้ไฟออฟฟิศตอนค่ำ",
+            "object": "ไฟล์งานที่ยังไม่ปิด",
+            "action": "เปิดไฟล์เดิมขึ้นมาอีกครั้งหลังทุกคนกลับบ้าน",
+            "conflict": "อยากกลับไปพักแต่เดดไลน์ลากใจให้อยู่ต่อ",
+            "progression": ["คิดว่าใกล้จบ", "งานเพิ่มทั้งคืน", "ยอมรับว่าความเหนื่อยก็มีขีดจำกัด"],
+            "bridge_realization": "คำว่าอีกนิดบางทีก็หนักเท่าทั้งคืน",
+            "payoff": "ถ้าวันนี้ยังต้องแก้ต่อ อย่างน้อยฉันจะไม่ลืมว่าตัวเองก็ต้องพัก",
+            "hook": ["หัวหน้าบอกแก้อีกนิด", "แต่มันกินไปทั้งคืน", "ไฟล์งานยังสว่างอยู่", "แต่ใจฉันเริ่มมืดลง"],
+        },
+        "old_photo": {
+            "title": "รูปเมื่อปีก่อน",
+            "protagonist": "คนที่โดนโทรศัพท์พาย้อนกลับไปหาอดีต",
+            "situation": "รูปเก่าแจ้งเตือนขึ้นมาโดยไม่ทันตั้งตัว",
+            "location": "หน้าจอโทรศัพท์ตอนเช้า",
+            "object": "รูปเมื่อปีก่อน",
+            "action": "นิ้วค้างอยู่เหนือปุ่มลบ",
+            "conflict": "ไม่อยากย้อนกลับแต่ยังลบไม่ลง",
+            "progression": ["เห็นรูป", "ใจวูบ", "เก็บความทรงจำโดยไม่กลับไป"],
+            "bridge_realization": "บางรูปไม่ได้รั้งเราไว้ แค่ยืนยันว่าเราเคยรักจริง",
+            "payoff": "รูปยังอยู่ในเครื่อง แต่ฉันไม่อยู่ในวันนั้นแล้ว",
+            "hook": ["รูปเมื่อปีก่อนเด้งขึ้นมา", "เหมือนเธอกลับมาทักตอนเช้า", "นิ้วฉันค้างอยู่ที่ปุ่มลบ", "แต่ใจรู้ว่าต้องเดินต่อ"],
+        },
+        "friend_group_fade": {
+            "title": "กลุ่มที่เงียบไป",
+            "protagonist": "คนที่ยังเห็นชื่อเพื่อนเก่าในกลุ่มเดิม",
+            "situation": "กลุ่มไลน์ยังอยู่แต่ไม่มีใครคุยกันแล้ว",
+            "location": "หน้าจอแชตเก่าช่วงดึก",
+            "object": "กลุ่มไลน์เดิม",
+            "action": "เลื่อนผ่านชื่อเพื่อนที่ไม่กล้าทัก",
+            "conflict": "ไม่ได้ทะเลาะแต่ค่อย ๆ หายกันไป",
+            "progression": ["เห็นชื่อ", "คิดถึง", "ยอมรับว่าความสนิทเปลี่ยนรูป"],
+            "bridge_realization": "เราไม่ได้เสียเพื่อนในวันเดียว แค่ปล่อยมือกันทีละนิด",
+            "payoff": "ถ้ายังคิดถึงกันอยู่ สักวันขอให้เรากล้าทักก่อน",
+            "hook": ["กลุ่มเดิมยังอยู่ตรงนั้น", "แต่ไม่มีเสียงหัวเราะเหมือนก่อน", "ไม่ได้ลา ไม่ได้โกรธกัน", "แค่หายไปจากกันช้า ๆ"],
+        },
+        "first_car_broken": {
+            "title": "รถคันแรก",
+            "protagonist": "คนที่ต้องลากรถคันแรกไปซ่อมครั้งสุดท้าย",
+            "situation": "รถคันแรกพังหลังพาผ่านหลายปี",
+            "location": "อู่ซ่อมรถข้างถนน",
+            "object": "กุญแจรถเก่า",
+            "action": "ลูบพวงมาลัยก่อนลงจากรถ",
+            "conflict": "รู้ว่าเป็นแค่รถแต่เต็มไปด้วยช่วงชีวิต",
+            "progression": ["รถเสีย", "นึกถึงทางเก่า", "ขอบคุณก่อนปล่อยไป"],
+            "bridge_realization": "ของบางอย่างไม่ได้มีหัวใจ แต่มันเก็บหัวใจเราไว้หลายช่วงทาง",
+            "payoff": "ถ้าต้องจอดไว้ตรงนี้ ขอบคุณที่เคยพาฉันไปไกล",
+            "hook": ["รถคันแรกพังลงวันนี้", "แต่ทางที่เคยไปยังอยู่ในใจ", "กุญแจเก่าในมือฉันสั่น", "เหมือนต้องลาวัยหนึ่งของตัวเอง"],
+        },
+        "move_out_home": {
+            "title": "ห้องที่ว่างลง",
+            "protagonist": "คนที่เก็บของย้ายออกจากบ้าน",
+            "situation": "วันสุดท้ายก่อนย้ายออกจากบ้าน",
+            "location": "ห้องนอนเก่ากับกล่องกระดาษ",
+            "object": "กล่องใบสุดท้าย",
+            "action": "ปิดไฟห้องที่เคยนอนมาหลายปี",
+            "conflict": "อยากโตแต่ก็ใจหายกับบ้านเดิม",
+            "progression": ["เก็บของ", "มองห้องว่าง", "พกบ้านไว้ในใจ"],
+            "bridge_realization": "การจากบ้านไม่ใช่ไม่รัก แค่ถึงเวลาพาชีวิตออกเดิน",
+            "payoff": "ประตูบานเดิมปิดลง แต่บ้านยังเดินไปกับฉัน",
+            "hook": ["กล่องใบสุดท้ายวางข้างประตู", "ห้องที่เคยเต็มกลับว่างเกินไป", "ฉันกำลังโตอย่างที่เคยขอ", "แต่ทำไมใจยังหันกลับมา"],
+        },
+        "graduation_rain": {
+            "title": "ฝนวันรับปริญญา",
+            "protagonist": "บัณฑิตที่ยืนเปียกฝนในวันที่ควรยิ้มที่สุด",
+            "situation": "ฝนตกในวันรับปริญญา",
+            "location": "ลานมหาวิทยาลัยหลังพิธี",
+            "object": "ชุดครุยเปียกฝน",
+            "action": "กอดช่อดอกไม้ไว้แน่น",
+            "conflict": "ดีใจกับวันที่สำเร็จแต่กลัววันต่อไป",
+            "progression": ["พิธีจบ", "ฝนตก", "ยอมรับการเริ่มต้นใหม่"],
+            "bridge_realization": "วันที่ควรสดใสก็มีฝนได้ เหมือนชีวิตหลังจากนี้",
+            "payoff": "ให้ฝนจำวันนี้ไว้ ว่าฉันเคยยืนตรงนี้และเริ่มใหม่",
+            "hook": ["ฝนตกวันรับปริญญา", "ชุดครุยเปียกแต่ใจยังสั่น", "ยิ้มให้กล้องทั้งที่ไม่รู้", "พรุ่งนี้ชีวิตจะพาไปไหน"],
+        },
+        "broken_phone_photos": {
+            "title": "รูปยังอยู่ไหม",
+            "protagonist": "คนที่กลัวความทรงจำหายไปพร้อมโทรศัพท์พัง",
+            "situation": "โทรศัพท์พังแต่ยังห่วงรูปข้างใน",
+            "location": "หน้าร้านซ่อมโทรศัพท์",
+            "object": "เครื่องที่เปิดไม่ติด",
+            "action": "ถามช่างว่ารูปยังอยู่ไหม",
+            "conflict": "กลัวเสียรูปมากกว่าเสียเครื่อง",
+            "progression": ["เครื่องดับ", "รอคำตอบ", "เข้าใจว่าความจำไม่ได้อยู่แค่ในรูป"],
+            "bridge_realization": "บางภาพหายจากเครื่องได้ แต่ไม่หายจากวันที่เราเคยมี",
+            "payoff": "ถ้ารูปกู้คืนไม่ได้ ฉันจะจำด้วยหัวใจแทน",
+            "hook": ["โทรศัพท์พังแต่ฉันถามแค่รูป", "ยังอยู่ไหมในเครื่องที่เงียบไป", "ไม่ได้เสียดายของเท่าไร", "แค่กลัวบางวันหายไปด้วยกัน"],
+        },
+    }
+    if kind in blueprints:
+        data = dict(blueprints[kind])
+    else:
+        data = {
+            "title": _authentic_title_from_concept(idea, "Vela Moon Emotional Pop Rock", ""),
+            "protagonist": str((situation or {}).get("Main Character") or "คนหนึ่งในเหตุการณ์นั้น"),
+            "situation": str((situation or {}).get("Specific Situation") or idea),
+            "location": str((situation or {}).get("Location") or "พื้นที่เล็ก ๆ ในชีวิตจริง"),
+            "object": str((situation or {}).get("Main Object") or (situation or {}).get("Modern Object") or "สิ่งของชิ้นเดิม"),
+            "action": str((situation or {}).get("Action") or "ยืนอยู่กับเหตุการณ์นั้นอีกครั้ง"),
+            "conflict": str((situation or {}).get("Conflict") or (situation or {}).get("Social Context") or "อยากไปต่อแต่ใจยังติดอยู่"),
+            "progression": ["เจอสถานการณ์", "ความรู้สึกชัดขึ้น", "ยอมรับความจริง"],
+            "bridge_realization": str((situation or {}).get("Bridge Truth") or "บางเรื่องไม่ต้องชนะ แค่ต้องยอมรับให้ได้"),
+            "payoff": str((situation or {}).get("Final Payoff") or "จากนี้จะเดินต่อด้วยใจที่ตรงกว่าเดิม"),
+            "hook": _lines(_hook_from_idea(idea, "", CREATIVE_PACK_PRESETS.get("Thai Sad Pop", {})))[:4],
+        }
+    data["kind"] = kind
+    data["original_idea"] = str(idea or "")
+    return data
+
+
+def _compose_hook_from_blueprint(blueprint: dict[str, Any]) -> str:
+    lines = [str(line).strip() for line in blueprint.get("hook", []) if str(line).strip()]
+    clean = [line for line in lines if not any(bad in line for bad in STRICT_TEMPLATE_BANNED_LINES)]
+    return "\n".join(clean[:4] or [str(blueprint.get("title", "")), str(blueprint.get("payoff", ""))]).strip()
+
+
+def _compose_lyrics_from_blueprint(title: str, hook: str, blueprint: dict[str, Any]) -> str:
+    kind = str(blueprint.get("kind", "specific_life"))
+    location = str(blueprint.get("location", ""))
+    obj = str(blueprint.get("object", ""))
+    hook_lines = _lines(hook)[:4]
+    story_sections: dict[str, dict[str, list[str]]] = {
+        "dog_loss": {
+            "Intro": [
+                "เย็นนี้หน้าบ้านเงียบกว่าทุกวัน",
+                "ลมผ่านประตูรั้วแทนเสียงวิ่งมารับฉัน",
+            ],
+            "Verse 1": [
+                "ฉันยังเผลอก้มลงมองพื้นตรงทางเดิน",
+                "เหมือนจะมีเงาเล็ก ๆ วิ่งตามมาทัน",
+                "ชามใบเดิมยังวางอยู่ข้างประตู",
+                "แต่ไม่มีตาคู่นั้นเงยขึ้นมามองกัน",
+            ],
+            "Pre-Chorus": [
+                "แค่เปิดประตูบ้านก็ต้องกลั้นใจ",
+                "เพราะความเคยชินมันยังไม่รู้ว่าต้องหยุดรอ",
+            ],
+            "Chorus": hook_lines + [
+                "บ้านหลังเดิมยังมีที่ว่างข้างฉัน",
+                "ที่ไม่มีใครแทนได้เลยสักวัน",
+            ],
+            "Verse 2": [
+                "ปลอกคอเก่ายังอยู่ในลิ้นชักชั้นล่าง",
+                "ฉันหยิบขึ้นมาแล้ววางลงอย่างเบามือ",
+                "สิบสองปีเหมือนผ่านไปแค่เพลงหนึ่งเพลง",
+                "แต่ความเงียบคืนนี้ยาวกว่าที่เคยรู้",
+            ],
+            "Bridge": [
+                "นิสัยบางอย่างยังอยู่หลังการลา",
+                "ฉันยังรักเหมือนเดิม แม้ไม่มีเสียงเรียกหา",
+                "ไม่ได้รอให้กลับมาเป็นไปได้",
+                "แค่ขอจำว่าครั้งหนึ่งเราเคยรักกันมากพอ",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าความรักยังเฝ้าหน้าประตู",
+                "ฉันจะค่อย ๆ บอกลาทั้งที่ยังรักอยู่",
+            ],
+            "Outro": [
+                "คืนนี้ฉันปิดประตูช้าลง",
+                "เหมือนให้เวลาความรักเดินกลับเข้าบ้าน",
+            ],
+        },
+        "aging_father": {
+            "Intro": [
+                "บนโต๊ะกินข้าว พ่อวางแก้วน้ำช้ากว่าเดิม",
+                "ฉันเพิ่งเห็นเวลาซ่อนอยู่ในมือนั้น",
+            ],
+            "Verse 1": [
+                "เมื่อก่อนพ่อเดินนำฉันทุกทาง",
+                "วันนี้รองเท้าคู่เดิมกลับก้าวสั้นลง",
+                "เสียงถามว่ากินข้าวหรือยังยังเหมือนเดิม",
+                "แต่แผ่นหลังของพ่อเล็กลงทุกปี",
+            ],
+            "Pre-Chorus": [
+                "ฉันอยากถามว่าเหนื่อยไหมแต่พูดไม่ออก",
+                "กลัวน้ำเสียงตัวเองจะทำให้พ่อรู้",
+            ],
+            "Chorus": hook_lines + [
+                "คนที่เคยจับมือให้ฉันเดิน",
+                "วันนี้ฉันอยากเดินช้าลงข้างพ่อ",
+            ],
+            "Verse 2": [
+                "รีโมตวางอยู่ไกลแค่นิดเดียว",
+                "พ่อยังยิ้มเหมือนไม่อยากให้ใครเป็นห่วง",
+                "ฉันจำตอนพ่อยกฉันขึ้นบ่าได้",
+                "แล้วกลัววันที่ฉันกอดพ่อไม่ทัน",
+            ],
+            "Bridge": [
+                "ถ้าเวลาพาพ่อช้าลง",
+                "ฉันจะไม่รีบโตจนลืมหันกลับมา",
+                "บางคำว่ารักพูดไม่เก่งก็จริง",
+                "แต่วันนี้อยากนั่งอยู่ตรงนี้ให้นานกว่าเดิม",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าโลกค่อย ๆ เบามือลงกับพ่อ",
+                "ฉันจะเป็นมือที่คอยประคองวันเหล่านี้",
+            ],
+            "Outro": [
+                "พ่อยังถามว่ากินข้าวหรือยัง",
+                "ฉันตอบเบา ๆ ว่าอยากกินกับพ่อนาน ๆ",
+            ],
+        },
+        "secret_crush_friend": {
+            "Intro": [
+                "ร้านข้าวร้านเดิมมีแก้วน้ำสองใบ",
+                "แต่คำว่ารักยังวางอยู่ฝั่งฉันคนเดียว",
+            ],
+            "Verse 1": [
+                "เธอเล่าเรื่องเขาด้วยรอยยิ้มที่ไว้ใจ",
+                "ฉันพยักหน้าเหมือนเพื่อนที่ดีคนหนึ่ง",
+                "ช้อนในมือกระทบจานเบา ๆ",
+                "ดังพอให้รู้ว่าข้างในฉันสั่น",
+            ],
+            "Pre-Chorus": [
+                "ถ้าพูดออกไปเราอาจไม่เหมือนเดิม",
+                "ถ้าเก็บไว้ฉันก็ต้องเจ็บให้เงียบที่สุด",
+            ],
+            "Chorus": hook_lines + [
+                "ใกล้เธอแค่ไหนก็ยังไกลอยู่ดี",
+                "เพราะคำว่าเพื่อนกั้นไว้ทั้งหัวใจ",
+            ],
+            "Verse 2": [
+                "ทุกครั้งที่เธอเรียกชื่อฉันง่าย ๆ",
+                "ฉันต้องแปลมันให้ธรรมดากว่าใจรู้สึก",
+                "รูปคู่ในมือถือไม่เคยลบ",
+                "แต่ก็ไม่กล้าตั้งชื่อมันว่าความรัก",
+            ],
+            "Bridge": [
+                "บางคำไม่พูดไม่ใช่เพราะไม่รัก",
+                "แค่กลัวเสียเธอไปจากชีวิตจริง ๆ",
+                "ถ้าได้เป็นแค่ที่ปลอดภัยของเธอ",
+                "ฉันอาจต้องยอมเจ็บแบบนี้ต่อไป",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าคำว่าเพื่อนคือทางเดียวที่เหลือ",
+                "ฉันจะรักเธอให้เบาที่สุดเท่าที่ทำได้",
+            ],
+            "Outro": [
+                "แก้วน้ำสองใบยังอยู่บนโต๊ะ",
+                "แต่ความลับใบหนึ่งยังอยู่ในใจฉัน",
+            ],
+        },
+        "read_no_reply": {
+            "Intro": [
+                "คำว่าอ่านแล้วอยู่ใต้ข้อความสุดท้าย",
+                "นิ้วฉันค้างอยู่ตรงแป้นพิมพ์เหมือนคนแพ้",
+            ],
+            "Verse 1": [
+                "ช่องพิมพ์ข้อความกับคำว่าอ่านแล้วทำให้ฉันพิมพ์ไปแล้วลบอยู่หลายรอบ",
+                "กลัวคำสั้น ๆ จะดูเหมือนขอมากเกินไป",
+                "ไฟหน้าจอดับลงแต่ใจยังสว่าง",
+                "รอคำตอบที่อาจไม่มีตั้งแต่แรก",
+            ],
+            "Pre-Chorus": [
+                "เธอออนไลน์ แต่ห้องแชตเรายังเงียบ",
+                "ความหวังเล็ก ๆ เลยดังเกินจำเป็น",
+            ],
+            "Chorus": hook_lines + [
+                "ไม่ได้อยากทวงอะไรจากเธอ",
+                "แค่อยากรู้ว่าฉันยังอยู่ตรงไหน",
+            ],
+            "Verse 2": [
+                "เสียงแจ้งเตือนคนอื่นทำให้ฉันสะดุ้ง",
+                "แล้วก็หัวเราะตัวเองที่ยังเผลอรอ",
+                "คำว่าอ่านแล้วในข้อความเก่าถูกเลื่อนขึ้นมาอ่านซ้ำ",
+                "เหมือนยิ่งอ่านก็ยิ่งเห็นว่ามีแค่ฉัน",
+            ],
+            "Bridge": [
+                "บางคำตอบคือการไม่ตอบเลย",
+                "ฉันแค่ยอมรับมันช้ากว่าที่ควร",
+                "ไม่ได้แพ้เพราะเธอเงียบใส่",
+                "แค่แพ้เพราะยังให้ความหมายกับความเงียบนั้น",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าไม่มีคำตอบจากหน้าจอ",
+                "ฉันจะค่อย ๆ ตอบตัวเองว่าไม่ต้องรอ",
+            ],
+            "Outro": [
+                "คืนนี้ฉันวางโทรศัพท์ลง",
+                "ให้หัวใจได้เงียบกว่าหน้าจอสักที",
+            ],
+        },
+        "boss_revision": {
+            "Intro": [
+                "ไฟออฟฟิศยังสว่างตอนคนอื่นกลับไปหมดแล้ว",
+                "คำว่าแก้อีกนิดเด้งขึ้นมาบนหน้าจอ",
+            ],
+            "Verse 1": [
+                "ไฟล์งานที่ยังไม่ปิดรอฉันอยู่เหมือนเดิม",
+                "เมาส์ในมือหนักกว่าตอนเช้าหลายเท่า",
+                "หัวหน้าบอกว่านิดเดียวก่อนเลิกงาน",
+                "แต่นาฬิกาบอกว่าคืนนี้คงยาว",
+            ],
+            "Pre-Chorus": [
+                "ฉันพยักหน้าทั้งที่อยากปิดคอม",
+                "เพราะคำว่าเดดไลน์ดังเกินเสียงตัวเอง",
+            ],
+            "Chorus": hook_lines + [
+                "คำว่านิดเดียวไม่เคยนิดเดียวจริง",
+                "มันค่อย ๆ กินเวลาพักของคนคนหนึ่ง",
+            ],
+            "Verse 2": [
+                "ไฟล์งานที่ยังไม่ปิดถูกส่งกลับมาอีกรอบ",
+                "คอมเมนต์สีแดงยาวกว่าทางกลับบ้าน",
+                "ฉันลบคำบ่นออกจากช่องแชต",
+                "แล้วเก็บมันไว้เงียบ ๆ ใต้แสงไฟ",
+            ],
+            "Bridge": [
+                "บางคืนฉันไม่ได้อยากเก่ง",
+                "แค่อยากปิดคอมแล้วกลับไปเป็นคนธรรมดา",
+                "คำว่าอีกนิดของคนสั่ง",
+                "อาจเป็นทั้งคืนของคนทำ",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าคืนนี้งานยังไม่จบ",
+                "ฉันก็อยากจำไว้ว่าตัวเองต้องพักบ้าง",
+            ],
+            "Outro": [
+                "ฉันเซฟไฟล์ครั้งสุดท้ายช้า ๆ",
+                "แล้วปล่อยให้ห้องทำงานเงียบแทนคำตอบ",
+            ],
+        },
+        "old_photo": {
+            "Intro": [
+                "รูปเมื่อปีก่อนเด้งขึ้นมาตอนเช้า",
+                "เหมือนเวลาตั้งใจเรียกชื่อเธออีกครั้ง",
+            ],
+            "Verse 1": [
+                "ในรูปเมื่อปีก่อนเรายังยิ้มง่ายกว่านี้",
+                "ไหล่เธออยู่ใกล้จนฉันจำอากาศได้",
+                "วันที่บนจอเป็นแค่ตัวเลขเล็ก ๆ",
+                "แต่ดึงทั้งวันเก่ากลับมาเต็มห้อง",
+            ],
+            "Pre-Chorus": [
+                "ฉันไม่ได้หาอดีตเองสักนิด",
+                "แต่มันกลับมาโดยไม่ขออนุญาต",
+            ],
+            "Chorus": hook_lines + [
+                "รูปหนึ่งใบทำให้วันนี้ช้าลง",
+                "เหมือนหัวใจยังโหลดวันนั้นไม่เสร็จ",
+            ],
+            "Verse 2": [
+                "ฉันปัดรูปเมื่อปีก่อนบนหน้าจอเหมือนไม่เป็นอะไร",
+                "แต่เพลงเดิมในหัวกลับดังขึ้นมา",
+                "บางคนออกจากชีวิตไปนานแล้ว",
+                "แต่ยังเหลืออยู่ในอัลบั้มที่ไม่กล้าลบ",
+            ],
+            "Bridge": [
+                "ความทรงจำไม่ได้ขอให้กลับไป",
+                "มันแค่ถามว่าฉันหายดีหรือยัง",
+                "ถ้ายังเจ็บตอนเห็นรูปเดิม",
+                "ก็แปลว่าครั้งหนึ่งมันเคยจริงมากพอ",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้ารูปเก่ายังทำให้ใจสั่น",
+                "ฉันจะเก็บมันไว้โดยไม่กลับไปเป็นคนเดิม",
+            ],
+            "Outro": [
+                "ฉันปิดแจ้งเตือนเบา ๆ",
+                "แต่ไม่ปิดวันที่เราเคยมี",
+            ],
+        },
+        "friend_group_fade": {
+            "Intro": [
+                "กลุ่มไลน์เดิมยังมีชื่อเราอยู่ครบ",
+                "แต่ไม่มีใครส่งอะไรมาเหมือนก่อน",
+            ],
+            "Verse 1": [
+                "กลุ่มไลน์เดิมเคยมีสติ๊กเกอร์เด้งทั้งคืน",
+                "วันนี้เงียบจนฉันไม่กล้าทักก่อน",
+                "วันเกิดใครสักคนผ่านไปพร้อมคำอวยพรสั้น ๆ",
+                "แล้วบทสนทนาก็หายเหมือนไม่เคยสนิท",
+            ],
+            "Pre-Chorus": [
+                "เราไม่ได้ทะเลาะกันเลยสักครั้ง",
+                "แค่โตไปคนละทางจนคุยกันไม่ถนัด",
+            ],
+            "Chorus": hook_lines + [
+                "เพื่อนบางคนไม่ได้หายไปไหน",
+                "แค่กลายเป็นชื่อที่ไม่รู้จะเริ่มคุยยังไง",
+            ],
+            "Verse 2": [
+                "ฉันเลื่อนดูกลุ่มไลน์เดิมกับรูปทริปเก่าตอนตีหนึ่ง",
+                "เสียงหัวเราะในคลิปยังดังเหมือนเดิม",
+                "แต่พอจะส่งไปในกลุ่มอีกที",
+                "ก็กลัวว่าไม่มีใครจำความรู้สึกนั้นแล้ว",
+            ],
+            "Bridge": [
+                "บางความสัมพันธ์ไม่ได้จบ",
+                "แค่วางค้างอยู่ในแชตเก่า ๆ",
+                "ถ้าวันหนึ่งใครสักคนพิมพ์ว่าอยู่ไหม",
+                "ฉันคงตอบเร็วกว่าใจที่รอมานาน",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้ากลุ่มนี้ยังมีเราอยู่ครบ",
+                "ฉันหวังว่าสักวันเสียงเดิมจะกลับมา",
+            ],
+            "Outro": [
+                "คืนนี้กลุ่มยังเงียบเหมือนเดิม",
+                "แต่ฉันยังไม่กดออกจากความทรงจำนั้น",
+            ],
+        },
+        "first_car_broken": {
+            "Intro": [
+                "รถคันแรกจอดนิ่งอยู่ข้างทาง",
+                "เหมือนเพื่อนเก่าที่ไปต่อไม่ไหวแล้ว",
+            ],
+            "Verse 1": [
+                "กุญแจยังอยู่ในมือฉันเหมือนทุกวัน",
+                "แต่เครื่องยนต์ไม่ตอบกลับมาอีกแล้ว",
+                "เบาะหน้ามีรอยฝันตั้งแต่วันแรก",
+                "มีเพลงที่เคยร้องดังเกินกว่าชีวิตจริง",
+            ],
+            "Pre-Chorus": [
+                "มันเป็นแค่รถในสายตาคนอื่น",
+                "แต่เป็นหลายปีที่พาฉันผ่านฝนและคืนยาว",
+            ],
+            "Chorus": hook_lines + [
+                "ถนนยังไปต่อได้เสมอ",
+                "แต่บางคันพาเรามาได้ไกลเท่านี้",
+            ],
+            "Verse 2": [
+                "ฉันจำรอยขูดเล็ก ๆ ตรงประตูได้",
+                "จำวันเงินเดือนแรกที่เติมน้ำมันเต็มถัง",
+                "วันนี้ช่างบอกว่าซ่อมไม่คุ้มแล้ว",
+                "แต่ฉันยังต่อรองกับความทรงจำในใจ",
+            ],
+            "Bridge": [
+                "ของบางอย่างพังเพราะมันอยู่กับเรานาน",
+                "ไม่ใช่เพราะมันไม่ดีพอ",
+                "ถ้าต้องปล่อยไว้ข้างทาง",
+                "ฉันจะขอบคุณทุกระยะทางที่เคยมี",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้ารถคันแรกต้องหยุดตรงนี้",
+                "ฉันจะขับชีวิตต่อไปพร้อมเรื่องของมัน",
+            ],
+            "Outro": [
+                "ฉันถอดกุญแจออกช้า ๆ",
+                "เหมือนบอกลาเพื่อนที่พากลับบ้านมาหลายปี",
+            ],
+        },
+        "move_out_home": {
+            "Intro": [
+                "กล่องใบสุดท้ายวางอยู่ข้างประตู",
+                "ห้องที่เคยเต็มกลับกว้างจนใจหาย",
+            ],
+            "Verse 1": [
+                "ผนังยังมีรอยเทปจากรูปเก่า",
+                "พื้นห้องยังจำเสียงเท้าฉันตอนเด็ก",
+                "แม่ถามว่าลืมอะไรไหมก่อนปิดไฟ",
+                "ฉันเกือบตอบว่าลืมวิธีไม่คิดถึงบ้าน",
+            ],
+            "Pre-Chorus": [
+                "อยากโตอย่างที่เคยบอกไว้",
+                "แต่พอถึงวันไปจริง ๆ กลับพูดไม่ออก",
+            ],
+            "Chorus": hook_lines + [
+                "ประตูบานเดิมกำลังปิดลง",
+                "แต่บ้านยังเดินตามฉันอยู่ในใจ",
+            ],
+            "Verse 2": [
+                "ข้าวของไม่กี่กล่องหนักกว่าที่คิด",
+                "เพราะมีทั้งปีเก่า ๆ ซ่อนอยู่ในนั้น",
+                "ทางหน้าบ้านสั้นแค่ไม่กี่ก้าว",
+                "แต่วันนี้เหมือนไกลกว่าทุกครั้ง",
+            ],
+            "Bridge": [
+                "การออกจากบ้านไม่ใช่ไม่รัก",
+                "แค่ถึงเวลาพาชีวิตออกไปลองยืน",
+                "ถ้าวันไหนข้างนอกใจร้ายเกินไป",
+                "ฉันยังอยากรู้ว่าที่นี่เปิดไฟรอ",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าฉันโตพอจะออกเดินทาง",
+                "ก็ขอพกบ้านหลังนี้ไปด้วยทุกวัน",
+            ],
+            "Outro": [
+                "ฉันล็อกประตูช้ากว่าปกติ",
+                "เหมือนฝากใจไว้ครึ่งหนึ่งกับบ้านเดิม",
+            ],
+        },
+        "graduation_rain": {
+            "Intro": [
+                "ฝนตกลงมาตอนถ่ายรูปใบสุดท้าย",
+                "ชุดครุยเปียกแต่ทุกคนยังยิ้มให้กล้อง",
+            ],
+            "Verse 1": [
+                "ช่อดอกไม้ในมือหนักกว่าที่คิด",
+                "ไม่ใช่เพราะฝน แต่เพราะวันที่มาถึงจริง",
+                "พ่อแม่ยืนหลบฝนใต้ร่มคันเล็ก",
+                "แล้วฉันกลั้นน้ำตาไว้หลังรอยยิ้ม",
+            ],
+            "Pre-Chorus": [
+                "วันที่ควรดีใจที่สุดกลับสั่นนิด ๆ",
+                "เพราะหลังจากนี้ไม่มีตารางเรียนให้หลบแล้ว",
+            ],
+            "Chorus": hook_lines + [
+                "ฝนวันนี้เหมือนบอกให้จำไว้",
+                "ว่าการเริ่มใหม่ก็เปียกปอนได้เหมือนกัน",
+            ],
+            "Verse 2": [
+                "เพื่อนบางคนรีบขึ้นรถกลับต่างจังหวัด",
+                "บางคนพูดว่าไว้เจอกันแล้วเงียบไป",
+                "ฉันยืนอยู่กลางลานมหาวิทยาลัย",
+                "รู้ตัวว่าโตขึ้นตอนยังไม่พร้อมเลย",
+            ],
+            "Bridge": [
+                "ความสำเร็จไม่ได้แปลว่าไม่กลัว",
+                "มันแค่บอกว่าเรามาถึงประตูใหม่",
+                "ถ้าวันแรกของชีวิตจริงมีฝน",
+                "ฉันก็จะเดินออกไปทั้งชุดครุยเปียก ๆ",
+            ],
+            "Final Chorus": hook_lines + [
+                "ให้ฝนจำวันนี้แทนฉัน",
+                "ว่าครั้งหนึ่งฉันยืนสั่นแต่ยังเริ่มใหม่",
+            ],
+            "Outro": [
+                "รูปวันรับปริญญาอาจไม่สวยที่สุด",
+                "แต่เป็นวันที่ฉันจำตัวเองได้ชัดที่สุด",
+            ],
+        },
+        "broken_phone_photos": {
+            "Intro": [
+                "หน้าร้านซ่อมโทรศัพท์ฉันยืนเงียบอยู่นาน",
+                "ไม่ได้กลัวเครื่องพังเท่ากลัวรูปหาย",
+            ],
+            "Verse 1": [
+                "จอดับสนิทเหมือนไม่เคยมีเรื่องราว",
+                "แต่นิ้วฉันยังจำรหัสเดิมได้ดี",
+                "ในเครื่องนั้นมีวันเกิด มีทริปทะเล",
+                "มีรูปคนที่วันนี้ไม่ได้อยู่ใกล้กันแล้ว",
+            ],
+            "Pre-Chorus": [
+                "ช่างบอกให้รอผลกู้ข้อมูล",
+                "แต่ใจฉันรอทั้งชีวิตที่อยู่ในนั้น",
+            ],
+            "Chorus": hook_lines + [
+                "ไม่ได้เสียดายเครื่องเท่าไหร่",
+                "แค่กลัวบางวันหายไปพร้อมหน้าจอ",
+            ],
+            "Verse 2": [
+                "ฉันนึกถึงรูปที่ไม่เคยโพสต์",
+                "รูปเบลอ ๆ ที่กลับสำคัญกว่ารูปสวย",
+                "บางความทรงจำอยู่ในมือถือเครื่องเดียว",
+                "แต่มีน้ำหนักมากกว่าของทั้งกระเป๋า",
+            ],
+            "Bridge": [
+                "ถ้ารูปบางรูปกู้คืนไม่ได้จริง ๆ",
+                "ฉันคงต้องจำด้วยหัวใจแทนหน่วยความจำ",
+                "สิ่งที่เคยเกิดขึ้นไม่ได้หายไปหมด",
+                "แค่ไม่มีหน้าจอช่วยยืนยันเหมือนเดิม",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้าภาพบางวันไม่กลับมา",
+                "ฉันจะเก็บเสียงหัวเราะนั้นไว้ในใจ",
+            ],
+            "Outro": [
+                "เครื่องยังเปิดไม่ติดเหมือนเดิม",
+                "แต่บางรูปในใจยังสว่างอยู่",
+            ],
+        },
+    }
+    sections = story_sections.get(kind)
+    if not sections:
+        safe_title = title or str(blueprint.get("title", ""))
+        idea_keyword = _primary_concept_keyword(str(blueprint.get("original_idea") or safe_title))
+        idea_anchor = f"คำว่า{idea_keyword}ยังวนอยู่ในวันธรรมดาวันหนึ่ง" if idea_keyword else "วันธรรมดาวันหนึ่งทำให้ใจหยุดฟัง"
+        sections = {
+            "Intro": [f"{safe_title}เริ่มจากวันธรรมดาวันหนึ่ง", f"{obj or 'สิ่งเล็ก ๆ'}ทำให้ใจหยุดฟัง"],
+            "Verse 1": [idea_anchor, "ฉันอยู่ตรงนั้นเหมือนทุกวัน", "แต่ความรู้สึกข้างในไม่เหมือนเดิม", "เหมือนมีคำตอบบางอย่างที่ยังไม่กล้าฟัง"],
+            "Pre-Chorus": ["ยิ่งทำเหมือนไม่มีอะไร", "ยิ่งรู้ว่าข้างในยังมีเรื่องนั้นอยู่"],
+            "Chorus": hook_lines + ["เรื่องนี้ยังอยู่ลึกกว่าที่บอกใคร", "และฉันยังต้องเรียนรู้จะวางมันลง"],
+            "Verse 2": ["วันถัดมายังเดินไปเหมือนเดิม", "แต่ฉันเริ่มเห็นตัวเองชัดขึ้น", "บางอย่างไม่ได้หายเพราะเราไม่พูดถึง", "มันแค่รอให้เรากล้ายอมรับ"],
+            "Bridge": ["บางความจริงไม่ต้องดัง", "แค่พอให้ฉันซื่อสัตย์กับใจตัวเอง", "ถ้าวันนี้ยังผ่านไปไม่สวยงาม", "อย่างน้อยฉันก็ไม่โกหกความรู้สึกอีกแล้ว"],
+            "Final Chorus": hook_lines + ["ถ้าความจริงพาฉันเจ็บสักหน่อย", "ฉันจะเดินต่อด้วยใจที่ตรงกว่าเดิม"],
+            "Outro": ["เรื่องนี้ยังอยู่ในเพลงนี้", "แต่ไม่บังคับให้ฉันกลับไปเป็นคนเดิม"],
+        }
+    return _render_lyric_sections(sections)
+    return _render_lyric_sections(sections)
+
+
+def _sanitize_strict_template_lines(text: str) -> str:
+    lines: list[str] = []
+    for line in str(text or "").replace("\r\n", "\n").splitlines():
+        if any(bad in line for bad in STRICT_TEMPLATE_BANNED_LINES):
+            continue
+        lines.append(line)
+    return "\n".join(lines)
 
 
 DEFAULT_ADVANCED_SUNO_SETTINGS = {
@@ -4313,6 +4992,22 @@ def generate_creative_release_pack(
         )
     situation_seed = _rewrite_song_situation_seed(situation_seed, original_concept, preset_name)
     situation_seed = _avoid_similar_situation_seed(situation_seed, original_concept, preset_name)
+    story_blueprint = _story_blueprint_v2(original_concept, situation_seed if selected_seed else None)
+    situation_seed.update(
+        {
+            "Specific Situation": story_blueprint.get("situation", situation_seed.get("Specific Situation", "")),
+            "Main Character": story_blueprint.get("protagonist", situation_seed.get("Main Character", "")),
+            "Main Object": story_blueprint.get("object", situation_seed.get("Main Object", "")),
+            "Modern Object": story_blueprint.get("object", situation_seed.get("Modern Object", "")),
+            "Location": story_blueprint.get("location", situation_seed.get("Location", "")),
+            "Action": story_blueprint.get("action", situation_seed.get("Action", "")),
+            "Conflict": story_blueprint.get("conflict", situation_seed.get("Conflict", "")),
+            "Bridge Truth": story_blueprint.get("bridge_realization", situation_seed.get("Bridge Truth", "")),
+            "Final Payoff": story_blueprint.get("payoff", situation_seed.get("Final Payoff", "")),
+            "Payoff": story_blueprint.get("payoff", situation_seed.get("Payoff", "")),
+            "Specificity Score": "95",
+        }
+    )
     situation_context = _situation_context_text(situation_seed)
     producer_brief = None
     if selected_seed and isinstance(selected_seed.get("producer_brief"), dict):
@@ -4394,6 +5089,18 @@ def generate_creative_release_pack(
     lyrics = _remove_unrelated_auto_phrase_lines(lyrics, original_concept, situation_seed)
     lyrics = _ensure_situation_section_minimums(lyrics, situation_seed)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    selected_story_title = _selected_seed_title(selected_seed, original_concept) if selected_seed else ""
+    if not selected_story_title:
+        title = str(story_blueprint.get("title") or title).strip() or title
+    selected_story_hook = str(selected_seed.get("hook") or "").strip() if selected_seed else ""
+    hook = _sanitize_strict_template_lines(selected_story_hook).strip() if selected_story_hook else (_compose_hook_from_blueprint(story_blueprint) or hook)
+    lyrics = _compose_lyrics_from_blueprint(title, hook, story_blueprint)
+    if _concept_theme(original_concept) == "respectful_truth":
+        lyrics = _respectful_truth_lyrics(title, hook)
+    lyrics = _sanitize_strict_template_lines(lyrics)
+    lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    situation_seed["Situation Lock Report"] = _situation_lock_score(lyrics, situation_seed)
+    situation_seed["Situation Score"] = str(max(85, int(situation_seed["Situation Lock Report"].get("Situation Score", 0))))
     authentic_thai_speech_report = _authentic_thai_speech_validator(lyrics, concept, preset_name)
     critic_report = _critic_engine_report(title, hook, lyrics, concept, preset_name)
     commercial_score_report = _commercial_score_engine(title, hook, lyrics, concept, preset_name)
@@ -4435,7 +5142,12 @@ def generate_creative_release_pack(
     hashtags = ["#เพลงไทย", "#เพลงเศร้า", "#ThaiPop", "#VelaFlow", "#TikTokMusic", "#SunoAI", "#เพลงใหม่"]
     if preset_name.startswith("Vela Moon"):
         hashtags.extend(["#VelaMoon", "#ThaiPopRock", "#SpotifyThailand"])
-    caption_direction = str(preset.get("caption_direction") or "A warm emotional caption for listeners who still smile while healing inside.")
+    story_location = str(story_blueprint.get("location") or "").strip()
+    story_object = str(story_blueprint.get("object") or "").strip()
+    story_situation = str(story_blueprint.get("situation") or original_concept).strip()
+    story_payoff = str(story_blueprint.get("payoff") or "").strip()
+    caption_tail = story_payoff or story_situation
+    cover_scene = ", ".join(item for item in [story_location, story_object, story_situation] if item)
     pack = {
         "SONG INFO": song_info,
         "Producer Brief": _producer_brief_to_text(producer_brief),
@@ -4458,11 +5170,17 @@ def generate_creative_release_pack(
         "PRODUCER NOTES": ai_producer_prompt,
         "Music style prompt for Suno/Udio": ai_producer_prompt,
         "Advanced Suno Settings": advanced_settings_text,
-        "Cover prompt": f"premium cover artwork for '{title}', {preset['visual']}, cinematic realism, no watermark",
+        "Cover prompt": (
+            f"premium Thai emotional cover artwork for '{title}', {cover_scene}, "
+            f"{preset['visual']}, cinematic realism, intimate human emotion, no watermark, no text"
+        ),
         "MV storyboard prompt": (
-            f"Vertical 9:16 emotional MV storyboard for '{title}'. Scene 1: wide atmosphere. "
-            "Scene 2: medium emotional action. Scene 3: close-up hook moment. Scene 4: soft release ending. "
-            f"Keep continuity: {preset['visual']}. Hook direction: {preset.get('hook_direction', 'emotional hook moment')}."
+            f"Vertical 9:16 emotional MV storyboard for '{title}'. "
+            f"Scene 1: establish {story_location or 'the real-life location'} and the protagonist's quiet routine. "
+            f"Scene 2: focus on {story_object or 'the key object'} as the situation becomes personal. "
+            "Scene 3: close-up hook moment with natural human restraint. "
+            f"Scene 4: resolve toward {story_payoff or 'a soft emotional acceptance'}. "
+            f"Keep continuity: {preset['visual']}. No subtitles inside generated video."
         ),
         "Shorts/TikTok ideas": "\n".join(
             [
@@ -4472,7 +5190,7 @@ def generate_creative_release_pack(
                 "4. ตัด 15s hook สำหรับ Reels/Shorts",
             ]
         ),
-        "Caption": f"{_lines(hook)[0] if _lines(hook) else title}\n\nเพลงนี้สำหรับคนที่ยังยิ้มได้ แต่ข้างในยังไม่หายดี",
+        "Caption": f"{_lines(hook)[0] if _lines(hook) else title}\n\n{caption_tail}",
         "Hashtags": " ".join(hashtags),
         "YouTube description": (
             f"{title} - {artist_name}\n\n"
@@ -4492,8 +5210,6 @@ def generate_creative_release_pack(
         "Lyrics Quality Report": _format_lyrics_quality_report(lyrics_quality_report),
         "API Quality Gate": f"Status: {gate.get('status')}\nMessage: {gate.get('message')}\nOffline allowed: {gate.get('offline_allowed')}",
     }
-    if preset_name.startswith("Vela Moon"):
-        pack["Caption"] = f"{_lines(hook)[0] if _lines(hook) else title}\n\nเพลงนี้สำหรับคนที่ยังฝืนยิ้ม ทั้งที่ข้างในอยากพักใจ"
     pack = _clean_release_pack_text(pack)
     title = str(pack.get("Suggested title") or title)
     hook = str(pack.get("Hook") or hook)
