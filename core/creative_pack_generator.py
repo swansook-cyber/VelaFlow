@@ -631,6 +631,8 @@ def _situation_similarity_score(situation: dict[str, Any] | None, memory: dict[s
 
 def _avoid_similar_situation_seed(situation: dict[str, str], concept: str, preset_name: str = "Thai Sad Pop", memory: dict[str, list[str]] | None = None) -> dict[str, str]:
     memory = memory or load_diversity_memory()
+    if _situation_keyword_score(concept, situation) > 0:
+        return situation
     if _situation_similarity_score(situation, memory) <= 88:
         return situation
     source = str(concept or "")
@@ -734,9 +736,6 @@ def _apply_situation_to_lyrics(lyrics: str, situation: dict[str, Any] | None, ho
     lines = _insert_line_after_section(lines, "Verse 1", verse_1_line)
     lines = _insert_line_after_section(lines, "Verse 2", verse_2_line)
     lines = _insert_line_after_section(lines, "Bridge", str(situation.get("Bridge Truth", "")).strip())
-    if str(situation.get("Scene Type", "")) == "office_life":
-        lines = _insert_line_after_section(lines, "Bridge", "แค่อยากกลับมาเป็นตัวเอง")
-        lines = _insert_line_after_section(lines, "Bridge", "ไม่อยากลาออก แค่อยากพัก")
     lines = _insert_line_after_section(lines, "Final Chorus", str(situation.get("Final Payoff", "")).strip())
     locked = "\n".join(lines)
     lock_report = _situation_lock_score(locked, situation)
@@ -775,6 +774,84 @@ def _ensure_concept_keyword_in_lyrics(lyrics: str, original_concept: str) -> str
     if not keyword or keyword in str(lyrics or ""):
         return lyrics
     return "\n".join(_insert_line_after_section(str(lyrics or "").splitlines(), "Verse 1", f"{keyword}ยังค้างอยู่ในใจฉัน"))
+
+
+AUTO_INJECTED_GENERIC_LINES = [
+    "เหนื่อยไหม",
+    "ไม่เป็นไรนะ",
+    "โต๊ะตัวเดิม",
+    "รถคันเดิม",
+    "คืนนี้เรานั่งเงียบกัน",
+    "พรุ่งนี้ค่อยว่ากัน",
+    "ถึงบ้านบอกด้วย",
+    "กินข้าวหรือยัง",
+    "เดี๋ยวมันก็ผ่านไป",
+    "วันนี้เก่งมากแล้ว",
+    "พักใจก่อน",
+    "คืนนี้ขอพัก",
+]
+
+
+def _remove_unrelated_auto_phrase_lines(lyrics: str, original_concept: str, situation: dict[str, Any] | None = None) -> str:
+    source = "\n".join([str(original_concept or ""), _situation_context_text(situation)])
+    source_key = _compact_line(source)
+    out: list[str] = []
+    for line in str(lyrics or "").replace("\r\n", "\n").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("["):
+            out.append(line)
+            continue
+        remove = False
+        for phrase in AUTO_INJECTED_GENERIC_LINES:
+            if phrase in stripped and _compact_line(phrase) not in source_key:
+                remove = True
+                break
+        if not remove:
+            out.append(line)
+    return "\n".join(out)
+
+
+def _ensure_situation_section_minimums(lyrics: str, situation: dict[str, Any] | None) -> str:
+    sections = parse_lyric_sections(lyrics)
+    if not sections or not situation:
+        return lyrics
+    fillers = {
+        "Verse 1": [
+            str(situation.get("Concrete Moment", "")),
+            str(situation.get("Action", "")),
+            str(situation.get("Main Object") or situation.get("Modern Object", "")),
+            str(situation.get("Hidden Feeling", "")),
+        ],
+        "Pre-Chorus": [
+            str(situation.get("Hidden Feeling", "")),
+            str(situation.get("Conflict") or situation.get("Social Context", "")),
+        ],
+        "Verse 2": [
+            str(situation.get("Escalation Moment", "")),
+            str(situation.get("Social Context", "")),
+            str(situation.get("Modern Object", "")),
+            str(situation.get("Conflict") or situation.get("Social Context", "")),
+        ],
+        "Bridge": [
+            str(situation.get("Bridge Truth", "")),
+            str(situation.get("Hidden Feeling", "")),
+        ],
+        "Final Chorus": [
+            str(situation.get("Final Payoff", "")),
+            str(situation.get("Payoff") or situation.get("Final Payoff", "")),
+            str(situation.get("Bridge Truth", "")),
+        ],
+        "Outro": [str(situation.get("Final Payoff", ""))],
+    }
+    for section, minimum in COMMERCIAL_SECTION_MIN_LINES.items():
+        lines = sections.setdefault(section, [])
+        for candidate in fillers.get(section, []):
+            clean = str(candidate or "").strip()
+            if clean and clean not in lines and not any(phrase in clean for phrase in AUTO_INJECTED_GENERIC_LINES):
+                lines.append(clean)
+            if len(lines) >= minimum:
+                break
+    return _render_lyric_sections(sections)
 
 
 DEFAULT_ADVANCED_SUNO_SETTINGS = {
@@ -1844,8 +1921,8 @@ def _rewrite_line_to_natural_thai(line: str, scene: str) -> tuple[str, bool]:
             rewritten = rewritten.replace(old, new)
             changed = True
     if scene == "office_life":
-        if "อดทน" in rewritten and "พรุ่งนี้ค่อยว่ากัน" not in rewritten:
-            rewritten = "พรุ่งนี้ค่อยว่ากัน"
+        if "อดทน" in rewritten:
+            rewritten = "คืนนี้ยังต้องผ่านไปให้ได้"
             changed = True
         if "เหนื่อยล้า" in rewritten:
             rewritten = rewritten.replace("เหนื่อยล้า", "เหนื่อย")
@@ -1912,12 +1989,8 @@ def _apply_thai_natural_speech_engine(lyrics: str, concept: str, preset_name: st
                 rewrite_count += 1
             rewritten_lines.append(rewritten)
         sections[section] = rewritten_lines
-    if scene == "office_life":
-        bridge = sections.setdefault("Bridge", [])
-        if not any("ไม่ไหวแล้ว" in line or "ไม่อยากลาออก" in line for line in bridge):
-            bridge.insert(0, "ไม่ไหวแล้วจริง ๆ")
-            rewrite_count += 1
     text = _render_lyric_sections(sections)
+    text = text.replace("พรุ่งนี้ค่อยว่ากัน", "คืนนี้ยังต้องผ่านไปให้ได้")
     return text, _thai_natural_speech_report(text, concept, preset_name, rewrite_count)
 
 
@@ -3484,32 +3557,7 @@ def _authentic_thai_speech_validator(lyrics: str, concept: str = "", preset_name
 
 def _apply_relatability_target_rewrite(lyrics: str, hook: str, concept: str, preset_name: str = "") -> tuple[str, dict[str, Any]]:
     before = _relatability_report(lyrics, hook, concept, preset_name)
-    has_conversation = any(phrase in lyrics for phrase in _conversation_bank(concept, preset_name))
-    has_memory = any(phrase in lyrics for phrase in _memory_moment_bank(concept, preset_name))
-    if int(before.get("Relatability Score", 0)) >= 90 and _thai_naturalness_score(lyrics, concept, preset_name) >= 90 and has_conversation and has_memory:
-        return lyrics, {"before": before, "after": before, "actions": []}
-    sections = parse_lyric_sections(lyrics)
-    if not sections:
-        return lyrics, {"before": before, "after": before, "actions": []}
-    conversation = _conversation_bank(concept, preset_name)
-    memory = _memory_moment_bank(concept, preset_name)
-    actions: list[str] = []
-    injections = {
-        "Verse 1": [f"{memory[0]}ยังอยู่ตรงนั้น", conversation[0]],
-        "Verse 2": [conversation[1] if len(conversation) > 1 else "กินข้าวหรือยัง", f"{memory[1] if len(memory) > 1 else memory[0]}ยังทำให้ฉันเงียบไป"],
-        "Bridge": [conversation[3] if len(conversation) > 3 else "ไม่เป็นไรนะ", conversation[4] if len(conversation) > 4 else "เดี๋ยวมันก็ผ่านไป"],
-    }
-    for section, additions in injections.items():
-        current = sections.setdefault(section, [])
-        for addition in reversed(additions):
-            if addition and addition not in current:
-                current.insert(0, addition)
-                actions.append(f"added {section}: {addition}")
-    rewritten = _render_lyric_sections(sections)
-    rewritten, _ = _apply_phrase_diversity_engine(rewritten, concept, preset_name)
-    rewritten, _ = _remove_english_leakage_from_lyrics(rewritten, concept, preset_name)
-    after = _relatability_report(rewritten, hook, concept, preset_name)
-    return rewritten, {"before": before, "after": after, "actions": actions}
+    return lyrics, {"before": before, "after": before, "actions": ["skipped automatic phrase injection; situation-first lyrics preserved"]}
 
 
 def _reduce_repeated_lines_for_suno(lyrics: str, hook: str, concept: str, preset_name: str = "", max_repeated: int = 6) -> str:
@@ -4343,6 +4391,8 @@ def generate_creative_release_pack(
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     lyrics = _apply_situation_to_lyrics(lyrics, situation_seed, hook)
     lyrics = _ensure_concept_keyword_in_lyrics(lyrics, original_concept)
+    lyrics = _remove_unrelated_auto_phrase_lines(lyrics, original_concept, situation_seed)
+    lyrics = _ensure_situation_section_minimums(lyrics, situation_seed)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     authentic_thai_speech_report = _authentic_thai_speech_validator(lyrics, concept, preset_name)
     critic_report = _critic_engine_report(title, hook, lyrics, concept, preset_name)
