@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _relatability_report, _score_hook_candidate, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, load_diversity_memory, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _relatability_report, _score_hook_candidate, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -707,6 +707,34 @@ def main():
     assert_true(any(item and item in situation_lyrics for item in situation_needles), "Situation-First seed did not influence lyrics")
     situation_target_listener = next((line for line in situation_pack["pack"]["Producer Brief"].splitlines() if line.startswith("Target Listener:")), "")
     assert_true("Specific Situation:" in situation_pack["pack"]["Producer Brief"] and "office workers" not in situation_target_listener.lower(), "Producer Brief was not derived from the specific situation")
+    assert_true("Situation Score:" in situation_report and "Situation Objects:" in situation_report and "Specificity Score:" in situation_report, "Situation Lock V2 report missing score/object fields")
+    situation_v2_cases = [
+        "Read but not reply",
+        "Old photo notification",
+        "Boss says one more revision",
+        "Waiting for someone who never replies",
+        "เห็นเขาออนไลน์แต่ไม่ตอบเรา",
+        "รูปเก่าเด้งขึ้นมาในโทรศัพท์ทุกปี",
+        "หัวหน้าบอกแก้อีกนิด แต่กลายเป็นทั้งคืน",
+        "เพื่อนยังอยู่ในกลุ่มไลน์ แต่ไม่เคยคุยกันแล้ว",
+        "เงินเดือนออก แต่ใจยังว่างเปล่า",
+        "พิมพ์แล้วลบ เพราะรู้ว่าเขาไม่อยากตอบ",
+    ]
+    verse_1_fingerprints: set[str] = set()
+    for case in situation_v2_cases:
+        case_pack = generate_creative_release_pack(case, "Vela Moon Emotional Pop Rock", "Vela Moon")
+        case_lyrics = case_pack["pack"]["SUNO LYRICS FIELD"]
+        case_seed = case_pack["quality_report"]["situation_first"]
+        case_report = case_pack["pack"]["Situation Specificity Report"]
+        case_sections = parse_lyric_sections(case_lyrics)
+        case_objects = [item.strip() for item in str(case_report.split("Situation Objects:", 1)[1].splitlines()[0]).split(",") if item.strip()]
+        verse_1 = "\n".join(case_sections.get("Verse 1", []))
+        verse_2 = "\n".join(case_sections.get("Verse 2", []))
+        thai_objects = [item for item in case_objects if not re.search(r"[A-Za-z]", item)]
+        assert_true(int(case_seed.get("Specificity Score", 0)) >= 85 and int(case_seed.get("Situation Score", 0)) >= 70, f"Situation Lock V2 score too low for {case}")
+        assert_true(any(obj in verse_1 for obj in thai_objects) and any(obj in verse_2 for obj in thai_objects), f"Verse object lock failed for {case}")
+        verse_1_fingerprints.add(_compact_line(verse_1)[:80])
+    assert_true(len(verse_1_fingerprints) >= 8, "Situation Lock V2 generated indistinguishable Verse 1 openings")
     assert_true(release_pack["provider_status"]["status"] == "Offline Demo Mode" and "Demo / Offline Preview" in release_txt, "offline release pack is not clearly labeled as demo preview")
     assert_true("No video rendering" in release_pack["pack"]["Release notes"] and "PRODUCER NOTES" in release_txt and "Music style prompt for Suno/Udio" not in release_txt and "Suno Copy-Ready Block" not in release_txt, "creative release pack copy-ready text cleanup missing")
     assert_true("Weirdness:" in release_txt and "Style Influence:" in release_txt and "BPM:" in release_txt, "advanced Suno settings missing from release pack")

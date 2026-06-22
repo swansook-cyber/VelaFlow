@@ -459,6 +459,19 @@ def _situation_keyword_score(text: str, archetype: dict[str, str]) -> int:
     for word in trigger_words.get(str(archetype.get("trigger")), []):
         if word.lower() in haystack:
             score += 35
+    english_trigger_words = {
+        "message_read": ["read", "seen", "reply", "not reply", "chat"],
+        "online_no_reply": ["online", "green dot", "not reply", "reply"],
+        "work_revision": ["boss", "revision", "deadline", "email", "document", "one more"],
+        "friend_group_silence": ["friend", "group chat", "line group"],
+        "photo_memory": ["old photo", "photo notification", "gallery", "album", "memories", "timestamp"],
+        "home_empty": ["home", "empty room", "no one waiting"],
+        "salary_empty": ["salary", "payday"],
+        "typed_deleted": ["typing", "typed", "delete", "unsent"],
+    }
+    for word in english_trigger_words.get(str(archetype.get("trigger")), []):
+        if word in haystack:
+            score += 35
     return score
 
 
@@ -513,8 +526,40 @@ def generate_situation_first_seed(concept: str, preset_name: str = "Thai Sad Pop
         else:
             selected = dict(next(item for item in SITUATION_ARCHETYPES if item["trigger"] == "typed_deleted"))
     selected["Original Concept"] = str(concept or "").strip()
+    selected["Location"] = _situation_location(selected)
+    selected["Action"] = _situation_action(selected)
+    selected["Conflict"] = str(selected.get("Social Context", ""))
+    selected["Payoff"] = str(selected.get("Final Payoff", ""))
     selected["Specificity Score"] = str(_situation_specificity_score(selected))
     return selected
+
+
+def _situation_location(situation: dict[str, Any]) -> str:
+    by_scene = {
+        "breakup_memory": "หน้าจอโทรศัพท์",
+        "office_life": "ออฟฟิศหลังเลิกงาน",
+        "friendship": "กลุ่มไลน์เดิม",
+        "loneliness": "ห้องเงียบหลังกลับบ้าน",
+        "life_reflection": "หน้าจอแจ้งเตือนเงินเดือน",
+        "night_drive": "ถนนตอนกลางคืน",
+    }
+    return by_scene.get(str(situation.get("Scene Type", "")), "พื้นที่จริงในชีวิตประจำวัน")
+
+
+def _situation_action(situation: dict[str, Any]) -> str:
+    trigger = str(situation.get("trigger", ""))
+    by_trigger = {
+        "message_read": "มองคำว่าอ่านแล้วซ้ำ ๆ",
+        "online_no_reply": "เห็นสถานะออนไลน์แต่ไม่กล้าทักซ้ำ",
+        "work_revision": "เปิดไฟล์เดิมเพื่อแก้งานต่อทั้งคืน",
+        "friend_group_silence": "เลื่อนผ่านกลุ่มไลน์ที่เงียบไป",
+        "photo_memory": "หยุดดูรูปเก่าที่แจ้งเตือนขึ้นมา",
+        "home_empty": "ไขกุญแจเข้าห้องที่ไม่มีใครรอ",
+        "salary_empty": "มองแจ้งเตือนเงินเข้าแล้วจ่ายบิลต่อ",
+        "typed_deleted": "พิมพ์ข้อความแล้วลบก่อนกดส่ง",
+        "night_drive_custom": "ขับรถผ่านไฟแดงตอนเพลงเดิมดังขึ้น",
+    }
+    return by_trigger.get(trigger, str(situation.get("Concrete Moment", "")))
 
 
 def _rewrite_song_situation_seed(situation: dict[str, str], concept: str, preset_name: str = "Thai Sad Pop") -> dict[str, str]:
@@ -531,17 +576,129 @@ def _situation_context_text(situation: dict[str, Any] | None) -> str:
     return "\n".join(f"{key}: {data.get(key, '')}" for key in keys if str(data.get(key, "")).strip())
 
 
+def _situation_objects(situation: dict[str, Any] | None) -> list[str]:
+    data = situation or {}
+    trigger = str(data.get("trigger") or "")
+    by_trigger = {
+        "message_read": ["chat", "seen", "online", "notification", "typing bubble", "ข้อความ", "อ่านแล้ว", "แชต", "แจ้งเตือน"],
+        "online_no_reply": ["chat", "seen", "online", "notification", "typing bubble", "ออนไลน์", "จุดเขียว", "แจ้งเตือน", "หน้าจอ"],
+        "photo_memory": ["gallery", "memories", "photo", "timestamp", "album", "รูปเก่า", "โทรศัพท์", "อัลบั้ม", "แจ้งเตือน"],
+        "work_revision": ["office", "document", "deadline", "revision", "email", "ไฟล์งาน", "เดดไลน์", "อีเมล", "หัวหน้า"],
+        "friend_group_silence": ["group chat", "LINE", "sticker", "birthday", "กลุ่มไลน์", "สติกเกอร์", "วันเกิด"],
+        "home_empty": ["key", "door", "empty room", "light", "กุญแจ", "ประตู", "ห้องเงียบ", "ไฟ"],
+        "salary_empty": ["salary", "notification", "bill", "bank app", "เงินเดือน", "บิล", "แจ้งเตือน"],
+        "typed_deleted": ["chat", "typing box", "delete", "draft", "ช่องพิมพ์", "แชต", "ลบ", "ข้อความ"],
+        "night_drive_custom": ["car", "red light", "old song", "road", "รถ", "ไฟแดง", "เพลงเดิม", "ถนน"],
+    }
+    objects = list(by_trigger.get(trigger, []))
+    for key in ["Main Object", "Modern Object"]:
+        value = str(data.get(key, "")).strip()
+        if value:
+            objects.insert(0, value)
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in objects:
+        key = _compact_line(str(item))
+        if key and key not in seen:
+            out.append(str(item))
+            seen.add(key)
+    return out[:10]
+
+
+def _situation_similarity_score(situation: dict[str, Any] | None, memory: dict[str, list[str]] | None = None) -> int:
+    data = situation or {}
+    memory = memory or load_diversity_memory()
+    current_parts = [
+        str(data.get("Specific Situation", "")),
+        str(data.get("Main Object") or data.get("Modern Object", "")),
+        str(data.get("Bridge Truth", "")),
+        str(data.get("Final Payoff", "")),
+    ]
+    recent_parts = (
+        memory.get("recent_specific_situations", [])[-20:]
+        + memory.get("recent_main_objects", [])[-20:]
+        + memory.get("recent_bridge_truths", [])[-20:]
+        + memory.get("recent_final_payoff_lines", [])[-20:]
+    )
+    if not any(current_parts) or not recent_parts:
+        return 0
+    best = 0
+    for current in current_parts:
+        for recent in recent_parts:
+            best = max(best, int(_similarity_ratio(current, recent) * 100))
+    return best
+
+
+def _avoid_similar_situation_seed(situation: dict[str, str], concept: str, preset_name: str = "Thai Sad Pop", memory: dict[str, list[str]] | None = None) -> dict[str, str]:
+    memory = memory or load_diversity_memory()
+    if _situation_similarity_score(situation, memory) <= 88:
+        return situation
+    source = str(concept or "")
+    alternatives = sorted(
+        [dict(item) for item in SITUATION_ARCHETYPES if str(item.get("trigger")) != str(situation.get("trigger"))],
+        key=lambda item: (_situation_keyword_score(source, item), -_situation_similarity_score(item, memory)),
+        reverse=True,
+    )
+    for candidate in alternatives:
+        if _situation_similarity_score(candidate, memory) <= 80:
+            candidate["Original Concept"] = str(concept or "").strip()
+            candidate["Specificity Score"] = str(max(85, _situation_specificity_score(candidate)))
+            return candidate
+    varied = dict(situation)
+    varied["Concrete Moment"] = f"{varied.get('Concrete Moment', '')} ในรายละเอียดที่ต่างจากครั้งก่อน".strip()
+    varied["Escalation Moment"] = f"{varied.get('Escalation Moment', '')} จนความเงียบเริ่มมีน้ำหนักของมันเอง".strip()
+    varied["Specificity Score"] = str(max(85, _situation_specificity_score(varied)))
+    return varied
+
+
+def _section_contains_situation_object(section_lines: list[str], objects: list[str]) -> bool:
+    text = "\n".join(section_lines)
+    return any(obj and obj in text for obj in objects)
+
+
+def _situation_lock_score(lyrics: str, situation: dict[str, Any] | None) -> dict[str, Any]:
+    objects = _situation_objects(situation)
+    sections = parse_lyric_sections(lyrics)
+    verse_1_ok = _section_contains_situation_object(sections.get("Verse 1", []), objects)
+    verse_2_ok = _section_contains_situation_object(sections.get("Verse 2", []), objects)
+    bridge_truth = str((situation or {}).get("Bridge Truth", ""))
+    payoff = str((situation or {}).get("Final Payoff", ""))
+    bridge_ok = bool(bridge_truth and bridge_truth in "\n".join(sections.get("Bridge", [])))
+    payoff_ok = bool(payoff and payoff in "\n".join(sections.get("Final Chorus", [])))
+    score = 40
+    score += 20 if verse_1_ok else 0
+    score += 20 if verse_2_ok else 0
+    score += 10 if bridge_ok else 0
+    score += 10 if payoff_ok else 0
+    return {
+        "Situation Score": min(100, score),
+        "Situation Objects": objects,
+        "Verse 1 Object Lock": verse_1_ok,
+        "Verse 2 Object Lock": verse_2_ok,
+        "Bridge Truth Lock": bridge_ok,
+        "Final Payoff Lock": payoff_ok,
+    }
+
+
 def _situation_specificity_report_text(situation: dict[str, Any] | None) -> str:
     data = situation or {}
+    lock_report = data.get("Situation Lock Report") if isinstance(data.get("Situation Lock Report"), dict) else {}
+    objects = lock_report.get("Situation Objects") or _situation_objects(data)
     return "\n".join(
         [
             f"Specific Situation: {data.get('Specific Situation', '')}",
             f"Main Object: {data.get('Main Object') or data.get('Modern Object', '')}",
+            f"Situation Objects: {', '.join(str(item) for item in objects)}",
+            f"Location: {data.get('Location', '')}",
+            f"Action: {data.get('Action', '')}",
+            f"Conflict: {data.get('Conflict', data.get('Social Context', ''))}",
+            f"Payoff: {data.get('Payoff', data.get('Final Payoff', ''))}",
             f"Social Context: {data.get('Social Context', '')}",
             f"Verse 1 Moment: {data.get('Concrete Moment', '')}",
             f"Verse 2 Escalation: {data.get('Escalation Moment', '')}",
             f"Bridge Truth: {data.get('Bridge Truth', '')}",
             f"Final Payoff: {data.get('Final Payoff', '')}",
+            f"Situation Score: {lock_report.get('Situation Score', data.get('Situation Score', 0))}",
             f"Specificity Score: {data.get('Specificity Score', 0)}",
         ]
     )
@@ -565,14 +722,32 @@ def _apply_situation_to_lyrics(lyrics: str, situation: dict[str, Any] | None, ho
     if not situation:
         return lyrics
     lines = str(lyrics or "").replace("\r\n", "\n").splitlines()
-    lines = _insert_line_after_section(lines, "Verse 1", str(situation.get("Concrete Moment", "")).strip())
-    lines = _insert_line_after_section(lines, "Verse 2", str(situation.get("Escalation Moment", "")).strip())
+    objects = _situation_objects(situation)
+    lyric_objects = [item for item in objects if not re.search(r"[A-Za-z]", str(item))]
+    main_object = str(situation.get("Main Object") or situation.get("Modern Object") or (lyric_objects[0] if lyric_objects else "")).strip()
+    verse_1_line = str(situation.get("Concrete Moment", "")).strip()
+    verse_2_line = str(situation.get("Escalation Moment", "")).strip()
+    if main_object and main_object not in verse_1_line:
+        verse_1_line = f"{verse_1_line} ({main_object})".strip()
+    if len(lyric_objects) > 1 and lyric_objects[1] not in verse_2_line:
+        verse_2_line = f"{verse_2_line} {lyric_objects[1]}".strip()
+    lines = _insert_line_after_section(lines, "Verse 1", verse_1_line)
+    lines = _insert_line_after_section(lines, "Verse 2", verse_2_line)
     lines = _insert_line_after_section(lines, "Bridge", str(situation.get("Bridge Truth", "")).strip())
     if str(situation.get("Scene Type", "")) == "office_life":
         lines = _insert_line_after_section(lines, "Bridge", "แค่อยากกลับมาเป็นตัวเอง")
         lines = _insert_line_after_section(lines, "Bridge", "ไม่อยากลาออก แค่อยากพัก")
     lines = _insert_line_after_section(lines, "Final Chorus", str(situation.get("Final Payoff", "")).strip())
-    return "\n".join(lines)
+    locked = "\n".join(lines)
+    lock_report = _situation_lock_score(locked, situation)
+    if not lock_report["Verse 1 Object Lock"] and main_object:
+        lines = _insert_line_after_section(lines, "Verse 1", f"{main_object}ยังค้างอยู่ในวินาทีนั้น")
+    if not lock_report["Verse 2 Object Lock"] and len(lyric_objects) > 1:
+        lines = _insert_line_after_section(lines, "Verse 2", f"{lyric_objects[1]}ทำให้เรื่องเดิมชัดขึ้นกว่าเดิม")
+    locked = "\n".join(lines)
+    situation["Situation Lock Report"] = _situation_lock_score(locked, situation)
+    situation["Situation Score"] = str(situation["Situation Lock Report"].get("Situation Score", 0))
+    return locked
 
 
 def _enforce_question_hook_style(hook: str, controls: dict[str, Any], concept: str) -> str:
@@ -4089,6 +4264,7 @@ def generate_creative_release_pack(
             str(controls.get("story_type") or ""),
         )
     situation_seed = _rewrite_song_situation_seed(situation_seed, original_concept, preset_name)
+    situation_seed = _avoid_similar_situation_seed(situation_seed, original_concept, preset_name)
     situation_context = _situation_context_text(situation_seed)
     producer_brief = None
     if selected_seed and isinstance(selected_seed.get("producer_brief"), dict):
@@ -4167,6 +4343,7 @@ def generate_creative_release_pack(
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     lyrics = _apply_situation_to_lyrics(lyrics, situation_seed, hook)
     lyrics = _ensure_concept_keyword_in_lyrics(lyrics, original_concept)
+    lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     authentic_thai_speech_report = _authentic_thai_speech_validator(lyrics, concept, preset_name)
     critic_report = _critic_engine_report(title, hook, lyrics, concept, preset_name)
     commercial_score_report = _commercial_score_engine(title, hook, lyrics, concept, preset_name)
