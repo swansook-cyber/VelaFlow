@@ -957,6 +957,108 @@ STRICT_TEMPLATE_BANNED_LINES = [
     "ใจยังไม่เลิกงาน",
 ]
 
+def _emotional_escalation_profile(situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> dict[str, list[str]]:
+    data = situation or {}
+    bp = blueprint or {}
+    kind = str(bp.get("kind") or data.get("trigger") or "")
+    concept = "\n".join([str(data.get("Original Concept") or ""), str(bp.get("original_idea") or ""), str(bp.get("situation") or "")])
+    if kind == "aging_father" or "พ่อ" in concept:
+        return {
+            "change": ["วันก่อนพ่อยกหม้อไม่ไหวแล้ว", "มือที่เคยแข็งแรงเริ่มวางของช้าลง", "ฉันเห็นพ่อพักหายใจนานกว่าทุกที"],
+            "truth": ["ฉันเพิ่งรู้ว่าคนที่เคยอุ้มเรา", "ก็มีวันที่ต้องการคนพยุง", "ความรักบางครั้งคือการเดินให้ช้าลงข้างกัน"],
+            "payoff": ["ถ้ายังมีมื้อเย็นร่วมโต๊ะได้อีกวัน", "ฉันจะไม่รีบลุกไปไหน", "จะนั่งฟังพ่อเล่าเรื่องเดิมให้นานกว่าเดิม"],
+        }
+    if kind == "dog_loss" or "หมา" in concept or "สุนัข" in concept:
+        return {
+            "change": ["วันนี้ไม่มีเสียงเล็บวิ่งมาที่ประตู", "ชามอาหารยังอยู่แต่ไม่มีใครก้มลงกิน", "ฉันเก็บสายจูงไว้ที่เดิมแต่บ้านเงียบกว่าเดิม"],
+            "truth": ["ฉันเพิ่งเข้าใจว่านิสัยการรอ", "ยังอยู่ได้นานกว่าเจ้าของเสียงเท้านั้น", "บางการลาจากทิ้งความรักไว้ในบ้านทั้งหลัง"],
+            "payoff": ["ถ้าคืนนี้บ้านยังเงียบเหมือนเดิม", "ฉันจะขอบคุณที่เคยมีเสียงเล็ก ๆ รออยู่", "รักยังเฝ้าประตู แม้ไม่มีใครวิ่งกลับมา"],
+        }
+    if kind == "first_car_broken" or "รถคันแรก" in concept or "รถ" in concept:
+        return {
+            "change": ["อู่บอกว่าซ่อมไปก็ไม่คุ้มแล้ว", "เครื่องยนต์เงียบเหมือนยอมแพ้ก่อนฉัน", "ถนนเส้นเดิมคงไม่ได้พาเรากลับบ้านด้วยกันอีก"],
+            "truth": ["บางอย่างไม่ได้พังเพราะหมดรัก", "แต่มันถึงเวลาของมัน", "ของบางชิ้นพาเรามาไกลพอแล้ว"],
+            "payoff": ["ถ้าต้องจอดไว้ตรงนี้จริง ๆ", "ขอบคุณที่เคยพาฉันผ่านทุกฝนทุกทาง", "กุญแจเก่ายังอยู่ในมือ แต่ฉันจะเดินต่อเอง"],
+        }
+    if kind == "mother_late_call" or ("แม่" in concept and ("โทร" in concept or "สาย" in concept)):
+        return {
+            "change": ["คืนนั้นเสียงแม่เบากว่าที่เคยได้ยิน", "ประโยคสั้น ๆ ทำให้ฉันลุกนั่งทั้งคืน", "จากสายธรรมดากลายเป็นเรื่องที่ฉันไม่กล้าวาง"],
+            "truth": ["ฉันเพิ่งรู้ว่าสายจากบ้านตอนดึก", "ทำให้คนโตแล้วกลับเป็นเด็กได้ทันที", "บางเสียงเราไม่ควรปล่อยให้รอนาน"],
+            "payoff": ["ถ้าแม่ยังโทรหาในคืนไหน", "ฉันจะรับให้ทันก่อนเสียงสั่นจะหายไป", "เพราะบางสายคือบ้านทั้งหลังที่ยังเรียกเรา"],
+        }
+    return {
+        "change": [str(data.get("Escalation Moment") or bp.get("action") or "สิ่งเดิมเปลี่ยนไปจนฉันมองข้ามไม่ได้")],
+        "truth": [str(data.get("Bridge Truth") or bp.get("bridge_realization") or "ฉันเพิ่งเข้าใจความจริงที่เลี่ยงมาตลอด")],
+        "payoff": [str(data.get("Final Payoff") or bp.get("payoff") or "จากนี้ฉันจะยอมรับมันด้วยใจที่ตรงกว่าเดิม")],
+    }
+
+
+def _section_similarity(a: list[str], b: list[str]) -> int:
+    a_set = {_compact_line(line) for line in a if _compact_line(line)}
+    b_set = {_compact_line(line) for line in b if _compact_line(line)}
+    if not a_set or not b_set:
+        return 0
+    return int((len(a_set & b_set) / max(1, len(a_set | b_set))) * 100)
+
+
+def _narrative_progression_score(lyrics: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> int:
+    sections = parse_lyric_sections(lyrics)
+    profile = _emotional_escalation_profile(situation, blueprint)
+    verse1 = sections.get("Verse 1", [])
+    verse2 = sections.get("Verse 2", [])
+    bridge = sections.get("Bridge", [])
+    final_chorus = sections.get("Final Chorus", [])
+    verse2_text = "\n".join(verse2)
+    bridge_text = "\n".join(bridge)
+    final_text = "\n".join(final_chorus)
+    memory_ok = _human_memory_score(lyrics, situation, blueprint) >= 85
+    change_ok = any(line and line in verse2_text for line in profile.get("change", [])) or any(term in verse2_text for term in ["ไม่ไหว", "ไม่คุ้ม", "ไม่มีเสียง", "เบากว่า", "เปลี่ยน"])
+    truth_ok = any(line and line in bridge_text for line in profile.get("truth", [])) or any(term in bridge_text for term in ["เพิ่งรู้", "เพิ่งเข้าใจ", "ไม่ได้", "บางอย่าง", "ความจริง"])
+    payoff_ok = any(line and line in final_text for line in profile.get("payoff", [])) or any(term in final_text for term in ["ถ้า", "ขอบคุณ", "จากนี้", "ฉันจะ", "ยังมี"])
+    score = 20
+    score += 20 if memory_ok else 0
+    score += 20 if change_ok else 0
+    score += 25 if truth_ok else 0
+    score += 25 if payoff_ok else 0
+    similarity_penalty = 0
+    for left, right in [(verse1, verse2), (verse2, bridge), (bridge, final_chorus)]:
+        sim = _section_similarity(left, right)
+        if sim > 35:
+            similarity_penalty += min(20, sim - 35)
+    return max(0, min(100, score - similarity_penalty))
+
+
+def _apply_emotional_escalation_engine(lyrics: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None, hook: str = "") -> tuple[str, dict[str, Any]]:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, {"Narrative Progression Score": 0, "rewrote_sections": []}
+    profile = _emotional_escalation_profile(situation, blueprint)
+    rewrote: list[str] = []
+    verse2_text = "\n".join(sections.get("Verse 2", []))
+    if not any(line and line in verse2_text for line in profile.get("change", [])):
+        rest = [line for line in sections.get("Verse 2", []) if line not in profile.get("change", [])]
+        sections["Verse 2"] = (profile.get("change", []) + rest)[:max(4, len(profile.get("change", [])))]
+        rewrote.append("Verse 2")
+    bridge_text = "\n".join(sections.get("Bridge", []))
+    if not any(line and line in bridge_text for line in profile.get("truth", [])):
+        rest = [line for line in sections.get("Bridge", []) if line not in profile.get("truth", [])]
+        sections["Bridge"] = (profile.get("truth", []) + rest)[:max(3, len(profile.get("truth", [])))]
+        rewrote.append("Bridge")
+    final_text = "\n".join(sections.get("Final Chorus", []))
+    if not any(line and line in final_text for line in profile.get("payoff", [])):
+        hook_lines = [line for line in _lines(hook) if line]
+        rest = [line for line in sections.get("Final Chorus", []) if line not in hook_lines]
+        sections["Final Chorus"] = (hook_lines + profile.get("payoff", []) + rest)[:max(6, len(hook_lines) + len(profile.get("payoff", [])))]
+        rewrote.append("Final Chorus")
+    rendered = _render_lyric_sections(sections)
+    return rendered, {
+        "Narrative Progression Score": _narrative_progression_score(rendered, situation, blueprint),
+        "rewrote_sections": rewrote,
+        "Memory Purpose": "Verse 1",
+        "Change Purpose": "Verse 2",
+        "Truth Purpose": "Bridge",
+        "Payoff Purpose": "Final Chorus",
+    }
 
 def _detect_story_blueprint_type(idea: str, situation: dict[str, Any] | None = None) -> str:
     text = "\n".join([str(idea or ""), _situation_context_text(situation)]).lower()
@@ -2643,6 +2745,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     thai_naturalness_score = _thai_naturalness_score(lyrics, concept)
     relatability_score = int(_relatability_report(lyrics, hook, concept).get("Relatability Score", 0))
     human_memory_score = _human_memory_score(lyrics)
+    narrative_progression_score = _narrative_progression_score(lyrics)
     commercial_score = max(
         0,
         min(
@@ -2668,6 +2771,8 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Thai Naturalness Score": thai_naturalness_score,
         "Relatability Score": relatability_score,
         "Human Memory Score": human_memory_score,
+        "Memory Score": human_memory_score,
+        "Narrative Progression Score": narrative_progression_score,
     }
     return {
         "scores": scores,
@@ -2707,6 +2812,9 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Thai Naturalness Score: {scores.get('Thai Naturalness Score', 0)}",
         f"Relatability Score: {scores.get('Relatability Score', 0)}",
         f"Human Memory Score: {scores.get('Human Memory Score', 0)}",
+        f"Memory Score: {scores.get('Memory Score', 0)}",
+        f"Narrative Progression Score: {scores.get('Narrative Progression Score', 0)}",
+        f"Situation Alignment Score: {scores.get('Situation Alignment Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
         f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
@@ -5666,6 +5774,7 @@ def generate_creative_release_pack(
     lyrics = _sanitize_strict_template_lines(lyrics)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     lyrics, human_memory_report = _apply_human_memory_engine(lyrics, situation_seed, story_blueprint)
+    lyrics, emotional_escalation_report = _apply_emotional_escalation_engine(lyrics, situation_seed, story_blueprint, hook)
     lyrics = _ensure_concept_keyword_after_memory_opening(lyrics, original_concept)
     lyrics = _sanitize_strict_template_lines(lyrics)
     situation_seed["Situation Lock Report"] = _situation_lock_score(lyrics, situation_seed)
@@ -5675,6 +5784,8 @@ def generate_creative_release_pack(
     commercial_score_report = _commercial_score_engine(title, hook, lyrics, concept, preset_name)
     lyrics_quality_report = _lyrics_quality_engine_report(title, hook, lyrics, concept)
     situation_alignment_report = _situation_alignment_score(title, hook, story_blueprint, situation_seed)
+    lyrics_quality_report.setdefault("scores", {})["Situation Alignment Score"] = int(situation_alignment_report.get("Situation Alignment Score", 0))
+    lyrics_quality_report["overall_score"] = int(sum(int(value) for value in lyrics_quality_report.get("scores", {}).values()) / max(1, len(lyrics_quality_report.get("scores", {}))))
     concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
@@ -5805,6 +5916,7 @@ def generate_creative_release_pack(
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
             "human_memory_engine": human_memory_report,
+            "emotional_escalation_engine": emotional_escalation_report,
             "thai_natural_speech": thai_natural_speech_report,
             "relatability": relatability_report,
             "diversity": diversity_report,

@@ -817,6 +817,18 @@ def main():
         assert_true(sum(1 for term in abstract_opening_terms if term in "\n".join(memory_sections.get("Verse 1", [])[:2])) <= 1, f"Verse 1 still opens like emotional summary for {lock_idea}")
         assert_true(memory_pack["quality_report"]["lyrics_quality_engine"]["scores"].get("Human Memory Score", 0) >= 85, f"Human Memory Score too low for {lock_idea}")
         assert_true(memory_pack["quality_report"].get("human_memory_engine", {}).get("Human Memory Score", 0) >= 85, f"Human Memory Engine report missing or low for {lock_idea}")
+        verse_2_text = "\n".join(memory_sections.get("Verse 2", []))
+        bridge_text = "\n".join(memory_sections.get("Bridge", []))
+        final_chorus_text = "\n".join(memory_sections.get("Final Chorus", []))
+        escalation_report = memory_pack["quality_report"].get("emotional_escalation_engine", {})
+        quality_scores = memory_pack["quality_report"]["lyrics_quality_engine"]["scores"]
+        assert_true(escalation_report.get("Narrative Progression Score", 0) >= 85, f"Narrative Progression Score too low for {lock_idea}: {escalation_report}")
+        assert_true(quality_scores.get("Narrative Progression Score", 0) >= 85, f"Lyrics quality report missing narrative progression for {lock_idea}")
+        assert_true(quality_scores.get("Memory Score", 0) >= 85, f"Lyrics quality report missing memory score for {lock_idea}")
+        assert_true(quality_scores.get("Situation Alignment Score", 0) >= 70, f"Lyrics quality report missing situation alignment for {lock_idea}")
+        assert_true(verse_2_text and bridge_text and final_chorus_text, f"Narrative progression sections missing for {lock_idea}")
+        assert_true(verse_2_text != bridge_text and bridge_text != final_chorus_text and verse_2_text != final_chorus_text, f"Narrative sections repeat the same emotional point for {lock_idea}")
+        assert_true(set(escalation_report.get("rewrote_sections", [])) >= {"Verse 2", "Bridge", "Final Chorus"}, f"Emotional Escalation Engine did not enforce change/truth/payoff for {lock_idea}: {escalation_report}")
     bad_seed = {
         "story": {"label": "พิมพ์แล้วลบ เพราะรู้ว่าเขาไม่อยากตอบ", "story_angle": "chat silence", "objects": ["แชต", "อ่านแล้ว"], "scenes": ["หน้าจอโทรศัพท์"]},
         "hook": "บอกตรง ๆ ได้ไหม\nแต่อย่าให้คำมันผลักเราไกล",
