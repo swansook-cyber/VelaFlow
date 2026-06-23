@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -779,6 +779,41 @@ def main():
     assert_true(len(title_candidates) == 5 and all(item.get("title") for item in title_candidates), "Music V2 title candidates failed")
     seed_bundle = generate_music_seed_candidates_v2("เพลงเศร้าในออฟฟิศ", "Office Burnout", mood="Bittersweet", story_type="Office Burnout")
     assert_true(len(seed_bundle["story_candidates"]) == 5 and len(seed_bundle["hook_candidates"]) == 5 and len(seed_bundle["title_candidates"]) == 5, "Music V2 seed bundle count failed")
+    candidate_lock_cases = [
+        ("รถคันแรกพัง", ["รถ", "กุญแจ", "เครื่องยนต์", "ถนน"]),
+        ("แม่โทรมาตอนตีสอง", ["แม่", "โทร", "ตีสอง", "สาย", "โทรศัพท์"]),
+        ("หมาที่เลี้ยงมา 12 ปีจากไป", ["หมา", "ปลอกคอ", "ชาม", "ประตู", "บ้าน"]),
+        ("พ่อแก่ลงทุกปี", ["พ่อ", "มือ", "แก้วน้ำ", "โต๊ะกินข้าว", "เดินช้า"]),
+    ]
+    generic_bad_titles = {"พูดเบา ๆ แต่โดนใจ", "ความจริงเบา ๆ", "บอกตรง ๆ ได้ไหม", "คำที่ถนอม"}
+    for lock_idea, required_terms in candidate_lock_cases:
+        locked_bundle = generate_music_seed_candidates_v2(lock_idea, "Vela Moon Emotional Pop Rock")
+        locked_story = locked_bundle["story_candidates"][0]
+        locked_hook = locked_bundle["hook_candidates"][0]["hook"]
+        locked_title = locked_bundle["title_candidates"][0]["title"]
+        locked_story_text = "\n".join([str(locked_story.get("label", "")), str(locked_story.get("story_angle", "")), " ".join(locked_story.get("objects", []) or []), " ".join(locked_story.get("scenes", []) or [])])
+        locked_combined = "\n".join([locked_story_text, locked_hook, locked_title])
+        assert_true(any(term in locked_combined for term in required_terms), f"candidate lock failed for {lock_idea}")
+        assert_true(locked_title not in generic_bad_titles and not any(bad in locked_hook for bad in generic_bad_titles), f"generic title/hook passed candidate lock for {lock_idea}")
+        relevance = validate_selected_seed_relevance(
+            lock_idea,
+            {
+                "story": locked_story,
+                "hook": locked_hook,
+                "title": locked_title,
+                "producer_brief": locked_bundle["producer_brief"],
+                "situation_first_seed": locked_bundle["situation_first_seed"],
+            },
+            "Vela Moon Emotional Pop Rock",
+        )
+        assert_true(relevance["ok"], f"selected seed relevance gate rejected a user-idea candidate for {lock_idea}: {relevance}")
+    bad_seed = {
+        "story": {"label": "พิมพ์แล้วลบ เพราะรู้ว่าเขาไม่อยากตอบ", "story_angle": "chat silence", "objects": ["แชต", "อ่านแล้ว"], "scenes": ["หน้าจอโทรศัพท์"]},
+        "hook": "บอกตรง ๆ ได้ไหม\nแต่อย่าให้คำมันผลักเราไกล",
+        "title": "ความจริงเบา ๆ",
+    }
+    bad_relevance = validate_selected_seed_relevance("หมาที่เลี้ยงมา 12 ปีจากไป", bad_seed, "Vela Moon Emotional Pop Rock")
+    assert_true(not bad_relevance["ok"], "unrelated old story seed was not rejected")
     assert_true(seed_bundle.get("producer_brief") and seed_bundle["producer_brief"].get("Target Listener") and seed_bundle["producer_brief"].get("Shareable Angle"), "Producer Engine V1 brief missing")
     assert_true(all(item.get("human_experiences") for item in seed_bundle["story_candidates"]), "Producer Engine V1 human experience seeds missing")
     hook_candidate_text = "\n".join(item["hook"] for item in seed_bundle["hook_candidates"])
@@ -826,14 +861,7 @@ def main():
         "Vela Moon",
         creative_controls={"selected_seed": authority_seed, "story_type": "Office Burnout", "hook_style": "Question"},
     )
-    authority_lyrics = authority_pack["pack"]["SUNO LYRICS FIELD"]
-    authority_text = creative_release_pack_to_text(authority_pack)
-    assert_true(authority_pack["pack"]["Suggested title"] == "โต๊ะตัวเดิม", "selected title did not become mandatory final title")
-    assert_true("โต๊ะตัวเดิม" in authority_pack["pack"]["Suggested title"] and "coffee cup" not in authority_lyrics and "parking card" not in authority_lyrics, "selected seed authority leaked old story-object template")
-    assert_true("ไม่เหลือใคร" in authority_lyrics, "original concept was not preserved with selected story")
-    assert_true("ข้างในยิ่งว่างเปล่า" in authority_pack["pack"]["Hook"], "selected hook was overwritten by title enforcement")
-    assert_true("เน€เธ" not in authority_text and "coffee cup" not in authority_pack["pack"]["Selected Seed Summary"], "release pack did not clean mojibake or selected seed objects")
-    assert_true("Spotify-friendly" not in authority_pack["pack"]["Caption"] and "TikTok-ready" not in authority_pack["pack"]["Caption"], "caption leaked internal commercial direction")
+    assert_true(not authority_pack.get("ok") and authority_pack.get("error") == "seed_relevance_failed", "unrelated selected seed should block final release export")
     english_title_seed = dict(authority_seed)
     english_title_seed["title"] = "coffee cup"
     english_title_pack = generate_creative_release_pack(
@@ -842,7 +870,7 @@ def main():
         "Vela Moon",
         creative_controls={"selected_seed": english_title_seed, "story_type": "Office Burnout", "hook_style": "Question"},
     )
-    assert_true(not re.search(r"[A-Za-z]", english_title_pack["pack"]["Suggested title"]), "English object title leaked into Thai song title")
+    assert_true(not english_title_pack.get("ok") and english_title_pack.get("error") == "seed_relevance_failed", "English/unrelated selected seed title should block final release export")
     advanced_controls_pack = generate_creative_release_pack(
         "พนักงานดีเด่น",
         "Vela Moon Emotional Pop Rock",

@@ -2314,9 +2314,9 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             story_options = [f"{idx + 1}. {item.get('label')}" for idx, item in enumerate(stories)]
             hook_options = [f"{idx + 1}. {item.get('type')}" for idx, item in enumerate(hooks)]
             title_options = [f"{idx + 1}. {item.get('title')}" for idx, item in enumerate(titles)]
-            story_index = story_options.index(st.selectbox("Story Candidates", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
-            hook_index = hook_options.index(st.selectbox("Hook Candidates", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
-            title_index = title_options.index(st.selectbox("Title Candidates", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
+            story_index = story_options.index(st.selectbox("AI Story Candidates from Your Idea", story_options, index=min(int(state.get("story_seed_index", 0)), len(story_options) - 1), key="creative_pack_story_seed_select"))
+            hook_index = hook_options.index(st.selectbox("AI Hook Candidates from Your Idea", hook_options, index=min(int(state.get("hook_seed_index", 0)), len(hook_options) - 1), key="creative_pack_hook_seed_select"))
+            title_index = title_options.index(st.selectbox("AI Title Candidates from Your Idea", title_options, index=min(int(state.get("title_seed_index", 0)), len(title_options) - 1), key="creative_pack_title_seed_select"))
             selected_story = stories[story_index]
             selected_hook = hooks[hook_index]
             selected_title = titles[title_index]
@@ -2349,6 +2349,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
                 "hook": selected_hook.get("hook", ""),
                 "title": selected_title.get("title", ""),
                 "producer_brief": producer_brief,
+                "situation_first_seed": seed_candidates.get("situation_first_seed") or {},
             }
             state["story_seed_index"] = story_index
             state["hook_seed_index"] = hook_index

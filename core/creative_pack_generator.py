@@ -863,6 +863,8 @@ STRICT_TEMPLATE_BANNED_LINES = [
 
 def _detect_story_blueprint_type(idea: str, situation: dict[str, Any] | None = None) -> str:
     text = "\n".join([str(idea or ""), _situation_context_text(situation)]).lower()
+    if "แม่" in text and ("โทร" in text or "สาย" in text or "โทรศัพท์" in text):
+        return "mother_late_call"
     checks = [
         ("dog_loss", ["หมา", "สุนัข", "12 ปี", "จากไป", "dog"]),
         ("aging_father", ["พ่อ", "แก่", "อายุ", "father"]),
@@ -888,6 +890,19 @@ def _story_blueprint_v2(idea: str, situation: dict[str, Any] | None = None) -> d
     if kind == "specific_life":
         kind = _detect_story_blueprint_type(idea, situation)
     blueprints: dict[str, dict[str, Any]] = {
+        "mother_late_call": {
+            "title": "สายจากแม่",
+            "protagonist": "ลูกที่สะดุ้งตื่นเพราะสายจากแม่ตอนตีสอง",
+            "situation": "แม่โทรมาตอนตีสองในคืนที่บ้านเงียบผิดปกติ",
+            "location": "ห้องนอนตอนดึกกับหน้าจอโทรศัพท์ที่สว่างขึ้น",
+            "object": "สายจากแม่",
+            "action": "มองชื่อแม่บนหน้าจอก่อนรีบรับสาย",
+            "conflict": "กลัวข่าวร้ายแต่ก็กลัวไม่ได้ยินเสียงแม่อีก",
+            "progression": ["สะดุ้งตื่น", "รีบรับสาย", "อยากกลับบ้านไปกอดแม่"],
+            "bridge_realization": "บางสายไม่ได้โทรมาเพื่อขออะไร แค่อยากให้เรารู้ว่ายังมีคนรออยู่",
+            "payoff": "ถ้าแม่ยังโทรหา ฉันจะรับให้ทันทุกครั้ง",
+            "hook": ["แม่โทรมาตอนตีสอง", "ชื่อแม่สว่างอยู่บนหน้าจอ", "ใจฉันกลัวก่อนจะได้ยินเสียง", "เพราะบางสายสำคัญกว่าทุกเรื่อง"],
+        },
         "dog_loss": {
             "title": "ประตูที่ยังรอ",
             "protagonist": "เจ้าของที่ยังเผลอรอเสียงเท้าเดิม",
@@ -1112,6 +1127,207 @@ def _situation_alignment_score(title: str, hook: str, blueprint: dict[str, Any],
         "Early Hook Hits": early_hook_hits,
         "Situation Terms": terms,
     }
+
+
+def _candidate_relevance_terms(concept: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> list[str]:
+    blocked = {"เพลง", "อยาก", "เรื่อง", "ความ", "หนึ่ง", "คน", "ใจ", "รัก", "เศร้า", "เหงา", "ชีวิต"}
+    source_parts = [str(concept or "")]
+    if situation:
+        for key in ["Specific Situation", "Main Character", "Main Object", "Modern Object", "Location", "Action", "Conflict", "Bridge Truth", "Final Payoff", "Payoff"]:
+            source_parts.append(str(situation.get(key) or ""))
+    if blueprint:
+        for key in ["title", "situation", "location", "object", "action", "conflict", "payoff", "bridge_realization"]:
+            source_parts.append(str(blueprint.get(key) or ""))
+    terms: list[str] = []
+    for part in source_parts:
+        for term in re.findall(r"[\u0e00-\u0e7f]{2,}", part):
+            if term not in blocked and term not in terms:
+                terms.append(term)
+    return terms[:24]
+
+
+def _candidate_relevance_score(text: str, concept: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> int:
+    candidate_text = str(text or "")
+    if not candidate_text.strip():
+        return 0
+    terms = _candidate_relevance_terms(concept, situation, blueprint)
+    if not terms:
+        return 100
+    hits = [term for term in terms if term and term in candidate_text]
+    score = min(55, len(hits) * 11)
+    strong_sources = []
+    if situation:
+        strong_sources.extend([situation.get("Main Object"), situation.get("Modern Object"), situation.get("Specific Situation"), situation.get("Conflict"), situation.get("Final Payoff")])
+    if blueprint:
+        strong_sources.extend([blueprint.get("object"), blueprint.get("situation"), blueprint.get("conflict"), blueprint.get("payoff"), blueprint.get("title")])
+    strong_hits = 0
+    for item in strong_sources:
+        item_text = str(item or "").strip()
+        if item_text and item_text in candidate_text:
+            strong_hits += 1
+    score += min(50, strong_hits * 20)
+    idea_terms = [term for term in re.findall(r"[\u0e00-\u0e7f]{2,}", str(concept or "")) if term not in {"เพลง", "อยาก", "เรื่อง", "ความ"}]
+    if any(term in candidate_text for term in idea_terms):
+        score += 25
+    if re.search(r"[A-Za-z]", candidate_text):
+        score -= 20
+    return max(0, min(100, score))
+
+
+def _story_candidate_text(candidate: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            str(candidate.get("label") or ""),
+            str(candidate.get("story_angle") or ""),
+            " ".join(str(item) for item in candidate.get("objects", []) if str(item).strip()),
+            " ".join(str(item) for item in candidate.get("scenes", []) if str(item).strip()),
+            " ".join(str(item) for item in candidate.get("human_experiences", []) if str(item).strip()),
+            str(candidate.get("emotional_arc") or ""),
+        ]
+    )
+
+
+def _story_candidate_from_blueprint(blueprint: dict[str, Any], producer_brief: dict[str, Any] | None = None) -> dict[str, Any]:
+    objects = [blueprint.get("object"), blueprint.get("location"), blueprint.get("conflict")]
+    scenes = [blueprint.get("situation"), blueprint.get("action"), blueprint.get("bridge_realization"), blueprint.get("payoff")]
+    return {
+        "id": "story_00",
+        "label": str(blueprint.get("situation") or blueprint.get("title") or ""),
+        "story_angle": str(blueprint.get("conflict") or blueprint.get("situation") or ""),
+        "objects": [str(item).strip() for item in objects if str(item or "").strip()][:3],
+        "scenes": [str(item).strip() for item in scenes if str(item or "").strip()][:4],
+        "human_experiences": [str(blueprint.get("bridge_realization") or ""), str(blueprint.get("payoff") or "")],
+        "emotional_arc": "specific situation -> escalation -> truth -> payoff",
+        "recommended_hook_direction": "user idea locked hook",
+        "producer_brief": producer_brief or {},
+        "story_blueprint": blueprint,
+        "story_relevance_score": 100,
+        "story_novelty_score": 100,
+    }
+
+def _story_candidate_variants(blueprint: dict[str, Any], producer_brief: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    base = _story_candidate_from_blueprint(blueprint, producer_brief)
+    labels = [
+        blueprint.get("situation"),
+        blueprint.get("object"),
+        blueprint.get("location"),
+        blueprint.get("action"),
+        blueprint.get("title"),
+    ]
+    variants: list[dict[str, Any]] = []
+    for idx, raw_label in enumerate(labels, start=1):
+        item = dict(base)
+        item["id"] = f"story_{idx:02d}"
+        item["label"] = str(raw_label or base.get("label") or "").strip()
+        item["story_relevance_score"] = 100
+        item["story_novelty_score"] = max(80, 101 - idx)
+        variants.append(item)
+    return variants
+
+def _filter_relevant_story_candidates(candidates: list[dict[str, Any]], concept: str, situation: dict[str, Any], blueprint: dict[str, Any]) -> list[dict[str, Any]]:
+    relevant: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        score = _candidate_relevance_score(_story_candidate_text(candidate), concept, situation, blueprint)
+        if score < 70:
+            continue
+        item = dict(candidate)
+        item["story_relevance_score"] = score
+        key = _compact_line(str(item.get("label") or ""))
+        if key and key not in seen:
+            relevant.append(item)
+            seen.add(key)
+    return relevant
+
+
+def validate_selected_seed_relevance(concept: str, selected_seed: dict[str, Any] | None, preset_name: str = "Thai Sad Pop") -> dict[str, Any]:
+    if not selected_seed:
+        return {"ok": True, "message": "No selected seed provided."}
+    situation = selected_seed.get("situation_first_seed") if isinstance(selected_seed.get("situation_first_seed"), dict) else None
+    if not situation:
+        situation = _rewrite_song_situation_seed(generate_situation_first_seed(concept, preset_name), concept, preset_name)
+    story = selected_seed.get("story") if isinstance(selected_seed.get("story"), dict) else {}
+    blueprint = story.get("story_blueprint") if isinstance(story.get("story_blueprint"), dict) else _story_blueprint_v2(concept, situation)
+    story_score = _candidate_relevance_score(_story_candidate_text(story), concept, situation, blueprint)
+    title = str(selected_seed.get("title") or "")
+    hook = str(selected_seed.get("hook") or "")
+    alignment = _situation_alignment_score(title, hook, blueprint, situation)
+    title_ok = _has_required_situation_term(title, blueprint, situation)
+    hook_ok = _has_required_situation_term("\n".join(_lines(hook)[:2]), blueprint, situation)
+    ok = story_score >= 70 and int(alignment.get("Situation Alignment Score", 0)) >= 70 and title_ok and hook_ok
+    return {
+        "ok": ok,
+        "message": "Selected Story/Hook/Title match the user idea." if ok else "Selected Story/Hook/Title do not match the user idea. Please regenerate candidates from the song idea.",
+        "story_relevance_score": story_score,
+        "situation_alignment_score": int(alignment.get("Situation Alignment Score", 0)),
+        "title_has_situation_term": title_ok,
+        "hook_has_situation_term": hook_ok,
+    }
+
+
+def _filter_relevant_hook_candidates(candidates: list[dict[str, Any]], concept: str, situation: dict[str, Any], blueprint: dict[str, Any]) -> list[dict[str, Any]]:
+    relevant: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        hook = str(candidate.get("hook") or "")
+        alignment = _situation_alignment_score("", hook, blueprint, situation)
+        hook_ok = _has_required_situation_term("\n".join(_lines(hook)[:2]), blueprint, situation)
+        relevance = _candidate_relevance_score(hook, concept, situation, blueprint)
+        if int(alignment.get("Situation Alignment Score", 0)) < 70 or not hook_ok or relevance < 70:
+            continue
+        key = _compact_line(hook)
+        if key and key not in seen:
+            item = dict(candidate)
+            item["candidate_relevance_score"] = relevance
+            relevant.append(item)
+            seen.add(key)
+    if relevant:
+        return relevant[:5]
+    forced_title, forced_hook = _enforce_situation_locked_title_hook(str(blueprint.get("title") or ""), _compose_hook_from_blueprint(blueprint), blueprint, situation)
+    lines = _lines(forced_hook)[:5]
+    while len(lines) < 3:
+        lines.append(str(blueprint.get("payoff") or blueprint.get("conflict") or forced_title))
+    forced_hook = "\n".join(lines[:5])
+    score = _score_hook_candidate(forced_hook)
+    return [{"id": f"hook_{idx:02d}", "type": "User Idea Locked Hook", "hook": forced_hook, "lines": _lines(forced_hook), "score": score, "candidate_relevance_score": 100} for idx in range(1, 6)]
+
+
+def _filter_relevant_title_candidates(candidates: list[dict[str, Any]], concept: str, situation: dict[str, Any], blueprint: dict[str, Any]) -> list[dict[str, str]]:
+    blocked_titles = {"พูดเบา ๆ แต่โดนใจ", "ความจริงเบา ๆ", "บอกตรง ๆ ได้ไหม", "คำที่ถนอม"}
+    relevant: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        title = str(candidate.get("title") or "").strip()
+        relevance = _candidate_relevance_score(title, concept, situation, blueprint)
+        title_ok = _has_required_situation_term(title, blueprint, situation)
+        if not title or title in blocked_titles or re.search(r"[A-Za-z]", title) or relevance < 70 or not title_ok:
+            continue
+        key = _compact_line(title)
+        if key and key not in seen:
+            item = dict(candidate)
+            item["candidate_relevance_score"] = str(relevance)
+            relevant.append(item)
+            seen.add(key)
+    if relevant:
+        return relevant[:5]
+    forced_title, _ = _enforce_situation_locked_title_hook(str(blueprint.get("title") or ""), _compose_hook_from_blueprint(blueprint), blueprint, situation)
+    fallback_titles = [
+        forced_title,
+        str(blueprint.get("object") or ""),
+        str(blueprint.get("location") or ""),
+        str(blueprint.get("title") or ""),
+        str((situation or {}).get("Main Object") or ""),
+    ]
+    out: list[dict[str, str]] = []
+    for raw in fallback_titles:
+        title = str(raw or "").strip()
+        key = _compact_line(title)
+        if title and key and key not in seen and not re.search(r"[A-Za-z]", title):
+            out.append({"id": f"title_{len(out) + 1:02d}", "type": "User Idea Locked Title", "title": title, "score": "100", "candidate_relevance_score": "100"})
+            seen.add(key)
+    while len(out) < 5:
+        out.append({"id": f"title_{len(out) + 1:02d}", "type": "User Idea Locked Title", "title": forced_title, "score": "100", "candidate_relevance_score": "100"})
+    return out[:5]
 
 
 def _situation_locked_title(title: str, blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> str:
@@ -4061,6 +4277,20 @@ def generate_story_candidates_v2(concept: str, preset_name: str = "Thai Sad Pop"
     ]
     if situation_story:
         story_candidates = [situation_story] + story_candidates
+    if producer_brief and isinstance(producer_brief, dict):
+        situation_seed = {
+            "Specific Situation": str(producer_brief.get("Specific Situation") or ""),
+            "Main Object": str(producer_brief.get("Main Object") or producer_brief.get("Modern Object") or ""),
+            "Modern Object": str(producer_brief.get("Modern Object") or producer_brief.get("Main Object") or ""),
+            "Conflict": str(producer_brief.get("Conflict") or producer_brief.get("Shareable Angle") or ""),
+            "Final Payoff": str(producer_brief.get("Final Payoff") or producer_brief.get("Final Payoff Line") or ""),
+        }
+        blueprint = _story_blueprint_v2(concept, situation_seed)
+        blueprint_story = _story_candidate_from_blueprint(blueprint, producer_brief)
+        filtered = _filter_relevant_story_candidates([blueprint_story] + story_candidates, concept, situation_seed, blueprint)
+        if filtered:
+            return (filtered + _story_candidate_variants(blueprint, producer_brief))[:5]
+        return _story_candidate_variants(blueprint, producer_brief)[:5]
     return sorted(story_candidates, key=lambda item: int(item.get("story_novelty_score", 0)), reverse=True)[:5]
 
 
@@ -4187,10 +4417,16 @@ def generate_music_seed_candidates_v2(concept: str, preset_name: str = "Thai Sad
     situation = _rewrite_song_situation_seed(generate_situation_first_seed(concept, preset_name, mood, story_type), concept, preset_name)
     situation_context = "\n".join([str(concept or ""), _situation_context_text(situation)])
     producer_brief = generate_producer_brief_v1(situation_context, preset_name, mood, story_type, situation)
-    stories = generate_story_candidates_v2(situation_context, preset_name, mood, story_type, producer_brief)
-    story = stories[0] if stories else {}
+    blueprint = _story_blueprint_v2(str(concept or ""), situation)
+    blueprint_story = _story_candidate_from_blueprint(blueprint, producer_brief)
+    stories = generate_story_candidates_v2(str(concept or ""), preset_name, mood, story_type, producer_brief)
+    stories = _filter_relevant_story_candidates([blueprint_story] + stories, str(concept or ""), situation, blueprint)
+    stories = (stories + _story_candidate_variants(blueprint, producer_brief))[:5]
+    story = stories[0] if stories else blueprint_story
     hooks = generate_hook_candidates_v2(situation_context, story, preset_name)
+    hooks = _filter_relevant_hook_candidates(hooks, str(concept or ""), situation, blueprint)
     titles = generate_title_candidates_v2(situation_context, story, hooks[0]["hook"] if hooks else "", preset_name)
+    titles = _filter_relevant_title_candidates(titles, str(concept or ""), situation, blueprint)
     return {"situation_first_seed": situation, "producer_brief": producer_brief, "story_candidates": stories, "hook_candidates": hooks, "title_candidates": titles}
 
 
@@ -5209,6 +5445,23 @@ def generate_creative_release_pack(
             "Specificity Score": "95",
         }
     )
+    if selected_seed:
+        selected_seed.setdefault("situation_first_seed", situation_seed)
+        relevance_gate = validate_selected_seed_relevance(original_concept, selected_seed, preset_name)
+        if not relevance_gate.get("ok"):
+            return {
+                "ok": False,
+                "message": relevance_gate.get("message") or "Selected Story/Hook/Title do not match the user idea.",
+                "data": {},
+                "error": "seed_relevance_failed",
+                "provider_status": {
+                    "ok": False,
+                    "status": "Seed Mismatch",
+                    "message": relevance_gate.get("message") or "Selected Story/Hook/Title do not match the user idea.",
+                    "error": "seed_relevance_failed",
+                    "details": relevance_gate,
+                },
+            }
     situation_context = _situation_context_text(situation_seed)
     producer_brief = None
     if selected_seed and isinstance(selected_seed.get("producer_brief"), dict):
