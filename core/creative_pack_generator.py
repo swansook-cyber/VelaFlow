@@ -1048,18 +1048,22 @@ def _story_blueprint_v2(idea: str, situation: dict[str, Any] | None = None) -> d
     if kind in blueprints:
         data = dict(blueprints[kind])
     else:
+        fallback_title = _authentic_title_from_concept(idea, "Vela Moon Emotional Pop Rock", "")
+        fallback_object = str((situation or {}).get("Main Object") or (situation or {}).get("Modern Object") or fallback_title or "คำที่ยังไม่กล้าพูด")
+        fallback_conflict = str((situation or {}).get("Conflict") or (situation or {}).get("Social Context") or f"อยากพูดเรื่อง{fallback_object}แต่ยังกลัวผลลัพธ์")
+        fallback_payoff = str((situation or {}).get("Final Payoff") or f"จากนี้จะยอมรับ{fallback_object}ด้วยใจที่ตรงกว่าเดิม")
         data = {
-            "title": _authentic_title_from_concept(idea, "Vela Moon Emotional Pop Rock", ""),
+            "title": fallback_title,
             "protagonist": str((situation or {}).get("Main Character") or "คนหนึ่งในเหตุการณ์นั้น"),
             "situation": str((situation or {}).get("Specific Situation") or idea),
             "location": str((situation or {}).get("Location") or "พื้นที่เล็ก ๆ ในชีวิตจริง"),
-            "object": str((situation or {}).get("Main Object") or (situation or {}).get("Modern Object") or "สิ่งของชิ้นเดิม"),
+            "object": fallback_object,
             "action": str((situation or {}).get("Action") or "ยืนอยู่กับเหตุการณ์นั้นอีกครั้ง"),
-            "conflict": str((situation or {}).get("Conflict") or (situation or {}).get("Social Context") or "อยากไปต่อแต่ใจยังติดอยู่"),
+            "conflict": fallback_conflict,
             "progression": ["เจอสถานการณ์", "ความรู้สึกชัดขึ้น", "ยอมรับความจริง"],
             "bridge_realization": str((situation or {}).get("Bridge Truth") or "บางเรื่องไม่ต้องชนะ แค่ต้องยอมรับให้ได้"),
-            "payoff": str((situation or {}).get("Final Payoff") or "จากนี้จะเดินต่อด้วยใจที่ตรงกว่าเดิม"),
-            "hook": _lines(_hook_from_idea(idea, "", CREATIVE_PACK_PRESETS.get("Thai Sad Pop", {})))[:4],
+            "payoff": fallback_payoff,
+            "hook": [fallback_title, fallback_conflict, fallback_payoff],
         }
     data["kind"] = kind
     data["original_idea"] = str(idea or "")
@@ -1142,6 +1146,68 @@ def _situation_locked_hook(hook: str, blueprint: dict[str, Any], situation: dict
     ]
     clean = [line for line in fallback_lines if line]
     return "\n".join(clean[:4]).strip()
+
+
+def _required_situation_lock_terms(blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> list[str]:
+    raw_terms = [
+        str(blueprint.get("object") or ""),
+        str((situation or {}).get("Main Object") or ""),
+        str((situation or {}).get("Modern Object") or ""),
+        str(blueprint.get("conflict") or ""),
+        str((situation or {}).get("Conflict") or ""),
+        str(blueprint.get("payoff") or ""),
+        str((situation or {}).get("Final Payoff") or ""),
+        str((situation or {}).get("Payoff") or ""),
+    ]
+    terms: list[str] = []
+    for item in raw_terms:
+        for term in re.findall(r"[\u0e00-\u0e7f]{2,}", item):
+            if term not in terms and term not in {"ความ", "เรื่อง", "อย่าง", "ตัวเอง", "วันนี้", "ยังอยู่", "กลับมา"}:
+                terms.append(term)
+    return terms[:14]
+
+
+def _has_required_situation_term(text: str, blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> bool:
+    return any(term in str(text or "") for term in _required_situation_lock_terms(blueprint, situation))
+
+
+def _enforce_situation_locked_title_hook(title: str, hook: str, blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> tuple[str, str]:
+    title_candidates = [
+        str(title or "").strip(),
+        str(blueprint.get("title") or "").strip(),
+        str(blueprint.get("object") or "").strip(),
+        str((situation or {}).get("Main Object") or "").strip(),
+    ]
+    hook_candidates = [
+        str(hook or "").strip(),
+        _compose_hook_from_blueprint(blueprint),
+        _situation_locked_hook("", blueprint, situation),
+    ]
+    best_title = str(title or "").strip()
+    best_hook = str(hook or "").strip()
+    best_score = -1
+    for title_candidate in title_candidates:
+        if not title_candidate or re.search(r"[A-Za-z]", title_candidate):
+            continue
+        for hook_candidate in hook_candidates:
+            if not hook_candidate:
+                continue
+            alignment = _situation_alignment_score(title_candidate, hook_candidate, blueprint, situation)
+            title_ok = _has_required_situation_term(title_candidate, blueprint, situation)
+            hook_ok = _has_required_situation_term("\n".join(_lines(hook_candidate)[:2]), blueprint, situation)
+            score = int(alignment.get("Situation Alignment Score", 0)) + (25 if title_ok else 0) + (25 if hook_ok else 0)
+            if score > best_score:
+                best_title, best_hook, best_score = title_candidate, hook_candidate, score
+            if alignment.get("Situation Alignment Score", 0) >= 70 and title_ok and hook_ok:
+                return title_candidate, hook_candidate
+    required_terms = _required_situation_lock_terms(blueprint, situation)
+    forced_title = next((term for term in required_terms if 2 <= len(term) <= 18 and not re.search(r"[A-Za-z]", term)), best_title)
+    forced_lines = [forced_title]
+    if best_hook and forced_title in best_hook:
+        forced_lines = _lines(best_hook)
+    else:
+        forced_lines.extend(_lines(best_hook)[:3])
+    return forced_title, "\n".join(line for line in forced_lines if line).strip()
 
 
 def _compose_lyrics_from_blueprint(title: str, hook: str, blueprint: dict[str, Any]) -> str:
@@ -5225,13 +5291,21 @@ def generate_creative_release_pack(
     lyrics = _ensure_situation_section_minimums(lyrics, situation_seed)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     selected_story_title = _selected_seed_title(selected_seed, original_concept) if selected_seed else ""
+    specific_blueprint = str(story_blueprint.get("kind") or "") != "specific_life"
     if not selected_story_title:
         title = str(story_blueprint.get("title") or title).strip() or title
-        title = _situation_locked_title(title, story_blueprint, situation_seed)
+        if specific_blueprint:
+            title = _situation_locked_title(title, story_blueprint, situation_seed)
     selected_story_hook = str(selected_seed.get("hook") or "").strip() if selected_seed else ""
-    hook = _sanitize_strict_template_lines(selected_story_hook).strip() if selected_story_hook else (_compose_hook_from_blueprint(story_blueprint) or hook)
-    if not selected_story_hook:
+    if selected_story_hook:
+        hook = _sanitize_strict_template_lines(selected_story_hook).strip()
+    elif specific_blueprint:
+        hook = _compose_hook_from_blueprint(story_blueprint) or hook
         hook = _situation_locked_hook(hook, story_blueprint, situation_seed)
+    elif _situation_alignment_score(title, hook, story_blueprint, situation_seed).get("Situation Alignment Score", 0) < 70:
+        hook = _compose_hook_from_blueprint(story_blueprint) or hook
+    if specific_blueprint and not selected_story_hook:
+        title, hook = _enforce_situation_locked_title_hook(title, hook, story_blueprint, situation_seed)
     lyrics = _compose_lyrics_from_blueprint(title, hook, story_blueprint)
     if _concept_theme(original_concept) == "respectful_truth":
         lyrics = _respectful_truth_lyrics(title, hook)
