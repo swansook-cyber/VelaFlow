@@ -769,6 +769,18 @@ def _ensure_concept_keyword_in_lyrics(lyrics: str, original_concept: str) -> str
         return lyrics
     return "\n".join(_insert_line_after_section(str(lyrics or "").splitlines(), "Verse 1", f"{keyword}ยังค้างอยู่ในใจฉัน"))
 
+def _ensure_concept_keyword_after_memory_opening(lyrics: str, original_concept: str) -> str:
+    keyword = _primary_concept_keyword(original_concept)
+    if not keyword or keyword in str(lyrics or ""):
+        return lyrics
+    sections = parse_lyric_sections(lyrics)
+    verse = sections.get("Verse 1", [])
+    line = f"{keyword}ยังอยู่ในวินาทีนั้นแบบที่ฉันไม่ทันตั้งตัว"
+    if line not in verse:
+        insert_at = min(4, len(verse))
+        sections.setdefault("Verse 1", [])
+        sections["Verse 1"] = verse[:insert_at] + [line] + verse[insert_at:]
+    return _render_lyric_sections(sections)
 
 AUTO_INJECTED_GENERIC_LINES = [
     "เหนื่อยไหม",
@@ -847,6 +859,91 @@ def _ensure_situation_section_minimums(lyrics: str, situation: dict[str, Any] | 
                 break
     return _render_lyric_sections(sections)
 
+HUMAN_MEMORY_ABSTRACT_OPENERS = ["เวลา", "ความทรงจำ", "เรื่องราว", "ชีวิต", "หัวใจ", "ความรู้สึก", "วันวาน", "ความคิดถึง"]
+HUMAN_MEMORY_SENSORY_TERMS = ["เสียง", "แสง", "กลิ่น", "เย็น", "อุ่น", "เงียบ", "สั่น", "วาง", "ดัง", "เบา", "เปียก", "มือ", "พื้น", "ประตู", "หน้าจอ"]
+HUMAN_MEMORY_ACTION_TERMS = ["วาง", "ยื่น", "ตัก", "รอ", "เดิน", "วน", "บิด", "สตาร์ท", "รับสาย", "โทร", "มอง", "เปิด", "ปิด", "หยิบ", "จับ", "ลูบ", "ยืน", "นั่ง"]
+HUMAN_MEMORY_PLACE_TERMS = ["โต๊ะ", "บ้าน", "ประตู", "โรงรถ", "ห้อง", "ถนน", "หน้าจอ", "ครัว", "ลิ้นชัก", "หน้าบ้าน", "อู่", "รถ", "เตียง"]
+
+
+def _memory_object_profile(situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> dict[str, str]:
+    data = situation or {}
+    bp = blueprint or {}
+    kind = str(bp.get("kind") or data.get("trigger") or "")
+    concept = "\n".join([str(data.get("Original Concept") or ""), str(bp.get("original_idea") or ""), str(bp.get("situation") or "")])
+    if kind == "aging_father" or "พ่อ" in concept:
+        return {"main_object": "แก้วน้ำของพ่อ", "supporting_object": "จานข้าว", "location": "โต๊ะกินข้าว", "action": "พ่อค่อย ๆ ยื่นแก้วลง", "sensory": "เสียงช้อนเบาลงกว่าทุกปี"}
+    if kind == "dog_loss" or "หมา" in concept or "สุนัข" in concept:
+        return {"main_object": "ชามอาหาร", "supporting_object": "ปลอกคอเก่า", "location": "ใต้โต๊ะหน้าประตูบ้าน", "action": "ฉันยังเผลอรอเสียงเล็บเดินวน", "sensory": "พื้นบ้านเงียบกว่าทุกเย็น"}
+    if kind == "first_car_broken" or "รถคันแรก" in concept or "รถ" in concept:
+        return {"main_object": "กุญแจรถคันแรก", "supporting_object": "พวงมาลัยเก่า", "location": "โรงรถข้างบ้าน", "action": "ฉันบิดกุญแจแล้วฟังเครื่องเงียบไป", "sensory": "กลิ่นน้ำมันยังติดอยู่ในมือ"}
+    if kind == "mother_late_call" or ("แม่" in concept and ("โทร" in concept or "สาย" in concept)):
+        return {"main_object": "สายจากแม่", "supporting_object": "หน้าจอโทรศัพท์", "location": "ห้องนอนตอนตีสอง", "action": "ฉันรีบกดรับก่อนเสียงสั่นจะเงียบ", "sensory": "แสงหน้าจอสว่างขึ้นกลางห้อง"}
+    main_object = str(bp.get("object") or data.get("Main Object") or data.get("Modern Object") or "ของชิ้นเดิม").strip()
+    location = str(bp.get("location") or data.get("Location") or "ที่เดิมในวันธรรมดา").strip()
+    action = str(bp.get("action") or data.get("Action") or f"ฉันหยิบ{main_object}ขึ้นมาช้า ๆ").strip()
+    return {"main_object": main_object, "supporting_object": str(data.get("Modern Object") or main_object), "location": location, "action": action, "sensory": "เสียงรอบตัวเบาลงในวินาทีนั้น"}
+
+
+def _human_memory_opening_lines(profile: dict[str, str]) -> list[str]:
+    obj = profile.get("main_object") or "ของชิ้นเดิม"
+    support = profile.get("supporting_object") or obj
+    location = profile.get("location") or "ที่เดิม"
+    action = profile.get("action") or f"ฉันหยิบ{obj}ขึ้นมา"
+    sensory = profile.get("sensory") or "เสียงรอบตัวเบาลง"
+    return [
+        f"{obj}ยังอยู่ตรง{location}",
+        action,
+        f"{support}ทำให้{sensory}",
+        "ก่อนที่ฉันจะรู้ตัวว่าบางอย่างไม่เหมือนเดิม",
+    ]
+
+
+def _human_memory_score(lyrics: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> int:
+    sections = parse_lyric_sections(lyrics)
+    opening = sections.get("Verse 1", [])[:4]
+    text = "\n".join(opening)
+    profile = _memory_object_profile(situation, blueprint)
+    objects = [profile.get("main_object", ""), profile.get("supporting_object", ""), str((blueprint or {}).get("object") or ""), str((situation or {}).get("Main Object") or ""), str((situation or {}).get("Modern Object") or "")]
+    places = [profile.get("location", ""), str((blueprint or {}).get("location") or ""), str((situation or {}).get("Location") or "")]
+    actions = [profile.get("action", ""), str((blueprint or {}).get("action") or ""), str((situation or {}).get("Action") or "")]
+    object_hit = any(item and item in text for item in objects) or any(term in text for term in ["แก้ว", "ชาม", "ปลอกคอ", "กุญแจ", "โทรศัพท์", "สาย", "จาน", "พวงมาลัย"])
+    place_hit = any(item and item in text for item in places) or any(term in text for term in HUMAN_MEMORY_PLACE_TERMS)
+    action_hit = any(item and item in text for item in actions) or any(term in text for term in HUMAN_MEMORY_ACTION_TERMS)
+    sensory_hit = any(term in text for term in HUMAN_MEMORY_SENSORY_TERMS)
+    abstract_penalty = sum(1 for term in HUMAN_MEMORY_ABSTRACT_OPENERS if term in "\n".join(opening[:2]))
+    score = 20
+    score += 25 if object_hit else 0
+    score += 25 if place_hit else 0
+    score += 20 if action_hit else 0
+    score += 15 if sensory_hit else 0
+    score -= min(30, abstract_penalty * 12)
+    return max(0, min(100, score))
+
+
+def _apply_human_memory_engine(lyrics: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> tuple[str, dict[str, Any]]:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, {"Human Memory Score": 0, "rewrote_opening": False}
+    profile = _memory_object_profile(situation, blueprint)
+    opening = sections.get("Verse 1", [])[:4]
+    score_before = _human_memory_score(lyrics, situation, blueprint)
+    first_opening_text = "\n".join(opening)
+    abstract_dominates = sum(1 for term in HUMAN_MEMORY_ABSTRACT_OPENERS if term in first_opening_text) >= 2
+    if score_before < 85 or abstract_dominates:
+        memory_lines = _human_memory_opening_lines(profile)
+        rest = sections.get("Verse 1", [])[4:]
+        sections["Verse 1"] = (memory_lines + rest)[:max(4, len(memory_lines + rest))]
+    rendered = _render_lyric_sections(sections)
+    score_after = _human_memory_score(rendered, situation, blueprint)
+    return rendered, {
+        "Human Memory Score": score_after,
+        "score_before": score_before,
+        "rewrote_opening": score_after > score_before or abstract_dominates,
+        "Main Object": profile.get("main_object", ""),
+        "Supporting Object": profile.get("supporting_object", ""),
+        "Location": profile.get("location", ""),
+        "Physical Action": profile.get("action", ""),
+    }
 
 STRICT_TEMPLATE_BANNED_LINES = [
     "ยิ้มทั้งวันแบบนี้เรียกว่าไหวไหม",
@@ -2545,6 +2642,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     emotional_arc_score = _emotional_arc_score(lyrics, concept)
     thai_naturalness_score = _thai_naturalness_score(lyrics, concept)
     relatability_score = int(_relatability_report(lyrics, hook, concept).get("Relatability Score", 0))
+    human_memory_score = _human_memory_score(lyrics)
     commercial_score = max(
         0,
         min(
@@ -2569,6 +2667,7 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Emotional Arc Score": emotional_arc_score,
         "Thai Naturalness Score": thai_naturalness_score,
         "Relatability Score": relatability_score,
+        "Human Memory Score": human_memory_score,
     }
     return {
         "scores": scores,
@@ -2607,6 +2706,7 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Emotional Arc Score: {scores.get('Emotional Arc Score', 0)}",
         f"Thai Naturalness Score: {scores.get('Thai Naturalness Score', 0)}",
         f"Relatability Score: {scores.get('Relatability Score', 0)}",
+        f"Human Memory Score: {scores.get('Human Memory Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
         f"Repeated Hooks: {report.get('repeated_hooks', 0)}",
@@ -5565,6 +5665,9 @@ def generate_creative_release_pack(
         lyrics = _ensure_commercial_song_length(original_concept, title, hook, lyrics)
     lyrics = _sanitize_strict_template_lines(lyrics)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
+    lyrics, human_memory_report = _apply_human_memory_engine(lyrics, situation_seed, story_blueprint)
+    lyrics = _ensure_concept_keyword_after_memory_opening(lyrics, original_concept)
+    lyrics = _sanitize_strict_template_lines(lyrics)
     situation_seed["Situation Lock Report"] = _situation_lock_score(lyrics, situation_seed)
     situation_seed["Situation Score"] = str(max(85, int(situation_seed["Situation Lock Report"].get("Situation Score", 0))))
     authentic_thai_speech_report = _authentic_thai_speech_validator(lyrics, concept, preset_name)
@@ -5701,6 +5804,7 @@ def generate_creative_release_pack(
             "concept_alignment": concept_alignment,
             "export_quality": export_quality,
             "lyrics_quality_engine": lyrics_quality_report,
+            "human_memory_engine": human_memory_report,
             "thai_natural_speech": thai_natural_speech_report,
             "relatability": relatability_report,
             "diversity": diversity_report,

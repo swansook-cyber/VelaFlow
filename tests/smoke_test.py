@@ -807,6 +807,16 @@ def main():
             "Vela Moon Emotional Pop Rock",
         )
         assert_true(relevance["ok"], f"selected seed relevance gate rejected a user-idea candidate for {lock_idea}: {relevance}")
+        memory_pack = generate_creative_release_pack(lock_idea, "Vela Moon Emotional Pop Rock", "Vela Moon")
+        memory_sections = parse_lyric_sections(memory_pack["pack"]["SUNO LYRICS FIELD"])
+        memory_opening = "\n".join(memory_sections.get("Verse 1", [])[:4])
+        assert_true(any(term in memory_opening for term in required_terms), f"Human Memory Engine did not place object memory in Verse 1 for {lock_idea}")
+        assert_true(any(term in memory_opening for term in ["โต๊ะ", "บ้าน", "ประตู", "โรงรถ", "ห้อง", "ถนน", "หน้าจอ", "รถ", "อู่"]), f"Human Memory Engine did not place location in Verse 1 for {lock_idea}")
+        assert_true(any(term in memory_opening for term in ["วาง", "ยื่น", "ตัก", "รอ", "เดิน", "วน", "บิด", "สตาร์ท", "รับ", "โทร", "มอง", "เปิด", "ปิด", "หยิบ", "จับ"]), f"Human Memory Engine did not place physical action in Verse 1 for {lock_idea}")
+        abstract_opening_terms = ["เวลา", "ความทรงจำ", "เรื่องราว", "ชีวิต", "หัวใจ", "ความรู้สึก", "วันวาน", "ความคิดถึง"]
+        assert_true(sum(1 for term in abstract_opening_terms if term in "\n".join(memory_sections.get("Verse 1", [])[:2])) <= 1, f"Verse 1 still opens like emotional summary for {lock_idea}")
+        assert_true(memory_pack["quality_report"]["lyrics_quality_engine"]["scores"].get("Human Memory Score", 0) >= 85, f"Human Memory Score too low for {lock_idea}")
+        assert_true(memory_pack["quality_report"].get("human_memory_engine", {}).get("Human Memory Score", 0) >= 85, f"Human Memory Engine report missing or low for {lock_idea}")
     bad_seed = {
         "story": {"label": "พิมพ์แล้วลบ เพราะรู้ว่าเขาไม่อยากตอบ", "story_angle": "chat silence", "objects": ["แชต", "อ่านแล้ว"], "scenes": ["หน้าจอโทรศัพท์"]},
         "hook": "บอกตรง ๆ ได้ไหม\nแต่อย่าให้คำมันผลักเราไกล",
