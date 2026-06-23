@@ -866,6 +866,7 @@ def _detect_story_blueprint_type(idea: str, situation: dict[str, Any] | None = N
     checks = [
         ("dog_loss", ["หมา", "สุนัข", "12 ปี", "จากไป", "dog"]),
         ("aging_father", ["พ่อ", "แก่", "อายุ", "father"]),
+        ("office_burnout", ["พนักงาน", "คนทำงาน", "ออฟฟิศ", "เลิกงาน", "office worker", "office burnout"]),
         ("secret_crush_friend", ["แอบชอบ", "เพื่อนสนิท", "crush"]),
         ("read_no_reply", ["อ่านแล้ว", "ไม่ตอบ", "ไม่อยากตอบ", "พิมพ์แล้วลบ", "read", "seen", "waiting for someone", "never replies"]),
         ("old_photo", ["รูปเก่า", "เด้ง", "photo", "gallery"]),
@@ -912,6 +913,19 @@ def _story_blueprint_v2(idea: str, situation: dict[str, Any] | None = None) -> d
             "bridge_realization": "คนที่เคยพาเราเดิน วันนี้อาจอยากให้เราเดินช้าลงข้างเขา",
             "payoff": "ถ้าเวลาทำให้พ่อช้าลง ฉันจะไม่รีบผ่านวันเหล่านี้",
             "hook": ["มือพ่อช้าลงทุกปี", "แต่ฉันเพิ่งเห็นในวันนี้", "คนที่เคยจับมือให้เดิน", "กำลังรอให้ฉันหันกลับไป"],
+        },
+        "office_burnout": {
+            "title": "เลิกงานแล้วยังเหนื่อย",
+            "protagonist": "คนทำงานที่ยิ้มได้ทั้งวันแต่หมดแรงข้างใน",
+            "situation": "เลิกงานแล้วแต่ความเหนื่อยยังตามกลับบ้าน",
+            "location": "ไฟออฟฟิศกับทางกลับบ้านตอนค่ำ",
+            "object": "กระเป๋าทำงานใบเดิม",
+            "action": "ปิดคอมแล้วนั่งนิ่งก่อนกลับบ้าน",
+            "conflict": "อยากเป็นพนักงานที่ดีแต่ไม่อยากหายไปจากตัวเอง",
+            "progression": ["ฝืนยิ้ม", "ยอมรับว่าไม่ไหว", "ขอคืนชีวิตให้ตัวเอง"],
+            "bridge_realization": "ไม่ได้อยากลาออก แค่อยากหายเหนื่อย",
+            "payoff": "ถ้างานยังรอพรุ่งนี้ได้ คืนนี้ฉันก็ขอพักเหมือนกัน",
+            "hook": ["เลิกงานแล้วยังเหนื่อย", "กระเป๋าทำงานยังหนักในใจ", "ปิดคอมแล้วแต่หัวไม่ปิด", "อยากกลับไปเป็นคนธรรมดา"],
         },
         "secret_crush_friend": {
             "title": "เพื่อนคำเดิม",
@@ -1058,6 +1072,78 @@ def _compose_hook_from_blueprint(blueprint: dict[str, Any]) -> str:
     return "\n".join(clean[:4] or [str(blueprint.get("title", "")), str(blueprint.get("payoff", ""))]).strip()
 
 
+def _situation_alignment_terms(blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> list[str]:
+    source_items: list[str] = []
+    for key in ["title", "situation", "location", "object", "action", "conflict", "payoff", "bridge_realization"]:
+        source_items.append(str(blueprint.get(key) or ""))
+    if situation:
+        for key in ["Specific Situation", "Main Object", "Modern Object", "Location", "Action", "Conflict", "Final Payoff", "Payoff"]:
+            source_items.append(str(situation.get(key) or ""))
+    terms: list[str] = []
+    for item in source_items:
+        for term in re.findall(r"[\u0e00-\u0e7f]{2,}", item):
+            if term not in terms and term not in {"ความ", "เรื่อง", "อย่าง", "ตัวเอง", "วันนี้", "ยังอยู่", "กลับมา"}:
+                terms.append(term)
+    return terms[:18]
+
+
+def _situation_alignment_score(title: str, hook: str, blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> dict[str, Any]:
+    terms = _situation_alignment_terms(blueprint, situation)
+    title_text = str(title or "")
+    hook_text = str(hook or "")
+    combined = "\n".join([title_text, hook_text])
+    title_hits = [term for term in terms if term in title_text]
+    hook_hits = [term for term in terms if term in hook_text]
+    combined_hits = [term for term in terms if term in combined]
+    first_hook_lines = "\n".join(_lines(hook_text)[:2])
+    early_hook_hits = [term for term in terms if term in first_hook_lines]
+    score = 35 if title_hits else 0
+    score += 35 if hook_hits else 0
+    score += 20 if early_hook_hits else 0
+    score += min(10, len(combined_hits) * 2)
+    return {
+        "Situation Alignment Score": max(0, min(100, score)),
+        "Title Hits": title_hits,
+        "Hook Hits": hook_hits,
+        "Early Hook Hits": early_hook_hits,
+        "Situation Terms": terms,
+    }
+
+
+def _situation_locked_title(title: str, blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> str:
+    alignment = _situation_alignment_score(title, "", blueprint, situation)
+    if alignment["Title Hits"]:
+        return str(title or "").strip()
+    candidates = [
+        str(blueprint.get("title") or "").strip(),
+        str(blueprint.get("object") or "").strip(),
+        str(blueprint.get("location") or "").strip(),
+    ]
+    for candidate in candidates:
+        if candidate and len(candidate) <= 28 and not re.search(r"[A-Za-z]", candidate):
+            return candidate
+    return str(title or "").strip()
+
+
+def _situation_locked_hook(hook: str, blueprint: dict[str, Any], situation: dict[str, Any] | None = None) -> str:
+    alignment = _situation_alignment_score("", hook, blueprint, situation)
+    if alignment["Early Hook Hits"]:
+        return str(hook or "").strip()
+    blueprint_hook = _compose_hook_from_blueprint(blueprint)
+    if _situation_alignment_score("", blueprint_hook, blueprint, situation)["Early Hook Hits"]:
+        return blueprint_hook
+    obj = str(blueprint.get("object") or (situation or {}).get("Main Object") or "").strip()
+    conflict = str(blueprint.get("conflict") or (situation or {}).get("Conflict") or "").strip()
+    payoff = str(blueprint.get("payoff") or (situation or {}).get("Final Payoff") or "").strip()
+    fallback_lines = [
+        obj or str(blueprint.get("title") or "").strip(),
+        conflict,
+        payoff,
+    ]
+    clean = [line for line in fallback_lines if line]
+    return "\n".join(clean[:4]).strip()
+
+
 def _compose_lyrics_from_blueprint(title: str, hook: str, blueprint: dict[str, Any]) -> str:
     kind = str(blueprint.get("kind", "specific_life"))
     location = str(blueprint.get("location", ""))
@@ -1142,6 +1228,46 @@ def _compose_lyrics_from_blueprint(title: str, hook: str, blueprint: dict[str, A
             "Outro": [
                 "พ่อยังถามว่ากินข้าวหรือยัง",
                 "ฉันตอบเบา ๆ ว่าอยากกินกับพ่อนาน ๆ",
+            ],
+        },
+        "office_burnout": {
+            "Intro": [
+                "ไฟออฟฟิศดับไปทีละชั้น",
+                "แต่ในหัวฉันยังมีงานเดินวนอยู่",
+            ],
+            "Verse 1": [
+                "ฉันปิดคอมแล้วแต่มือยังจับเมาส์ค้าง",
+                "กระเป๋าทำงานใบเดิมหนักกว่าทุกวัน",
+                "ยิ้มให้ทุกคนเหมือนยังไหวดี",
+                "แต่พอประตูลิฟต์ปิดลง ใจก็เงียบไป",
+            ],
+            "Pre-Chorus": [
+                "ไม่มีใครถามว่าข้างในเหลือแค่ไหน",
+                "ทุกคนถามแค่งานเสร็จหรือยัง",
+            ],
+            "Chorus": hook_lines + [
+                "คนเก่งก็มีวันที่อยากวางทุกอย่าง",
+                "ไม่ใช่ไม่สู้ แค่เหนื่อยมานานเกินไป",
+            ],
+            "Verse 2": [
+                "แชตงานยังเด้งตอนฉันอยู่บนทางกลับบ้าน",
+                "ข้าวเย็นเย็นชืดอยู่ข้างถุงเอกสาร",
+                "ฉันไม่อยากหายไปจากชีวิตตัวเอง",
+                "เพราะมัวแต่ตอบว่าได้ครับทั้งวัน",
+            ],
+            "Bridge": [
+                "ไม่ได้อยากลาออก",
+                "แค่อยากหายเหนื่อย",
+                "ไม่ได้อยากหนีไปไหน",
+                "แค่อยากกลับมาเป็นตัวเอง",
+            ],
+            "Final Chorus": hook_lines + [
+                "ถ้างานยังรอพรุ่งนี้ได้",
+                "คืนนี้ฉันก็ขอพักเหมือนกัน",
+            ],
+            "Outro": [
+                "ฉันวางกระเป๋าทำงานไว้ข้างประตู",
+                "แล้วปล่อยให้คืนนี้เป็นของฉันสักที",
             ],
         },
         "secret_crush_friend": {
@@ -1520,6 +1646,10 @@ def _compose_lyrics_from_blueprint(title: str, hook: str, blueprint: dict[str, A
             "Final Chorus": hook_lines + ["ถ้าความจริงพาฉันเจ็บสักหน่อย", "ฉันจะเดินต่อด้วยใจที่ตรงกว่าเดิม"],
             "Outro": ["เรื่องนี้ยังอยู่ในเพลงนี้", "แต่ไม่บังคับให้ฉันกลับไปเป็นคนเดิม"],
         }
+    while len(sections.get("Final Chorus", [])) < COMMERCIAL_SECTION_MIN_LINES["Final Chorus"]:
+        sections.setdefault("Final Chorus", []).append("และฉันจะค่อย ๆ วางมันลงด้วยใจที่ตรงกว่าเดิม")
+    while len(sections.get("Chorus", [])) < COMMERCIAL_SECTION_MIN_LINES["Chorus"]:
+        sections.setdefault("Chorus", []).append("เรื่องนี้ยังอยู่ลึกกว่าที่บอกใคร")
     return _render_lyric_sections(sections)
     return _render_lyric_sections(sections)
 
@@ -3774,9 +3904,10 @@ def _producer_brief_context(brief: dict[str, Any] | None) -> str:
     )
 
 
-def _hook_quality_summary_text(hook: str, title: str, concept: str) -> str:
+def _hook_quality_summary_text(hook: str, title: str, concept: str, situation_alignment: dict[str, Any] | None = None) -> str:
     hook_score = _score_hook_candidate(hook)
     title_score = score_song_title_candidate(title, concept)
+    situation_alignment = situation_alignment or {}
     return "\n".join(
         [
             f"Selected Hook: {hook}",
@@ -3790,6 +3921,9 @@ def _hook_quality_summary_text(hook: str, title: str, concept: str) -> str:
             f"Why this hook was selected: {hook_score.get('why', 'Strongest balance of caption clarity, human speech, and singability.')}",
             f"Selected Title: {title}",
             f"Title Score: {title_score.get('score', 0)}",
+            f"Situation Alignment Score: {situation_alignment.get('Situation Alignment Score', 0)}",
+            f"Situation Title Hits: {', '.join(situation_alignment.get('Title Hits') or []) or '-'}",
+            f"Situation Hook Hits: {', '.join(situation_alignment.get('Hook Hits') or []) or '-'}",
             "Why this title was selected: short, memorable, Thai-safe, and strong enough for a song title.",
         ]
     ).strip()
@@ -4992,7 +5126,8 @@ def generate_creative_release_pack(
         )
     situation_seed = _rewrite_song_situation_seed(situation_seed, original_concept, preset_name)
     situation_seed = _avoid_similar_situation_seed(situation_seed, original_concept, preset_name)
-    story_blueprint = _story_blueprint_v2(original_concept, situation_seed if selected_seed else None)
+    use_situation_for_blueprint = bool(selected_seed or str(controls.get("story_type") or "").strip() == "Office Burnout")
+    story_blueprint = _story_blueprint_v2(original_concept, situation_seed if use_situation_for_blueprint else None)
     situation_seed.update(
         {
             "Specific Situation": story_blueprint.get("situation", situation_seed.get("Specific Situation", "")),
@@ -5092,11 +5227,15 @@ def generate_creative_release_pack(
     selected_story_title = _selected_seed_title(selected_seed, original_concept) if selected_seed else ""
     if not selected_story_title:
         title = str(story_blueprint.get("title") or title).strip() or title
+        title = _situation_locked_title(title, story_blueprint, situation_seed)
     selected_story_hook = str(selected_seed.get("hook") or "").strip() if selected_seed else ""
     hook = _sanitize_strict_template_lines(selected_story_hook).strip() if selected_story_hook else (_compose_hook_from_blueprint(story_blueprint) or hook)
+    if not selected_story_hook:
+        hook = _situation_locked_hook(hook, story_blueprint, situation_seed)
     lyrics = _compose_lyrics_from_blueprint(title, hook, story_blueprint)
     if _concept_theme(original_concept) == "respectful_truth":
         lyrics = _respectful_truth_lyrics(title, hook)
+        lyrics = _ensure_commercial_song_length(original_concept, title, hook, lyrics)
     lyrics = _sanitize_strict_template_lines(lyrics)
     lyrics, english_leakage_report = _remove_english_leakage_from_lyrics(lyrics, concept, preset_name)
     situation_seed["Situation Lock Report"] = _situation_lock_score(lyrics, situation_seed)
@@ -5105,6 +5244,7 @@ def generate_creative_release_pack(
     critic_report = _critic_engine_report(title, hook, lyrics, concept, preset_name)
     commercial_score_report = _commercial_score_engine(title, hook, lyrics, concept, preset_name)
     lyrics_quality_report = _lyrics_quality_engine_report(title, hook, lyrics, concept)
+    situation_alignment_report = _situation_alignment_score(title, hook, story_blueprint, situation_seed)
     concept_alignment = validate_concept_alignment(concept, lyrics)
     advanced_settings = _apply_advanced_setting_overrides(_advanced_settings_for_preset(preset_name), controls)
     advanced_settings_text = _advanced_settings_to_text(advanced_settings)
@@ -5112,7 +5252,7 @@ def generate_creative_release_pack(
     lyrics_only = _clean_lyric_text(lyrics)
     suno_style_prompt = _build_suno_style_prompt(preset_name, preset, advanced_settings)
     export_quality = _release_pack_quality_checks(title, hook, lyrics_only, suno_style_prompt)
-    hook_quality_summary = _hook_quality_summary_text(hook, title, concept)
+    hook_quality_summary = _hook_quality_summary_text(hook, title, concept, situation_alignment_report)
     human_experience_report = _human_experience_report_text(lyrics_only, concept, preset_name)
     emotional_arc_report = _emotional_arc_report_text(lyrics_only, concept, preset_name, producer_brief)
     thai_natural_speech_report_text = _thai_natural_speech_report_text(thai_natural_speech_report)
@@ -5238,6 +5378,7 @@ def generate_creative_release_pack(
             "relatability": relatability_report,
             "diversity": diversity_report,
             "situation_first": situation_seed,
+            "situation_alignment": situation_alignment_report,
             "human_lyric_authenticity_v2": {
                 "phrase_diversity": phrase_diversity_report,
                 "english_leakage": english_leakage_report,

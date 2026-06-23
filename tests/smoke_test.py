@@ -936,6 +936,23 @@ def main():
         emergency_hook_openings.add(emergency_hook_first)
         emergency_verse_fingerprints.add(_compact_line(verse_one)[:80])
     assert_true(len(emergency_verse_fingerprints) >= 9, "emergency story-lock songs were not clearly distinguishable")
+    situation_title_hook_cases = [
+        ("พ่อแก่ลงทุกปี", ["พ่อ", "มือ", "แก้วน้ำ", "โต๊ะ"], ["พูดเบา", "ความจริง", "บอกตรง"]),
+        ("หมาที่เลี้ยงมา 12 ปีจากไป", ["ประตู", "ปลอกคอ", "ชาม", "หมา"], ["พูดเบา", "ความจริง", "บอกตรง"]),
+        ("รถคันแรกพัง", ["รถ", "กุญแจ", "เครื่องยนต์", "คันแรก"], ["พูดเบา", "ความจริง", "บอกตรง"]),
+    ]
+    for idea_text, expected_terms, forbidden_terms in situation_title_hook_cases:
+        locked_pack = generate_creative_release_pack(idea_text, "Vela Moon Emotional Pop Rock", "Vela Moon")
+        locked_title = locked_pack["pack"]["Suggested title"]
+        locked_hook = locked_pack["pack"]["Hook"]
+        locked_summary = locked_pack["pack"]["Hook Quality Summary"]
+        title_hook_text = "\n".join([locked_title, locked_hook])
+        alignment = locked_pack["quality_report"].get("situation_alignment", {})
+        assert_true(any(term in title_hook_text for term in expected_terms), f"situation-locked title/hook missed concrete situation for {idea_text}")
+        assert_true(not any(term in title_hook_text for term in forbidden_terms), f"generic emotional title/hook leaked for {idea_text}")
+        assert_true(alignment.get("Situation Alignment Score", 0) >= 70 and "Situation Alignment Score:" in locked_summary, f"situation alignment score missing/low for {idea_text}")
+        first_two_hook_lines = "\n".join([line for line in locked_hook.splitlines() if line.strip()][:2])
+        assert_true(any(term in first_two_hook_lines for term in expected_terms), f"hook did not use situation term in first two lines for {idea_text}")
     assert_true(sum(advanced_lyrics.count(phrase) for phrase in ["วันนี้เก่งมากแล้ว", "ถ้าคืนนี้ไม่ไหวก็ไม่ต้องฝืน", "ขอให้ฉันกลับมาเป็นฉันอีกครั้ง"]) <= 1, "phrase diversity engine allowed repeated fallback phrases")
     assert_true(advanced_controls_pack["quality_report"]["lyrics_quality_engine"]["scores"].get("Relatability Score", 0) >= 70, "Relatability score collapsed after removing phrase injection")
     assert_true(advanced_controls_pack["quality_report"]["lyrics_quality_engine"]["scores"].get("Thai Naturalness Score", 0) >= 70, "Thai Naturalness score collapsed after removing phrase injection")
