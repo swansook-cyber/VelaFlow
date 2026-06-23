@@ -1060,6 +1060,152 @@ def _apply_emotional_escalation_engine(lyrics: str, situation: dict[str, Any] | 
         "Payoff Purpose": "Final Chorus",
     }
 
+HUMAN_LANGUAGE_EMOTION_EXPLANATION_TERMS = [
+    "คิดถึง", "เสียใจ", "เจ็บปวด", "เหงา", "ทรมาน", "โดดเดี่ยว", "รักมาก", "เสียเธอไป",
+    "ยังรัก", "ยังเจ็บ", "ยังเสียใจ", "ยังคิดถึง", "ปวดใจ", "ใจสลาย", "เศร้า", "ทุกข์",
+]
+
+
+def _human_language_density(lines: list[str], profile: dict[str, str] | None = None) -> dict[str, int]:
+    text = "\n".join(lines)
+    data = profile or {}
+    object_terms = [
+        data.get("main_object", ""), data.get("supporting_object", ""),
+        "แก้ว", "จาน", "ชาม", "ปลอกคอ", "กุญแจ", "พวงมาลัย", "โทรศัพท์", "สาย", "ประตู", "รองเท้า", "รูป", "กล่อง", "โต๊ะ",
+    ]
+    place_terms = [data.get("location", ""), *HUMAN_MEMORY_PLACE_TERMS]
+    action_terms = [data.get("action", ""), *HUMAN_MEMORY_ACTION_TERMS]
+    sensory_terms = HUMAN_MEMORY_SENSORY_TERMS
+    emotion_terms = HUMAN_LANGUAGE_EMOTION_EXPLANATION_TERMS
+    return {
+        "objects": sum(1 for term in object_terms if term and term in text),
+        "places": sum(1 for term in place_terms if term and term in text),
+        "actions": sum(1 for term in action_terms if term and term in text),
+        "physical_details": sum(1 for term in sensory_terms if term and term in text),
+        "emotion_explanations": sum(1 for term in emotion_terms if term and term in text),
+    }
+
+
+def _show_dont_tell_score(lyrics: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> int:
+    sections = parse_lyric_sections(lyrics)
+    profile = _memory_object_profile(situation, blueprint)
+    all_lines = [line for lines in sections.values() for line in lines]
+    density = _human_language_density(all_lines, profile)
+    verse1_density = _human_language_density(sections.get("Verse 1", [])[:4], profile)
+    physical_score = min(55, (density["objects"] * 8) + (density["places"] * 6) + (density["actions"] * 6) + (density["physical_details"] * 4))
+    opening_bonus = min(25, (verse1_density["objects"] * 10) + (verse1_density["places"] * 7) + (verse1_density["actions"] * 7))
+    emotion_penalty = min(45, density["emotion_explanations"] * 7)
+    return max(0, min(100, 35 + physical_score + opening_bonus - emotion_penalty))
+
+
+def _memory_density_score(lyrics: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> int:
+    sections = parse_lyric_sections(lyrics)
+    profile = _memory_object_profile(situation, blueprint)
+    verse1 = _human_language_density(sections.get("Verse 1", [])[:4], profile)
+    verse2 = _human_language_density(sections.get("Verse 2", [])[:4], profile)
+    bridge = _human_language_density(sections.get("Bridge", [])[:4], profile)
+    verse1_points = (verse1["objects"] * 16) + (verse1["places"] * 12) + (verse1["actions"] * 12) + (verse1["physical_details"] * 8)
+    other_points = (verse2["objects"] + bridge["objects"] + verse2["places"] + bridge["places"] + verse2["actions"] + bridge["actions"])
+    verse1_leads = verse1_points >= max(12, other_points * 5)
+    score = min(100, 30 + verse1_points + (20 if verse1_leads else -10))
+    return max(0, score)
+
+
+def _line_is_emotion_explanation(line: str, profile: dict[str, str] | None = None) -> bool:
+    clean = line.strip()
+    if not clean or clean.startswith("["):
+        return False
+    density = _human_language_density([clean], profile)
+    has_physical = density["objects"] or density["places"] or density["actions"] or density["physical_details"]
+    return bool(density["emotion_explanations"] and not has_physical)
+
+
+def _human_language_replacement_lines(profile: dict[str, str], escalation: dict[str, list[str]]) -> list[str]:
+    obj = profile.get("main_object") or "ของชิ้นเดิม"
+    support = profile.get("supporting_object") or obj
+    location = profile.get("location") or "ที่เดิม"
+    action = profile.get("action") or f"ฉันวาง{obj}ไว้ที่เดิม"
+    payoff = next((line for line in escalation.get("payoff", []) if line), "บางอย่างยังอยู่ต่อ แม้คนเดิมไม่เหมือนเดิม")
+    return [
+        f"{obj}ยังอยู่ตรง{location}",
+        action,
+        f"{support}เงียบกว่าที่เคยเป็น",
+        payoff,
+    ]
+
+
+def _rewrite_emotion_explanation_lines(lines: list[str], profile: dict[str, str], escalation: dict[str, list[str]], protected: set[str] | None = None) -> tuple[list[str], int]:
+    replacements = _human_language_replacement_lines(profile, escalation)
+    protected_lines = protected or set()
+    rewritten: list[str] = []
+    count = 0
+    replacement_index = 0
+    for line in lines:
+        if line in protected_lines:
+            rewritten.append(line)
+            continue
+        if _line_is_emotion_explanation(line, profile):
+            replacement = replacements[min(replacement_index, len(replacements) - 1)]
+            if replacement not in rewritten:
+                rewritten.append(replacement)
+            replacement_index += 1
+            count += 1
+        else:
+            rewritten.append(line)
+    return rewritten, count
+
+
+def _hook_starts_with_generic_emotion(hook: str, profile: dict[str, str]) -> bool:
+    first = next((line for line in _lines(hook) if line.strip()), "")
+    return _line_is_emotion_explanation(first, profile)
+
+
+def _rewrite_generic_emotion_hook(hook: str, profile: dict[str, str], escalation: dict[str, list[str]]) -> tuple[str, bool]:
+    if not _hook_starts_with_generic_emotion(hook, profile):
+        return hook, False
+    obj = profile.get("main_object") or "ของชิ้นเดิม"
+    location = profile.get("location") or "ที่เดิม"
+    payoff = next((line for line in escalation.get("payoff", []) if line), "แต่บางอย่างยังอยู่ตรงนั้น")
+    change = next((line for line in escalation.get("change", []) if line), "วันนี้ไม่เหมือนเดิมอีกแล้ว")
+    return "\n".join([obj, f"ยังอยู่ตรง{location}", change, payoff]), True
+
+
+def _apply_human_language_engine(lyrics: str, hook: str, situation: dict[str, Any] | None = None, blueprint: dict[str, Any] | None = None) -> tuple[str, str, dict[str, Any]]:
+    sections = parse_lyric_sections(lyrics)
+    if not sections:
+        return lyrics, hook, {"ShowDontTellScore": 0, "MemoryDensityScore": 0, "Human Rewrite Count": 0, "Hook Rewritten": False}
+    profile = _memory_object_profile(situation, blueprint)
+    escalation = _emotional_escalation_profile(situation, blueprint)
+    new_hook, hook_rewritten = _rewrite_generic_emotion_hook(hook, profile, escalation)
+    if hook_rewritten:
+        lyrics = _enforce_selected_hook_authority(lyrics, new_hook)
+        sections = parse_lyric_sections(lyrics)
+    opening = sections.get("Verse 1", [])
+    first_line = opening[0] if opening else ""
+    first_density = _human_language_density([first_line], profile)
+    opening_rewritten = False
+    if not (first_density["objects"] or first_density["places"] or first_density["actions"]):
+        memory_lines = _human_memory_opening_lines(profile)
+        sections["Verse 1"] = (memory_lines + opening[1:])[:max(4, len(opening))]
+        opening_rewritten = True
+    protected_hook_lines = set(_lines(new_hook))
+    total_rewrites = 0
+    for section_name in ["Verse 1", "Verse 2", "Pre-Chorus", "Bridge", "Outro"]:
+        rewritten_lines, rewrite_count = _rewrite_emotion_explanation_lines(sections.get(section_name, []), profile, escalation, protected_hook_lines)
+        if rewrite_count:
+            sections[section_name] = rewritten_lines
+            total_rewrites += rewrite_count
+    rendered = _render_lyric_sections(sections)
+    return rendered, new_hook, {
+        "ShowDontTellScore": _show_dont_tell_score(rendered, situation, blueprint),
+        "MemoryDensityScore": _memory_density_score(rendered, situation, blueprint),
+        "Human Rewrite Count": total_rewrites,
+        "Hook Rewritten": hook_rewritten,
+        "Opening Rewritten": opening_rewritten,
+        "Emotion Explanation Count": _human_language_density([line for lines in sections.values() for line in lines], profile)["emotion_explanations"],
+    }
+
+
 def _detect_story_blueprint_type(idea: str, situation: dict[str, Any] | None = None) -> str:
     text = "\n".join([str(idea or ""), _situation_context_text(situation)]).lower()
     if "แม่" in text and ("โทร" in text or "สาย" in text or "โทรศัพท์" in text):
@@ -2746,6 +2892,8 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
     relatability_score = int(_relatability_report(lyrics, hook, concept).get("Relatability Score", 0))
     human_memory_score = _human_memory_score(lyrics)
     narrative_progression_score = _narrative_progression_score(lyrics)
+    show_dont_tell_score = _show_dont_tell_score(lyrics)
+    memory_density_score = _memory_density_score(lyrics)
     commercial_score = max(
         0,
         min(
@@ -2773,6 +2921,8 @@ def _lyrics_quality_engine_report(title: str, hook: str, lyrics: str, concept: s
         "Human Memory Score": human_memory_score,
         "Memory Score": human_memory_score,
         "Narrative Progression Score": narrative_progression_score,
+        "ShowDontTellScore": show_dont_tell_score,
+        "MemoryDensityScore": memory_density_score,
     }
     return {
         "scores": scores,
@@ -2814,6 +2964,8 @@ def _format_lyrics_quality_report(report: dict[str, Any]) -> str:
         f"Human Memory Score: {scores.get('Human Memory Score', 0)}",
         f"Memory Score: {scores.get('Memory Score', 0)}",
         f"Narrative Progression Score: {scores.get('Narrative Progression Score', 0)}",
+        f"ShowDontTellScore: {scores.get('ShowDontTellScore', 0)}",
+        f"MemoryDensityScore: {scores.get('MemoryDensityScore', 0)}",
         f"Situation Alignment Score: {scores.get('Situation Alignment Score', 0)}",
         f"Line Count: {report.get('line_count', 0)}",
         f"Repeated Lines: {report.get('repeated_lines', 0)}",
@@ -5776,6 +5928,7 @@ def generate_creative_release_pack(
     lyrics, human_memory_report = _apply_human_memory_engine(lyrics, situation_seed, story_blueprint)
     lyrics, emotional_escalation_report = _apply_emotional_escalation_engine(lyrics, situation_seed, story_blueprint, hook)
     lyrics = _ensure_concept_keyword_after_memory_opening(lyrics, original_concept)
+    lyrics, hook, human_language_report = _apply_human_language_engine(lyrics, hook, situation_seed, story_blueprint)
     lyrics = _sanitize_strict_template_lines(lyrics)
     situation_seed["Situation Lock Report"] = _situation_lock_score(lyrics, situation_seed)
     situation_seed["Situation Score"] = str(max(85, int(situation_seed["Situation Lock Report"].get("Situation Score", 0))))
@@ -5917,6 +6070,7 @@ def generate_creative_release_pack(
             "lyrics_quality_engine": lyrics_quality_report,
             "human_memory_engine": human_memory_report,
             "emotional_escalation_engine": emotional_escalation_report,
+            "human_language_engine": human_language_report,
             "thai_natural_speech": thai_natural_speech_report,
             "relatability": relatability_report,
             "diversity": diversity_report,

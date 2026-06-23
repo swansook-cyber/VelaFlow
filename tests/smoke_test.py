@@ -829,6 +829,11 @@ def main():
         assert_true(verse_2_text and bridge_text and final_chorus_text, f"Narrative progression sections missing for {lock_idea}")
         assert_true(verse_2_text != bridge_text and bridge_text != final_chorus_text and verse_2_text != final_chorus_text, f"Narrative sections repeat the same emotional point for {lock_idea}")
         assert_true(set(escalation_report.get("rewrote_sections", [])) >= {"Verse 2", "Bridge", "Final Chorus"}, f"Emotional Escalation Engine did not enforce change/truth/payoff for {lock_idea}: {escalation_report}")
+        human_language_report = memory_pack["quality_report"].get("human_language_engine", {})
+        assert_true(quality_scores.get("ShowDontTellScore", 0) >= 85, f"ShowDontTellScore missing or low for {lock_idea}: {quality_scores}")
+        assert_true(quality_scores.get("MemoryDensityScore", 0) >= 85, f"MemoryDensityScore missing or low for {lock_idea}: {quality_scores}")
+        assert_true(human_language_report.get("ShowDontTellScore", 0) >= 85 and human_language_report.get("MemoryDensityScore", 0) >= 85, f"Human Language Engine report missing or low for {lock_idea}: {human_language_report}")
+        assert_true(human_language_report.get("Emotion Explanation Count", 99) <= 2, f"Human Language Engine left too many direct emotion explanations for {lock_idea}: {human_language_report}")
     bad_seed = {
         "story": {"label": "พิมพ์แล้วลบ เพราะรู้ว่าเขาไม่อยากตอบ", "story_angle": "chat silence", "objects": ["แชต", "อ่านแล้ว"], "scenes": ["หน้าจอโทรศัพท์"]},
         "hook": "บอกตรง ๆ ได้ไหม\nแต่อย่าให้คำมันผลักเราไกล",
