@@ -18,6 +18,7 @@ from core.real_clip_pipeline import find_ffmpeg, probe_media
 
 
 AUDIO_EDITOR_CUT_MODES = ["Lossless Quick Cut", "Precise Cut"]
+SUPPORTED_AUDIO_EDITOR_FORMATS = {"mp3", "wav"}
 AUDIO_EDITOR_FADE_OPTIONS = {
     "Off": 0.0,
     "0.1 second": 0.1,
@@ -118,9 +119,9 @@ def validate_audio_editor_input(path: str | Path, *, mime_type: str = "", max_up
     ext = source.suffix.lower().lstrip(".")
     if not source.is_file():
         return {"ok": False, "error": "missing_audio", "message": "Audio file missing"}
-    if ext != "mp3":
-        return {"ok": False, "error": "unsupported_format", "message": "Audio Editor V1 supports MP3 input only"}
-    if mime_type and not any(token in mime_type.lower() for token in ["audio", "mpeg", "mp3", "octet-stream"]):
+    if ext not in SUPPORTED_AUDIO_EDITOR_FORMATS:
+        return {"ok": False, "error": "unsupported_format", "message": "Audio Editor supports MP3 and WAV input"}
+    if mime_type and not any(token in mime_type.lower() for token in ["audio", "mpeg", "mp3", "wav", "wave", "x-wav", "octet-stream"]):
         return {"ok": False, "error": "unsupported_mime", "message": "Unsupported audio MIME type"}
     size_mb = source.stat().st_size / (1024 * 1024)
     if size_mb > max_upload_mb:
@@ -169,13 +170,32 @@ def build_audio_cut_command(
     fade_out: float = 0.0,
     sample_rate: int = 0,
     channels: int = 2,
+    output_format: str = "mp3",
 ) -> list[str]:
     duration = max(0.0, float(end_time) - float(start_time))
     source = str(source_path)
     output = str(output_path)
     mode, _warnings = effective_cut_mode(source_path, cut_mode, fade_in, fade_out)
+    export_format = str(output_format or "mp3").lower()
     base = [ffmpeg, "-y", "-ss", f"{float(start_time):.3f}", "-i", source, "-t", f"{duration:.3f}", "-map", "0:a:0", "-map_metadata", "0"]
-    if mode == "Lossless Quick Cut":
+    if export_format == "wav":
+        if mode == "Lossless Quick Cut" and fade_in <= 0 and fade_out <= 0:
+            return [*base, "-c:a", "pcm_s24le", output]
+        args = [*base, "-c:a", "pcm_s24le"]
+        filters: list[str] = []
+        if fade_in > 0:
+            filters.append(f"afade=t=in:st=0:d={float(fade_in):.3f}")
+        if fade_out > 0:
+            fade_start = max(0.0, duration - float(fade_out))
+            filters.append(f"afade=t=out:st={fade_start:.3f}:d={float(fade_out):.3f}")
+        if filters:
+            args += ["-af", ",".join(filters)]
+        if sample_rate in {32000, 44100, 48000}:
+            args += ["-ar", str(sample_rate)]
+        if channels:
+            args += ["-ac", str(max(1, min(2, int(channels))))]
+        return [*args, output]
+    if mode == "Lossless Quick Cut" and str(source_path).lower().endswith(".mp3"):
         return [*base, "-c:a", "copy", output]
     args = [*base, "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-write_xing", "0"]
     if channels and int(channels) != 1:
@@ -906,6 +926,7 @@ def _report_text(report: dict[str, Any]) -> str:
         f"Original filename: {report.get('original_filename', '')}",
         f"Input duration: {report.get('input_duration', 0)}",
         f"Input format: {report.get('input_format', '')}",
+        f"Source format: {report.get('source_format', report.get('input_format', ''))}",
         f"Input codec: {report.get('input_codec', '')}",
         f"Input bitrate: {report.get('input_bitrate', '')}",
         f"Input sample rate: {report.get('input_sample_rate', '')}",
@@ -916,6 +937,8 @@ def _report_text(report: dict[str, Any]) -> str:
         f"Fade In: {report.get('fade_in', '')}",
         f"Fade Out: {report.get('fade_out', '')}",
         f"Output filename: {report.get('output_filename', '')}",
+        f"Export format: {report.get('export_format', '')}",
+        f"Preview format: {report.get('preview_format', '')}",
         f"Output codec: {report.get('output_codec', '')}",
         f"Output bitrate: {report.get('output_bitrate', '')}",
         f"Re-encoded: {'Yes' if report.get('reencoded') else 'No'}",
@@ -1032,6 +1055,7 @@ def export_audio_selection(
     hook_analysis_summary: dict[str, Any] | None = None,
     smart_hook_data: dict[str, Any] | None = None,
     output_suffix: str = "Hook",
+    output_format: str = "mp3",
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -1062,8 +1086,12 @@ def export_audio_selection(
     source_copy = original_dir / f"source.{source.suffix.lower().lstrip('.')}"
     shutil.copy2(source, source_copy)
     safe_stem = export_name_base(output_name, source.name)
-    output_path = ensure_unique_path(output_dir / build_asset_export_filename(output_name, source.name, output_suffix or "Hook", "mp3"))
+    export_format = "wav" if str(output_format or "").lower() == "wav" else "mp3"
+    output_path = ensure_unique_path(output_dir / build_asset_export_filename(output_name, source.name, output_suffix or "Hook", export_format))
     mode, warnings = effective_cut_mode(source, cut_mode, fade_in, fade_out)
+    if export_format == "mp3" and source.suffix.lower() == ".wav" and mode == "Lossless Quick Cut":
+        mode = "Precise Cut"
+        warnings.append("WAV to MP3 export requires encoding to 320 kbps MP3.")
     command = build_audio_cut_command(
         ffmpeg,
         source,
@@ -1075,6 +1103,7 @@ def export_audio_selection(
         fade_out=fade_out,
         sample_rate=int(probe.get("sample_rate") or 0),
         channels=int(probe.get("channels") or 2),
+        output_format=export_format,
     )
     result = _run(command, timeout=180)
     if not result.get("ok") or not output_path.is_file():
@@ -1093,6 +1122,7 @@ def export_audio_selection(
         "input_bitrate": probe.get("audio_bit_rate", ""),
         "input_sample_rate": probe.get("sample_rate", ""),
         "input_channels": probe.get("channels", ""),
+        "source_format": validation.get("format", ""),
         "selected_start": float(start_time),
         "selected_end": float(end_time),
         "selection_duration": selection.get("selection_duration", 0),
@@ -1100,11 +1130,13 @@ def export_audio_selection(
         "fade_in": float(fade_in),
         "fade_out": float(fade_out),
         "output_filename": output_path.name,
-        "output_codec": output_probe.get("audio_codec", "mp3"),
-        "output_bitrate": "source stream copy" if mode == "Lossless Quick Cut" else "320 kbps CBR",
+        "output_codec": output_probe.get("audio_codec", export_format),
+        "output_bitrate": "source stream copy" if mode == "Lossless Quick Cut" and export_format == "mp3" else "320 kbps CBR" if export_format == "mp3" else "lossless PCM WAV",
         "output_sample_rate": output_probe.get("sample_rate", ""),
         "output_channels": output_probe.get("channels", ""),
-        "reencoded": mode != "Lossless Quick Cut",
+        "preview_format": "audio/mpeg",
+        "export_format": export_format.upper(),
+        "reencoded": bool(mode != "Lossless Quick Cut" or export_format == "wav"),
         "ffmpeg_command": command,
         "processing_date_time": datetime.now().isoformat(timespec="seconds"),
         "warnings": warnings,
@@ -1124,13 +1156,17 @@ def export_audio_selection(
                 archive.write(file_path, str(file_path.relative_to(base_dir)))
     return {
         "ok": True,
-        "message": "Hook MP3 ready",
+        "message": f"Hook {export_format.upper()} ready",
         "data": {
             "project_id": project_id,
             "original_audio": str(source_copy),
             "export_name": safe_stem,
-            "hook_mp3": str(output_path),
-            "output_mp3": str(output_path),
+            "hook_mp3": str(output_path) if export_format == "mp3" else "",
+            "output_mp3": str(output_path) if export_format == "mp3" else "",
+            "hook_wav": str(output_path) if export_format == "wav" else "",
+            "output_wav": str(output_path) if export_format == "wav" else "",
+            "output_audio": str(output_path),
+            "output_format": export_format,
             "report_path": str(report_path),
             "report_txt_path": str(report_txt_path),
             "zip_path": str(zip_path),
@@ -1174,9 +1210,12 @@ def export_audio_batch(
     original_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     reports_dir.mkdir(parents=True, exist_ok=True)
-    source_copy = original_dir / "source.mp3"
+    source_copy = original_dir / f"source.{source.suffix.lower().lstrip('.')}"
     shutil.copy2(source, source_copy)
     mode, warnings = effective_cut_mode(source, cut_mode, fade_in, fade_out)
+    if source.suffix.lower() == ".wav" and mode == "Lossless Quick Cut":
+        mode = "Precise Cut"
+        warnings.append("WAV batch export to MP3 requires encoding to 320 kbps MP3.")
     safe_stem = export_name_base(output_stem, source.name)
     generated: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []

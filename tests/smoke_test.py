@@ -699,8 +699,11 @@ def main():
     assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
     lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
     precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
+    wav_hook_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.wav", start_time=1, end_time=4, cut_mode="Lossless Quick Cut", output_format="wav", sample_rate=48000, channels=2)
+    wav_to_mp3_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", output_format="mp3", sample_rate=48000, channels=2)
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
     assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
+    assert_true("pcm_s24le" in wav_hook_cmd and "libmp3lame" in wav_to_mp3_cmd and "copy" not in wav_to_mp3_cmd, "Audio Editor WAV export commands failed")
     assert_true(REMASTER_STYLES[0] == "Streaming Balanced" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern"}.issubset(set(REMASTER_STYLES)), "Remaster Studio V1 preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
     assert_true(build_remaster_project_id("My Song.mp3").startswith("My_Song_"), "Remaster project id safe filename failed")
@@ -712,10 +715,10 @@ def main():
     unsupported_audio = out / "bad_upload.txt"
     unsupported_audio.write_text("not audio", encoding="utf-8")
     assert_true(not validate_remaster_input(unsupported_audio)["ok"] and validate_remaster_input(unsupported_audio)["error"] == "unsupported_format", "Remaster unsupported input was not rejected")
-    unsupported_editor_wav = out / "bad_audio_editor.wav"
-    unsupported_editor_wav.write_bytes(b"RIFF0000WAVE")
-    editor_wav_validation = validate_audio_editor_input(unsupported_editor_wav)
-    assert_true(not editor_wav_validation["ok"] and editor_wav_validation["error"] == "unsupported_format", "Audio Editor must reject WAV input")
+    editor_wav_source = out / "audio_editor_supported.wav"
+    editor_wav_source.write_bytes(b"RIFF0000WAVE")
+    editor_wav_validation = validate_audio_editor_input(editor_wav_source)
+    assert_true(editor_wav_validation["ok"] and editor_wav_validation["format"] == "wav", "Audio Editor must accept WAV input")
     provider_error_gate = build_api_quality_gate(api_key="fake-key", provider_error="429 quota exceeded", provider="gemini")
     assert_true(provider_error_gate["status"] == STATUS_RATE_LIMITED and API_QUALITY_WARNING in provider_error_gate["message"], "provider rate-limit quality gate failed")
     provider_failure_gate = build_api_quality_gate(api_key="fake-key", provider_error="Gemini model unavailable", provider="gemini")
@@ -2095,6 +2098,10 @@ def main():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        smart_hook_wav_source = out / "hook_clip_projects" / "smart_hook_source.wav"
+        subprocess.run([find_ffmpeg(), "-y", "-i", str(smart_hook_source), "-vn", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(smart_hook_wav_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        wav_source_hash = smart_hook_wav_source.read_bytes()
+        assert_true(validate_audio_editor_input(smart_hook_wav_source)["ok"], "Audio Editor WAV validation failed")
         waveform_json = out / "hook_clip_projects" / "exports" / "waveform.json"
         waveform_svg = out / "hook_clip_projects" / "exports" / "waveform.svg"
         waveform_first = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
@@ -2102,6 +2109,22 @@ def main():
         waveform_data = waveform_first.get("data", {})
         waveform_render = render_waveform_svg(waveform_data, waveform_svg, start_time=8.0, end_time=38.0)
         assert_true(waveform_first["ok"] and 1000 <= int(waveform_data.get("point_count", 0)) <= 3000 and waveform_second.get("data", {}).get("cache_status") == "hit" and waveform_render["ok"] and waveform_svg.exists(), "Audio Editor waveform generation/cache/render failed")
+        wav_waveform_json = out / "hook_clip_projects" / "exports" / "waveform_wav.json"
+        wav_waveform = generate_waveform_data(smart_hook_wav_source, wav_waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
+        wav_hook_analysis = analyze_hook_candidates(smart_hook_wav_source, output_dir=out / "hook_clip_projects" / "exports" / "hook_analysis_wav", ffmpeg_path=find_ffmpeg())
+        wav_hook_wav = export_audio_selection(smart_hook_wav_source, start_time=8.0, end_time=18.0, project_name="Smoke WAV Audio Editor", output_name="wav_hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg(), output_format="wav")
+        wav_hook_mp3 = export_audio_selection(smart_hook_wav_source, start_time=8.0, end_time=18.0, project_name="Smoke WAV Audio Editor MP3", output_name="wav_hook_mp3", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="mp3")
+        wav_hook_wav_data = wav_hook_wav.get("data", {})
+        wav_hook_mp3_data = wav_hook_mp3.get("data", {})
+        wav_hook_wav_path = Path(wav_hook_wav_data.get("hook_wav", ""))
+        wav_hook_mp3_path = Path(wav_hook_mp3_data.get("hook_mp3", ""))
+        wav_hook_wav_probe = probe_media(wav_hook_wav_path, ffmpeg_path=find_ffmpeg()) if wav_hook_wav_path.is_file() else {}
+        wav_hook_mp3_probe = probe_media(wav_hook_mp3_path, ffmpeg_path=find_ffmpeg()) if wav_hook_mp3_path.is_file() else {}
+        assert_true(wav_waveform["ok"] and wav_waveform_json.exists(), "Audio Editor waveform generation from WAV failed")
+        assert_true(wav_hook_analysis["ok"] and (wav_hook_analysis.get("data") or {}).get("candidate_count", 0) >= 1, "Smart Hook Finder on WAV failed")
+        assert_true(wav_hook_wav["ok"] and wav_hook_wav_path.name.endswith("_Hook.wav") and wav_hook_wav_probe.get("audio_codec", "").startswith("pcm") and wav_hook_wav_data.get("report", {}).get("source_format") == "wav" and wav_hook_wav_data.get("report", {}).get("export_format") == "WAV", "WAV Hook export/report failed")
+        assert_true(wav_hook_mp3["ok"] and wav_hook_mp3_path.name.endswith("_Hook.mp3") and wav_hook_mp3_probe.get("audio_codec") == "mp3" and wav_hook_mp3_data.get("report", {}).get("preview_format") == "audio/mpeg" and wav_hook_mp3_data.get("report", {}).get("export_format") == "MP3", "WAV source MP3 Hook export/report failed")
+        assert_true(smart_hook_wav_source.read_bytes() == wav_source_hash, "Audio Editor modified the original WAV source")
         clamped_selection = clamp_audio_selection(-5.0, 99.0, 30.0)
         reversed_selection = clamp_audio_selection(20.0, 10.0, 30.0)
         short_selection = clamp_audio_selection(0.0, 0.02, 30.0)
@@ -2751,16 +2774,16 @@ def main():
         assert_true('"libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2"' in remaster_engine_source, "Remaster MP3 preview/export should be explicit 320k 48k stereo libmp3lame")
         assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
         waveform_component_source = (ROOT / "app" / "components" / "waveform_selector" / "index.html").read_text(encoding="utf-8")
-        assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform and Selection" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor UI missing")
+        assert_true("Audio Editor" in main_source and "Upload External MP3/WAV" in main_source and "MP3 or WAV" in main_source and "WAV is analyzed directly" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform and Selection" in main_source and "Export Hook" in main_source and "Export Format" in main_source and "Download Hook MP3" in main_source and "Download Hook WAV" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor UI missing")
         assert_true("velaflow_waveform_selector" in main_source and "WAVEFORM_SELECTOR_COMPONENT" in main_source and "audio_editor_selection_start" in main_source and "audio_editor_selection_end" in main_source and "_sync_audio_editor_selection" in main_source and "desktop mouse + mobile touch supported" in main_source, "interactive waveform selector wiring missing")
         assert_true("pointerdown" in waveform_component_source and "pointermove" in waveform_component_source and "pointerup" in waveform_component_source and "touch-action: none" in waveform_component_source and "streamlit:setComponentValue" in waveform_component_source and "Start 0:00" in waveform_component_source and "Duration 0:00" in waveform_component_source, "interactive waveform component events missing")
         assert_true("https://" not in waveform_component_source and "http://" not in waveform_component_source and "cdn" not in waveform_component_source.lower(), "interactive waveform component must stay local-only")
         assert_true('st.text_input("Export Name", key="remaster_export_name")' in main_source and 'st.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
-        assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
+        assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3/WAV" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
         assert_true("Smart Hook Finder" in main_source and "Smart Musical Hook — Recommended" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source, "Audio Editor V2 smart hook UI missing")
         assert_true("Play 5 Seconds After End" in main_source and "Preview End Transition" in main_source and "Phrase Completion Gate" in main_source and "Actual Complete Hook" in main_source, "Smart Hook Finder phrase-completion verification UI missing")
         audio_editor_source = (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8")
-        assert_true("analyze_phrase_completion" in audio_editor_source and "expand_end_to_complete_phrase" in audio_editor_source and "continuation_penalty" in audio_editor_source and "phrase_completion_result" in audio_editor_source and "stable_boundary_duration" in audio_editor_source and "seconds_extended_to_complete_phrase" in audio_editor_source, "Smart Hook Finder phrase-completion engine/report fields missing")
+        assert_true("analyze_phrase_completion" in audio_editor_source and "expand_end_to_complete_phrase" in audio_editor_source and "continuation_penalty" in audio_editor_source and "phrase_completion_result" in audio_editor_source and "stable_boundary_duration" in audio_editor_source and "seconds_extended_to_complete_phrase" in audio_editor_source and "SUPPORTED_AUDIO_EDITOR_FORMATS" in audio_editor_source and "source_format" in audio_editor_source and "preview_format" in audio_editor_source and "export_format" in audio_editor_source, "Smart Hook Finder phrase-completion or WAV report fields missing")
         assert_true("shell=True" not in audio_editor_source, "Audio Editor must not use shell=True")
         assert_true("Batch Hook Export" not in main_source and "Export Selected Durations" not in main_source and "audio_editor_batch_export" not in main_source and "Download All as ZIP" not in main_source, "legacy fixed-duration Batch Export UI should be removed")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")

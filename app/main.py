@@ -2387,8 +2387,8 @@ def _render_music_pipeline_status(project: dict[str, Any], *, current_step: str 
 
 
 def _render_audio_editor(project: dict[str, Any]) -> None:
-    _page_header("Audio Editor", "Cut hooks, choruses, or selected MP3 sections without remastering the audio.", project)
-    st.caption("Recommended workflow: create song -> master full song -> cut hooks from the mastered MP3 -> build release pack.")
+    _page_header("Audio Editor", "Cut hooks, choruses, or selected MP3/WAV sections without remastering the audio.", project)
+    st.caption("Recommended workflow: create song -> master full song -> cut hooks from the mastered source -> build release pack.")
     _render_music_pipeline_status(project, current_step="Audio Editor")
     editor_state = project.setdefault("audio_editor", {})
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
@@ -2397,7 +2397,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         st.error("FFmpeg is required for Audio Editor. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
     project_master = _project_master_audio(project)
     st.markdown("### 1. Audio Source")
-    source_options = ["Use Project Master (Recommended)", "Upload External MP3"]
+    source_options = ["Use Project Master (Recommended)", "Upload External MP3/WAV"]
     default_source_index = 0 if project_master.get("ok") else 1
     source_choice = st.radio("Audio Source", source_options, index=default_source_index, key="audio_editor_source_choice")
     if not project_master.get("ok"):
@@ -2413,12 +2413,12 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             st.caption("Current Audio Source: Project Master")
         else:
             pass
-    if source_choice == "Upload External MP3" or not project_master.get("ok"):
+    if source_choice == "Upload External MP3/WAV" or not project_master.get("ok"):
         uploaded = st.file_uploader(
-            "Upload External MP3",
-            type=["mp3"],
+            "Upload External MP3/WAV",
+            type=["mp3", "wav"],
             key="audio_editor_upload",
-            help=f"MP3 only. Output is MP3. Max: {max_upload_mb} MB.",
+            help=f"MP3 or WAV. WAV is analyzed directly; browser preview uses a local MP3 preview. Max: {max_upload_mb} MB.",
         )
         if uploaded:
             if uploaded.size > max_upload_mb * 1024 * 1024:
@@ -2427,8 +2427,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                 upload_result = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song")
                 if upload_result.get("ok"):
                     ext = Path(uploaded.name).suffix.lower().lstrip(".")
-                    if ext != "mp3":
-                        st.warning("Audio Editor V1 supports MP3 input only.")
+                    if ext not in {"mp3", "wav"}:
+                        st.warning("Audio Editor supports MP3 and WAV input.")
                         return
                     upload_result["data"]["original_filename"] = uploaded.name
                     upload_result["data"]["format"] = ext.upper()
@@ -2440,14 +2440,14 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     editor_state["export_name_manual"] = False
                     project["audio_editor"] = editor_state
                     _save_project()
-                    st.success("External MP3 uploaded")
+                    st.success(f"External {ext.upper()} uploaded")
                 else:
                     st.warning(upload_result.get("error") or upload_result.get("message"))
-        if source_choice == "Upload External MP3" or not project_master.get("ok"):
+        if source_choice == "Upload External MP3/WAV" or not project_master.get("ok"):
             source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
             source_info = editor_state.get("source_audio") or {}
     if not source_path or not Path(source_path).is_file():
-        st.info("Choose Project Master after remastering, or upload an external MP3 to start cutting a hook.")
+        st.info("Choose Project Master after remastering, or upload an external MP3/WAV to start cutting a hook.")
         return
     probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
     duration = float(probe.get("duration") or 0)
@@ -2460,7 +2460,12 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     c4.metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
     c5.metric("Sample Rate", f"{probe.get('sample_rate', 0)} Hz" if probe.get("sample_rate") else "Unknown")
     c6.metric("Bitrate", str(probe.get("audio_bit_rate") or "Unknown"))
-    st.audio(source_path)
+    source_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="audio_editor_source", label="Audio Editor Source", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
+    if source_preview.get("ok"):
+        st.audio(source_preview["bytes"], format=source_preview["format"])
+        editor_state["preview_diagnostics"] = {"source": source_preview.get("diagnostics", {})}
+    else:
+        st.warning(f"Preview unavailable: {source_preview.get('reason', 'unknown')}")
     default_audio_export_name = _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project)
     audio_source_id = _audio_source_signature(source_info, source_path)
     initialize_export_name_state(
@@ -2800,6 +2805,14 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     )
     st.caption("Lossless Quick Cut: No re-encoding. MP3 frame boundaries may shift the cut slightly.")
     st.caption("Precise Cut: Re-encoded to MP3 320 kbps for more accurate start/end positions.")
+    output_format_label = st.radio(
+        "Export Format",
+        ["MP3 320 kbps", "WAV Lossless"],
+        horizontal=True,
+        key="audio_editor_output_format",
+        help="WAV keeps a lossless hook file. MP3 creates a 320 kbps browser/platform-friendly hook.",
+    )
+    export_format = "wav" if output_format_label.startswith("WAV") else "mp3"
     fade_cols = st.columns(2)
     fade_in_label = fade_cols[0].selectbox("Fade In", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_in")
     fade_out_label = fade_cols[1].selectbox("Fade Out", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_out")
@@ -2813,7 +2826,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     audio_export_base = str(editor_state.get("export_name") or default_audio_export_name)
     custom_name = audio_export_base
     st.markdown("### 5. Single Export")
-    if st.button("ส่งออก Hook MP3 (Export Hook MP3)", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
+    if st.button("ส่งออก Hook (Export Hook)", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
         selected_smart_hook = dict(editor_state.get("smart_refined_hook") or {}) if smart_mode else {}
         if smart_mode and not selected_smart_hook:
             selected_smart_hook = {
@@ -2850,6 +2863,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             hook_analysis_summary={key: hook_analysis.get(key) for key in ["analysis_method", "window_sizes", "candidate_count", "low_confidence", "report_path"] if key in hook_analysis},
             smart_hook_data=selected_smart_hook,
             output_suffix=smart_hook_suffix(str(selected_smart_hook.get("hook_type") or hook_type)) if smart_mode else "Hook",
+            output_format=export_format,
         )
         editor_state["start_time"] = float(start_time)
         editor_state["end_time"] = float(end_time)
@@ -2864,18 +2878,35 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         project["audio_editor"] = editor_state
         _save_project()
         if result.get("ok"):
-            st.success("Hook MP3 exported")
+            st.success(f"Hook {export_format.upper()} exported")
         else:
             st.error(result.get("message") or result.get("error") or "Audio export failed")
         st.rerun()
     result_data = editor_state.get("last_result") or {}
     hook_mp3 = Path(str(result_data.get("hook_mp3") or ""))
-    if hook_mp3.is_file():
+    hook_wav = Path(str(result_data.get("hook_wav") or ""))
+    output_audio = Path(str(result_data.get("output_audio") or hook_mp3 or hook_wav or ""))
+    if output_audio.is_file():
         st.markdown("### 6. Reports")
-        st.audio(str(hook_mp3))
+        output_preview_source = hook_mp3 if hook_mp3.is_file() else output_audio
+        output_preview = _resolve_safari_audio_preview_bytes(output_preview_source, cache_key="audio_editor_output", label="Audio Editor Output", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
+        if output_preview.get("ok"):
+            st.audio(output_preview["bytes"], format=output_preview["format"])
+        else:
+            st.warning(f"Preview unavailable: {output_preview.get('reason', 'unknown')}")
         report = result_data.get("report") or {}
-        st.caption("No re-encoding" if not report.get("reencoded") else "Re-encoded to MP3 320 kbps")
-        st.download_button("Download Hook MP3", data=hook_mp3.read_bytes(), file_name=hook_mp3.name, mime="audio/mpeg", use_container_width=True, key="audio_editor_download_hook_mp3")
+        if report.get("export_format") == "WAV":
+            st.caption("WAV hook export: lossless PCM file; browser preview uses a temporary MP3 when needed.")
+        else:
+            st.caption("No re-encoding" if not report.get("reencoded") else "Re-encoded to MP3 320 kbps")
+        st.download_button(
+            "Download Hook WAV" if output_audio.suffix.lower() == ".wav" else "Download Hook MP3",
+            data=output_audio.read_bytes(),
+            file_name=output_audio.name,
+            mime="audio/wav" if output_audio.suffix.lower() == ".wav" else "audio/mpeg",
+            use_container_width=True,
+            key="audio_editor_download_hook_audio",
+        )
         with st.expander("Edit Report", expanded=bool(st.session_state.get("developer_mode"))):
             st.json(report, expanded=False)
             report_txt = Path(str(result_data.get("report_txt_path") or ""))
