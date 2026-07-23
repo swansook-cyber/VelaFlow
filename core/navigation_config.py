@@ -8,6 +8,10 @@ PAGE_LABELS = {
     "Generate Song": "Generate Song",
     "Generate Visual Pack": "Generate Visual Pack",
     "Export Release Pack": "Export Release Pack",
+    "Song Studio": "Song Studio",
+    "Remaster Studio": "Remaster Studio",
+    "Visual Studio": "Visual Studio",
+    "Release Pack": "Release Pack",
     "VelaFlow Agent Studio": "🤖 VelaFlow Agent Studio",
     "Creator Wizard": "Release Workflow Wizard",
     "Hook Clip Studio": "Clip Studio",
@@ -26,7 +30,7 @@ FULL_MENU_GROUPS = {
 }
 
 SONG_ONLY_MENU_GROUPS = {
-    "CREATE": ["Creator Dashboard", "Quick Song", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"],
+    "WORKSPACES": ["Song Studio", "Remaster Studio", "Visual Studio", "Release Pack"],
     "SETTINGS": ["AI Settings"],
 }
 

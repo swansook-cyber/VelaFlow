@@ -6147,6 +6147,7 @@ def export_creative_release_pack(
     result: dict[str, Any],
     artist_name: str = "Vela Moon",
     base_dir: str | Path | None = None,
+    remaster_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         pack = result.get("pack") or {}
@@ -6162,6 +6163,18 @@ def export_creative_release_pack(
         release_pack_path = export_dir / "release_pack.txt"
         release_pack_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         written["release_pack.txt"] = str(release_pack_path)
+        remaster_files: dict[str, str] = {}
+        remaster = remaster_data or {}
+        remaster_candidates = {
+            "remaster/mastered_wav.wav": remaster.get("mastered_wav"),
+            "remaster/mastered_mp3.mp3": remaster.get("mastered_mp3") or remaster.get("mp3_preview"),
+            "remaster/remaster_report.json": remaster.get("report_path"),
+            "remaster/remaster_report.txt": remaster.get("report_txt_path"),
+        }
+        for archive_name, file_value in remaster_candidates.items():
+            file_path = Path(str(file_value or ""))
+            if file_path.is_file():
+                remaster_files[archive_name] = str(file_path)
         txt_path = ensure_unique_path(export_dir / build_export_filename(title, artist_name, "Release_Pack", "txt"))
         txt_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         manifest = {
@@ -6172,6 +6185,8 @@ def export_creative_release_pack(
             "preset": result.get("preset"),
             "provider_status": result.get("provider_status") or {},
             "generated_files": written,
+            "remaster_included": bool(remaster_files),
+            "remaster_files": remaster_files,
             "txt_export": str(txt_path),
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
@@ -6181,6 +6196,8 @@ def export_creative_release_pack(
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in [Path(item) for item in written.values()] + [txt_path, manifest_path]:
                 archive.write(path, path.name)
+            for archive_name, path_value in remaster_files.items():
+                archive.write(Path(path_value), archive_name)
         return {
             "ok": True,
             "data": {

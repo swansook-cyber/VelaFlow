@@ -201,7 +201,7 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
                 "-v",
                 "error",
                 "-show_entries",
-                "stream=codec_type,width,height",
+                "stream=codec_type,codec_name,width,height,sample_rate,channels,bit_rate",
                 "-of",
                 "json",
                 str(media),
@@ -221,11 +221,13 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
             except Exception:
                 stream_types = []
         width = height = 0
+        audio_stream: dict[str, Any] = {}
         for stream in (stream_payload.get("streams", []) if "stream_payload" in locals() else []):
             if stream.get("codec_type") == "video":
                 width = int(stream.get("width") or 0)
                 height = int(stream.get("height") or 0)
-                break
+            if stream.get("codec_type") == "audio" and not audio_stream:
+                audio_stream = stream
         return {
             "ok": duration_proc.returncode == 0 and media.stat().st_size > 0 and duration > 0,
             "path": str(media),
@@ -235,6 +237,10 @@ def probe_media(path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
             "stream_types": stream_types,
             "has_video": "video" in stream_types,
             "has_audio": "audio" in stream_types,
+            "audio_codec": str(audio_stream.get("codec_name") or ""),
+            "sample_rate": int(audio_stream.get("sample_rate") or 0) if audio_stream.get("sample_rate") else 0,
+            "channels": int(audio_stream.get("channels") or 0) if audio_stream.get("channels") else 0,
+            "audio_bit_rate": int(audio_stream.get("bit_rate") or 0) if audio_stream.get("bit_rate") else 0,
             "width": width,
             "height": height,
             "aspect_ratio": round(width / height, 4) if width and height else 0,

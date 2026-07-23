@@ -1895,37 +1895,70 @@ def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_pr
 
 
 def _render_remaster_studio(project: dict[str, Any]) -> None:
-    _page_header("Optional Creator Mastering", "Polish AI-generated songs for clearer vocal, better loudness, and streaming-ready export.", project)
-    st.caption("Optional tool for finished AI songs. Local FFmpeg only. No DAW, timeline, mixer, plugin chain, video render, lip sync, or encode video workflow is added.")
+    _page_header("Remaster Studio", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
+    st.caption("Separate workspace for completed audio from Suno, Udio, or another source. Local FFmpeg only. Original audio stays unchanged.")
     remaster_state = project.setdefault("remaster_studio", {})
+    max_upload_mb = int(os.getenv("VELAFLOW_REMASTER_MAX_UPLOAD_MB", "200") or 200)
+    ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
+    if ffmpeg_probe.get("ok"):
+        st.success(f"FFmpeg ready: {ffmpeg_probe.get('path', settings.ffmpeg_path)}")
+    else:
+        st.error("FFmpeg is required for Remaster Studio. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
     uploaded = st.file_uploader(
-        "Upload song WAV/MP3",
-        type=["wav", "mp3", "m4a"],
+        "1. Upload Audio",
+        type=["wav", "mp3"],
         key="remaster_audio_upload",
-        help="Local FFmpeg processing only. No paid AI APIs are used.",
+        help=f"MP3 or WAV only. Max upload size: {max_upload_mb} MB.",
     )
     if uploaded:
-        upload_result = _save_uploaded_audio(project.get("title") or "remaster_project", uploaded, "song")
-        if upload_result.get("ok"):
-            remaster_state["source_audio"] = upload_result["data"]
-            project["remaster_studio"] = remaster_state
-            _save_project()
-            st.success("Original song uploaded")
+        if uploaded.size > max_upload_mb * 1024 * 1024:
+            st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
         else:
-            st.warning(upload_result.get("error") or upload_result.get("message"))
+            upload_result = _save_uploaded_audio(project.get("title") or "remaster_project", uploaded, "song")
+            if upload_result.get("ok"):
+                ext = Path(uploaded.name).suffix.lower().lstrip(".")
+                if ext not in {"mp3", "wav"}:
+                    st.warning("Only MP3 and WAV are supported in Remaster Studio V1.")
+                    return
+                upload_result["data"]["original_filename"] = uploaded.name
+                upload_result["data"]["format"] = ext.upper()
+                upload_result["data"]["size_bytes"] = uploaded.size
+                remaster_state["source_audio"] = upload_result["data"]
+                project["remaster_studio"] = remaster_state
+                _save_project()
+                st.success("Original audio uploaded")
+            else:
+                st.warning(upload_result.get("error") or upload_result.get("message"))
     source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
-    style = st.selectbox("Select Mastering Preset", REMASTER_STYLES, index=0, key="remaster_style")
+    source_info = remaster_state.get("source_audio") or {}
+    st.markdown("### 2. Audio Information")
     if source_path and Path(source_path).is_file():
-        st.markdown("**Preview original**")
+        input_probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
+        cols = st.columns(3)
+        cols[0].metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
+        cols[1].metric("Format", str(source_info.get("format") or Path(source_path).suffix.lstrip(".")).upper())
+        cols[2].metric("Duration", f"{float(input_probe.get('duration') or 0):.1f}s" if input_probe.get("duration") else "Unknown")
+        cols = st.columns(3)
+        cols[0].metric("Sample Rate", f"{input_probe.get('sample_rate', 0)} Hz" if input_probe.get("sample_rate") else "Unknown")
+        cols[1].metric("Channels", str(input_probe.get("channels") or "Unknown"))
+        cols[2].metric("Peak", "Estimated after processing")
+        st.caption("Input loudness and true peak are estimated when exact LUFS/true-peak measurement is unavailable.")
+        st.markdown("**Original Preview**")
         st.audio(source_path)
-    st.caption("Processing: WAV conversion, loudness normalization, clipping protection, light EQ, optional stereo widening, high-quality WAV export.")
-    if st.button("Generate Mastered WAV", type="primary", use_container_width=True, disabled=not bool(source_path), key="generate_mastered_wav"):
-        with st.spinner("Generating mastered WAV locally..."):
+    else:
+        st.info("Upload a finished MP3 or WAV to begin.")
+    style = st.selectbox("3. Choose Mastering Preset", REMASTER_STYLES, index=0, key="remaster_style")
+    with st.expander("Advanced Settings", expanded=False):
+        st.caption("V1 uses safe preset values for high-pass filtering, EQ balance, compression, vocal presence, stereo width, limiting, and output loudness. Manual audio controls are intentionally hidden.")
+    st.caption("Workflow: Upload Audio -> Audio Analysis -> Choose Mastering Preset -> Process Audio -> Preview Result -> Export WAV + MP3")
+    if st.button("4. Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
+        with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
             result = remaster_song_audio(
                 source_path,
                 project_name=project.get("title") or "remaster_project",
                 remaster_style=style,
                 ffmpeg_path=settings.ffmpeg_path,
+                max_upload_mb=max_upload_mb,
             )
         remaster_state["last_result"] = result.get("data", {})
         remaster_state["last_ok"] = bool(result.get("ok"))
@@ -1933,34 +1966,45 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         project["remaster_studio"] = remaster_state
         _save_project()
         if result.get("ok"):
-            st.success("Mastered WAV ready")
+            st.success("Remaster complete")
         else:
             st.error(result.get("error") or result.get("message") or "Remaster failed")
         st.rerun()
     result_data = remaster_state.get("last_result") or {}
     mastered_wav = Path(str(result_data.get("mastered_wav") or ""))
-    mp3_preview = Path(str(result_data.get("mp3_preview") or ""))
+    mp3_preview = Path(str(result_data.get("mastered_mp3") or result_data.get("mp3_preview") or ""))
     zip_path = Path(str(result_data.get("zip_path") or ""))
     report = result_data.get("report") or {}
     if mastered_wav.is_file():
-        st.markdown("**Preview mastered**")
-        st.audio(str(mastered_wav))
+        st.markdown("### 5. Before / After Preview")
+        preview_cols = st.columns(2)
+        with preview_cols[0]:
+            st.markdown("**Original**")
+            st.button("Play Original", use_container_width=True, key="remaster_play_original")
+            if source_path and Path(source_path).is_file():
+                st.audio(source_path)
+        with preview_cols[1]:
+            st.markdown("**Remastered**")
+            st.button("Play Mastered", use_container_width=True, key="remaster_play_mastered")
+            st.audio(str(mastered_wav))
+        st.radio("A/B Compare", ["Original", "Remastered"], horizontal=True, key="remaster_ab_compare")
         c1, c2 = st.columns(2)
         c1.metric("Duration Match", "Yes" if report.get("duration_matches_original") else "Review")
         c2.metric("Clipping", "Protected" if report.get("no_clipping_above_0db") else "Check")
+        st.markdown("### 6. Export")
         st.download_button(
             "Download Mastered WAV",
             data=mastered_wav.read_bytes(),
-            file_name="mastered_song.wav",
+            file_name=mastered_wav.name,
             mime="audio/wav",
             use_container_width=True,
             key="download_mastered_wav",
         )
     if mp3_preview.is_file():
         st.download_button(
-            "Download MP3 Preview",
+            "Download Mastered MP3",
             data=mp3_preview.read_bytes(),
-            file_name="mastered_preview.mp3",
+            file_name=mp3_preview.name,
             mime="audio/mpeg",
             use_container_width=True,
             key="download_mastered_mp3_preview",
@@ -1974,9 +2018,12 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             use_container_width=True,
             key="download_remaster_package_zip",
         )
-    if st.session_state.get("developer_mode") and result_data.get("report_path"):
-        with st.expander("Remaster Report", expanded=False):
+    if result_data.get("report_path"):
+        with st.expander("Remaster Report", expanded=bool(st.session_state.get("developer_mode"))):
             st.json(report, expanded=False)
+            report_txt = Path(str(result_data.get("report_txt_path") or ""))
+            if report_txt.is_file():
+                st.download_button("Download Remaster Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="download_remaster_report_txt")
 
 
 def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_duration: float) -> list[dict[str, Any]]:
@@ -2385,7 +2432,12 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         if not result.get("ok"):
             _show_api_quality_stop(result.get("provider_status") or gate)
             return
-        export = export_creative_release_pack(project.get("title") or result["pack"].get("Suggested title") or "VelaFlow Release", result, artist_name)
+        export = export_creative_release_pack(
+            project.get("title") or result["pack"].get("Suggested title") or "VelaFlow Release",
+            result,
+            artist_name,
+            remaster_data=(project.get("remaster_studio", {}) or {}).get("last_result") or {},
+        )
         state.update(
             {
                 "idea": idea,
@@ -4771,6 +4823,9 @@ PAGE_MODULES = {
     "Generate Song": "creative_pack",
     "Generate Visual Pack": "creative_pack",
     "Export Release Pack": "creative_pack",
+    "Visual Studio": "creative_pack",
+    "Release Pack": "creative_pack",
+    "Remaster Studio": "core",
     "Dashboard": "core",
     "Creator Wizard": "core",
     "Song Studio": "director",
@@ -4898,7 +4953,7 @@ with st.sidebar:
         if not st.session_state.get("current_project") and _fix_display_text((st.session_state.project or {}).get("title", "")) in SONG_DEFAULT_TITLES:
             st.session_state.project = new_project(_workflow_default_name(selected_mode), DEFAULT_ARTIST, workflow_type_for_mode(selected_mode))
         if selected_mode == "Song Studio Only" and st.session_state.selected_page not in SONG_ONLY_ALLOWED_PAGES:
-            st.session_state["pending_navigation"] = {"section": "CREATE", "page": "Creator Dashboard"}
+            st.session_state["pending_navigation"] = {"section": "WORKSPACES", "page": "Song Studio"}
         if selected_mode == "Seller Studio (Beta)" and st.session_state.selected_page not in SELLER_STUDIO_ALLOWED_PAGES:
             st.session_state["pending_navigation"] = {"section": "SELLER", "page": "Seller Studio"}
         if selected_mode == "Podcast Studio (Beta)" and st.session_state.selected_page not in PODCAST_STUDIO_ALLOWED_PAGES:
@@ -4914,18 +4969,14 @@ with st.sidebar:
         st.session_state[workflow_log_key] = True
     st.markdown("**Creator Navigation**")
     if not developer_mode:
-        if st.button("Creator Dashboard", use_container_width=True, key="sidebar_nav_creator_dashboard"):
-            go_to_page("CREATE", "Creator Dashboard")
-        if st.button("Quick Song", use_container_width=True, key="sidebar_nav_quick_song"):
-            go_to_page("CREATE", "Quick Song")
-        if st.button("Idea", use_container_width=True, key="sidebar_nav_idea"):
-            go_to_page("CREATE", "Idea")
-        if st.button("Generate Song", use_container_width=True, key="sidebar_nav_generate_song"):
-            go_to_page("CREATE", "Generate Song")
-        if st.button("Generate Visual Pack", use_container_width=True, key="sidebar_nav_generate_visual_pack"):
-            go_to_page("CREATE", "Generate Visual Pack")
-        if st.button("Export Release Pack", use_container_width=True, key="sidebar_nav_export_release_pack"):
-            go_to_page("CREATE", "Export Release Pack")
+        if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio_workspace"):
+            go_to_page("WORKSPACES", "Song Studio")
+        if st.button("Remaster Studio", use_container_width=True, key="sidebar_nav_remaster_studio_workspace"):
+            go_to_page("WORKSPACES", "Remaster Studio")
+        if st.button("Visual Studio", use_container_width=True, key="sidebar_nav_visual_studio"):
+            go_to_page("WORKSPACES", "Visual Studio")
+        if st.button("Release Pack", use_container_width=True, key="sidebar_nav_release_pack"):
+            go_to_page("WORKSPACES", "Release Pack")
         if st.button("Settings / API Key", use_container_width=True, key="sidebar_nav_ai_settings"):
             go_to_page("SETTINGS", "AI Settings")
     else:
@@ -5433,8 +5484,9 @@ if page == "Creator Dashboard":
 elif page == "Quick Song":
     _render_quick_song(project)
 
-elif page in {"Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"}:
-    _render_ai_creative_pack_generator(project, page)
+elif page in {"Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "Visual Studio", "Release Pack"}:
+    stage_alias = {"Visual Studio": "Generate Visual Pack", "Release Pack": "Export Release Pack"}.get(page, page)
+    _render_ai_creative_pack_generator(project, stage_alias)
 
 elif page == "Dashboard":
     _page_header("Dashboard", "Project overview, next step, and daily workflow shortcuts.", project)
