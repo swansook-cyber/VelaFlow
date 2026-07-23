@@ -47,7 +47,7 @@ from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, export_audio_batch, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -2656,7 +2656,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     result_data = editor_state.get("last_result") or {}
     hook_mp3 = Path(str(result_data.get("hook_mp3") or ""))
     if hook_mp3.is_file():
-        st.markdown("### 7. Reports")
+        st.markdown("### 6. Reports")
         st.audio(str(hook_mp3))
         report = result_data.get("report") or {}
         st.caption("No re-encoding" if not report.get("reencoded") else "Re-encoded to MP3 320 kbps")
@@ -2666,63 +2666,6 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             report_txt = Path(str(result_data.get("report_txt_path") or ""))
             if report_txt.is_file():
                 st.download_button("Download Edit Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="audio_editor_download_report_txt")
-    st.markdown("### 6. Batch Export")
-    st.caption("Batch Hook Export")
-    st.caption("Export several social-media hook lengths from the same start marker. Items beyond the song duration are skipped with a warning.")
-    batch_options = [15, 30, 45, 60]
-    selected_batch: list[float] = []
-    batch_cols = st.columns(4)
-    for idx, batch_duration in enumerate(batch_options):
-        if batch_cols[idx].checkbox(f"{batch_duration}s", value=batch_duration in {15, 30}, key=f"audio_editor_batch_{batch_duration}s"):
-            selected_batch.append(float(batch_duration))
-    if st.button("ส่งออกหลายความยาว (Export Selected Durations)", use_container_width=True, disabled=not selected_batch or not ffmpeg_probe.get("ok"), key="audio_editor_batch_export"):
-        batch = export_audio_batch(
-            source_path,
-            start_time=float(start_time),
-            durations=selected_batch,
-            project_name=project.get("title") or "audio_editor",
-            output_stem=audio_export_base,
-            cut_mode=effective_mode,
-            fade_in=fade_in,
-            fade_out=fade_out,
-            ffmpeg_path=settings.ffmpeg_path,
-            max_upload_mb=max_upload_mb,
-            waveform_summary=editor_state.get("waveform") or {},
-            hook_analysis_summary={key: hook_analysis.get(key) for key in ["analysis_method", "window_sizes", "candidate_count", "low_confidence", "report_path"] if key in hook_analysis},
-        )
-        editor_state["batch_result"] = batch.get("data", {})
-        editor_state["batch_ok"] = bool(batch.get("ok"))
-        editor_state["batch_error"] = batch.get("error", "")
-        project["audio_editor"] = editor_state
-        _save_project()
-        if batch.get("ok"):
-            st.success("Batch hook exports ready")
-        else:
-            st.warning(batch.get("message") or batch.get("error") or "Batch export failed")
-        st.rerun()
-    batch_data = editor_state.get("batch_result") or {}
-    batch_generated = batch_data.get("generated_files", [])
-    batch_skipped = batch_data.get("skipped_files", [])
-    if batch_generated:
-        st.markdown("**Batch outputs**")
-        for idx, item in enumerate(batch_generated):
-            file_path = Path(str(item.get("path") or ""))
-            if file_path.is_file():
-                with st.container(border=True):
-                    st.caption(f"{item.get('duration')} seconds • {file_path.name}")
-                    st.audio(str(file_path))
-                    st.download_button("Download MP3", data=file_path.read_bytes(), file_name=file_path.name, mime="audio/mpeg", use_container_width=True, key=f"audio_editor_batch_download_{idx}_{file_path.name}")
-        zip_path = Path(str(batch_data.get("zip_path") or ""))
-        if zip_path.is_file():
-            st.download_button("ดาวน์โหลดทั้งหมดเป็น ZIP (Download All as ZIP)", data=zip_path.read_bytes(), file_name=zip_path.name, mime="application/zip", use_container_width=True, key="audio_editor_batch_download_zip")
-    if batch_skipped:
-        with st.expander("Skipped batch durations", expanded=True):
-            for item in batch_skipped:
-                st.warning(f"{item.get('duration')}s skipped: {item.get('reason')}")
-    batch_report = batch_data.get("report") or {}
-    if batch_report and st.session_state.get("developer_mode"):
-        with st.expander("Batch Edit Report", expanded=False):
-            st.json(batch_report, expanded=False)
 
 
 def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_duration: float) -> list[dict[str, Any]]:
