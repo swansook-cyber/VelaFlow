@@ -18,6 +18,31 @@ def sanitize_filename(text: str | None) -> str:
     return cleaned or "Untitled_Song"
 
 
+def make_safe_filename(name: str | None) -> str:
+    cleaned = str(name or "").strip()
+    cleaned = re.sub(f"[{re.escape(INVALID_FILENAME_CHARS)}]+", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = cleaned.rstrip(". ")
+    return (cleaned or "Untitled")[:120].rstrip(". ") or "Untitled"
+
+
+def export_name_base(song_title: str | None = None, original_filename: str | None = None) -> str:
+    title = "" if is_placeholder_song_title(song_title) else str(song_title or "").strip()
+    if title:
+        return make_safe_filename(title)
+    original = Path(str(original_filename or "")).stem.strip()
+    if original:
+        return make_safe_filename(original)
+    return "Untitled"
+
+
+def build_asset_export_filename(song_title: str | None, original_filename: str | None, suffix: str, ext: str) -> str:
+    base = export_name_base(song_title, original_filename)
+    clean_suffix = make_safe_filename(suffix).replace(" ", "_")
+    clean_ext = str(ext or "").lstrip(".") or "txt"
+    return f"{base}_{clean_suffix}.{clean_ext}"
+
+
 def _normalize_type(export_type: str | None) -> str:
     value = sanitize_filename(export_type or "Export")
     aliases = {

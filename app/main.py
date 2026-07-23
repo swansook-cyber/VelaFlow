@@ -112,6 +112,7 @@ from core.emotional_arc import analyze_emotional_arc
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
+from core.file_naming import export_name_base
 from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
@@ -2036,10 +2037,11 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.caption("V1 uses safe preset values for high-pass filtering, EQ balance, compression, vocal presence, stereo width, limiting, and output loudness. Manual audio controls are intentionally hidden.")
     st.caption("Workflow: Upload Audio -> Audio Analysis -> Choose Mastering Preset -> Process Audio -> Preview Result -> Export WAV + MP3")
     if st.button("4. Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
+        remaster_export_title = _project_song_metadata_for_remaster(project).get("song_title") or project.get("title") or "remaster_project"
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
             result = remaster_song_audio(
                 source_path,
-                project_name=project.get("title") or "remaster_project",
+                project_name=remaster_export_title,
                 remaster_style=style,
                 ffmpeg_path=settings.ffmpeg_path,
                 max_upload_mb=max_upload_mb,
@@ -2357,7 +2359,9 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     effective_mode = "Precise Cut" if fade_in > 0 or fade_out > 0 else cut_mode
     if effective_mode != cut_mode:
         st.warning("Re-encoding required: fades automatically use Precise Cut.")
-    custom_name = st.text_input("Output name", value=f"{Path(str(source_info.get('original_filename') or source_path)).stem}_hook", key="audio_editor_output_name")
+    song_metadata_for_export = _project_song_metadata_for_remaster(project)
+    audio_export_base = export_name_base(song_metadata_for_export.get("song_title") or project.get("title"), source_info.get("original_filename") or source_path)
+    custom_name = st.text_input("Output base name", value=audio_export_base, key="audio_editor_output_name")
     st.markdown("### 5. Single Export")
     if st.button("ส่งออก Hook MP3 (Export Hook MP3)", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
         result = export_audio_selection(
@@ -2414,7 +2418,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             start_time=float(start_time),
             durations=selected_batch,
             project_name=project.get("title") or "audio_editor",
-            output_stem=f"{Path(str(source_info.get('original_filename') or source_path)).stem}_hook",
+            output_stem=audio_export_base,
             cut_mode=effective_mode,
             fade_in=fade_in,
             fade_out=fade_out,

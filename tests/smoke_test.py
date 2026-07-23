@@ -55,7 +55,7 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
-from core.file_naming import build_export_filename, ensure_unique_path, sanitize_filename
+from core.file_naming import build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, make_safe_filename, sanitize_filename
 from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
@@ -525,6 +525,10 @@ def main():
     assert_true("Demo_Song_song_only" not in safe_txt_filename("Demo Song", "song_only"), "legacy Demo Song filename leaked")
     assert_true(safe_txt_filename('เดินต่อ / demo:night?', 'full_pipeline') == 'เดินต่อ_demonight_Vela_Moon_Suno_Export.txt', "safe Thai TXT filename failed")
     assert_true(safe_txt_filename('', 'song_only') == 'Untitled_Song_Vela_Moon_Lyrics_Only.txt', "empty title TXT fallback failed")
+    assert_true(make_safe_filename('  ผู้พิทักษ์โลก  ') == 'ผู้พิทักษ์โลก' and make_safe_filename('Best  Song / Ever?.mp3') == 'Best Song Ever.mp3', "safe export filename cleanup failed")
+    assert_true(make_safe_filename('A' * 150) == 'A' * 120 and make_safe_filename('ชื่อเพลง...') == 'ชื่อเพลง', "safe export filename length/trailing dot failed")
+    assert_true(export_name_base('ผู้พิทักษ์โลก', 'audio_20260723.mp3') == 'ผู้พิทักษ์โลก' and export_name_base('', 'Best Song Ever.mp3') == 'Best Song Ever' and export_name_base('', '') == 'Untitled', "export filename priority failed")
+    assert_true(build_asset_export_filename('ผู้พิทักษ์โลก', '', 'Master', 'mp3') == 'ผู้พิทักษ์โลก_Master.mp3' and build_asset_export_filename('', 'Best Song Ever.mp3', 'Hook30', 'mp3') == 'Best Song Ever_Hook30.mp3', "asset export filename builder failed")
     export_text_with_title = "====================\nSONG METADATA\n====================\n\nSong title: เดินต่อ\n"
     assert_true(extract_song_title_from_export_text(export_text_with_title) == "เดินต่อ", "export title parser failed")
     assert_true(resolve_export_txt_filename({}, "", "Full Pipeline", export_text_with_title) == "เดินต่อ_Vela_Moon_Suno_Export.txt", "export filename parser fallback failed")
@@ -693,6 +697,7 @@ def main():
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
     assert_true(release_export["ok"], "release pack should work without remaster data")
+    release_title = release_pack["pack"].get("Suggested title", "Untitled")
     dummy_remaster_dir = out / "dummy_remaster"
     dummy_remaster_dir.mkdir(parents=True, exist_ok=True)
     dummy_wav = dummy_remaster_dir / "dummy_master.wav"
@@ -706,7 +711,7 @@ def main():
     release_with_remaster = export_creative_release_pack("Smoke Creative Pack Remaster", release_pack, "Vela Moon", base_dir=out / "creative_pack_with_remaster", remaster_data={"mastered_wav": str(dummy_wav), "mastered_mp3": str(dummy_mp3), "report_path": str(dummy_report), "report_txt_path": str(dummy_report_txt)})
     remaster_release_zip = Path((release_with_remaster.get("data") or {}).get("zip_path", ""))
     with zipfile.ZipFile(remaster_release_zip) as archive:
-        assert_true({"remaster/mastered_wav.wav", "remaster/mastered_mp3.mp3", "remaster/remaster_report.json", "remaster/remaster_report.txt"}.issubset(set(archive.namelist())), "release pack did not include optional remaster files")
+        assert_true({f"remaster/{build_asset_export_filename(release_title, None, 'Master', 'wav')}", f"remaster/{build_asset_export_filename(release_title, None, 'Master', 'mp3')}", f"remaster/{build_asset_export_filename(release_title, None, 'Remaster_Report', 'json')}", f"remaster/{build_asset_export_filename(release_title, None, 'Remaster_Report', 'txt')}"}.issubset(set(archive.namelist())), "release pack did not include optional remaster files")
     dummy_hook = dummy_remaster_dir / "my_song_hook.mp3"
     dummy_edit_report = dummy_remaster_dir / "edit_report.json"
     dummy_edit_report_txt = dummy_remaster_dir / "edit_report.txt"
@@ -716,12 +721,12 @@ def main():
     release_with_audio_edit = export_creative_release_pack("Smoke Creative Pack Audio Edit", release_pack, "Vela Moon", base_dir=out / "creative_pack_with_audio_edit", audio_edit_data={"hook_mp3": str(dummy_hook), "report_path": str(dummy_edit_report), "report_txt_path": str(dummy_edit_report_txt)})
     audio_edit_release_zip = Path((release_with_audio_edit.get("data") or {}).get("zip_path", ""))
     with zipfile.ZipFile(audio_edit_release_zip) as archive:
-        assert_true({"audio_editor/hook.mp3", "audio_editor/edit_report.json", "audio_editor/edit_report.txt"}.issubset(set(archive.namelist())), "release pack did not include optional audio edit files")
+        assert_true({f"audio_editor/{build_asset_export_filename(release_title, None, 'Hook', 'mp3')}", f"audio_editor/{build_asset_export_filename(release_title, None, 'Edit_Report', 'json')}", f"audio_editor/{build_asset_export_filename(release_title, None, 'Edit_Report', 'txt')}"}.issubset(set(archive.namelist())), "release pack did not include optional audio edit files")
     release_with_master_and_hook = export_creative_release_pack("Smoke Creative Pack Master And Hook", release_pack, "Vela Moon", base_dir=out / "creative_pack_with_master_and_hook", remaster_data={"mastered_wav": str(dummy_wav), "mastered_mp3": str(dummy_mp3), "report_path": str(dummy_report), "report_txt_path": str(dummy_report_txt)}, audio_edit_data={"hook_mp3": str(dummy_hook), "report_path": str(dummy_edit_report), "report_txt_path": str(dummy_edit_report_txt)})
     master_hook_zip = Path((release_with_master_and_hook.get("data") or {}).get("zip_path", ""))
     with zipfile.ZipFile(master_hook_zip) as archive:
         master_hook_names = set(archive.namelist())
-    assert_true({"remaster/mastered_wav.wav", "remaster/mastered_mp3.mp3", "audio_editor/hook.mp3", "audio_editor/edit_report.json"}.issubset(master_hook_names), "release pack did not include master and hook outputs together")
+    assert_true({f"remaster/{build_asset_export_filename(release_title, None, 'Master', 'wav')}", f"remaster/{build_asset_export_filename(release_title, None, 'Master', 'mp3')}", f"audio_editor/{build_asset_export_filename(release_title, None, 'Hook', 'mp3')}", f"audio_editor/{build_asset_export_filename(release_title, None, 'Edit_Report', 'json')}"}.issubset(master_hook_names), "release pack did not include master and hook outputs together")
     diversity_memory_path = out / "diversity_memory.json"
     saved_diversity_memory = save_diversity_memory(
         {
@@ -796,12 +801,15 @@ def main():
     assert_true("SUNO LYRICS FIELD" in release_txt and "SUNO STYLE OF MUSIC FIELD" in release_txt and release_pack["pack"]["SUNO LYRICS FIELD"].strip(), "Suno copy-ready fields missing")
     with zipfile.ZipFile(release_zip, "r") as release_archive:
         release_zip_names = set(release_archive.namelist())
+        release_lyrics_name = build_asset_export_filename(release_title, None, "Lyrics", "txt")
+        release_pack_name = build_asset_export_filename(release_title, None, "Release_Pack", "txt")
+        release_metadata_name = build_asset_export_filename(release_title, None, "Metadata", "json")
         advanced_settings_zip_text = release_archive.read("advanced_suno_settings.txt").decode("utf-8-sig")
-        lyrics_only_zip_text = release_archive.read("lyrics_only.txt").decode("utf-8-sig")
+        lyrics_only_zip_text = release_archive.read(release_lyrics_name).decode("utf-8-sig")
         suno_style_zip_text = release_archive.read("suno_style_prompt.txt").decode("utf-8-sig")
         producer_notes_zip_text = release_archive.read("producer_notes.txt").decode("utf-8-sig")
-        clean_release_pack_zip_text = release_archive.read("release_pack.txt").decode("utf-8-sig")
-    assert_true({"lyrics_only.txt", "suno_style_prompt.txt", "producer_notes.txt", "release_pack.txt", "advanced_suno_settings.txt", "lyrics_quality_report.txt", "diversity_report.txt", "situation_specificity_report.txt"}.issubset(release_zip_names), "release ZIP missing copy-ready Suno files")
+        clean_release_pack_zip_text = release_archive.read(release_pack_name).decode("utf-8-sig")
+    assert_true({release_lyrics_name, release_pack_name, release_metadata_name, "suno_style_prompt.txt", "producer_notes.txt", "advanced_suno_settings.txt", "lyrics_quality_report.txt", "diversity_report.txt", "situation_specificity_report.txt"}.issubset(release_zip_names), "release ZIP missing copy-ready Suno files")
     assert_true("Weirdness:" in advanced_settings_zip_text and "Style Influence:" in advanced_settings_zip_text and "[Verse 1]" in lyrics_only_zip_text and "CORE GENRE" not in suno_style_zip_text and "VOCAL DIRECTION" not in suno_style_zip_text and "CORE GENRE" in producer_notes_zip_text, "release ZIP copy-ready Suno content failed")
     assert_true(clean_release_pack_zip_text.count("[Verse 1]") == 1 and clean_release_pack_zip_text.count("PRODUCER NOTES") == 1, "release_pack.txt duplicated lyrics or producer notes")
     lyric_lower = release_pack["pack"]["Full lyrics"].lower()
@@ -2004,7 +2012,7 @@ def main():
         lossless_data = lossless_edit.get("data", {})
         lossless_hook = Path(lossless_data.get("hook_mp3", ""))
         lossless_report = lossless_data.get("report") or {}
-        assert_true(lossless_edit["ok"] and lossless_hook.exists() and lossless_hook.name.endswith("_hook.mp3") and lossless_report.get("reencoded") is False and "copy" in lossless_report.get("ffmpeg_command", []), "Audio Editor lossless quick cut failed")
+        assert_true(lossless_edit["ok"] and lossless_hook.exists() and lossless_hook.name.endswith("_Hook.mp3") and lossless_report.get("reencoded") is False and "copy" in lossless_report.get("ffmpeg_command", []), "Audio Editor lossless quick cut failed")
         assert_true("-af" not in lossless_report.get("ffmpeg_command", []), "Lossless Quick Cut should not apply filters")
         precise_edit = export_audio_selection(long_hook_source, start_time=2.0, end_time=5.0, project_name="Smoke Audio Editor Precise", output_name="smoke_precise_hook", cut_mode="Lossless Quick Cut", fade_in=0.25, fade_out=0.25, ffmpeg_path=find_ffmpeg())
         precise_data = precise_edit.get("data", {})
@@ -2081,10 +2089,10 @@ def main():
         batch_data = batch_lossless.get("data", {})
         batch_files = batch_data.get("generated_files", [])
         batch_zip = Path(batch_data.get("zip_path", ""))
-        assert_true(batch_lossless["ok"] and len(batch_files) == 2 and any(item["filename"].endswith("_15s.mp3") for item in batch_files) and any(item["filename"].endswith("_30s.mp3") for item in batch_files) and batch_data.get("skipped_files") and batch_zip.exists(), "Audio Editor batch export/skip failed")
+        assert_true(batch_lossless["ok"] and len(batch_files) == 2 and any(item["filename"].endswith("_Hook15.mp3") for item in batch_files) and any(item["filename"].endswith("_Hook30.mp3") for item in batch_files) and batch_data.get("skipped_files") and batch_zip.exists(), "Audio Editor batch export/skip failed")
         with zipfile.ZipFile(batch_zip) as archive:
             names = set(archive.namelist())
-        assert_true("batch_edit_report.json" in names and "batch_edit_report.txt" in names and any(name.endswith("_15s.mp3") for name in names), "Audio Editor batch ZIP contents missing")
+        assert_true("batch_edit_report.json" in names and "batch_edit_report.txt" in names and any(name.endswith("_Hook15.mp3") for name in names), "Audio Editor batch ZIP contents missing")
         assert_true(batch_data.get("report", {}).get("reencoded") is False and "copy" in batch_files[0].get("command", []), "Audio Editor lossless batch must stream copy")
         batch_precise = export_audio_batch(smart_hook_source, start_time=8.0, durations=[15], project_name="Smoke Audio Editor Batch Precise", output_stem="smart_precise_hook", cut_mode="Lossless Quick Cut", fade_in=0.25, ffmpeg_path=find_ffmpeg())
         precise_batch_report = (batch_precise.get("data") or {}).get("report", {})
@@ -2110,7 +2118,7 @@ def main():
         )
         with zipfile.ZipFile(Path(audio_batch_release.get("data", {}).get("zip_path", ""))) as archive:
             release_audio_names = set(archive.namelist())
-        assert_true(audio_batch_release["ok"] and "audio_editor/hook.mp3" in release_audio_names and "audio_editor/batch_edit_report.json" in release_audio_names and any(name.startswith("audio_editor/batch/") and name.endswith("_15s.mp3") for name in release_audio_names), "Release Pack did not include Audio Editor single and batch outputs")
+        assert_true(audio_batch_release["ok"] and f"audio_editor/{build_asset_export_filename(release_title, None, 'Hook', 'mp3')}" in release_audio_names and f"audio_editor/{build_asset_export_filename(release_title, None, 'Batch_Edit_Report', 'json')}" in release_audio_names and any(name.startswith("audio_editor/batch/") and name.endswith("_Hook15.mp3") for name in release_audio_names), "Release Pack did not include Audio Editor single and batch outputs")
         original_hash = long_hook_source.read_bytes()
         audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
         assert_true(audio_recommend["ok"] and audio_recommend.get("data", {}).get("recommended_preset") in REMASTER_STYLES and audio_recommend.get("data", {}).get("source") == "audio_analysis", "external audio remaster recommendation failed")
@@ -2134,11 +2142,11 @@ def main():
         assert_true(remaster_report.get("no_clipping_above_0db") is True and remaster_report.get("external_api_used") is False, "remaster clipping/API validation failed")
         assert_true(remaster_report.get("remaster_recommendation", {}).get("source") == "audio_analysis" and remaster_report.get("remaster_recommendation", {}).get("selected_preset") == "Vocal Focus" and remaster_report.get("remaster_recommendation", {}).get("overridden") is True, "remaster report recommendation/manual override missing")
         assert_true("Preset Recommendation:" in Path(remaster_data.get("report_txt_path", "")).read_text(encoding="utf-8"), "remaster TXT report missing recommendation details")
-        assert_true(mastered_wav.name.endswith("_master.wav") and remaster_report.get("output_wav_settings", {}).get("codec") == "pcm_s24le" and remaster_report.get("output_wav_settings", {}).get("sample_rate_hz") == 48000, "Remaster WAV V1 settings failed")
-        assert_true(mastered_mp3.exists() and mastered_mp3.name.endswith("_master.mp3") and remaster_report.get("output_mp3_settings", {}).get("bitrate") == "320 kbps" and mastered_mp3_probe.get("has_audio"), "Remaster MP3 320k output failed")
+        assert_true(mastered_wav.name.endswith("_Master.wav") and remaster_report.get("output_wav_settings", {}).get("codec") == "pcm_s24le" and remaster_report.get("output_wav_settings", {}).get("sample_rate_hz") == 48000, "Remaster WAV V1 settings failed")
+        assert_true(mastered_mp3.exists() and mastered_mp3.name.endswith("_Master.mp3") and remaster_report.get("output_mp3_settings", {}).get("bitrate") == "320 kbps" and mastered_mp3_probe.get("has_audio"), "Remaster MP3 320k output failed")
         assert_true(long_hook_source.read_bytes() == original_hash, "Remaster modified the original source file")
         assert_true(Path(remaster_data.get("zip_path", "")).exists(), "remaster package ZIP missing")
-        assert_true(Path(remaster_data.get("report_path", "")).name == "remaster_report.json" and Path(remaster_data.get("report_txt_path", "")).name == "remaster_report.txt", "remaster report outputs missing")
+        assert_true(Path(remaster_data.get("report_path", "")).name.endswith("_Remaster_Report.json") and Path(remaster_data.get("report_txt_path", "")).name.endswith("_Remaster_Report.txt"), "remaster report outputs missing")
         package_lyrics = """[Verse]
 คืนนี้ยังเงียบเหมือนเดิม
 ฉันเดินผ่านฝนคนเดียว

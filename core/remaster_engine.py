@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.file_naming import ensure_unique_path, sanitize_filename
+from core.file_naming import build_asset_export_filename, ensure_unique_path, sanitize_filename
 from core.paths import ROOT
 from core.project_io import safe_name
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media
@@ -352,13 +352,12 @@ def remaster_song_audio(
     reports_dir.mkdir(parents=True, exist_ok=True)
     source_copy = original_dir / f"source_audio.{_source_ext(source)}"
     shutil.copy2(source, source_copy)
-    safe_stem = sanitize_filename(source.stem or project_name or "song")
-    wav_path = output_dir / f"{safe_stem}_master.wav"
-    mp3_path = output_dir / f"{safe_stem}_master.mp3"
-    report_path = reports_dir / "remaster_report.json"
-    report_txt_path = reports_dir / "remaster_report.txt"
+    wav_path = output_dir / build_asset_export_filename(project_name, source.name, "Master", "wav")
+    mp3_path = output_dir / build_asset_export_filename(project_name, source.name, "Master", "mp3")
+    report_path = reports_dir / build_asset_export_filename(project_name, source.name, "Remaster_Report", "json")
+    report_txt_path = reports_dir / build_asset_export_filename(project_name, source.name, "Remaster_Report", "txt")
     legacy_report_path = reports_dir / "mastering_report.json"
-    zip_path = ensure_unique_path(base_dir / f"{safe_stem}_remaster_package.zip")
+    zip_path = ensure_unique_path(base_dir / build_asset_export_filename(project_name, source.name, "Remaster_Package", "zip"))
     converted_path = output_dir / "source_converted_48k_24bit.wav"
     style = _normalize_style(remaster_style)
     style_config = STYLE_FILTERS[style]

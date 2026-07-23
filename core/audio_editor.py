@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.file_naming import ensure_unique_path, sanitize_filename
+from core.file_naming import build_asset_export_filename, ensure_unique_path, export_name_base, sanitize_filename
 from core.paths import ROOT
 from core.project_io import safe_name
 from core.real_clip_pipeline import find_ffmpeg, probe_media
@@ -590,8 +590,8 @@ def export_audio_selection(
     reports_dir.mkdir(parents=True, exist_ok=True)
     source_copy = original_dir / f"source.{source.suffix.lower().lstrip('.')}"
     shutil.copy2(source, source_copy)
-    safe_stem = sanitize_filename(output_name or f"{source.stem}_hook")
-    output_path = ensure_unique_path(output_dir / f"{safe_stem}.mp3")
+    safe_stem = export_name_base(output_name, source.name)
+    output_path = ensure_unique_path(output_dir / build_asset_export_filename(output_name, source.name, "Hook", "mp3"))
     mode, warnings = effective_cut_mode(source, cut_mode, fade_in, fade_out)
     command = build_audio_cut_command(
         ffmpeg,
@@ -644,7 +644,7 @@ def export_audio_selection(
     report_txt_path = reports_dir / "edit_report.txt"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     report_txt_path.write_text(_report_text(report), encoding="utf-8")
-    zip_path = ensure_unique_path(base_dir / f"{safe_stem}_audio_edit_package.zip")
+    zip_path = ensure_unique_path(base_dir / f"{safe_stem}_Audio_Edit_Package.zip")
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for file_path in [source_copy, output_path, report_path, report_txt_path]:
             if file_path.is_file():
@@ -703,7 +703,7 @@ def export_audio_batch(
     source_copy = original_dir / "source.mp3"
     shutil.copy2(source, source_copy)
     mode, warnings = effective_cut_mode(source, cut_mode, fade_in, fade_out)
-    safe_stem = sanitize_filename(output_stem or f"{source.stem}_hook")
+    safe_stem = export_name_base(output_stem, source.name)
     generated: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     selected_durations = sorted({float(item) for item in durations if float(item) > 0})
@@ -712,7 +712,7 @@ def export_audio_batch(
         if end_time > source_duration + 0.001:
             skipped.append({"duration": int(duration), "start_time": float(start_time), "end_time": round(end_time, 3), "reason": "Beyond source duration; not shortened automatically"})
             continue
-        filename = f"{safe_stem}_{int(duration)}s.mp3"
+        filename = f"{safe_stem}_Hook{int(duration)}.mp3"
         output_path = ensure_unique_path(output_dir / filename)
         command = build_audio_cut_command(
             ffmpeg,
@@ -754,7 +754,7 @@ def export_audio_batch(
     report_txt_path = reports_dir / "batch_edit_report.txt"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     report_txt_path.write_text(_batch_report_text(report), encoding="utf-8")
-    zip_path = ensure_unique_path(base_dir / f"{safe_stem}s.zip")
+    zip_path = ensure_unique_path(base_dir / f"{safe_stem}_Hooks.zip")
     try:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for item in generated:

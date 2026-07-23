@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from core.api_quality_gate import build_api_quality_gate, production_blocked_result
-from core.file_naming import build_export_filename, ensure_unique_path, sanitize_filename
+from core.file_naming import build_asset_export_filename, build_export_filename, ensure_unique_path, sanitize_filename
 from core.lyrics_expander import parse_lyric_sections, validate_song_structure
 from core.paths import workflow_project_root
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, score_song_title_candidate
@@ -6167,10 +6167,10 @@ def export_creative_release_pack(
         remaster_files: dict[str, str] = {}
         remaster = remaster_data or {}
         remaster_candidates = {
-            "remaster/mastered_wav.wav": remaster.get("mastered_wav"),
-            "remaster/mastered_mp3.mp3": remaster.get("mastered_mp3") or remaster.get("mp3_preview"),
-            "remaster/remaster_report.json": remaster.get("report_path"),
-            "remaster/remaster_report.txt": remaster.get("report_txt_path"),
+            f"remaster/{build_asset_export_filename(title, None, 'Master', 'wav')}": remaster.get("mastered_wav"),
+            f"remaster/{build_asset_export_filename(title, None, 'Master', 'mp3')}": remaster.get("mastered_mp3") or remaster.get("mp3_preview"),
+            f"remaster/{build_asset_export_filename(title, None, 'Remaster_Report', 'json')}": remaster.get("report_path"),
+            f"remaster/{build_asset_export_filename(title, None, 'Remaster_Report', 'txt')}": remaster.get("report_txt_path"),
         }
         for archive_name, file_value in remaster_candidates.items():
             file_path = Path(str(file_value or ""))
@@ -6179,9 +6179,9 @@ def export_creative_release_pack(
         audio_edit_files: dict[str, str] = {}
         audio_edit = audio_edit_data or {}
         audio_edit_candidates = {
-            "audio_editor/hook.mp3": audio_edit.get("hook_mp3") or audio_edit.get("output_mp3"),
-            "audio_editor/edit_report.json": audio_edit.get("report_path"),
-            "audio_editor/edit_report.txt": audio_edit.get("report_txt_path"),
+            f"audio_editor/{build_asset_export_filename(title, None, 'Hook', 'mp3')}": audio_edit.get("hook_mp3") or audio_edit.get("output_mp3"),
+            f"audio_editor/{build_asset_export_filename(title, None, 'Edit_Report', 'json')}": audio_edit.get("report_path"),
+            f"audio_editor/{build_asset_export_filename(title, None, 'Edit_Report', 'txt')}": audio_edit.get("report_txt_path"),
         }
         for archive_name, file_value in audio_edit_candidates.items():
             file_path = Path(str(file_value or ""))
@@ -6190,13 +6190,15 @@ def export_creative_release_pack(
         for item in audio_edit.get("generated_files", []) or []:
             file_path = Path(str(item.get("path") or ""))
             if file_path.is_file():
-                audio_edit_files[f"audio_editor/batch/{file_path.name}"] = str(file_path)
+                duration = int(float(item.get("duration") or 0))
+                archive_name = build_asset_export_filename(title, file_path.name, f"Hook{duration}", "mp3") if duration else file_path.name
+                audio_edit_files[f"audio_editor/batch/{archive_name}"] = str(file_path)
         batch_report_path = Path(str(audio_edit.get("batch_report_path") or audio_edit.get("batch_report_json") or ""))
         batch_report_txt_path = Path(str(audio_edit.get("batch_report_txt_path") or ""))
         if batch_report_path.is_file():
-            audio_edit_files["audio_editor/batch_edit_report.json"] = str(batch_report_path)
+            audio_edit_files[f"audio_editor/{build_asset_export_filename(title, None, 'Batch_Edit_Report', 'json')}"] = str(batch_report_path)
         if batch_report_txt_path.is_file():
-            audio_edit_files["audio_editor/batch_edit_report.txt"] = str(batch_report_txt_path)
+            audio_edit_files[f"audio_editor/{build_asset_export_filename(title, None, 'Batch_Edit_Report', 'txt')}"] = str(batch_report_txt_path)
         txt_path = ensure_unique_path(export_dir / build_export_filename(title, artist_name, "Release_Pack", "txt"))
         txt_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         manifest = {
@@ -6216,10 +6218,15 @@ def export_creative_release_pack(
         }
         manifest_path = export_dir / "release_pack_manifest.json"
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-        zip_path = ensure_unique_path(export_dir / build_export_filename(title, artist_name, "Release_Pack", "zip"))
+        zip_path = ensure_unique_path(export_dir / build_asset_export_filename(title, None, "Release", "zip"))
+        release_archive_names = {
+            "lyrics_only.txt": build_asset_export_filename(title, None, "Lyrics", "txt"),
+            "release_pack_manifest.json": build_asset_export_filename(title, None, "Metadata", "json"),
+            "release_pack.txt": build_asset_export_filename(title, None, "Release_Pack", "txt"),
+        }
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
             for path in [Path(item) for item in written.values()] + [txt_path, manifest_path]:
-                archive.write(path, path.name)
+                archive.write(path, release_archive_names.get(path.name, path.name))
             for archive_name, path_value in remaster_files.items():
                 archive.write(Path(path_value), archive_name)
             for archive_name, path_value in audio_edit_files.items():
