@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, build_audio_cut_command, effective_cut_mode, export_audio_selection, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, analyze_hook_candidates, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, render_waveform_svg, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -2003,6 +2003,64 @@ def main():
         assert_true(precise_edit["ok"] and precise_hook.exists() and precise_report.get("cut_mode") == "Precise Cut" and precise_report.get("reencoded") is True and precise_report.get("output_bitrate") == "320 kbps CBR", "Audio Editor precise cut/fade failed")
         assert_true(Path(precise_data.get("report_path", "")).name == "edit_report.json" and Path(precise_data.get("report_txt_path", "")).name == "edit_report.txt", "Audio Editor edit reports missing")
         assert_true(long_hook_source.read_bytes() == audio_source_hash, "Audio Editor modified the original MP3 source")
+        smart_hook_source = out / "hook_clip_projects" / "smart_hook_source.mp3"
+        subprocess.run(
+            [
+                find_ffmpeg(),
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=220:duration=8:sample_rate=44100",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=440:duration=30:sample_rate=44100",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=180:duration=8:sample_rate=44100",
+                "-filter_complex",
+                "[0:a]volume=0.06[a0];[1:a]volume=0.9[a1];[2:a]volume=0.05[a2];[a0][a1][a2]concat=n=3:v=0:a=1[out]",
+                "-map",
+                "[out]",
+                "-c:a",
+                "libmp3lame",
+                str(smart_hook_source),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        waveform_json = out / "hook_clip_projects" / "exports" / "waveform.json"
+        waveform_svg = out / "hook_clip_projects" / "exports" / "waveform.svg"
+        waveform_first = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
+        waveform_second = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
+        waveform_data = waveform_first.get("data", {})
+        waveform_render = render_waveform_svg(waveform_data, waveform_svg, start_time=8.0, end_time=38.0)
+        assert_true(waveform_first["ok"] and 1000 <= int(waveform_data.get("point_count", 0)) <= 3000 and waveform_second.get("data", {}).get("cache_status") == "hit" and waveform_render["ok"] and waveform_svg.exists(), "Audio Editor waveform generation/cache/render failed")
+        hook_analysis = analyze_hook_candidates(smart_hook_source, output_dir=out / "hook_clip_projects" / "exports" / "hook_analysis", ffmpeg_path=find_ffmpeg())
+        hook_candidates = (hook_analysis.get("data") or {}).get("candidates", [])
+        assert_true(hook_analysis["ok"] and hook_candidates and len(hook_candidates) <= 3 and Path((hook_analysis.get("data") or {}).get("report_path", "")).exists(), "Smart Hook Finder did not return/report candidates")
+        first_candidate = hook_candidates[0]
+        assert_true(float(first_candidate["start_time"]) >= 5.0 and float(first_candidate["end_time"]) <= 46.5 and float(first_candidate["duration"]) >= 10.0 and "component_scores" in first_candidate, "Smart Hook Finder candidate bounds/scoring failed")
+        if len(hook_candidates) > 1:
+            overlap = max(0.0, min(float(first_candidate["end_time"]), float(hook_candidates[1]["end_time"])) - max(float(first_candidate["start_time"]), float(hook_candidates[1]["start_time"])))
+            assert_true(overlap / min(float(first_candidate["duration"]), float(hook_candidates[1]["duration"])) <= 0.5, "Smart Hook Finder candidates overlap too much")
+        assert_true(analyze_hook_candidates(smart_hook_source, ffmpeg_path=find_ffmpeg()).get("data", {}).get("candidates", [])[0]["confidence_score"] == first_candidate["confidence_score"], "Smart Hook Finder scoring should be deterministic")
+        batch_lossless = export_audio_batch(smart_hook_source, start_time=8.0, durations=[15, 30, 60], project_name="Smoke Audio Editor Batch", output_stem="smart_hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg())
+        batch_data = batch_lossless.get("data", {})
+        batch_files = batch_data.get("generated_files", [])
+        batch_zip = Path(batch_data.get("zip_path", ""))
+        assert_true(batch_lossless["ok"] and len(batch_files) == 2 and any(item["filename"].endswith("_15s.mp3") for item in batch_files) and any(item["filename"].endswith("_30s.mp3") for item in batch_files) and batch_data.get("skipped_files") and batch_zip.exists(), "Audio Editor batch export/skip failed")
+        with zipfile.ZipFile(batch_zip) as archive:
+            names = set(archive.namelist())
+        assert_true("batch_edit_report.json" in names and "batch_edit_report.txt" in names and any(name.endswith("_15s.mp3") for name in names), "Audio Editor batch ZIP contents missing")
+        assert_true(batch_data.get("report", {}).get("reencoded") is False and "copy" in batch_files[0].get("command", []), "Audio Editor lossless batch must stream copy")
+        batch_precise = export_audio_batch(smart_hook_source, start_time=8.0, durations=[15], project_name="Smoke Audio Editor Batch Precise", output_stem="smart_precise_hook", cut_mode="Lossless Quick Cut", fade_in=0.25, ffmpeg_path=find_ffmpeg())
+        precise_batch_report = (batch_precise.get("data") or {}).get("report", {})
+        precise_batch_file = ((batch_precise.get("data") or {}).get("generated_files") or [{}])[0]
+        assert_true(batch_precise["ok"] and precise_batch_report.get("cut_mode") == "Precise Cut" and precise_batch_report.get("reencoded") is True and "libmp3lame" in precise_batch_file.get("command", []), "Audio Editor fade batch must force Precise Cut 320k")
         original_hash = long_hook_source.read_bytes()
         remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
         remaster_data = remaster.get("data", {})
@@ -2506,6 +2564,7 @@ def main():
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and "1. Upload Audio" in main_source and "4. Process Audio" in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "Remaster Studio UI missing")
         assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
+        assert_true("Smart Hook Finder" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source and "Batch Hook Export" in main_source and "Export Selected Durations" in main_source and "Download All as ZIP" in main_source, "Audio Editor V2 smart hook/batch UI missing")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")
         assert_true("Create TikTok Hook" not in main_source and "Create Podcast Clip" not in main_source and "Create Affiliate Script" not in main_source and "Generate Song Package" not in main_source, "legacy creator dashboard workflows still visible")
         assert_true("Quick Song" in main_source and "_render_quick_song" in main_source and "Suno Package" in main_source and "A. Lyrics" in main_source and "B. Music Style Prompt" in main_source, "Quick Song or Suno package UI missing")

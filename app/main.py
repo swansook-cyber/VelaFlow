@@ -47,7 +47,7 @@ from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, export_audio_selection, format_timecode, generate_waveform_image, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, analyze_hook_candidates, export_audio_batch, export_audio_selection, format_timecode, generate_waveform_data, render_waveform_svg, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -2074,21 +2074,6 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     c2.metric("Duration", format_timecode(duration))
     c3.metric("Codec", str(probe.get("audio_codec") or "Unknown"))
     st.audio(source_path)
-    st.markdown("### 3. Waveform Timeline")
-    waveform_path = Path(str(editor_state.get("waveform_path") or ""))
-    if not waveform_path.is_file() and ffmpeg_probe.get("ok"):
-        waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
-        waveform_file = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}.png"
-        waveform = generate_waveform_image(source_path, waveform_file, ffmpeg_path=settings.ffmpeg_path)
-        if waveform.get("ok"):
-            editor_state["waveform_path"] = waveform["data"]["waveform_path"]
-            project["audio_editor"] = editor_state
-            _save_project()
-            waveform_path = Path(editor_state["waveform_path"])
-    if waveform_path.is_file():
-        st.image(str(waveform_path), use_container_width=True)
-    else:
-        st.caption("Waveform preview unavailable until FFmpeg can generate it.")
     preset = st.selectbox("Hook duration helper", list(HOOK_DURATION_PRESETS), index=0, key="audio_editor_duration_preset")
     default_start = float(editor_state.get("start_time", 0.0) or 0.0)
     default_end = float(editor_state.get("end_time", min(duration, 15.0)) or min(duration, 15.0))
@@ -2098,9 +2083,70 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     start_time = col_start.number_input("Start marker", min_value=0.0, max_value=max(0.0, duration), value=min(default_start, max(0.0, duration)), step=0.1, format="%.3f", key="audio_editor_start")
     end_time = col_end.number_input("End marker", min_value=0.0, max_value=max(0.0, duration), value=min(max(default_end, start_time + 1.0), max(1.0, duration)), step=0.1, format="%.3f", key="audio_editor_end")
     selection = validate_audio_selection(start_time, end_time, duration)
+    st.markdown("### 3. Waveform Timeline")
+    waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
+    waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
+    waveform_svg = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_selection.svg"
+    waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
+    if waveform_result.get("ok"):
+        waveform_data = waveform_result.get("data", {})
+        svg_result = render_waveform_svg(waveform_data, waveform_svg, start_time=start_time, end_time=end_time)
+        if svg_result.get("ok") and waveform_svg.is_file():
+            st.image(str(waveform_svg), use_container_width=True)
+            st.caption(f"Waveform: {waveform_data.get('point_count', 0)} points • cache {waveform_data.get('cache_status', 'unknown')} • markers update from Start/End fields")
+            editor_state["waveform"] = {"waveform_json": str(waveform_json), "waveform_svg": str(waveform_svg), "point_count": waveform_data.get("point_count", 0), "cache_status": waveform_data.get("cache_status", ""), "method": waveform_data.get("method", "")}
+        else:
+            st.caption("Waveform markers unavailable; manual cutting still works.")
+    else:
+        st.caption("Waveform preview unavailable. Manual cutting still works.")
     st.markdown(f"Start: `{format_timecode(start_time)}`  End: `{format_timecode(end_time)}`  Duration: `{format_timecode(max(0.0, end_time - start_time))}`")
     if not selection.get("ok"):
         st.warning(selection.get("message", "Invalid selection"))
+    st.markdown("### Smart Hook Finder")
+    st.caption("ระบบวิเคราะห์จากพลังเสียง ความต่อเนื่อง และช่วงที่เงียบน้อย ยังไม่ได้วิเคราะห์ความหมายของเนื้อเพลง")
+    if st.button("Analyze Hook Candidates", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_analyze_hooks"):
+        with st.spinner("Analyzing hook candidates..."):
+            analysis_dir = ROOT / "exports" / "audio_editor" / "hook_analysis" / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}"
+            analysis = analyze_hook_candidates(source_path, output_dir=analysis_dir, ffmpeg_path=settings.ffmpeg_path)
+        editor_state["hook_analysis"] = analysis.get("data", {}) if analysis.get("ok") else {"error": analysis.get("error"), "message": analysis.get("message")}
+        project["audio_editor"] = editor_state
+        _save_project()
+        if analysis.get("ok"):
+            if (analysis.get("data") or {}).get("low_confidence"):
+                st.warning((analysis.get("data") or {}).get("message"))
+            else:
+                st.success("Hook candidates ready")
+            st.rerun()
+        else:
+            st.warning(analysis.get("message") or "Hook analysis failed. Manual cutting still works.")
+    hook_analysis = editor_state.get("hook_analysis") or {}
+    for candidate in hook_analysis.get("candidates", [])[:3]:
+        with st.container(border=True):
+            st.markdown(f"**Candidate {candidate.get('rank')}**")
+            h1, h2, h3 = st.columns(3)
+            h1.metric("Start", format_timecode(float(candidate.get("start_time", 0))))
+            h2.metric("End", format_timecode(float(candidate.get("end_time", 0))))
+            h3.metric("Confidence", f"{int(candidate.get('confidence_score', 0))}%")
+            st.caption(f"Duration: {int(float(candidate.get('duration', 0)))} sec • Energy: {int(candidate.get('energy_score', 0))}% • Activity: {int(candidate.get('vocal_activity_score', 0))}%")
+            st.write(candidate.get("reason_summary", "Manual review recommended"))
+            c_use, c_preview = st.columns(2)
+            if c_use.button("Use This Hook", use_container_width=True, key=f"audio_editor_use_hook_{candidate.get('rank')}"):
+                editor_state["start_time"] = float(candidate.get("start_time", 0))
+                editor_state["end_time"] = float(candidate.get("end_time", 0))
+                project["audio_editor"] = editor_state
+                _save_project()
+                st.rerun()
+            if c_preview.button("Preview Candidate", use_container_width=True, key=f"audio_editor_preview_hook_{candidate.get('rank')}"):
+                preview = export_audio_selection(source_path, start_time=float(candidate.get("start_time", 0)), end_time=float(candidate.get("end_time", 0)), project_name=f"{project.get('title') or 'audio_editor'} Candidate Preview", output_name=f"{Path(source_path).stem}_candidate_{candidate.get('rank')}_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+                if preview.get("ok"):
+                    editor_state["preview_result"] = preview.get("data", {})
+                    project["audio_editor"] = editor_state
+                    _save_project()
+                    st.rerun()
+                else:
+                    st.warning(preview.get("message") or preview.get("error"))
+    if hook_analysis.get("low_confidence"):
+        st.info("No strong hook candidate detected. Manual selection is recommended.")
     action_cols = st.columns(3)
     if action_cols[0].button("Reset selection", use_container_width=True, key="audio_editor_reset_selection"):
         editor_state["start_time"] = 0.0
@@ -2154,6 +2200,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             fade_out=fade_out,
             ffmpeg_path=settings.ffmpeg_path,
             max_upload_mb=max_upload_mb,
+            waveform_summary=editor_state.get("waveform") or {},
+            hook_analysis_summary={key: hook_analysis.get(key) for key in ["analysis_method", "window_sizes", "candidate_count", "low_confidence", "report_path"] if key in hook_analysis},
         )
         editor_state["start_time"] = float(start_time)
         editor_state["end_time"] = float(end_time)
@@ -2180,6 +2228,62 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             report_txt = Path(str(result_data.get("report_txt_path") or ""))
             if report_txt.is_file():
                 st.download_button("Download Edit Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="audio_editor_download_report_txt")
+    st.markdown("### Batch Hook Export")
+    st.caption("Export several social-media hook lengths from the same start marker. Items beyond the song duration are skipped with a warning.")
+    batch_options = [15, 30, 45, 60]
+    selected_batch: list[float] = []
+    batch_cols = st.columns(4)
+    for idx, batch_duration in enumerate(batch_options):
+        if batch_cols[idx].checkbox(f"{batch_duration}s", value=batch_duration in {15, 30}, key=f"audio_editor_batch_{batch_duration}s"):
+            selected_batch.append(float(batch_duration))
+    if st.button("Export Selected Durations", use_container_width=True, disabled=not selected_batch or not ffmpeg_probe.get("ok"), key="audio_editor_batch_export"):
+        batch = export_audio_batch(
+            source_path,
+            start_time=float(start_time),
+            durations=selected_batch,
+            project_name=project.get("title") or "audio_editor",
+            output_stem=f"{Path(str(source_info.get('original_filename') or source_path)).stem}_hook",
+            cut_mode=effective_mode,
+            fade_in=fade_in,
+            fade_out=fade_out,
+            ffmpeg_path=settings.ffmpeg_path,
+            max_upload_mb=max_upload_mb,
+            waveform_summary=editor_state.get("waveform") or {},
+            hook_analysis_summary={key: hook_analysis.get(key) for key in ["analysis_method", "window_sizes", "candidate_count", "low_confidence", "report_path"] if key in hook_analysis},
+        )
+        editor_state["batch_result"] = batch.get("data", {})
+        editor_state["batch_ok"] = bool(batch.get("ok"))
+        editor_state["batch_error"] = batch.get("error", "")
+        project["audio_editor"] = editor_state
+        _save_project()
+        if batch.get("ok"):
+            st.success("Batch hook exports ready")
+        else:
+            st.warning(batch.get("message") or batch.get("error") or "Batch export failed")
+        st.rerun()
+    batch_data = editor_state.get("batch_result") or {}
+    batch_generated = batch_data.get("generated_files", [])
+    batch_skipped = batch_data.get("skipped_files", [])
+    if batch_generated:
+        st.markdown("**Batch outputs**")
+        for idx, item in enumerate(batch_generated):
+            file_path = Path(str(item.get("path") or ""))
+            if file_path.is_file():
+                with st.container(border=True):
+                    st.caption(f"{item.get('duration')} seconds • {file_path.name}")
+                    st.audio(str(file_path))
+                    st.download_button("Download MP3", data=file_path.read_bytes(), file_name=file_path.name, mime="audio/mpeg", use_container_width=True, key=f"audio_editor_batch_download_{idx}_{file_path.name}")
+        zip_path = Path(str(batch_data.get("zip_path") or ""))
+        if zip_path.is_file():
+            st.download_button("Download All as ZIP", data=zip_path.read_bytes(), file_name=zip_path.name, mime="application/zip", use_container_width=True, key="audio_editor_batch_download_zip")
+    if batch_skipped:
+        with st.expander("Skipped batch durations", expanded=True):
+            for item in batch_skipped:
+                st.warning(f"{item.get('duration')}s skipped: {item.get('reason')}")
+    batch_report = batch_data.get("report") or {}
+    if batch_report and st.session_state.get("developer_mode"):
+        with st.expander("Batch Edit Report", expanded=False):
+            st.json(batch_report, expanded=False)
 
 
 def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_duration: float) -> list[dict[str, Any]]:
