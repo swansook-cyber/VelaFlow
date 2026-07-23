@@ -2486,8 +2486,15 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                 r2.metric("Refined", f"{format_timecode(float(refined_hook.get('refined_start', start_time)))} → {format_timecode(float(refined_hook.get('refined_end', end_time)))}")
                 r3.metric("Actual Duration", format_timecode(float(refined_hook.get("actual_duration", 0))))
                 r4.metric("Boundary Confidence", str(refined_hook.get("boundary_confidence", "Review")))
+                preferred_range = refined_hook.get("preferred_duration_range") or []
+                if len(preferred_range) == 2:
+                    st.caption(f"Preferred Range: {int(float(preferred_range[0]))}-{int(float(preferred_range[1]))} sec • Actual Complete Hook: {float(refined_hook.get('actual_duration', 0)):.1f} sec")
+                if refined_hook.get("phrase_completion_result"):
+                    st.caption(f"Phrase Completion Gate: {refined_hook.get('phrase_completion_result')} • Continuation penalty: {refined_hook.get('continuation_penalty', '')}")
                 for reason in refined_hook.get("reasons", [])[:4]:
                     st.caption(f"- {reason}")
+                for warning in refined_hook.get("warnings", [])[:3]:
+                    st.warning(warning)
                 accept_col, preview_col, last8_col, before_col = st.columns(4)
                 if accept_col.button("Accept Refined Boundaries", use_container_width=True, key="audio_editor_accept_refined"):
                     _sync_audio_editor_selection(editor_state, float(refined_hook.get("refined_start", start_time)), float(refined_hook.get("refined_end", end_time)), duration)
@@ -2524,6 +2531,25 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                         st.rerun()
                     else:
                         st.warning(preview.get("message") or preview.get("error"))
+                after_col, transition_col = st.columns(2)
+                if after_col.button("Play 5 Seconds After End", use_container_width=True, disabled=not ffmpeg_probe.get("ok") or refined_end >= duration - 1.0, key="audio_editor_preview_after_end"):
+                    preview = export_audio_selection(source_path, start_time=refined_end, end_time=min(duration, refined_end + 5.0), project_name=f"{project.get('title') or 'audio_editor'} After End Preview", output_name=f"{Path(source_path).stem}_after_end_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
+                    if preview.get("ok"):
+                        editor_state["preview_result"] = preview.get("data", {})
+                        project["audio_editor"] = editor_state
+                        _save_project()
+                        st.rerun()
+                    else:
+                        st.warning(preview.get("message") or preview.get("error"))
+                if transition_col.button("Preview End Transition", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_preview_end_transition"):
+                    preview = export_audio_selection(source_path, start_time=max(0.0, refined_end - 6.0), end_time=min(duration, refined_end + 4.0), project_name=f"{project.get('title') or 'audio_editor'} End Transition Preview", output_name=f"{Path(source_path).stem}_end_transition_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
+                    if preview.get("ok"):
+                        editor_state["preview_result"] = preview.get("data", {})
+                        project["audio_editor"] = editor_state
+                        _save_project()
+                        st.rerun()
+                    else:
+                        st.warning(preview.get("message") or preview.get("error"))
     st.markdown("### 3. Smart Hook Finder")
     st.caption("ระบบวิเคราะห์จากพลังเสียง ความต่อเนื่อง และช่วงที่เงียบน้อย ยังไม่ได้วิเคราะห์ความหมายของเนื้อเพลง")
     if st.button("วิเคราะห์ช่วง Hook (Analyze Hook Candidates)", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_analyze_hooks"):
@@ -2553,10 +2579,17 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             h2.metric("Refined End", format_timecode(candidate_end))
             h3.metric("Confidence", f"{int(candidate.get('boundary_confidence_score', candidate.get('confidence_score', 0)) or 0)}%")
             st.caption(f"Rough: {format_timecode(float(candidate.get('rough_start', candidate.get('start_time', 0)) or 0))} → {format_timecode(float(candidate.get('rough_end', candidate.get('end_time', 0)) or 0))} • Refined duration: {format_timecode(candidate_duration)} • Type: {candidate.get('hook_type', 'Best Hook')}")
+            preferred_range = candidate.get("preferred_duration_range") or []
+            if len(preferred_range) == 2:
+                st.caption(f"Preferred Range: {int(float(preferred_range[0]))}-{int(float(preferred_range[1]))} sec • Actual Complete Hook: {candidate_duration:.1f} sec")
+            if candidate.get("phrase_completion_result"):
+                st.caption(f"Phrase Completion Gate: {candidate.get('phrase_completion_result')} • Continuation penalty: {candidate.get('continuation_penalty', '')}")
             st.caption(f"Energy: {int(candidate.get('energy_score', 0))}% • Activity: {int(candidate.get('vocal_activity_score', 0))}%")
             st.write(candidate.get("reason_summary", "Manual review recommended"))
             for reason in candidate.get("boundary_reasons", [])[:3]:
                 st.caption(f"- {reason}")
+            for warning in candidate.get("boundary_warnings", [])[:2]:
+                st.warning(warning)
             c_use, c_preview = st.columns(2)
             if c_use.button("ใช้ช่วงนี้ (Use This Hook)", use_container_width=True, key=f"audio_editor_use_hook_{candidate.get('rank')}"):
                 refined_candidate = {

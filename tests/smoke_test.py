@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, clamp_audio_selection, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, clamp_audio_selection, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -326,6 +326,26 @@ def make_project():
         ]
     }
     return project
+
+
+def synthetic_hook_frames(segments, frame_seconds: float = 0.25):
+    frames = []
+    current = 0.0
+    for length, rms, peak_density in segments:
+        frame_count = max(1, int(round(float(length) / frame_seconds)))
+        for _ in range(frame_count):
+            frames.append(
+                {
+                    "time": round(current, 3),
+                    "duration": frame_seconds,
+                    "rms": float(rms),
+                    "peak_density": float(peak_density),
+                    "clip_density": 0.0,
+                    "silent": 1.0 if float(rms) < 0.012 else 0.0,
+                }
+            )
+            current += frame_seconds
+    return frames
 
 
 def main():
@@ -2088,6 +2108,20 @@ def main():
         moved_selection = move_audio_selection_region(5.0, 15.0, 20.0, 30.0)
         moved_left_selection = move_audio_selection_region(5.0, 15.0, -20.0, 30.0)
         assert_true(clamped_selection["start"] == 0.0 and clamped_selection["end"] == 30.0 and reversed_selection["start"] < reversed_selection["end"] and short_selection["duration"] >= 0.1 and moved_selection["start"] == 20.0 and moved_selection["end"] == 30.0 and moved_left_selection["start"] == 0.0 and moved_left_selection["duration"] == 10.0, "Interactive waveform selection clamp/drag behavior failed")
+        complete_phrase_frames = synthetic_hook_frames([(48.0, 0.09, 0.01), (8.0, 0.004, 0.0)])
+        false_dip_frames = synthetic_hook_frames([(12.0, 0.09, 0.015), (0.25, 0.005, 0.0), (8.0, 0.09, 0.015), (5.0, 0.004, 0.0)])
+        sustained_frames = synthetic_hook_frames([(30.0, 0.075, 0.006)])
+        connected_phrase_frames = synthetic_hook_frames([(30.0, 0.09, 0.015), (0.25, 0.006, 0.0), (18.0, 0.085, 0.014), (8.0, 0.004, 0.0)])
+        complete_at_48 = analyze_phrase_completion(complete_phrase_frames, 48.0)
+        incomplete_at_30 = analyze_phrase_completion(complete_phrase_frames, 30.0)
+        false_dip = analyze_phrase_completion(false_dip_frames, 12.0)
+        sustained_end = score_end_boundary(sustained_frames, 12.0)
+        expanded_connected = expand_end_to_complete_phrase(connected_phrase_frames, 30.0, 56.25, hook_type="Best Hook", rough_start=0.0, rough_end=30.0)
+        assert_true(complete_at_48["phrase_completion_result"] == "PASS" and incomplete_at_30["phrase_completion_result"] == "REJECT" and incomplete_at_30["continuation_penalty"] >= 90, "duration target should not force an incomplete 30-second endpoint")
+        assert_true(false_dip["phrase_completion_result"] == "REJECT" and false_dip["stable_boundary_duration"] < 0.5 and false_dip["immediate_reentry_delay"] is not None, "brief RMS dip inside active phrase should be rejected")
+        assert_true(sustained_end["phrase_completion_result"] == "REJECT" and sustained_end["continuation_penalty"] >= 70 and int(sustained_end["score"]) < 55, "sustained sound across endpoint should receive strong penalty")
+        assert_true(expanded_connected["phrase_completion_result"] == "PASS" and float(expanded_connected["time"]) >= 47.0 and expanded_connected["seconds_extended_to_complete_phrase"] > 15.0, "endpoint should extend forward to the next stable phrase boundary")
+        assert_true(int(complete_at_48["phrase_completion_score"]) > int(incomplete_at_30["phrase_completion_score"]) and complete_at_48["stable_boundary_duration"] >= 0.5, "complete long phrase should beat incomplete preferred-duration candidate")
         alternate_hook_source = out / "hook_clip_projects" / "smart_hook_source_alt.mp3"
         subprocess.run(
             [
@@ -2718,6 +2752,10 @@ def main():
         assert_true('st.text_input("Export Name", key="remaster_export_name")' in main_source and 'st.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
         assert_true("Smart Hook Finder" in main_source and "Smart Musical Hook — Recommended" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source, "Audio Editor V2 smart hook UI missing")
+        assert_true("Play 5 Seconds After End" in main_source and "Preview End Transition" in main_source and "Phrase Completion Gate" in main_source and "Actual Complete Hook" in main_source, "Smart Hook Finder phrase-completion verification UI missing")
+        audio_editor_source = (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8")
+        assert_true("analyze_phrase_completion" in audio_editor_source and "expand_end_to_complete_phrase" in audio_editor_source and "continuation_penalty" in audio_editor_source and "phrase_completion_result" in audio_editor_source and "stable_boundary_duration" in audio_editor_source and "seconds_extended_to_complete_phrase" in audio_editor_source, "Smart Hook Finder phrase-completion engine/report fields missing")
+        assert_true("shell=True" not in audio_editor_source, "Audio Editor must not use shell=True")
         assert_true("Batch Hook Export" not in main_source and "Export Selected Durations" not in main_source and "audio_editor_batch_export" not in main_source and "Download All as ZIP" not in main_source, "legacy fixed-duration Batch Export UI should be removed")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")
         assert_true("Create TikTok Hook" not in main_source and "Create Podcast Clip" not in main_source and "Create Affiliate Script" not in main_source and "Generate Song Package" not in main_source, "legacy creator dashboard workflows still visible")
