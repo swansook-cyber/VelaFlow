@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, analyze_hook_candidates, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, render_waveform_svg, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -665,6 +665,7 @@ def main():
     assert_true(AUDIO_EDITOR_CUT_MODES == ["Lossless Quick Cut", "Precise Cut"] and AUDIO_EDITOR_FADE_OPTIONS["Off"] == 0.0, "Audio Editor V1 cut mode/fade config failed")
     assert_true(validate_audio_selection(1.0, 3.0, 10.0)["ok"] and not validate_audio_selection(3.0, 1.0, 10.0)["ok"] and validate_audio_selection(0.0, 20.0, 10.0)["error"] == "end_beyond_duration" and validate_audio_selection(0.0, 0.5, 10.0)["error"] == "selection_too_short", "Audio Editor selection validation failed")
     assert_true({"15 seconds", "30 seconds", "45 seconds", "60 seconds", "Custom"}.issubset(set(HOOK_DURATION_PRESETS)), "Audio Editor hook duration helpers missing")
+    assert_true("Best Hook" in SMART_HOOK_TYPES and smart_hook_suffix("Best Hook") == "BestHook" and parse_time_input("01:25.5") == 85.5 and parse_time_input("85.5") == 85.5, "Smart Musical Hook type/time parsing failed")
     assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
     lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
     precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
@@ -2081,10 +2082,29 @@ def main():
         assert_true(hook_analysis["ok"] and hook_candidates and len(hook_candidates) <= 3 and Path((hook_analysis.get("data") or {}).get("report_path", "")).exists(), "Smart Hook Finder did not return/report candidates")
         first_candidate = hook_candidates[0]
         assert_true(float(first_candidate["start_time"]) >= 5.0 and float(first_candidate["end_time"]) <= 46.5 and float(first_candidate["duration"]) >= 10.0 and "component_scores" in first_candidate, "Smart Hook Finder candidate bounds/scoring failed")
+        assert_true("refined_start" in first_candidate and "refined_end" in first_candidate and "boundary_reasons" in first_candidate and float(first_candidate.get("actual_duration", 0)) > 0, "Smart Hook Finder candidate refinement missing")
         if len(hook_candidates) > 1:
             overlap = max(0.0, min(float(first_candidate["end_time"]), float(hook_candidates[1]["end_time"])) - max(float(first_candidate["start_time"]), float(hook_candidates[1]["start_time"])))
             assert_true(overlap / min(float(first_candidate["duration"]), float(hook_candidates[1]["duration"])) <= 0.5, "Smart Hook Finder candidates overlap too much")
         assert_true(analyze_hook_candidates(smart_hook_source, ffmpeg_path=find_ffmpeg()).get("data", {}).get("candidates", [])[0]["confidence_score"] == first_candidate["confidence_score"], "Smart Hook Finder scoring should be deterministic")
+        refined_hook = refine_musical_hook_boundaries(smart_hook_source, rough_start=7.4, rough_end=41.8, hook_type="Best Hook", ffmpeg_path=find_ffmpeg())
+        refined_hook_data = refined_hook.get("data", {})
+        assert_true(refined_hook["ok"] and 0 <= float(refined_hook_data.get("refined_start", -1)) <= 10.4 and 35.8 <= float(refined_hook_data.get("refined_end", 0)) <= 46.0 and float(refined_hook_data.get("actual_duration", 0)) > 25 and refined_hook_data.get("boundary_confidence") in {"High", "Medium", "Review"}, "Smart Musical Hook boundary refinement failed")
+        assert_true(abs(float(refined_hook_data.get("refined_end", 0)) - 41.8) > 0.5 and abs(float(refined_hook_data.get("actual_duration", 0)) - (float(refined_hook_data.get("refined_end", 0)) - float(refined_hook_data.get("refined_start", 0)))) < 0.01, "Smart Musical Hook should use detected musical boundaries instead of fixed rough duration")
+        smart_export = export_audio_selection(
+            smart_hook_source,
+            start_time=float(refined_hook_data["refined_start"]),
+            end_time=float(refined_hook_data["refined_end"]),
+            project_name="Smoke Smart Musical Hook",
+            output_name="smart musical hook",
+            cut_mode="Precise Cut",
+            ffmpeg_path=find_ffmpeg(),
+            smart_hook_data={**refined_hook_data, "export_mode": "Precise Cut", "fade_settings": {"fade_in": 0.0, "fade_out": 0.0}},
+            output_suffix=smart_hook_suffix("Best Hook"),
+        )
+        smart_export_data = smart_export.get("data", {})
+        smart_export_report_text = Path(smart_export_data.get("report_txt_path", "")).read_text(encoding="utf-8") if Path(smart_export_data.get("report_txt_path", "")).is_file() else ""
+        assert_true(smart_export["ok"] and Path(smart_export_data.get("hook_mp3", "")).name.endswith("_BestHook.mp3") and "Smart Musical Hook:" in smart_export_report_text and "Boundary confidence" in smart_export_report_text, "Smart Musical Hook export/report failed")
         batch_lossless = export_audio_batch(smart_hook_source, start_time=8.0, durations=[15, 30, 60], project_name="Smoke Audio Editor Batch", output_stem="smart_hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg())
         batch_data = batch_lossless.get("data", {})
         batch_files = batch_data.get("generated_files", [])
@@ -2119,6 +2139,21 @@ def main():
         with zipfile.ZipFile(Path(audio_batch_release.get("data", {}).get("zip_path", ""))) as archive:
             release_audio_names = set(archive.namelist())
         assert_true(audio_batch_release["ok"] and f"audio_editor/{build_asset_export_filename(release_title, None, 'Hook', 'mp3')}" in release_audio_names and f"audio_editor/{build_asset_export_filename(release_title, None, 'Batch_Edit_Report', 'json')}" in release_audio_names and any(name.startswith("audio_editor/batch/") and name.endswith("_Hook15.mp3") for name in release_audio_names), "Release Pack did not include Audio Editor single and batch outputs")
+        smart_audio_release = export_creative_release_pack(
+            "Smoke Smart Hook Release",
+            release_pack,
+            "Vela Moon",
+            base_dir=out / "smart_audio_release_pack",
+            audio_edit_data={
+                "hook_mp3": smart_export_data.get("hook_mp3"),
+                "report_path": smart_export_data.get("report_path"),
+                "report_txt_path": smart_export_data.get("report_txt_path"),
+                "report": smart_export_data.get("report"),
+            },
+        )
+        with zipfile.ZipFile(Path(smart_audio_release.get("data", {}).get("zip_path", ""))) as archive:
+            smart_release_names = set(archive.namelist())
+        assert_true(smart_audio_release["ok"] and f"audio_editor/{build_asset_export_filename(release_title, None, 'BestHook', 'mp3')}" in smart_release_names, "Release Pack did not include Smart Musical Hook BestHook output")
         original_hash = long_hook_source.read_bytes()
         audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
         assert_true(audio_recommend["ok"] and audio_recommend.get("data", {}).get("recommended_preset") in REMASTER_STYLES and audio_recommend.get("data", {}).get("source") == "audio_analysis", "external audio remaster recommendation failed")
@@ -2636,7 +2671,7 @@ def main():
         assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
         assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
-        assert_true("Smart Hook Finder" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source and "Batch Hook Export" in main_source and "Export Selected Durations" in main_source and "Download All as ZIP" in main_source, "Audio Editor V2 smart hook/batch UI missing")
+        assert_true("Smart Hook Finder" in main_source and "Smart Musical Hook — Recommended" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source and "Batch Hook Export" in main_source and "Export Selected Durations" in main_source and "Download All as ZIP" in main_source, "Audio Editor V2 smart hook/batch UI missing")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")
         assert_true("Create TikTok Hook" not in main_source and "Create Podcast Clip" not in main_source and "Create Affiliate Script" not in main_source and "Generate Song Package" not in main_source, "legacy creator dashboard workflows still visible")
         assert_true("Quick Song" in main_source and "_render_quick_song" in main_source and "Suno Package" in main_source and "A. Lyrics" in main_source and "B. Music Style Prompt" in main_source, "Quick Song or Suno package UI missing")

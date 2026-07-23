@@ -6178,8 +6178,16 @@ def export_creative_release_pack(
                 remaster_files[archive_name] = str(file_path)
         audio_edit_files: dict[str, str] = {}
         audio_edit = audio_edit_data or {}
+        smart_hook_report = (audio_edit.get("report") or {}).get("smart_musical_hook") or audio_edit.get("smart_musical_hook") or {}
+        smart_hook_suffixes = {
+            "Short Hook": "ShortHook",
+            "Best Hook": "BestHook",
+            "Extended Hook": "ExtendedHook",
+            "Full Chorus": "FullChorus",
+        }
+        single_hook_suffix = smart_hook_suffixes.get(str(smart_hook_report.get("hook_type") or ""), "Hook")
         audio_edit_candidates = {
-            f"audio_editor/{build_asset_export_filename(title, None, 'Hook', 'mp3')}": audio_edit.get("hook_mp3") or audio_edit.get("output_mp3"),
+            f"audio_editor/{build_asset_export_filename(title, None, single_hook_suffix, 'mp3')}": audio_edit.get("hook_mp3") or audio_edit.get("output_mp3"),
             f"audio_editor/{build_asset_export_filename(title, None, 'Edit_Report', 'json')}": audio_edit.get("report_path"),
             f"audio_editor/{build_asset_export_filename(title, None, 'Edit_Report', 'txt')}": audio_edit.get("report_txt_path"),
         }

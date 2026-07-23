@@ -35,6 +35,12 @@ HOOK_DURATION_PRESETS = {
 HOOK_ANALYSIS_DURATIONS = [30.0, 15.0]
 HOOK_ANALYSIS_STEP_SECONDS = 2.0
 WAVEFORM_TARGET_POINTS = 1600
+SMART_HOOK_TYPES = {
+    "Short Hook": {"soft_range": (15.0, 25.0), "suffix": "ShortHook"},
+    "Best Hook": {"soft_range": (25.0, 45.0), "suffix": "BestHook"},
+    "Extended Hook": {"soft_range": (40.0, 70.0), "suffix": "ExtendedHook"},
+    "Full Chorus": {"soft_range": (25.0, 75.0), "suffix": "FullChorus"},
+}
 
 
 def _source_signature(path: Path) -> dict[str, Any]:
@@ -51,6 +57,30 @@ def format_timecode(seconds: float) -> str:
     minutes, rem_ms = divmod(total_ms, 60_000)
     secs, millis = divmod(rem_ms, 1000)
     return f"{minutes:02d}:{secs:02d}.{millis:03d}"
+
+
+def parse_time_input(value: str | float | int) -> float:
+    if isinstance(value, (int, float)):
+        seconds = float(value)
+        if seconds < 0:
+            raise ValueError("time cannot be negative")
+        return seconds
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("time is empty")
+    if ":" not in text:
+        seconds = float(text)
+        if seconds < 0:
+            raise ValueError("time cannot be negative")
+        return seconds
+    parts = text.split(":")
+    if len(parts) != 2:
+        raise ValueError("time must be MM:SS or seconds")
+    minutes = int(parts[0])
+    seconds = float(parts[1])
+    if minutes < 0 or seconds < 0 or seconds >= 60:
+        raise ValueError("invalid MM:SS value")
+    return minutes * 60 + seconds
 
 
 def build_audio_editor_project_id(original_name: str) -> str:
@@ -210,6 +240,148 @@ def _frame_features(samples: array, sample_rate: int, frame_seconds: float = 0.5
             }
         )
     return frames
+
+
+def _nearest_frame(frames: list[dict[str, float]], time_value: float) -> int:
+    if not frames:
+        return 0
+    return min(range(len(frames)), key=lambda idx: abs(frames[idx]["time"] - time_value))
+
+
+def score_start_boundary(frames: list[dict[str, float]], candidate_time: float) -> dict[str, Any]:
+    idx = _nearest_frame(frames, candidate_time)
+    before = frames[max(0, idx - 4) : idx]
+    after = frames[idx : min(len(frames), idx + 4)]
+    current = frames[idx] if frames else {"rms": 0, "peak_density": 0, "clip_density": 0}
+    before_energy = sum(frame["rms"] for frame in before) / max(1, len(before))
+    after_energy = sum(frame["rms"] for frame in after) / max(1, len(after))
+    onset = max(0.0, after_energy - before_energy)
+    active_penalty = min(35, int(current["rms"] * 130))
+    transient_penalty = min(20, int(current["peak_density"] * 180))
+    clipping_penalty = min(20, int(current["clip_density"] * 300))
+    score = int(58 + onset * 320 + max(0.0, 0.05 - before_energy) * 220 - active_penalty - transient_penalty - clipping_penalty)
+    reasons: list[str] = []
+    if before_energy < 0.04:
+        reasons.append("Low energy immediately before start")
+    if onset > 0.025:
+        reasons.append("Clear phrase or section entrance after start")
+    if current["clip_density"] <= 0.001:
+        reasons.append("No clipped leading transient detected")
+    if active_penalty > 18:
+        reasons.append("Penalty: start may be inside active sustained sound")
+    return {"time": round(candidate_time, 3), "score": max(0, min(100, score)), "reasons": reasons, "before_energy": round(before_energy, 4), "after_energy": round(after_energy, 4)}
+
+
+def score_end_boundary(frames: list[dict[str, float]], candidate_time: float) -> dict[str, Any]:
+    idx = _nearest_frame(frames, candidate_time)
+    before = frames[max(0, idx - 5) : idx]
+    after = frames[idx : min(len(frames), idx + 5)]
+    current = frames[idx] if frames else {"rms": 0, "peak_density": 0, "clip_density": 0}
+    before_energy = sum(frame["rms"] for frame in before) / max(1, len(before))
+    after_energy = sum(frame["rms"] for frame in after) / max(1, len(after))
+    local_min_bonus = max(0.0, before_energy - current["rms"]) * 260
+    decay_bonus = max(0.0, before_energy - after_energy) * 230
+    silence_bonus = max(0.0, 0.035 - after_energy) * 250
+    active_penalty = min(40, int(current["rms"] * 150))
+    rise_penalty = min(30, int(max(0.0, after_energy - before_energy) * 220))
+    transient_penalty = min(22, int(current["peak_density"] * 220))
+    score = int(52 + local_min_bonus + decay_bonus + silence_bonus - active_penalty - rise_penalty - transient_penalty)
+    reasons: list[str] = []
+    if current["rms"] < before_energy:
+        reasons.append("End aligned near local energy minimum")
+    if after_energy < before_energy:
+        reasons.append("Phrase decay or reduced activity after boundary")
+    if after_energy < 0.04:
+        reasons.append("Short pause or low-energy tail after end")
+    if active_penalty > 20:
+        reasons.append("Penalty: boundary is still musically active")
+    if transient_penalty > 10:
+        reasons.append("Penalty: strong transient near cut point")
+    return {"time": round(candidate_time, 3), "score": max(0, min(100, score)), "reasons": reasons, "before_energy": round(before_energy, 4), "after_energy": round(after_energy, 4)}
+
+
+def _search_boundary(frames: list[dict[str, float]], rough_time: float, source_duration: float, *, window: float, boundary_type: str) -> dict[str, Any]:
+    start = max(0.0, rough_time - window)
+    end = min(source_duration, rough_time + window)
+    step = 0.1
+    best: dict[str, Any] | None = None
+    current = start
+    while current <= end + 0.001:
+        scored = score_start_boundary(frames, current) if boundary_type == "start" else score_end_boundary(frames, current)
+        distance_penalty = min(18, int(abs(current - rough_time) * 2.2))
+        scored["score"] = max(0, int(scored["score"]) - distance_penalty)
+        if best is None or int(scored["score"]) > int(best["score"]):
+            best = scored
+        current += step
+    return best or {"time": round(rough_time, 3), "score": 0, "reasons": ["Boundary search unavailable"]}
+
+
+def smart_hook_suffix(hook_type: str) -> str:
+    return str((SMART_HOOK_TYPES.get(hook_type) or {}).get("suffix") or "Hook")
+
+
+def refine_musical_hook_boundaries(
+    source_audio_path: str | Path,
+    *,
+    rough_start: float,
+    rough_end: float,
+    hook_type: str = "Best Hook",
+    ffmpeg_path: str = "",
+    start_window: float = 3.0,
+    end_window: float = 6.0,
+    max_upload_mb: int = 200,
+) -> dict[str, Any]:
+    source = Path(source_audio_path)
+    validation = validate_audio_editor_input(source, max_upload_mb=max_upload_mb)
+    if not validation.get("ok"):
+        return {"ok": False, "message": validation.get("message", "Invalid audio"), "error": validation.get("error", "invalid_audio")}
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return {"ok": False, "message": "FFmpeg not found", "error": "missing_ffmpeg"}
+    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    duration = float(probe.get("duration") or 0)
+    selection = validate_audio_selection(rough_start, rough_end, duration)
+    if not selection.get("ok"):
+        return {"ok": False, "message": selection.get("message", "Invalid selection"), "error": selection.get("error", "invalid_selection")}
+    decoded = _decode_pcm_mono(source, ffmpeg_path=ffmpeg, max_duration=min(480.0, duration or 480.0))
+    if not decoded.get("ok"):
+        return decoded
+    frames = _frame_features(decoded["data"]["samples"], int(decoded["data"]["sample_rate"]), frame_seconds=0.25)
+    start_boundary = _search_boundary(frames, float(rough_start), duration, window=float(start_window), boundary_type="start")
+    end_boundary = _search_boundary(frames, float(rough_end), duration, window=float(end_window), boundary_type="end")
+    refined_start = max(0.0, min(float(start_boundary["time"]), duration))
+    refined_end = max(refined_start + 1.0, min(float(end_boundary["time"]), duration))
+    if refined_end <= refined_start:
+        refined_start = float(rough_start)
+        refined_end = float(rough_end)
+    actual_duration = refined_end - refined_start
+    confidence_score = int((int(start_boundary["score"]) * 0.42) + (int(end_boundary["score"]) * 0.58))
+    soft_range = (SMART_HOOK_TYPES.get(hook_type) or SMART_HOOK_TYPES["Best Hook"])["soft_range"]
+    range_note = "Actual duration preserved musical boundary instead of forcing exact length."
+    if soft_range[0] <= actual_duration <= soft_range[1]:
+        range_note = "Actual duration sits within the soft target range."
+    reasons = list(dict.fromkeys([*start_boundary.get("reasons", []), *end_boundary.get("reasons", []), range_note]))
+    return {
+        "ok": True,
+        "data": {
+            "source_audio": str(source),
+            "hook_type": hook_type,
+            "rough_start": round(float(rough_start), 3),
+            "rough_end": round(float(rough_end), 3),
+            "refined_start": round(refined_start, 3),
+            "refined_end": round(refined_end, 3),
+            "actual_duration": round(actual_duration, 3),
+            "boundary_confidence": "High" if confidence_score >= 76 else "Medium" if confidence_score >= 55 else "Low",
+            "boundary_confidence_score": max(0, min(100, confidence_score)),
+            "start_boundary_score": int(start_boundary["score"]),
+            "end_boundary_score": int(end_boundary["score"]),
+            "start_boundary": start_boundary,
+            "end_boundary": end_boundary,
+            "reasons": reasons,
+            "user_override_status": "Smart Refined",
+        },
+        "error": "",
+    }
 
 
 def generate_waveform_data(
@@ -440,6 +612,27 @@ def analyze_hook_candidates(
             break
     for idx, candidate in enumerate(deduped, start=1):
         candidate["rank"] = idx
+        hook_type = "Best Hook" if float(candidate.get("duration", 0)) >= 25 else "Short Hook"
+        refined = refine_musical_hook_boundaries(
+            source,
+            rough_start=float(candidate["start_time"]),
+            rough_end=float(candidate["end_time"]),
+            hook_type=hook_type,
+            ffmpeg_path=ffmpeg,
+        )
+        candidate["hook_type"] = hook_type
+        if refined.get("ok"):
+            rdata = refined["data"]
+            candidate["rough_start"] = candidate["start_time"]
+            candidate["rough_end"] = candidate["end_time"]
+            candidate["refined_start"] = rdata["refined_start"]
+            candidate["refined_end"] = rdata["refined_end"]
+            candidate["actual_duration"] = rdata["actual_duration"]
+            candidate["boundary_confidence"] = rdata["boundary_confidence"]
+            candidate["boundary_confidence_score"] = rdata["boundary_confidence_score"]
+            candidate["start_boundary_score"] = rdata["start_boundary_score"]
+            candidate["end_boundary_score"] = rdata["end_boundary_score"]
+            candidate["boundary_reasons"] = rdata["reasons"]
     low_confidence = not deduped or max(item["confidence_score"] for item in deduped) < 55
     report = {
         "ok": True,
@@ -504,6 +697,26 @@ def _report_text(report: dict[str, Any]) -> str:
             f"- Window sizes: {hook_analysis.get('window_sizes', '')}",
             f"- Candidate count: {hook_analysis.get('candidate_count', '')}",
         ]
+    smart_hook = report.get("smart_musical_hook") or {}
+    if smart_hook:
+        rows += [
+            "",
+            "Smart Musical Hook:",
+            f"- Hook type: {smart_hook.get('hook_type', '')}",
+            f"- Rough start: {smart_hook.get('rough_start', '')}",
+            f"- Rough end: {smart_hook.get('rough_end', '')}",
+            f"- Refined start: {smart_hook.get('refined_start', '')}",
+            f"- Refined end: {smart_hook.get('refined_end', '')}",
+            f"- Actual duration: {smart_hook.get('actual_duration', '')}",
+            f"- Boundary confidence: {smart_hook.get('boundary_confidence', '')}",
+            f"- Start boundary score: {smart_hook.get('start_boundary_score', '')}",
+            f"- End boundary score: {smart_hook.get('end_boundary_score', '')}",
+            f"- User override status: {smart_hook.get('user_override_status', '')}",
+            f"- Export mode: {smart_hook.get('export_mode', report.get('cut_mode', ''))}",
+            f"- Fade settings: {smart_hook.get('fade_settings', {'fade_in': report.get('fade_in', 0), 'fade_out': report.get('fade_out', 0)})}",
+            "Reasons:",
+            *[f"- {reason}" for reason in smart_hook.get("reasons", [])],
+        ]
     return "\n".join(rows)
 
 
@@ -561,6 +774,8 @@ def export_audio_selection(
     preview: bool = False,
     waveform_summary: dict[str, Any] | None = None,
     hook_analysis_summary: dict[str, Any] | None = None,
+    smart_hook_data: dict[str, Any] | None = None,
+    output_suffix: str = "Hook",
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -591,7 +806,7 @@ def export_audio_selection(
     source_copy = original_dir / f"source.{source.suffix.lower().lstrip('.')}"
     shutil.copy2(source, source_copy)
     safe_stem = export_name_base(output_name, source.name)
-    output_path = ensure_unique_path(output_dir / build_asset_export_filename(output_name, source.name, "Hook", "mp3"))
+    output_path = ensure_unique_path(output_dir / build_asset_export_filename(output_name, source.name, output_suffix or "Hook", "mp3"))
     mode, warnings = effective_cut_mode(source, cut_mode, fade_in, fade_out)
     command = build_audio_cut_command(
         ffmpeg,
@@ -639,6 +854,7 @@ def export_audio_selection(
         "preview": preview,
         "waveform": waveform_summary or {},
         "smart_hook_finder": hook_analysis_summary or {},
+        "smart_musical_hook": smart_hook_data or {},
     }
     report_path = reports_dir / "edit_report.json"
     report_txt_path = reports_dir / "edit_report.txt"
