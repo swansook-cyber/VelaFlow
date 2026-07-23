@@ -112,7 +112,7 @@ from core.emotional_arc import analyze_emotional_arc
 from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.ffmpeg_utils import configure_moviepy_ffmpeg, ffmpeg_version
-from core.file_naming import export_name_base
+from core.file_naming import audio_source_export_name, export_name_base
 from core.healthcheck import run_healthcheck, run_pre_render_healthcheck
 from core.hook_intelligence import analyze_hooks
 from core.hook_clip_engine import build_hook_render_package, export_hook_clip_package, hook_clip_package_to_text
@@ -1918,6 +1918,34 @@ def _project_song_metadata_for_remaster(project: dict[str, Any]) -> dict[str, An
     }
 
 
+def _audio_source_signature(source_info: dict[str, Any], source_path: str | Path = "") -> str:
+    return "|".join(
+        [
+            str(source_info.get("source_type") or ""),
+            str(source_info.get("original_filename") or ""),
+            str(source_path or source_info.get("path") or ""),
+        ]
+    )
+
+
+def _sync_audio_export_name(state: dict[str, Any], *, source_info: dict[str, Any], source_path: str | Path, project: dict[str, Any]) -> str:
+    metadata = _project_song_metadata_for_remaster(project)
+    default_name = audio_source_export_name(
+        source_type=source_info.get("source_type"),
+        original_filename=source_info.get("original_filename") or Path(str(source_path or "")).name,
+        song_title=metadata.get("song_title"),
+        project_title=project.get("title"),
+    )
+    signature = _audio_source_signature(source_info, source_path)
+    if state.get("export_name_source_signature") != signature:
+        state["export_name"] = default_name
+        state["export_name_source_signature"] = signature
+        state["export_name_manual"] = False
+    elif not state.get("export_name") or not state.get("export_name_manual"):
+        state["export_name"] = default_name
+    return str(state.get("export_name") or default_name)
+
+
 def _render_remaster_studio(project: dict[str, Any]) -> None:
     _page_header("Remaster Studio", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
     st.caption("Separate workspace for completed audio from Suno, Udio, or another source. Local FFmpeg only. Original audio stays unchanged.")
@@ -1947,7 +1975,12 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 upload_result["data"]["original_filename"] = uploaded.name
                 upload_result["data"]["format"] = ext.upper()
                 upload_result["data"]["size_bytes"] = uploaded.size
+                upload_result["data"]["source_type"] = "External Upload"
                 remaster_state["source_audio"] = upload_result["data"]
+                remaster_state["export_name"] = audio_source_export_name(source_type="External Upload", original_filename=uploaded.name)
+                remaster_state["export_name_source_signature"] = _audio_source_signature(upload_result["data"], upload_result["data"].get("path", ""))
+                remaster_state["export_name_manual"] = False
+                st.session_state["remaster_export_name"] = remaster_state["export_name"]
                 project["remaster_studio"] = remaster_state
                 _save_project()
                 st.success("Original audio uploaded")
@@ -1971,6 +2004,21 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.audio(source_path)
     else:
         st.info("Upload a finished MP3 or WAV to begin.")
+    if source_path and Path(source_path).is_file():
+        default_export_name = _sync_audio_export_name(remaster_state, source_info=source_info, source_path=source_path, project=project)
+        if not remaster_state.get("export_name_manual"):
+            st.session_state["remaster_export_name"] = default_export_name
+        export_name_value = st.text_input("Export Name", value=default_export_name, key="remaster_export_name")
+        if export_name_value != remaster_state.get("export_name"):
+            remaster_state["export_name"] = export_name_value
+            remaster_state["export_name_manual"] = export_name_value != audio_source_export_name(
+                source_type=source_info.get("source_type"),
+                original_filename=source_info.get("original_filename") or Path(source_path).name,
+                song_title=_project_song_metadata_for_remaster(project).get("song_title"),
+                project_title=project.get("title"),
+            )
+            project["remaster_studio"] = remaster_state
+            _save_project()
     st.markdown("### 3. Preset Selection")
     selection_mode = st.radio("Preset Selection", REMASTER_RECOMMENDATION_MODES, index=0, horizontal=True, key="remaster_preset_selection_mode")
     project_metadata = _project_song_metadata_for_remaster(project)
@@ -2037,7 +2085,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.caption("V1 uses safe preset values for high-pass filtering, EQ balance, compression, vocal presence, stereo width, limiting, and output loudness. Manual audio controls are intentionally hidden.")
     st.caption("Workflow: Upload Audio -> Audio Analysis -> Choose Mastering Preset -> Process Audio -> Preview Result -> Export WAV + MP3")
     if st.button("4. Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
-        remaster_export_title = _project_song_metadata_for_remaster(project).get("song_title") or project.get("title") or "remaster_project"
+        remaster_export_title = str(remaster_state.get("export_name") or _sync_audio_export_name(remaster_state, source_info=source_info, source_path=source_path, project=project))
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
             result = remaster_song_audio(
                 source_path,
@@ -2062,6 +2110,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 "created_at": datetime.now().isoformat(timespec="seconds"),
                 "remaster_recommendation": (data.get("report") or {}).get("remaster_recommendation") or remaster_state.get("remaster_recommendation") or {},
                 "selected_preset": style,
+                "export_name": remaster_export_title,
             }
         project["remaster_studio"] = remaster_state
         _save_project()
@@ -2113,7 +2162,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.download_button(
             "Download Remaster Package ZIP",
             data=zip_path.read_bytes(),
-            file_name="remaster_package.zip",
+            file_name=zip_path.name,
             mime="application/zip",
             use_container_width=True,
             key="download_remaster_package_zip",
@@ -2217,6 +2266,10 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     upload_result["data"]["mime_type"] = getattr(uploaded, "type", "")
                     upload_result["data"]["source_type"] = "External Upload"
                     editor_state["source_audio"] = upload_result["data"]
+                    editor_state["export_name"] = audio_source_export_name(source_type="External Upload", original_filename=uploaded.name)
+                    editor_state["export_name_source_signature"] = _audio_source_signature(upload_result["data"], upload_result["data"].get("path", ""))
+                    editor_state["export_name_manual"] = False
+                    st.session_state["audio_editor_export_name"] = editor_state["export_name"]
                     project["audio_editor"] = editor_state
                     _save_project()
                     st.success("External MP3 uploaded")
@@ -2240,6 +2293,20 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     c5.metric("Sample Rate", f"{probe.get('sample_rate', 0)} Hz" if probe.get("sample_rate") else "Unknown")
     c6.metric("Bitrate", str(probe.get("audio_bit_rate") or "Unknown"))
     st.audio(source_path)
+    default_audio_export_name = _sync_audio_export_name(editor_state, source_info=source_info, source_path=source_path, project=project)
+    if not editor_state.get("export_name_manual"):
+        st.session_state["audio_editor_export_name"] = default_audio_export_name
+    audio_export_name = st.text_input("Export Name", value=default_audio_export_name, key="audio_editor_export_name")
+    if audio_export_name != editor_state.get("export_name"):
+        editor_state["export_name"] = audio_export_name
+        editor_state["export_name_manual"] = audio_export_name != audio_source_export_name(
+            source_type=source_info.get("source_type"),
+            original_filename=source_info.get("original_filename") or Path(source_path).name,
+            song_title=_project_song_metadata_for_remaster(project).get("song_title"),
+            project_title=project.get("title"),
+        )
+        project["audio_editor"] = editor_state
+        _save_project()
     editor_mode = st.radio(
         "Hook Workflow",
         ["Smart Musical Hook — Recommended", "Precise Manual Cut"],
@@ -2528,9 +2595,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         st.warning("Re-encoding required: fades automatically use Precise Cut.")
     if smart_mode and effective_mode != "Precise Cut":
         st.info("Smart Musical Hook uses Precise Cut by default so refined boundaries stay accurate. Lossless is available only as an explicit manual choice.")
-    song_metadata_for_export = _project_song_metadata_for_remaster(project)
-    audio_export_base = export_name_base(song_metadata_for_export.get("song_title") or project.get("title"), source_info.get("original_filename") or source_path)
-    custom_name = st.text_input("Output base name", value=audio_export_base, key="audio_editor_output_name")
+    audio_export_base = str(editor_state.get("export_name") or default_audio_export_name)
+    custom_name = audio_export_base
     st.markdown("### 5. Single Export")
     if st.button("ส่งออก Hook MP3 (Export Hook MP3)", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
         selected_smart_hook = dict(editor_state.get("smart_refined_hook") or {}) if smart_mode else {}

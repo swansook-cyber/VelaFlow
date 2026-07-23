@@ -381,6 +381,7 @@ def remaster_song_audio(
         report = {
             "ok": False,
             "style": style,
+            "export_name": project_name,
             "source_path": str(source_copy),
             "mastered_wav": str(wav_path),
             "source_probe": source_probe,
@@ -408,6 +409,7 @@ def remaster_song_audio(
         "ok": True,
         "project_id": project_id,
         "original_filename": source.name,
+        "export_name": project_name,
         "input_format": input_validation.get("format"),
         "input_sample_rate": source_probe.get("sample_rate", "unknown"),
         "input_duration": source_probe.get("duration", 0),
@@ -466,6 +468,7 @@ def remaster_song_audio(
         "data": {
             "project_id": project_id,
             "original_audio": str(source_copy),
+            "export_name": project_name,
             "mastered_wav": str(wav_path),
             "mp3_preview": str(mp3_path) if mp3_path.is_file() and mp3.get("ok") else "",
             "mastered_mp3": str(mp3_path) if mp3_path.is_file() and mp3.get("ok") else "",

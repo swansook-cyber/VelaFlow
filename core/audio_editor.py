@@ -830,6 +830,7 @@ def export_audio_selection(
         "ok": True,
         "project_id": project_id,
         "original_filename": source.name,
+        "export_name": safe_stem,
         "input_duration": probe.get("duration", 0),
         "input_format": validation.get("format", ""),
         "input_codec": probe.get("audio_codec", ""),
@@ -871,6 +872,7 @@ def export_audio_selection(
         "data": {
             "project_id": project_id,
             "original_audio": str(source_copy),
+            "export_name": safe_stem,
             "hook_mp3": str(output_path),
             "output_mp3": str(output_path),
             "report_path": str(report_path),
@@ -951,6 +953,7 @@ def export_audio_batch(
         "ok": bool(generated),
         "project_id": project_id,
         "original_filename": source.name,
+        "export_name": safe_stem,
         "input_duration": source_duration,
         "selected_start": float(start_time),
         "selected_durations": [int(item) for item in selected_durations],
@@ -987,6 +990,7 @@ def export_audio_batch(
         "data": {
             "project_id": project_id,
             "original_audio": str(source_copy),
+            "export_name": safe_stem,
             "generated_files": generated,
             "skipped_files": skipped,
             "report": report,

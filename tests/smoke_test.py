@@ -55,7 +55,7 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
-from core.file_naming import build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, make_safe_filename, sanitize_filename
+from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, make_safe_filename, sanitize_filename
 from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
@@ -528,6 +528,9 @@ def main():
     assert_true(make_safe_filename('  ผู้พิทักษ์โลก  ') == 'ผู้พิทักษ์โลก' and make_safe_filename('Best  Song / Ever?.mp3') == 'Best Song Ever.mp3', "safe export filename cleanup failed")
     assert_true(make_safe_filename('A' * 150) == 'A' * 120 and make_safe_filename('ชื่อเพลง...') == 'ชื่อเพลง', "safe export filename length/trailing dot failed")
     assert_true(export_name_base('ผู้พิทักษ์โลก', 'audio_20260723.mp3') == 'ผู้พิทักษ์โลก' and export_name_base('', 'Best Song Ever.mp3') == 'Best Song Ever' and export_name_base('', '') == 'Untitled', "export filename priority failed")
+    assert_true(audio_source_export_name(source_type="External Upload", original_filename="k-den พาฟิน.mp3", song_title="พอได้แล้วใจ") == "k-den พาฟิน", "external upload export name should override stale project title")
+    assert_true(audio_source_export_name(source_type="Project Master", original_filename="k-den พาฟิน.mp3", song_title="พอได้แล้วใจ") == "พอได้แล้วใจ", "project master export name should use current song title")
+    assert_true(audio_source_export_name(source_type="External Upload", original_filename="Fiore Sports2026.mp3", song_title="Demo Song") == "Fiore Sports2026", "mixed English/Thai external export fallback failed")
     assert_true(build_asset_export_filename('ผู้พิทักษ์โลก', '', 'Master', 'mp3') == 'ผู้พิทักษ์โลก_Master.mp3' and build_asset_export_filename('', 'Best Song Ever.mp3', 'Hook30', 'mp3') == 'Best Song Ever_Hook30.mp3', "asset export filename builder failed")
     export_text_with_title = "====================\nSONG METADATA\n====================\n\nSong title: เดินต่อ\n"
     assert_true(extract_song_title_from_export_text(export_text_with_title) == "เดินต่อ", "export title parser failed")
@@ -728,6 +731,20 @@ def main():
     with zipfile.ZipFile(master_hook_zip) as archive:
         master_hook_names = set(archive.namelist())
     assert_true({f"remaster/{build_asset_export_filename(release_title, None, 'Master', 'wav')}", f"remaster/{build_asset_export_filename(release_title, None, 'Master', 'mp3')}", f"audio_editor/{build_asset_export_filename(release_title, None, 'Hook', 'mp3')}", f"audio_editor/{build_asset_export_filename(release_title, None, 'Edit_Report', 'json')}"}.issubset(master_hook_names), "release pack did not include master and hook outputs together")
+    external_release_name = "k-den พาฟิน"
+    release_with_external_name = export_creative_release_pack(
+        "Stale Project Title",
+        release_pack,
+        "Vela Moon",
+        base_dir=out / "creative_pack_external_named",
+        remaster_data={"export_name": external_release_name, "mastered_wav": str(dummy_wav), "mastered_mp3": str(dummy_mp3), "report_path": str(dummy_report), "report_txt_path": str(dummy_report_txt)},
+        audio_edit_data={"export_name": external_release_name, "hook_mp3": str(dummy_hook), "report_path": str(dummy_edit_report), "report_txt_path": str(dummy_edit_report_txt), "report": {"export_name": external_release_name, "smart_musical_hook": {"hook_type": "Best Hook"}}},
+    )
+    external_release_zip = Path((release_with_external_name.get("data") or {}).get("zip_path", ""))
+    with zipfile.ZipFile(external_release_zip) as archive:
+        external_release_names = set(archive.namelist())
+    expected_external_zip_stem = build_asset_export_filename(external_release_name, None, "Release", "zip").removesuffix(".zip")
+    assert_true(external_release_zip.name.startswith(expected_external_zip_stem) and external_release_zip.name.endswith(".zip") and {f"remaster/{build_asset_export_filename(external_release_name, None, 'Master', 'wav')}", f"remaster/{build_asset_export_filename(external_release_name, None, 'Master', 'mp3')}", f"audio_editor/{build_asset_export_filename(external_release_name, None, 'BestHook', 'mp3')}"}.issubset(external_release_names), "Release Pack did not use resolved external export name consistently")
     diversity_memory_path = out / "diversity_memory.json"
     saved_diversity_memory = save_diversity_memory(
         {
@@ -2105,6 +2122,11 @@ def main():
         smart_export_data = smart_export.get("data", {})
         smart_export_report_text = Path(smart_export_data.get("report_txt_path", "")).read_text(encoding="utf-8") if Path(smart_export_data.get("report_txt_path", "")).is_file() else ""
         assert_true(smart_export["ok"] and Path(smart_export_data.get("hook_mp3", "")).name.endswith("_BestHook.mp3") and "Smart Musical Hook:" in smart_export_report_text and "Boundary confidence" in smart_export_report_text, "Smart Musical Hook export/report failed")
+        external_hook_source = out / "hook_clip_projects" / "k-den พาฟิน hook.mp3"
+        shutil.copy2(smart_hook_source, external_hook_source)
+        external_hook_base = audio_source_export_name(source_type="External Upload", original_filename=external_hook_source.name, song_title="พอได้แล้วใจ")
+        external_hook_export = export_audio_selection(external_hook_source, start_time=float(refined_hook_data["refined_start"]), end_time=float(refined_hook_data["refined_end"]), project_name="Stale Project Title", output_name=external_hook_base, cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_suffix=smart_hook_suffix("Best Hook"))
+        assert_true(external_hook_export["ok"] and Path((external_hook_export.get("data") or {}).get("hook_mp3", "")).name == "k-den พาฟิน hook_BestHook.mp3" and (external_hook_export.get("data") or {}).get("export_name") == "k-den พาฟิน hook", "external upload Smart Hook export name should come from uploaded filename")
         batch_lossless = export_audio_batch(smart_hook_source, start_time=8.0, durations=[15, 30, 60], project_name="Smoke Audio Editor Batch", output_stem="smart_hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg())
         batch_data = batch_lossless.get("data", {})
         batch_files = batch_data.get("generated_files", [])
@@ -2153,7 +2175,7 @@ def main():
         )
         with zipfile.ZipFile(Path(smart_audio_release.get("data", {}).get("zip_path", ""))) as archive:
             smart_release_names = set(archive.namelist())
-        assert_true(smart_audio_release["ok"] and f"audio_editor/{build_asset_export_filename(release_title, None, 'BestHook', 'mp3')}" in smart_release_names, "Release Pack did not include Smart Musical Hook BestHook output")
+        assert_true(smart_audio_release["ok"] and f"audio_editor/{build_asset_export_filename(smart_export_data.get('export_name'), None, 'BestHook', 'mp3')}" in smart_release_names, "Release Pack did not include Smart Musical Hook BestHook output")
         original_hash = long_hook_source.read_bytes()
         audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
         assert_true(audio_recommend["ok"] and audio_recommend.get("data", {}).get("recommended_preset") in REMASTER_STYLES and audio_recommend.get("data", {}).get("source") == "audio_analysis", "external audio remaster recommendation failed")
@@ -2163,6 +2185,12 @@ def main():
         subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo:d=12", "-c:a", "libmp3lame", str(silent_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         quiet_recommend = analyze_audio_for_remaster_recommendation(silent_source, ffmpeg_path=find_ffmpeg())
         assert_true(quiet_recommend["ok"] and quiet_recommend.get("data", {}).get("recommended_preset") == "Streaming Balanced" and quiet_recommend.get("data", {}).get("confidence") == "Low", "low-confidence remaster recommendation failed")
+        external_upload_source = out / "hook_clip_projects" / "k-den พาฟิน.mp3"
+        shutil.copy2(long_hook_source, external_upload_source)
+        external_upload_base = audio_source_export_name(source_type="External Upload", original_filename=external_upload_source.name, song_title="พอได้แล้วใจ")
+        external_remaster = remaster_song_audio(external_upload_source, project_name=external_upload_base, remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
+        external_remaster_data = external_remaster.get("data", {})
+        assert_true(external_remaster["ok"] and Path(external_remaster_data.get("mastered_wav", "")).name == "k-den พาฟิน_Master.wav" and Path(external_remaster_data.get("mastered_mp3", "")).name == "k-den พาฟิน_Master.mp3" and Path(external_remaster_data.get("report_path", "")).name == "k-den พาฟิน_Remaster_Report.json" and external_remaster_data.get("export_name") == "k-den พาฟิน", "external upload remaster export names should come from uploaded filename")
         manual_recommendation = dict(audio_recommend.get("data", {}))
         manual_recommendation["selected_preset"] = "Vocal Focus"
         remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation)
@@ -2669,7 +2697,7 @@ def main():
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and "1. Upload Audio" in main_source and "4. Process Audio" in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "Remaster Studio UI missing")
         assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
-        assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
+        assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor UI missing")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
         assert_true("Smart Hook Finder" in main_source and "Smart Musical Hook — Recommended" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source and "Batch Hook Export" in main_source and "Export Selected Durations" in main_source and "Download All as ZIP" in main_source, "Audio Editor V2 smart hook/batch UI missing")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")

@@ -36,6 +36,19 @@ def export_name_base(song_title: str | None = None, original_filename: str | Non
     return "Untitled"
 
 
+def audio_source_export_name(
+    *,
+    source_type: str | None = None,
+    original_filename: str | None = None,
+    song_title: str | None = None,
+    project_title: str | None = None,
+) -> str:
+    source_label = str(source_type or "").strip().lower()
+    if "external" in source_label or "upload" in source_label:
+        return export_name_base("", original_filename)
+    return export_name_base(song_title or project_title, original_filename)
+
+
 def build_asset_export_filename(song_title: str | None, original_filename: str | None, suffix: str, ext: str) -> str:
     base = export_name_base(song_title, original_filename)
     clean_suffix = make_safe_filename(suffix).replace(" ", "_")

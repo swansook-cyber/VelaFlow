@@ -6152,7 +6152,15 @@ def export_creative_release_pack(
 ) -> dict[str, Any]:
     try:
         pack = result.get("pack") or {}
-        title = str(pack.get("Suggested title") or project_name or "VelaFlow Release")
+        remaster = remaster_data or {}
+        audio_edit = audio_edit_data or {}
+        external_export_name = (
+            remaster.get("export_name")
+            or (remaster.get("report") or {}).get("export_name")
+            or audio_edit.get("export_name")
+            or (audio_edit.get("report") or {}).get("export_name")
+        )
+        title = str(external_export_name or pack.get("Suggested title") or project_name or "VelaFlow Release")
         root = Path(base_dir) if base_dir else workflow_project_root("song") / sanitize_filename(project_name or title)
         export_dir = root / "exports" / "release_pack"
         export_dir.mkdir(parents=True, exist_ok=True)
@@ -6165,7 +6173,6 @@ def export_creative_release_pack(
         release_pack_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         written["release_pack.txt"] = str(release_pack_path)
         remaster_files: dict[str, str] = {}
-        remaster = remaster_data or {}
         remaster_candidates = {
             f"remaster/{build_asset_export_filename(title, None, 'Master', 'wav')}": remaster.get("mastered_wav"),
             f"remaster/{build_asset_export_filename(title, None, 'Master', 'mp3')}": remaster.get("mastered_mp3") or remaster.get("mp3_preview"),
@@ -6177,7 +6184,6 @@ def export_creative_release_pack(
             if file_path.is_file():
                 remaster_files[archive_name] = str(file_path)
         audio_edit_files: dict[str, str] = {}
-        audio_edit = audio_edit_data or {}
         smart_hook_report = (audio_edit.get("report") or {}).get("smart_musical_hook") or audio_edit.get("smart_musical_hook") or {}
         smart_hook_suffixes = {
             "Short Hook": "ShortHook",
