@@ -5,6 +5,7 @@ import json
 import hashlib
 import os
 import shutil
+import subprocess
 import sys
 import time
 import zipfile
@@ -234,7 +235,7 @@ from core.render_queue import (
     start_render_job as start_creator_render_job,
 )
 from core.storage_cleanup import cleanup_project_storage
-from core.real_clip_pipeline import ensure_parent_dir, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
+from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
 from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, recommend_remaster_preset_from_metadata, remaster_song_audio
@@ -1944,6 +1945,123 @@ def _resolved_audio_export_default(*, source_info: dict[str, Any], source_path: 
     )
 
 
+def _audio_file_fingerprint(path: str | Path) -> str:
+    audio = Path(path)
+    if not audio.is_file():
+        return f"missing|{audio}"
+    stat = audio.stat()
+    return f"{audio.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
+
+
+def _validate_preview_audio_payload(path: str | Path, *, mime_type: str, ffmpeg_path: str = "") -> dict[str, Any]:
+    audio = Path(path)
+    if not audio.is_file():
+        return {"ok": False, "reason": "missing_file", "mime_type": mime_type, "payload_size": 0, "path": str(audio)}
+    payload_size = audio.stat().st_size
+    if payload_size <= 0:
+        return {"ok": False, "reason": "empty_file", "mime_type": mime_type, "payload_size": payload_size, "path": str(audio)}
+    probe = probe_media(audio, ffmpeg_path=ffmpeg_path)
+    codec = str(probe.get("audio_codec") or "").lower()
+    expected_codec_ok = codec.startswith("mp3") if mime_type == "audio/mpeg" else codec.startswith("pcm") or codec in {"wavpack"}
+    ok = bool(probe.get("ok") and probe.get("has_audio") and float(probe.get("duration") or 0) > 0 and expected_codec_ok)
+    return {
+        "ok": ok,
+        "reason": "" if ok else (probe.get("error") or f"codec_mismatch:{codec or 'unknown'}"),
+        "codec": codec,
+        "sample_rate": probe.get("sample_rate", 0),
+        "channels": probe.get("channels", 0),
+        "bitrate": probe.get("audio_bit_rate", 0),
+        "duration": probe.get("duration", 0),
+        "mime_type": mime_type,
+        "payload_size": payload_size,
+        "source_used_for_preview": str(audio),
+        "ffprobe_ok": bool(probe.get("ok")),
+    }
+
+
+def _build_safari_preview_mp3(source_path: str | Path, *, cache_stem: str, ffmpeg_path: str = "") -> dict[str, Any]:
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return {"ok": False, "reason": "missing_ffmpeg"}
+    source = Path(source_path)
+    preview_dir = ROOT / "exports" / "remaster" / "previews"
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha1(_audio_file_fingerprint(source).encode("utf-8")).hexdigest()[:16]
+    preview_path = preview_dir / f"{safe_name(cache_stem or source.stem)}_{digest}_safari_preview.mp3"
+    if not preview_path.is_file():
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-i",
+                str(source),
+                "-vn",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "320k",
+                "-minrate",
+                "320k",
+                "-maxrate",
+                "320k",
+                "-ar",
+                "48000",
+                "-ac",
+                "2",
+                "-write_xing",
+                "0",
+                str(preview_path),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=180,
+        )
+        if proc.returncode != 0 or not preview_path.is_file():
+            return {"ok": False, "reason": (proc.stdout or "preview_mp3_encode_failed")[:500], "command": proc.args}
+    return {"ok": True, "path": str(preview_path), "source": "generated_safari_mp3_preview"}
+
+
+def _resolve_safari_audio_preview_bytes(source_path: str | Path, *, cache_key: str, label: str, ffmpeg_path: str = "", prefer_mp3: bool = True) -> dict[str, Any]:
+    source = Path(source_path)
+    if not source.is_file():
+        return {"ok": False, "reason": "missing_file", "label": label}
+    cache_state = st.session_state.setdefault("remaster_preview_bytes_cache", {})
+    source_fingerprint = _audio_file_fingerprint(source)
+    cache_id = f"{cache_key}|{source_fingerprint}|{'mp3' if prefer_mp3 else source.suffix.lower()}"
+    cached = cache_state.get(cache_id)
+    if cached and cached.get("bytes"):
+        return cached
+    preview_source = source
+    preview_source_note = "original_mp3"
+    mime_type = "audio/mpeg"
+    if prefer_mp3 and source.suffix.lower() != ".mp3":
+        built = _build_safari_preview_mp3(source, cache_stem=f"{label}_{source.stem}", ffmpeg_path=ffmpeg_path)
+        if not built.get("ok"):
+            return {"ok": False, "reason": built.get("reason", "preview_mp3_unavailable"), "label": label}
+        preview_source = Path(str(built.get("path")))
+        preview_source_note = str(built.get("source") or "generated_safari_mp3_preview")
+    elif source.suffix.lower() == ".wav" and not prefer_mp3:
+        mime_type = "audio/wav"
+        preview_source_note = "source_wav"
+    diagnostics = _validate_preview_audio_payload(preview_source, mime_type=mime_type, ffmpeg_path=ffmpeg_path)
+    diagnostics["preview_label"] = label
+    diagnostics["source_file_fingerprint"] = source_fingerprint
+    diagnostics["source_used_for_preview"] = preview_source_note
+    if not diagnostics.get("ok"):
+        return {"ok": False, "reason": diagnostics.get("reason", "preview_validation_failed"), "diagnostics": diagnostics, "label": label}
+    payload = preview_source.read_bytes()
+    if not payload:
+        return {"ok": False, "reason": "empty_preview_bytes", "diagnostics": diagnostics, "label": label}
+    resolved = {"ok": True, "bytes": payload, "format": mime_type, "mime_type": mime_type, "diagnostics": diagnostics, "label": label, "cache_id": cache_id}
+    if len(cache_state) > 8:
+        cache_state.clear()
+    cache_state[cache_id] = resolved
+    return resolved
+
+
 def _render_interactive_waveform_selector(waveform_data: dict[str, Any], *, start: float, end: float, duration: float, key: str) -> dict[str, Any]:
     selection = clamp_audio_selection(start, end, duration)
     component_value = WAVEFORM_SELECTOR_COMPONENT(
@@ -2027,7 +2145,12 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         cols[2].metric("Peak", "Estimated after processing")
         st.caption("Input loudness and true peak are estimated when exact LUFS/true-peak measurement is unavailable.")
         st.markdown("**Original Preview**")
-        st.audio(source_path)
+        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
+        if original_preview.get("ok"):
+            st.audio(original_preview["bytes"], format=original_preview["format"])
+            remaster_state.setdefault("preview_diagnostics", {})["original"] = original_preview.get("diagnostics", {})
+        else:
+            st.warning(f"Preview unavailable: {original_preview.get('reason', 'unknown')}")
     else:
         st.info("Upload a finished MP3 or WAV to begin.")
     if source_path and Path(source_path).is_file():
@@ -2156,17 +2279,31 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     report = result_data.get("report") or {}
     if mastered_wav.is_file():
         st.markdown("### 5. Before / After Preview")
+        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if source_path and Path(source_path).is_file() else {"ok": False, "reason": "missing_original"}
+        mastered_preview = _resolve_safari_audio_preview_bytes(mp3_preview, cache_key="remaster_mastered", label="Remastered", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if mp3_preview.is_file() else {"ok": False, "reason": "missing_mastered_mp3_preview"}
+        remaster_state["preview_diagnostics"] = {
+            "original": original_preview.get("diagnostics", {"ok": False, "reason": original_preview.get("reason", "")}),
+            "mastered": mastered_preview.get("diagnostics", {"ok": False, "reason": mastered_preview.get("reason", "")}),
+        }
+        project["remaster_studio"] = remaster_state
+        _save_project()
         preview_cols = st.columns(2)
         with preview_cols[0]:
             st.markdown("**Original**")
-            st.button("Play Original", use_container_width=True, key="remaster_play_original")
-            if source_path and Path(source_path).is_file():
-                st.audio(source_path)
+            if original_preview.get("ok"):
+                st.audio(original_preview["bytes"], format=original_preview["format"])
+            else:
+                st.warning(f"Preview unavailable: {original_preview.get('reason', 'unknown')}")
         with preview_cols[1]:
             st.markdown("**Remastered**")
-            st.button("Play Mastered", use_container_width=True, key="remaster_play_mastered")
-            st.audio(str(mastered_wav))
-        st.radio("A/B Compare", ["Original", "Remastered"], horizontal=True, key="remaster_ab_compare")
+            if mastered_preview.get("ok"):
+                st.audio(mastered_preview["bytes"], format=mastered_preview["format"])
+            else:
+                st.warning(f"Preview unavailable: {mastered_preview.get('reason', 'unknown')}")
+        ab_choice = st.radio("A/B Compare", ["Original", "Remastered"], horizontal=True, key="remaster_ab_compare")
+        ab_preview = original_preview if ab_choice == "Original" else mastered_preview
+        if ab_preview.get("ok"):
+            st.caption(f"A/B preview source: {ab_choice} ({ab_preview.get('mime_type', 'audio/mpeg')})")
         c1, c2 = st.columns(2)
         c1.metric("Duration Match", "Yes" if report.get("duration_matches_original") else "Review")
         c2.metric("Clipping", "Protected" if report.get("no_clipping_above_0db") else "Check")
@@ -2199,7 +2336,9 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         )
     if result_data.get("report_path"):
         with st.expander("Remaster Report", expanded=bool(st.session_state.get("developer_mode"))):
-            st.json(report, expanded=False)
+            display_report = dict(report)
+            display_report["preview_diagnostics"] = remaster_state.get("preview_diagnostics", {})
+            st.json(display_report, expanded=False)
             report_txt = Path(str(result_data.get("report_txt_path") or ""))
             if report_txt.is_file():
                 st.download_button("Download Remaster Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="download_remaster_report_txt")

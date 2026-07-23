@@ -397,7 +397,7 @@ def remaster_song_audio(
         ensure_parent_dir(report_txt_path).write_text(_report_text(report), encoding="utf-8")
         return {"ok": False, "message": "Mastered WAV failed validation", "data": {"report_path": str(report_path), "report": report}, "error": "master_wav_failed"}
 
-    mp3 = _run([ffmpeg, "-y", "-i", str(wav_path), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-write_xing", "0", str(mp3_path)])
+    mp3 = _run([ffmpeg, "-y", "-i", str(wav_path), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2", "-write_xing", "0", str(mp3_path)])
     mp3_probe = probe_media(mp3_path, ffmpeg_path=ffmpeg) if mp3_path.is_file() else {"ok": False}
     duration_delta = abs(float(source_probe.get("duration") or 0) - float(wav_probe.get("duration") or 0))
     warnings: list[str] = []
