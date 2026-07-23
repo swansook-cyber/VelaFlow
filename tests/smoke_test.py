@@ -23,6 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, build_audio_cut_command, effective_cut_mode, export_audio_selection, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -588,7 +589,7 @@ def main():
     full_pages = flatten_pages(FULL_MENU_GROUPS)
     song_only_pages = flatten_pages(SONG_ONLY_MENU_GROUPS)
     assert_true("VelaFlow Agent Studio" in FULL_MENU_GROUPS["START"], "Agent Studio missing from START navigation")
-    assert_true(FULL_MENU_GROUPS["START"][0] == "Creator Dashboard" and SONG_ONLY_MENU_GROUPS["WORKSPACES"] == ["Song Studio", "Remaster Studio", "Visual Studio", "Release Pack"], "VelaFlow workspace navigation should be Song/Remaster/Visual/Release")
+    assert_true(FULL_MENU_GROUPS["START"][0] == "Creator Dashboard" and SONG_ONLY_MENU_GROUPS["WORKSPACES"] == ["Song Studio", "Audio Editor", "Remaster Studio", "Visual Studio", "Release Pack"], "VelaFlow workspace navigation should be Song/Audio/Remaster/Visual/Release")
     assert_true(PAGE_LABELS.get("Creator Dashboard") == "Creator Dashboard", "Creator Dashboard label missing")
     assert_true(PAGE_LABELS.get("VelaFlow Agent Studio") == "🤖 VelaFlow Agent Studio" and flatten_pages(FULL_MENU_GROUPS).count("VelaFlow Agent Studio") == 1, "Agent Studio navigation label/key failed")
     assert_true("VelaFlow Agent Studio" not in flatten_pages(SONG_ONLY_MENU_GROUPS), "Agent Studio should be hidden from normal V1 creative pack navigation")
@@ -597,7 +598,7 @@ def main():
     assert_true("Video Prompt Studio" in FULL_MENU_GROUPS["VISUAL"] and "Podcast Script Studio" in FULL_MENU_GROUPS["VISUAL"], "creative tools missing from VISUAL group")
     assert_true("Hook Clip Studio" in full_pages and "Render Lab" in full_pages and "Final Package" in full_pages and "Queue Monitor" in full_pages, "Full Pipeline navigation missing pages")
     assert_true("Render Lab" not in song_only_pages and "Final Package" not in song_only_pages and "Creative Intelligence" not in song_only_pages, "Song Studio Only did not hide production pages")
-    assert_true(song_only_pages == ["Song Studio", "Remaster Studio", "Visual Studio", "Release Pack", "AI Settings"], "Song Studio Only missing VelaFlow workspace navigation")
+    assert_true(song_only_pages == ["Song Studio", "Audio Editor", "Remaster Studio", "Visual Studio", "Release Pack", "AI Settings"], "Song Studio Only missing VelaFlow workspace navigation")
     assert_true(set(song_only_pages) == SONG_ONLY_ALLOWED_PAGES, "Song Studio Only allowed page set mismatch")
     assert_true(len(full_pages) == len(set(full_pages)) and len(song_only_pages) == len(set(song_only_pages)), "duplicate navigation pages found")
     assert_true(PAGE_LABELS.get("Creator Wizard") == "Release Workflow Wizard" and PAGE_LABELS.get("Smart Clip Factory") == "Clip Factory" and PAGE_LABELS.get("Production Audit") == "Quality Audit", "menu label polish failed")
@@ -634,7 +635,7 @@ def main():
     assert_true(workflow_type_for_mode("Hook Clip Studio (Beta)") == "hook_clip", "Hook Clip workflow type mapping failed")
     assert_true(session_label_for_mode("Hook Clip Studio (Beta)") == "Current Hook Clip Session", "Hook Clip session label failed")
     dashboard_target = "Creator Dashboard"
-    assert_true(dashboard_target in full_pages and "Song Studio" in song_only_pages and "Remaster Studio" in song_only_pages, "workspace continue target invalid")
+    assert_true(dashboard_target in full_pages and "Song Studio" in song_only_pages and "Audio Editor" in song_only_pages and "Remaster Studio" in song_only_pages, "workspace continue target invalid")
     direction = generate_creative_direction(
         topic="Custom",
         custom_topic="เพลงทดสอบเริ่มจากวิซาร์ด",
@@ -656,7 +657,14 @@ def main():
     assert_true(project["creative_direction"]["music_direction"] == "Emotional Pop Rock", "Song Studio project creative direction state failed")
     assert_true(TARGET_PLATFORM_OPTIONS and "Full Pipeline" in TARGET_PLATFORM_OPTIONS, "creator wizard target platforms failed")
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
-    assert_true(["Song Studio", "Remaster Studio", "Visual Studio", "Release Pack", "AI Settings"] == song_only_pages, "V1 navigation should expose four product workspaces and Settings")
+    assert_true(["Song Studio", "Audio Editor", "Remaster Studio", "Visual Studio", "Release Pack", "AI Settings"] == song_only_pages, "V1 navigation should expose five product workspaces and Settings")
+    assert_true(AUDIO_EDITOR_CUT_MODES == ["Lossless Quick Cut", "Precise Cut"] and AUDIO_EDITOR_FADE_OPTIONS["Off"] == 0.0, "Audio Editor V1 cut mode/fade config failed")
+    assert_true(validate_audio_selection(1.0, 3.0, 10.0)["ok"] and not validate_audio_selection(3.0, 1.0, 10.0)["ok"] and validate_audio_selection(0.0, 20.0, 10.0)["error"] == "end_beyond_duration" and validate_audio_selection(0.0, 0.5, 10.0)["error"] == "selection_too_short", "Audio Editor selection validation failed")
+    assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut" and effective_cut_mode("song.wav", "Lossless Quick Cut", 0, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
+    lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
+    precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
+    assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
+    assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
     assert_true(REMASTER_STYLES[0] == "Streaming Balanced" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern"}.issubset(set(REMASTER_STYLES)), "Remaster Studio V1 preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
     assert_true(build_remaster_project_id("My Song.mp3").startswith("My_Song_"), "Remaster project id safe filename failed")
@@ -689,6 +697,16 @@ def main():
     remaster_release_zip = Path((release_with_remaster.get("data") or {}).get("zip_path", ""))
     with zipfile.ZipFile(remaster_release_zip) as archive:
         assert_true({"remaster/mastered_wav.wav", "remaster/mastered_mp3.mp3", "remaster/remaster_report.json", "remaster/remaster_report.txt"}.issubset(set(archive.namelist())), "release pack did not include optional remaster files")
+    dummy_hook = dummy_remaster_dir / "my_song_hook.mp3"
+    dummy_edit_report = dummy_remaster_dir / "edit_report.json"
+    dummy_edit_report_txt = dummy_remaster_dir / "edit_report.txt"
+    dummy_hook.write_bytes(b"ID3HOOK")
+    dummy_edit_report.write_text("{}", encoding="utf-8")
+    dummy_edit_report_txt.write_text("edit report", encoding="utf-8")
+    release_with_audio_edit = export_creative_release_pack("Smoke Creative Pack Audio Edit", release_pack, "Vela Moon", base_dir=out / "creative_pack_with_audio_edit", audio_edit_data={"hook_mp3": str(dummy_hook), "report_path": str(dummy_edit_report), "report_txt_path": str(dummy_edit_report_txt)})
+    audio_edit_release_zip = Path((release_with_audio_edit.get("data") or {}).get("zip_path", ""))
+    with zipfile.ZipFile(audio_edit_release_zip) as archive:
+        assert_true({"audio_editor/hook.mp3", "audio_editor/edit_report.json", "audio_editor/edit_report.txt"}.issubset(set(archive.namelist())), "release pack did not include optional audio edit files")
     diversity_memory_path = out / "diversity_memory.json"
     saved_diversity_memory = save_diversity_memory(
         {
@@ -1964,6 +1982,22 @@ def main():
         assert_true(Path(detected_data.get("report_path", "")).exists(), "hook detection report missing")
         report = json.loads(Path(detected_data["report_path"]).read_text(encoding="utf-8"))
         assert_true(report.get("veo_called") is False and report.get("confidence", 0) > 0 and report.get("reason"), "hook detector report missing local/no-Veo proof")
+        assert_true(validate_audio_editor_input(long_hook_source)["ok"], "Audio Editor MP3 validation failed")
+        assert_true(not validate_audio_editor_input(unsupported_audio)["ok"], "Audio Editor unsupported input validation failed")
+        audio_source_hash = long_hook_source.read_bytes()
+        lossless_edit = export_audio_selection(long_hook_source, start_time=1.0, end_time=4.0, project_name="Smoke Audio Editor Lossless", output_name="smoke_hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg())
+        lossless_data = lossless_edit.get("data", {})
+        lossless_hook = Path(lossless_data.get("hook_mp3", ""))
+        lossless_report = lossless_data.get("report") or {}
+        assert_true(lossless_edit["ok"] and lossless_hook.exists() and lossless_hook.name.endswith("_hook.mp3") and lossless_report.get("reencoded") is False and "copy" in lossless_report.get("ffmpeg_command", []), "Audio Editor lossless quick cut failed")
+        assert_true("-af" not in lossless_report.get("ffmpeg_command", []), "Lossless Quick Cut should not apply filters")
+        precise_edit = export_audio_selection(long_hook_source, start_time=2.0, end_time=5.0, project_name="Smoke Audio Editor Precise", output_name="smoke_precise_hook", cut_mode="Lossless Quick Cut", fade_in=0.25, fade_out=0.25, ffmpeg_path=find_ffmpeg())
+        precise_data = precise_edit.get("data", {})
+        precise_hook = Path(precise_data.get("hook_mp3", ""))
+        precise_report = precise_data.get("report") or {}
+        assert_true(precise_edit["ok"] and precise_hook.exists() and precise_report.get("cut_mode") == "Precise Cut" and precise_report.get("reencoded") is True and precise_report.get("output_bitrate") == "320 kbps CBR", "Audio Editor precise cut/fade failed")
+        assert_true(Path(precise_data.get("report_path", "")).name == "edit_report.json" and Path(precise_data.get("report_txt_path", "")).name == "edit_report.txt", "Audio Editor edit reports missing")
+        assert_true(long_hook_source.read_bytes() == audio_source_hash, "Audio Editor modified the original MP3 source")
         original_hash = long_hook_source.read_bytes()
         remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
         remaster_data = remaster.get("data", {})
@@ -2466,6 +2500,7 @@ def main():
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and "1. Upload Audio" in main_source and "4. Process Audio" in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "Remaster Studio UI missing")
+        assert_true("Audio Editor" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")
         assert_true("Create TikTok Hook" not in main_source and "Create Podcast Clip" not in main_source and "Create Affiliate Script" not in main_source and "Generate Song Package" not in main_source, "legacy creator dashboard workflows still visible")
         assert_true("Quick Song" in main_source and "_render_quick_song" in main_source and "Suno Package" in main_source and "A. Lyrics" in main_source and "B. Music Style Prompt" in main_source, "Quick Song or Suno package UI missing")
@@ -2477,7 +2512,7 @@ def main():
         assert_true("API_QUALITY_WARNING" in main_source and "_show_api_quality_stop" in main_source, "API quality gate warning missing from UI")
         assert_true("Gemini API Key" in main_source and "Gemini status:" in main_source and "Key source:" in main_source and "Gemini configure() result:" in main_source and "Gemini client initialization result:" in main_source and "Test Gemini Connection" in main_source, "Gemini settings diagnostics UI missing")
         assert_true("Creative Guidance" in main_source and "Songwriting Quality" in main_source and "Suno/Udio Export" in main_source, "creative pack advanced song studio guidance missing")
-        assert_true("sidebar_nav_song_studio_workspace" in main_source and "sidebar_nav_remaster_studio_workspace" in main_source and "sidebar_nav_visual_studio" in main_source and "sidebar_nav_release_pack" in main_source and "sidebar_nav_ai_settings" in main_source, "workspace sidebar navigation missing")
+        assert_true("sidebar_nav_song_studio_workspace" in main_source and "sidebar_nav_audio_editor_workspace" in main_source and "sidebar_nav_remaster_studio_workspace" in main_source and "sidebar_nav_visual_studio" in main_source and "sidebar_nav_release_pack" in main_source and "sidebar_nav_ai_settings" in main_source, "workspace sidebar navigation missing")
         assert_true("One Click Creator Flow" in main_source and "Generate Creator Package" in main_source and "Hook Comparison Cards" in main_source, "One Click Creator Flow UI missing")
         assert_true("analyzing song" in main_source and "detecting hook" in main_source and "generating prompts" in main_source and "remastering audio" in main_source and "building creator package" in main_source and "complete" in main_source, "one-click progress stages missing")
         assert_true("VelaFlow Closed Beta" in main_source and "Founding Member" in main_source and "Creator tips" in main_source and "Send beta feedback" in main_source, "closed beta premium creator elements missing")

@@ -3,6 +3,7 @@
 import io
 import json
 import hashlib
+import os
 import shutil
 import sys
 import time
@@ -46,6 +47,7 @@ from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, export_audio_selection, format_timecode, generate_waveform_image, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -2026,6 +2028,160 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 st.download_button("Download Remaster Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="download_remaster_report_txt")
 
 
+def _render_audio_editor(project: dict[str, Any]) -> None:
+    _page_header("Audio Editor", "Cut hooks, choruses, or selected MP3 sections without remastering the audio.", project)
+    st.caption("Audio Editor is separate from Remaster Studio. Lossless Quick Cut preserves the MP3 stream with no re-encoding; Precise Cut re-encodes to MP3 320 kbps.")
+    editor_state = project.setdefault("audio_editor", {})
+    max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
+    ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
+    if not ffmpeg_probe.get("ok"):
+        st.error("FFmpeg is required for Audio Editor. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
+    uploaded = st.file_uploader(
+        "1. Upload MP3",
+        type=["mp3", "wav"],
+        key="audio_editor_upload",
+        help=f"MP3 is recommended. WAV is accepted for compatibility, but output is always MP3. Max: {max_upload_mb} MB.",
+    )
+    if uploaded:
+        if uploaded.size > max_upload_mb * 1024 * 1024:
+            st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
+        else:
+            upload_result = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song")
+            if upload_result.get("ok"):
+                ext = Path(uploaded.name).suffix.lower().lstrip(".")
+                if ext not in {"mp3", "wav"}:
+                    st.warning("Audio Editor V1 supports MP3. WAV is accepted only for compatibility.")
+                    return
+                upload_result["data"]["original_filename"] = uploaded.name
+                upload_result["data"]["format"] = ext.upper()
+                upload_result["data"]["mime_type"] = getattr(uploaded, "type", "")
+                editor_state["source_audio"] = upload_result["data"]
+                project["audio_editor"] = editor_state
+                _save_project()
+                st.success("Audio uploaded")
+            else:
+                st.warning(upload_result.get("error") or upload_result.get("message"))
+    source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
+    source_info = editor_state.get("source_audio") or {}
+    if not source_path or not Path(source_path).is_file():
+        st.info("Upload an MP3 to start cutting a hook.")
+        return
+    probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
+    duration = float(probe.get("duration") or 0)
+    st.markdown("### 2. Original Audio")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
+    c2.metric("Duration", format_timecode(duration))
+    c3.metric("Codec", str(probe.get("audio_codec") or "Unknown"))
+    st.audio(source_path)
+    st.markdown("### 3. Waveform Timeline")
+    waveform_path = Path(str(editor_state.get("waveform_path") or ""))
+    if not waveform_path.is_file() and ffmpeg_probe.get("ok"):
+        waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
+        waveform_file = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}.png"
+        waveform = generate_waveform_image(source_path, waveform_file, ffmpeg_path=settings.ffmpeg_path)
+        if waveform.get("ok"):
+            editor_state["waveform_path"] = waveform["data"]["waveform_path"]
+            project["audio_editor"] = editor_state
+            _save_project()
+            waveform_path = Path(editor_state["waveform_path"])
+    if waveform_path.is_file():
+        st.image(str(waveform_path), use_container_width=True)
+    else:
+        st.caption("Waveform preview unavailable until FFmpeg can generate it.")
+    preset = st.selectbox("Hook duration helper", list(HOOK_DURATION_PRESETS), index=0, key="audio_editor_duration_preset")
+    default_start = float(editor_state.get("start_time", 0.0) or 0.0)
+    default_end = float(editor_state.get("end_time", min(duration, 15.0)) or min(duration, 15.0))
+    if HOOK_DURATION_PRESETS[preset] > 0:
+        default_end = min(duration, default_start + HOOK_DURATION_PRESETS[preset])
+    col_start, col_end = st.columns(2)
+    start_time = col_start.number_input("Start marker", min_value=0.0, max_value=max(0.0, duration), value=min(default_start, max(0.0, duration)), step=0.1, format="%.3f", key="audio_editor_start")
+    end_time = col_end.number_input("End marker", min_value=0.0, max_value=max(0.0, duration), value=min(max(default_end, start_time + 1.0), max(1.0, duration)), step=0.1, format="%.3f", key="audio_editor_end")
+    selection = validate_audio_selection(start_time, end_time, duration)
+    st.markdown(f"Start: `{format_timecode(start_time)}`  End: `{format_timecode(end_time)}`  Duration: `{format_timecode(max(0.0, end_time - start_time))}`")
+    if not selection.get("ok"):
+        st.warning(selection.get("message", "Invalid selection"))
+    action_cols = st.columns(3)
+    if action_cols[0].button("Reset selection", use_container_width=True, key="audio_editor_reset_selection"):
+        editor_state["start_time"] = 0.0
+        editor_state["end_time"] = min(duration, 15.0)
+        project["audio_editor"] = editor_state
+        _save_project()
+        st.rerun()
+    loop_selection = action_cols[1].toggle("Loop selected section", value=bool(editor_state.get("loop_selection", False)), key="audio_editor_loop_selection")
+    editor_state["loop_selection"] = loop_selection
+    if action_cols[2].button("Preview Selection", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_preview"):
+        preview = export_audio_selection(source_path, start_time=start_time, end_time=end_time, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name=f"{Path(source_path).stem}_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+        if preview.get("ok"):
+            editor_state["preview_result"] = preview.get("data", {})
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.rerun()
+        else:
+            st.warning(preview.get("message") or preview.get("error"))
+    preview_mp3 = Path(str((editor_state.get("preview_result") or {}).get("hook_mp3") or ""))
+    if preview_mp3.is_file():
+        st.markdown("**Selected-section preview**")
+        st.audio(str(preview_mp3))
+    st.markdown("### 4. Cut Mode")
+    cut_mode = st.radio(
+        "Cut mode",
+        AUDIO_EDITOR_CUT_MODES,
+        index=0,
+        key="audio_editor_cut_mode",
+        help="Lossless Quick Cut uses FFmpeg stream copy. Precise Cut re-encodes to MP3 320 kbps.",
+    )
+    st.caption("Lossless Quick Cut: No re-encoding. MP3 frame boundaries may shift the cut slightly.")
+    st.caption("Precise Cut: Re-encoded to MP3 320 kbps for more accurate start/end positions.")
+    fade_cols = st.columns(2)
+    fade_in_label = fade_cols[0].selectbox("Fade In", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_in")
+    fade_out_label = fade_cols[1].selectbox("Fade Out", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_out")
+    fade_in = AUDIO_EDITOR_FADE_OPTIONS[fade_in_label]
+    fade_out = AUDIO_EDITOR_FADE_OPTIONS[fade_out_label]
+    effective_mode = "Precise Cut" if fade_in > 0 or fade_out > 0 or Path(source_path).suffix.lower() != ".mp3" else cut_mode
+    if effective_mode != cut_mode:
+        st.warning("Re-encoding required: fades or WAV input automatically use Precise Cut.")
+    custom_name = st.text_input("Output name", value=f"{Path(str(source_info.get('original_filename') or source_path)).stem}_hook", key="audio_editor_output_name")
+    if st.button("5. Export Hook MP3", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
+        result = export_audio_selection(
+            source_path,
+            start_time=start_time,
+            end_time=end_time,
+            project_name=project.get("title") or "audio_editor",
+            output_name=custom_name,
+            cut_mode=effective_mode,
+            fade_in=fade_in,
+            fade_out=fade_out,
+            ffmpeg_path=settings.ffmpeg_path,
+            max_upload_mb=max_upload_mb,
+        )
+        editor_state["start_time"] = float(start_time)
+        editor_state["end_time"] = float(end_time)
+        editor_state["last_result"] = result.get("data", {})
+        editor_state["last_ok"] = bool(result.get("ok"))
+        editor_state["last_error"] = result.get("error", "")
+        project["audio_editor"] = editor_state
+        _save_project()
+        if result.get("ok"):
+            st.success("Hook MP3 exported")
+        else:
+            st.error(result.get("message") or result.get("error") or "Audio export failed")
+        st.rerun()
+    result_data = editor_state.get("last_result") or {}
+    hook_mp3 = Path(str(result_data.get("hook_mp3") or ""))
+    if hook_mp3.is_file():
+        st.markdown("### 6. Result")
+        st.audio(str(hook_mp3))
+        report = result_data.get("report") or {}
+        st.caption("No re-encoding" if not report.get("reencoded") else "Re-encoded to MP3 320 kbps")
+        st.download_button("Download Hook MP3", data=hook_mp3.read_bytes(), file_name=hook_mp3.name, mime="audio/mpeg", use_container_width=True, key="audio_editor_download_hook_mp3")
+        with st.expander("Edit Report", expanded=bool(st.session_state.get("developer_mode"))):
+            st.json(report, expanded=False)
+            report_txt = Path(str(result_data.get("report_txt_path") or ""))
+            if report_txt.is_file():
+                st.download_button("Download Edit Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="audio_editor_download_report_txt")
+
+
 def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_duration: float) -> list[dict[str, Any]]:
     base_confidence = int(detection.get("confidence_score", detection.get("confidence", 62)) or 62)
     energy_text = str(detection.get("energy_profile_summary") or "")
@@ -2437,6 +2593,7 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             result,
             artist_name,
             remaster_data=(project.get("remaster_studio", {}) or {}).get("last_result") or {},
+            audio_edit_data=(project.get("audio_editor", {}) or {}).get("last_result") or {},
         )
         state.update(
             {
@@ -4823,6 +4980,7 @@ PAGE_MODULES = {
     "Generate Song": "creative_pack",
     "Generate Visual Pack": "creative_pack",
     "Export Release Pack": "creative_pack",
+    "Audio Editor": "core",
     "Visual Studio": "creative_pack",
     "Release Pack": "creative_pack",
     "Remaster Studio": "core",
@@ -4971,6 +5129,8 @@ with st.sidebar:
     if not developer_mode:
         if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio_workspace"):
             go_to_page("WORKSPACES", "Song Studio")
+        if st.button("Audio Editor", use_container_width=True, key="sidebar_nav_audio_editor_workspace"):
+            go_to_page("WORKSPACES", "Audio Editor")
         if st.button("Remaster Studio", use_container_width=True, key="sidebar_nav_remaster_studio_workspace"):
             go_to_page("WORKSPACES", "Remaster Studio")
         if st.button("Visual Studio", use_container_width=True, key="sidebar_nav_visual_studio"):
@@ -6536,6 +6696,9 @@ elif page == "One Click Creator Flow":
 
 elif page == "Remaster Studio":
     _render_remaster_studio(project)
+
+elif page == "Audio Editor":
+    _render_audio_editor(project)
 
 elif page == "Song Library":
     _page_header("Song Library", "Browse song projects, drafts, and Suno export readiness.", project)

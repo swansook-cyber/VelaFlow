@@ -6148,6 +6148,7 @@ def export_creative_release_pack(
     artist_name: str = "Vela Moon",
     base_dir: str | Path | None = None,
     remaster_data: dict[str, Any] | None = None,
+    audio_edit_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         pack = result.get("pack") or {}
@@ -6175,6 +6176,17 @@ def export_creative_release_pack(
             file_path = Path(str(file_value or ""))
             if file_path.is_file():
                 remaster_files[archive_name] = str(file_path)
+        audio_edit_files: dict[str, str] = {}
+        audio_edit = audio_edit_data or {}
+        audio_edit_candidates = {
+            "audio_editor/hook.mp3": audio_edit.get("hook_mp3") or audio_edit.get("output_mp3"),
+            "audio_editor/edit_report.json": audio_edit.get("report_path"),
+            "audio_editor/edit_report.txt": audio_edit.get("report_txt_path"),
+        }
+        for archive_name, file_value in audio_edit_candidates.items():
+            file_path = Path(str(file_value or ""))
+            if file_path.is_file():
+                audio_edit_files[archive_name] = str(file_path)
         txt_path = ensure_unique_path(export_dir / build_export_filename(title, artist_name, "Release_Pack", "txt"))
         txt_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         manifest = {
@@ -6187,6 +6199,8 @@ def export_creative_release_pack(
             "generated_files": written,
             "remaster_included": bool(remaster_files),
             "remaster_files": remaster_files,
+            "audio_edit_included": bool(audio_edit_files),
+            "audio_edit_files": audio_edit_files,
             "txt_export": str(txt_path),
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
@@ -6197,6 +6211,8 @@ def export_creative_release_pack(
             for path in [Path(item) for item in written.values()] + [txt_path, manifest_path]:
                 archive.write(path, path.name)
             for archive_name, path_value in remaster_files.items():
+                archive.write(Path(path_value), archive_name)
+            for archive_name, path_value in audio_edit_files.items():
                 archive.write(Path(path_value), archive_name)
         return {
             "ok": True,

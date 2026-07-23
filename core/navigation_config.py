@@ -9,6 +9,7 @@ PAGE_LABELS = {
     "Generate Visual Pack": "Generate Visual Pack",
     "Export Release Pack": "Export Release Pack",
     "Song Studio": "Song Studio",
+    "Audio Editor": "Audio Editor",
     "Remaster Studio": "Remaster Studio",
     "Visual Studio": "Visual Studio",
     "Release Pack": "Release Pack",
@@ -30,7 +31,7 @@ FULL_MENU_GROUPS = {
 }
 
 SONG_ONLY_MENU_GROUPS = {
-    "WORKSPACES": ["Song Studio", "Remaster Studio", "Visual Studio", "Release Pack"],
+    "WORKSPACES": ["Song Studio", "Audio Editor", "Remaster Studio", "Visual Studio", "Release Pack"],
     "SETTINGS": ["AI Settings"],
 }
 
