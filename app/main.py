@@ -2030,7 +2030,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
 
 def _render_audio_editor(project: dict[str, Any]) -> None:
     _page_header("Audio Editor", "Cut hooks, choruses, or selected MP3 sections without remastering the audio.", project)
-    st.caption("Audio Editor is separate from Remaster Studio. Lossless Quick Cut preserves the MP3 stream with no re-encoding; Precise Cut re-encodes to MP3 320 kbps.")
+    st.caption("Audio Editor is separate from Remaster Studio. MP3 only. Lossless Quick Cut preserves the MP3 stream with no re-encoding; Precise Cut re-encodes to MP3 320 kbps.")
     editor_state = project.setdefault("audio_editor", {})
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
@@ -2038,9 +2038,9 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         st.error("FFmpeg is required for Audio Editor. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
     uploaded = st.file_uploader(
         "1. Upload MP3",
-        type=["mp3", "wav"],
+        type=["mp3"],
         key="audio_editor_upload",
-        help=f"MP3 is recommended. WAV is accepted for compatibility, but output is always MP3. Max: {max_upload_mb} MB.",
+        help=f"MP3 only. Output is MP3. Max: {max_upload_mb} MB.",
     )
     if uploaded:
         if uploaded.size > max_upload_mb * 1024 * 1024:
@@ -2049,8 +2049,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             upload_result = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song")
             if upload_result.get("ok"):
                 ext = Path(uploaded.name).suffix.lower().lstrip(".")
-                if ext not in {"mp3", "wav"}:
-                    st.warning("Audio Editor V1 supports MP3. WAV is accepted only for compatibility.")
+                if ext != "mp3":
+                    st.warning("Audio Editor V1 supports MP3 input only.")
                     return
                 upload_result["data"]["original_filename"] = uploaded.name
                 upload_result["data"]["format"] = ext.upper()
@@ -2138,9 +2138,9 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     fade_out_label = fade_cols[1].selectbox("Fade Out", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_out")
     fade_in = AUDIO_EDITOR_FADE_OPTIONS[fade_in_label]
     fade_out = AUDIO_EDITOR_FADE_OPTIONS[fade_out_label]
-    effective_mode = "Precise Cut" if fade_in > 0 or fade_out > 0 or Path(source_path).suffix.lower() != ".mp3" else cut_mode
+    effective_mode = "Precise Cut" if fade_in > 0 or fade_out > 0 else cut_mode
     if effective_mode != cut_mode:
-        st.warning("Re-encoding required: fades or WAV input automatically use Precise Cut.")
+        st.warning("Re-encoding required: fades automatically use Precise Cut.")
     custom_name = st.text_input("Output name", value=f"{Path(str(source_info.get('original_filename') or source_path)).stem}_hook", key="audio_editor_output_name")
     if st.button("5. Export Hook MP3", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
         result = export_audio_selection(

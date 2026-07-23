@@ -23,11 +23,11 @@ AUDIO_EDITOR_FADE_OPTIONS = {
     "1.0 second": 1.0,
 }
 HOOK_DURATION_PRESETS = {
+    "15 seconds": 15.0,
+    "30 seconds": 30.0,
+    "45 seconds": 45.0,
+    "60 seconds": 60.0,
     "Custom": 0.0,
-    "TikTok 15 seconds": 15.0,
-    "TikTok 30 seconds": 30.0,
-    "Reels 15 seconds": 15.0,
-    "Shorts 30 seconds": 30.0,
 }
 
 
@@ -48,9 +48,9 @@ def validate_audio_editor_input(path: str | Path, *, mime_type: str = "", max_up
     ext = source.suffix.lower().lstrip(".")
     if not source.is_file():
         return {"ok": False, "error": "missing_audio", "message": "Audio file missing"}
-    if ext not in {"mp3", "wav"}:
-        return {"ok": False, "error": "unsupported_format", "message": "Audio Editor V1 supports MP3 input; WAV is accepted only for compatibility."}
-    if mime_type and not any(token in mime_type.lower() for token in ["audio", "mpeg", "mp3", "wav", "wave", "octet-stream"]):
+    if ext != "mp3":
+        return {"ok": False, "error": "unsupported_format", "message": "Audio Editor V1 supports MP3 input only"}
+    if mime_type and not any(token in mime_type.lower() for token in ["audio", "mpeg", "mp3", "octet-stream"]):
         return {"ok": False, "error": "unsupported_mime", "message": "Unsupported audio MIME type"}
     size_mb = source.stat().st_size / (1024 * 1024)
     if size_mb > max_upload_mb:
@@ -84,9 +84,6 @@ def effective_cut_mode(source_path: str | Path, cut_mode: str, fade_in: float = 
     if fade_in > 0 or fade_out > 0:
         mode = "Precise Cut"
         warnings.append("Fade enabled: re-encoding required.")
-    if Path(source_path).suffix.lower() != ".mp3" and mode == "Lossless Quick Cut":
-        mode = "Precise Cut"
-        warnings.append("WAV input requires MP3 encoding for Audio Editor V1 output.")
     return mode, warnings
 
 

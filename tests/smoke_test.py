@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, build_audio_cut_command, effective_cut_mode, export_audio_selection, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, build_audio_cut_command, effective_cut_mode, export_audio_selection, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -660,7 +660,8 @@ def main():
     assert_true(["Song Studio", "Audio Editor", "Remaster Studio", "Visual Studio", "Release Pack", "AI Settings"] == song_only_pages, "V1 navigation should expose five product workspaces and Settings")
     assert_true(AUDIO_EDITOR_CUT_MODES == ["Lossless Quick Cut", "Precise Cut"] and AUDIO_EDITOR_FADE_OPTIONS["Off"] == 0.0, "Audio Editor V1 cut mode/fade config failed")
     assert_true(validate_audio_selection(1.0, 3.0, 10.0)["ok"] and not validate_audio_selection(3.0, 1.0, 10.0)["ok"] and validate_audio_selection(0.0, 20.0, 10.0)["error"] == "end_beyond_duration" and validate_audio_selection(0.0, 0.5, 10.0)["error"] == "selection_too_short", "Audio Editor selection validation failed")
-    assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut" and effective_cut_mode("song.wav", "Lossless Quick Cut", 0, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
+    assert_true({"15 seconds", "30 seconds", "45 seconds", "60 seconds", "Custom"}.issubset(set(HOOK_DURATION_PRESETS)), "Audio Editor hook duration helpers missing")
+    assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
     lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
     precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
@@ -671,6 +672,10 @@ def main():
     unsupported_audio = out / "bad_upload.txt"
     unsupported_audio.write_text("not audio", encoding="utf-8")
     assert_true(not validate_remaster_input(unsupported_audio)["ok"] and validate_remaster_input(unsupported_audio)["error"] == "unsupported_format", "Remaster unsupported input was not rejected")
+    unsupported_editor_wav = out / "bad_audio_editor.wav"
+    unsupported_editor_wav.write_bytes(b"RIFF0000WAVE")
+    editor_wav_validation = validate_audio_editor_input(unsupported_editor_wav)
+    assert_true(not editor_wav_validation["ok"] and editor_wav_validation["error"] == "unsupported_format", "Audio Editor must reject WAV input")
     provider_error_gate = build_api_quality_gate(api_key="fake-key", provider_error="429 quota exceeded", provider="gemini")
     assert_true(provider_error_gate["status"] == STATUS_RATE_LIMITED and API_QUALITY_WARNING in provider_error_gate["message"], "provider rate-limit quality gate failed")
     provider_failure_gate = build_api_quality_gate(api_key="fake-key", provider_error="Gemini model unavailable", provider="gemini")
@@ -2500,7 +2505,7 @@ def main():
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and "1. Upload Audio" in main_source and "4. Process Audio" in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "Remaster Studio UI missing")
-        assert_true("Audio Editor" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
+        assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")
         assert_true("Create TikTok Hook" not in main_source and "Create Podcast Clip" not in main_source and "Create Affiliate Script" not in main_source and "Generate Song Package" not in main_source, "legacy creator dashboard workflows still visible")
         assert_true("Quick Song" in main_source and "_render_quick_song" in main_source and "Suno Package" in main_source and "A. Lyrics" in main_source and "B. Music Style Prompt" in main_source, "Quick Song or Suno package UI missing")
