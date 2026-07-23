@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
 import zipfile
+from array import array
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,6 +26,7 @@ REMASTER_STYLES = [
     "Cinematic",
     "Loud Modern",
 ]
+REMASTER_RECOMMENDATION_MODES = ["Auto Recommended", "Manual", "Custom / Advanced"]
 
 LEGACY_STYLE_ALIASES = {
     "Vela Moon Emotional Pop Rock": "Pop Rock",
@@ -120,6 +123,143 @@ def _normalize_style(style: str) -> str:
     return selected if selected in STYLE_FILTERS else "Streaming Balanced"
 
 
+def _confidence_label(score: int) -> str:
+    if score >= 76:
+        return "High"
+    if score >= 55:
+        return "Medium"
+    return "Low"
+
+
+def recommend_remaster_preset_from_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
+    if isinstance(metadata, dict):
+        text = " ".join(str(value) for value in metadata.values() if isinstance(value, (str, int, float, list, tuple, dict))).lower()
+    else:
+        text = str(metadata or "").lower()
+    groups = {
+        "Loud Modern": ["cheer", "stadium", "crowd", "chant", "high energy", "ตะโกน", "เชียร์", "สนาม", "พลัง", "มันส์"],
+        "Modern Pop": ["edm", "trap", "dance", "808", "sub bass", "heavy bass", "electronic", "club", "เบสหนัก", "แดนซ์"],
+        "Pop Rock": ["rock", "live band", "guitar", "strong snare", "drum kit", "pop rock", "ร็อก", "กีตาร์", "วงดนตรี"],
+        "Vocal Focus": ["podcast", "narration", "spoken", "voice", "speech", "talk", "พอดแคสต์", "เล่าเรื่อง", "พูด", "บรรยาย"],
+        "Warm Acoustic": ["ballad", "soft vocal", "acoustic", "emotional", "piano", "warm", "อะคูสติก", "อบอุ่น", "บัลลาด", "เศร้า"],
+    }
+    scores: dict[str, int] = {}
+    reasons: dict[str, list[str]] = {}
+    for preset, keywords in groups.items():
+        matched = [keyword for keyword in keywords if keyword in text]
+        scores[preset] = len(matched)
+        reasons[preset] = matched
+    best_preset = max(scores, key=lambda key: scores[key]) if scores else "Streaming Balanced"
+    if scores.get(best_preset, 0) <= 0:
+        best_preset = "Streaming Balanced"
+    confidence_score = min(92, 42 + scores.get(best_preset, 0) * 17)
+    reason_lines = [f"Project metadata contains: {', '.join(reasons.get(best_preset, [])[:5])}"] if reasons.get(best_preset) else ["Project metadata is mixed or limited; balanced preset is safest."]
+    return {
+        "source": "project_metadata",
+        "recommended_preset": best_preset,
+        "selected_preset": best_preset,
+        "confidence": _confidence_label(confidence_score),
+        "confidence_score": confidence_score,
+        "reasons": reason_lines,
+        "metrics": {"metadata_keyword_matches": scores, "matched_keywords": reasons.get(best_preset, [])},
+        "analyzed_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def _decode_analysis_pcm(path: Path, ffmpeg: str, *, sample_rate: int = 8000, max_duration: float = 360.0) -> dict[str, Any]:
+    args = [ffmpeg, "-v", "error", "-i", str(path), "-map", "0:a:0", "-t", f"{max_duration:.3f}", "-ac", "1", "-ar", str(sample_rate), "-f", "s16le", "-"]
+    try:
+        proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=120)
+    except Exception as exc:
+        return {"ok": False, "error": "decode_failed", "message": str(exc), "command": args}
+    if proc.returncode != 0 or not proc.stdout:
+        return {"ok": False, "error": "decode_failed", "message": (proc.stderr or b"Audio analysis failed").decode("utf-8", errors="replace")[:600], "command": args}
+    samples = array("h")
+    samples.frombytes(proc.stdout)
+    return {"ok": bool(samples), "samples": samples, "sample_rate": sample_rate, "command": args}
+
+
+def analyze_audio_for_remaster_recommendation(source_audio_path: str | Path, *, ffmpeg_path: str = "", max_upload_mb: int = 200) -> dict[str, Any]:
+    source = Path(source_audio_path)
+    validation = validate_remaster_input(source, max_upload_mb=max_upload_mb)
+    if not validation.get("ok"):
+        return {"ok": False, "message": validation.get("message", "Invalid audio"), "error": validation.get("error", "invalid_audio")}
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return {"ok": False, "message": "FFmpeg not found", "error": "missing_ffmpeg"}
+    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    if not probe.get("ok") or not probe.get("has_audio", True):
+        return {"ok": False, "message": "Invalid or corrupt audio file", "error": "invalid_audio", "data": {"probe": probe}}
+    decoded = _decode_analysis_pcm(source, ffmpeg)
+    if not decoded.get("ok"):
+        return {"ok": False, "message": decoded.get("message", "Audio analysis failed"), "error": decoded.get("error", "analysis_failed")}
+    samples = decoded["samples"]
+    normalized = [sample / 32768.0 for sample in samples]
+    duration = float(probe.get("duration") or (len(samples) / float(decoded["sample_rate"])))
+    rms = math.sqrt(sum(value * value for value in normalized) / max(1, len(normalized)))
+    peak = max(abs(value) for value in normalized) if normalized else 0.0
+    silent = sum(1 for value in normalized if abs(value) < 0.01) / max(1, len(normalized))
+    diffs = [abs(normalized[idx] - normalized[idx - 1]) for idx in range(1, len(normalized))]
+    transient_density = min(1.0, (sum(1 for value in diffs if value > 0.12) / max(1, len(diffs))) * 8)
+    zero_cross = sum(1 for idx in range(1, len(normalized)) if (normalized[idx] >= 0) != (normalized[idx - 1] >= 0)) / max(1, len(normalized))
+    crest_factor = peak / max(rms, 0.0001)
+    bass_energy = max(0.0, min(1.0, rms * (1.6 - min(1.2, zero_cross * 18))))
+    high_energy = max(0.0, min(1.0, rms * min(1.8, zero_cross * 22)))
+    mid_energy = max(0.0, min(1.0, rms * (1.2 - abs(zero_cross - 0.055) * 5)))
+    dynamic_range = max(0.0, min(1.0, crest_factor / 12.0))
+    clipping_risk = peak > 0.985
+    metrics = {
+        "duration": round(duration, 3),
+        "integrated_loudness": "estimated/unavailable",
+        "peak": round(peak, 4),
+        "dynamic_range": round(dynamic_range, 4),
+        "rms_energy": round(rms, 4),
+        "bass_energy": round(bass_energy, 4),
+        "mid_energy": round(mid_energy, 4),
+        "high_energy": round(high_energy, 4),
+        "transient_density": round(transient_density, 4),
+        "silence_ratio": round(silent, 4),
+        "stereo_information": "available from source probe" if int(probe.get("channels") or 1) > 1 else "mono or unavailable",
+        "vocal_range_presence": round(mid_energy, 4),
+        "crest_factor": round(crest_factor, 3),
+        "clipping_risk": bool(clipping_risk),
+    }
+    reasons: list[str] = []
+    preset = "Streaming Balanced"
+    score = 48
+    if rms < 0.03 or silent > 0.65:
+        preset, score = "Streaming Balanced", 42
+        reasons.append("Low-confidence input: quiet or silence-heavy audio; balanced preset is safest.")
+    elif mid_energy > bass_energy * 1.25 and transient_density < 0.28 and silent > 0.18:
+        preset, score = "Vocal Focus", 70
+        reasons += ["Dominant speech/vocal range", "Moderate pauses", "Lower sub-bass content"]
+    elif bass_energy > mid_energy * 1.18 and rms > 0.12 and high_energy > 0.08:
+        preset, score = "Modern Pop", 78
+        reasons += ["Dense low-frequency content", "Consistent loudness", "Bright modern profile"]
+    elif transient_density > 0.32 and mid_energy >= bass_energy * 0.85:
+        preset, score = "Pop Rock", 73
+        reasons += ["Strong transient density", "Midrange energy suggests guitars/drums", "Wider dynamics than dense EDM"]
+    elif rms > 0.16 and transient_density > 0.2 and silent < 0.18:
+        preset, score = "Loud Modern", 80
+        reasons += ["High overall energy", "Low silence ratio", "Suitable for loud social playback"]
+    elif mid_energy > bass_energy and dynamic_range > 0.45:
+        preset, score = "Warm Acoustic", 68
+        reasons += ["Moderate loudness", "Vocal/acoustic-friendly midrange", "Softer dynamic profile"]
+    else:
+        reasons.append("Audio characteristics are mixed; balanced preset is safest.")
+    recommendation = {
+        "source": "audio_analysis",
+        "recommended_preset": preset,
+        "selected_preset": preset,
+        "confidence": _confidence_label(score),
+        "confidence_score": score,
+        "reasons": reasons,
+        "metrics": metrics,
+        "analyzed_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    return {"ok": True, "data": recommendation, "error": ""}
+
+
 def _source_ext(path: Path) -> str:
     return path.suffix.lower().lstrip(".")
 
@@ -163,6 +303,20 @@ def _report_text(report: dict[str, Any]) -> str:
         "Warnings: " + (", ".join(report.get("warnings", [])) if report.get("warnings") else "None"),
         f"Processing date/time: {report.get('processing_date_time', '')}",
     ]
+    recommendation = report.get("remaster_recommendation") or {}
+    if recommendation:
+        lines += [
+            "",
+            "Preset Recommendation:",
+            f"Input source: {recommendation.get('input_source', '')}",
+            f"Recommendation source: {recommendation.get('source', '')}",
+            f"Recommended preset: {recommendation.get('recommended_preset', '')}",
+            f"Confidence: {recommendation.get('confidence', '')}",
+            f"User-selected preset: {recommendation.get('selected_preset', report.get('selected_preset', ''))}",
+            f"Recommendation overridden: {'Yes' if recommendation.get('overridden') else 'No'}",
+            "Why this preset:",
+            *[f"- {reason}" for reason in recommendation.get("reasons", [])],
+        ]
     return "\n".join(lines)
 
 
@@ -173,6 +327,7 @@ def remaster_song_audio(
     remaster_style: str = "Streaming Balanced",
     ffmpeg_path: str = "",
     max_upload_mb: int = 200,
+    recommendation_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -207,6 +362,10 @@ def remaster_song_audio(
     converted_path = output_dir / "source_converted_48k_24bit.wav"
     style = _normalize_style(remaster_style)
     style_config = STYLE_FILTERS[style]
+    recommendation = dict(recommendation_data or {})
+    if recommendation:
+        recommendation["selected_preset"] = style
+        recommendation["overridden"] = bool(recommendation.get("recommended_preset") and recommendation.get("recommended_preset") != style)
     source_probe = probe_media(source, ffmpeg_path=ffmpeg)
     if not source_probe.get("ok") or not source_probe.get("has_audio", True):
         return {"ok": False, "message": "Invalid or corrupt audio file", "data": {"source_probe": source_probe}, "error": "invalid_audio"}
@@ -229,6 +388,7 @@ def remaster_song_audio(
             "wav_probe": wav_probe,
             "max_volume_db": max_volume,
             "no_clipping_above_0db": no_clipping,
+            "remaster_recommendation": recommendation,
             "error": "master_wav_failed" if wav.get("ok") else wav.get("output", "master_wav_failed")[:1200],
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
@@ -256,6 +416,7 @@ def remaster_song_audio(
         "input_loudness": "estimated/unavailable",
         "input_peak_level": max_volume if max_volume is not None else "estimated/unavailable",
         "selected_preset": style,
+        "remaster_recommendation": recommendation,
         "processing_steps_applied": [
             "Input validation",
             "Source copy preserved in original/",

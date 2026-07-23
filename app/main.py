@@ -232,7 +232,7 @@ from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
-from core.remaster_engine import REMASTER_STYLES, remaster_song_audio
+from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, recommend_remaster_preset_from_metadata, remaster_song_audio
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -1896,6 +1896,27 @@ def _render_hook_audio_controls(project_name: str, state: dict[str, Any], key_pr
     return state
 
 
+def _project_song_metadata_for_remaster(project: dict[str, Any]) -> dict[str, Any]:
+    creative_state = project.get("creative_pack_v1", {}) or {}
+    release = creative_state.get("release_pack") or {}
+    pack = release.get("pack") or {}
+    song = project.get("song", {}) or {}
+    direction = project.get("creative_direction", {}) or {}
+    controls = release.get("creative_controls") or {}
+    return {
+        "project_title": project.get("title", ""),
+        "song_title": pack.get("Suggested title") or song.get("title", ""),
+        "song_type": controls.get("story_type") or direction.get("topic", ""),
+        "genre": controls.get("genre") or direction.get("music_direction") or song.get("genre", ""),
+        "mood": controls.get("mood") or direction.get("mood") or song.get("mood", ""),
+        "style_prompt": pack.get("Suno Style of Music Field") or pack.get("AI Producer Prompt") or song.get("style_prompt", ""),
+        "bpm": pack.get("Advanced Suno Settings") or song.get("bpm", ""),
+        "vocal_type": controls.get("vocal_direction") or song.get("vocal_type", ""),
+        "instrument_hints": pack.get("Producer Notes") or pack.get("Music Style Prompt") or "",
+        "commercial_direction": controls.get("commercial_direction", ""),
+    }
+
+
 def _render_remaster_studio(project: dict[str, Any]) -> None:
     _page_header("Remaster Studio", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
     st.caption("Separate workspace for completed audio from Suno, Udio, or another source. Local FFmpeg only. Original audio stays unchanged.")
@@ -1949,7 +1970,68 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.audio(source_path)
     else:
         st.info("Upload a finished MP3 or WAV to begin.")
-    style = st.selectbox("3. Choose Mastering Preset", REMASTER_STYLES, index=0, key="remaster_style")
+    st.markdown("### 3. Preset Selection")
+    selection_mode = st.radio("Preset Selection", REMASTER_RECOMMENDATION_MODES, index=0, horizontal=True, key="remaster_preset_selection_mode")
+    project_metadata = _project_song_metadata_for_remaster(project)
+    if selection_mode == "Auto Recommended" and not remaster_state.get("manual_override_active"):
+        metadata_recommendation = recommend_remaster_preset_from_metadata(project_metadata)
+        if not remaster_state.get("remaster_recommendation") or (remaster_state.get("remaster_recommendation") or {}).get("source") == "project_metadata":
+            remaster_state["remaster_recommendation"] = metadata_recommendation
+    recommendation = remaster_state.get("remaster_recommendation") or {}
+    style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
+    if selection_mode == "Auto Recommended" and not remaster_state.get("manual_override_active"):
+        if source_path and Path(source_path).is_file() and st.button("Analyze Audio & Recommend Preset", use_container_width=True, key="remaster_analyze_audio_recommendation"):
+            with st.spinner("Analyzing audio locally..."):
+                analyzed = analyze_audio_for_remaster_recommendation(source_path, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb)
+            if analyzed.get("ok"):
+                remaster_state["remaster_recommendation"] = analyzed["data"]
+                remaster_state["manual_override_active"] = False
+                project["remaster_studio"] = remaster_state
+                _save_project()
+                st.success("Preset recommendation ready")
+                st.rerun()
+            else:
+                st.warning(analyzed.get("message") or "Audio recommendation failed. You can still choose manually.")
+        recommendation = remaster_state.get("remaster_recommendation") or recommendation
+        style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
+        if recommendation:
+            st.markdown("**Recommended Preset**")
+            st.success(str(recommendation.get("recommended_preset") or style))
+            r1, r2 = st.columns(2)
+            r1.metric("Confidence", str(recommendation.get("confidence") or "Low"))
+            r2.metric("Status", "Recommended by VelaFlow")
+            with st.expander("Audio Analysis / Why this preset", expanded=False):
+                for reason in recommendation.get("reasons", []):
+                    st.write(f"- {reason}")
+                if recommendation.get("metrics"):
+                    st.json(recommendation.get("metrics"), expanded=False)
+            col_use, col_manual = st.columns(2)
+            if col_use.button("Use Recommended Preset", use_container_width=True, key="remaster_use_recommended"):
+                recommendation["selected_preset"] = recommendation.get("recommended_preset") or style
+                recommendation["source"] = recommendation.get("source") or "project_metadata"
+                remaster_state["remaster_recommendation"] = recommendation
+                remaster_state["manual_override_active"] = False
+                project["remaster_studio"] = remaster_state
+                _save_project()
+                st.success("Recommended preset selected")
+            if col_manual.button("Choose Manually", use_container_width=True, key="remaster_choose_manually"):
+                remaster_state["manual_override_active"] = True
+                project["remaster_studio"] = remaster_state
+                _save_project()
+                st.rerun()
+    elif selection_mode == "Manual" or (selection_mode == "Auto Recommended" and remaster_state.get("manual_override_active")):
+        manual_style = st.selectbox("Choose Mastering Preset", REMASTER_STYLES, index=REMASTER_STYLES.index(style) if style in REMASTER_STYLES else 0, key="remaster_style")
+        style = manual_style
+        recommendation = dict(recommendation or {"source": "manual", "recommended_preset": manual_style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}})
+        recommendation["source"] = "manual" if not recommendation.get("source") else recommendation.get("source")
+        recommendation["selected_preset"] = manual_style
+        recommendation["overridden"] = bool(recommendation.get("recommended_preset") and recommendation.get("recommended_preset") != manual_style)
+        remaster_state["remaster_recommendation"] = recommendation
+        remaster_state["manual_override_active"] = True
+        st.caption("Selected Manually")
+    else:
+        st.info("Custom / Advanced preset controls are coming later. Manual preset selection is available now.")
+        style = "Streaming Balanced"
     with st.expander("Advanced Settings", expanded=False):
         st.caption("V1 uses safe preset values for high-pass filtering, EQ balance, compression, vocal presence, stereo width, limiting, and output loudness. Manual audio controls are intentionally hidden.")
     st.caption("Workflow: Upload Audio -> Audio Analysis -> Choose Mastering Preset -> Process Audio -> Preview Result -> Export WAV + MP3")
@@ -1961,6 +2043,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 remaster_style=style,
                 ffmpeg_path=settings.ffmpeg_path,
                 max_upload_mb=max_upload_mb,
+                recommendation_data=remaster_state.get("remaster_recommendation") or {"source": "manual", "recommended_preset": style, "selected_preset": style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}},
             )
         remaster_state["last_result"] = result.get("data", {})
         remaster_state["last_ok"] = bool(result.get("ok"))
@@ -1975,6 +2058,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 "source": "Remaster Studio",
                 "status": "ready",
                 "created_at": datetime.now().isoformat(timespec="seconds"),
+                "remaster_recommendation": (data.get("report") or {}).get("remaster_recommendation") or remaster_state.get("remaster_recommendation") or {},
+                "selected_preset": style,
             }
         project["remaster_studio"] = remaster_state
         _save_project()

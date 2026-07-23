@@ -97,7 +97,7 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
-from core.remaster_engine import REMASTER_STYLES, STYLE_FILTERS, build_remaster_project_id, remaster_song_audio, validate_remaster_input
+from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, build_remaster_project_id, recommend_remaster_preset_from_metadata, remaster_song_audio, validate_remaster_input
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
@@ -669,6 +669,11 @@ def main():
     assert_true(REMASTER_STYLES[0] == "Streaming Balanced" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern"}.issubset(set(REMASTER_STYLES)), "Remaster Studio V1 preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
     assert_true(build_remaster_project_id("My Song.mp3").startswith("My_Song_"), "Remaster project id safe filename failed")
+    cheer_recommend = recommend_remaster_preset_from_metadata({"genre": "Cheer Stadium Crowd Chant High Energy", "style_prompt": "heavy drums 808"})
+    edm_recommend = recommend_remaster_preset_from_metadata({"genre": "EDM Trap Dance", "style_prompt": "heavy 808 bass electronic"})
+    acoustic_recommend = recommend_remaster_preset_from_metadata({"genre": "Acoustic Emotional Ballad", "vocal_type": "soft vocal"})
+    podcast_recommend = recommend_remaster_preset_from_metadata({"song_type": "Podcast narration spoken voice"})
+    assert_true(REMASTER_RECOMMENDATION_MODES[0] == "Auto Recommended" and cheer_recommend["recommended_preset"] == "Loud Modern" and edm_recommend["recommended_preset"] == "Modern Pop" and acoustic_recommend["recommended_preset"] == "Warm Acoustic" and podcast_recommend["recommended_preset"] == "Vocal Focus", "Remaster metadata recommendation mapping failed")
     unsupported_audio = out / "bad_upload.txt"
     unsupported_audio.write_text("not audio", encoding="utf-8")
     assert_true(not validate_remaster_input(unsupported_audio)["ok"] and validate_remaster_input(unsupported_audio)["error"] == "unsupported_format", "Remaster unsupported input was not rejected")
@@ -2107,7 +2112,17 @@ def main():
             release_audio_names = set(archive.namelist())
         assert_true(audio_batch_release["ok"] and "audio_editor/hook.mp3" in release_audio_names and "audio_editor/batch_edit_report.json" in release_audio_names and any(name.startswith("audio_editor/batch/") and name.endswith("_15s.mp3") for name in release_audio_names), "Release Pack did not include Audio Editor single and batch outputs")
         original_hash = long_hook_source.read_bytes()
-        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
+        audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
+        assert_true(audio_recommend["ok"] and audio_recommend.get("data", {}).get("recommended_preset") in REMASTER_STYLES and audio_recommend.get("data", {}).get("source") == "audio_analysis", "external audio remaster recommendation failed")
+        audio_recommend_again = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
+        assert_true(audio_recommend_again["ok"] and audio_recommend_again.get("data", {}).get("recommended_preset") == audio_recommend.get("data", {}).get("recommended_preset") and audio_recommend_again.get("data", {}).get("confidence_score") == audio_recommend.get("data", {}).get("confidence_score"), "external audio remaster recommendation should be deterministic")
+        silent_source = out / "hook_clip_projects" / "silent_remaster_source.mp3"
+        subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo:d=12", "-c:a", "libmp3lame", str(silent_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        quiet_recommend = analyze_audio_for_remaster_recommendation(silent_source, ffmpeg_path=find_ffmpeg())
+        assert_true(quiet_recommend["ok"] and quiet_recommend.get("data", {}).get("recommended_preset") == "Streaming Balanced" and quiet_recommend.get("data", {}).get("confidence") == "Low", "low-confidence remaster recommendation failed")
+        manual_recommendation = dict(audio_recommend.get("data", {}))
+        manual_recommendation["selected_preset"] = "Vocal Focus"
+        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation)
         remaster_data = remaster.get("data", {})
         mastered_wav = Path(remaster_data.get("mastered_wav", ""))
         mastered_mp3 = Path(remaster_data.get("mastered_mp3", "") or remaster_data.get("mp3_preview", ""))
@@ -2117,6 +2132,8 @@ def main():
         assert_true(remaster["ok"] and mastered_wav.exists(), "Remaster Studio did not produce mastered WAV")
         assert_true(mastered_probe.get("ok") and mastered_probe.get("has_audio") and abs(float(mastered_probe.get("duration") or 0) - 30.0) < 0.5, "mastered WAV ffprobe validation failed")
         assert_true(remaster_report.get("no_clipping_above_0db") is True and remaster_report.get("external_api_used") is False, "remaster clipping/API validation failed")
+        assert_true(remaster_report.get("remaster_recommendation", {}).get("source") == "audio_analysis" and remaster_report.get("remaster_recommendation", {}).get("selected_preset") == "Vocal Focus" and remaster_report.get("remaster_recommendation", {}).get("overridden") is True, "remaster report recommendation/manual override missing")
+        assert_true("Preset Recommendation:" in Path(remaster_data.get("report_txt_path", "")).read_text(encoding="utf-8"), "remaster TXT report missing recommendation details")
         assert_true(mastered_wav.name.endswith("_master.wav") and remaster_report.get("output_wav_settings", {}).get("codec") == "pcm_s24le" and remaster_report.get("output_wav_settings", {}).get("sample_rate_hz") == 48000, "Remaster WAV V1 settings failed")
         assert_true(mastered_mp3.exists() and mastered_mp3.name.endswith("_master.mp3") and remaster_report.get("output_mp3_settings", {}).get("bitrate") == "320 kbps" and mastered_mp3_probe.get("has_audio"), "Remaster MP3 320k output failed")
         assert_true(long_hook_source.read_bytes() == original_hash, "Remaster modified the original source file")
@@ -2608,6 +2625,7 @@ def main():
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and "1. Upload Audio" in main_source and "4. Process Audio" in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "Remaster Studio UI missing")
+        assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
         assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source, "Audio Editor UI missing")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
         assert_true("Smart Hook Finder" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source and "Batch Hook Export" in main_source and "Export Selected Durations" in main_source and "Download All as ZIP" in main_source, "Audio Editor V2 smart hook/batch UI missing")
