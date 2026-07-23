@@ -31,7 +31,7 @@ FULL_MENU_GROUPS = {
 }
 
 SONG_ONLY_MENU_GROUPS = {
-    "WORKSPACES": ["Song Studio", "Audio Editor", "Remaster Studio", "Visual Studio", "Release Pack"],
+    "WORKSPACES": ["Song Studio", "Remaster Studio", "Audio Editor", "Visual Studio", "Release Pack"],
     "SETTINGS": ["AI Settings"],
 }
 

@@ -1965,6 +1965,17 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         remaster_state["last_result"] = result.get("data", {})
         remaster_state["last_ok"] = bool(result.get("ok"))
         remaster_state["last_error"] = result.get("error", "")
+        if result.get("ok"):
+            data = result.get("data", {}) or {}
+            remaster_state["active_master"] = {
+                "mastered_wav": data.get("mastered_wav", ""),
+                "mastered_mp3": data.get("mastered_mp3") or data.get("mp3_preview", ""),
+                "report_path": data.get("report_path", ""),
+                "report_txt_path": data.get("report_txt_path", ""),
+                "source": "Remaster Studio",
+                "status": "ready",
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+            }
         project["remaster_studio"] = remaster_state
         _save_project()
         if result.get("ok"):
@@ -2028,51 +2039,119 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 st.download_button("Download Remaster Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="download_remaster_report_txt")
 
 
+def _project_master_audio(project: dict[str, Any]) -> dict[str, Any]:
+    remaster_state = project.get("remaster_studio", {}) or {}
+    active_master = dict(remaster_state.get("active_master") or {})
+    last_result = remaster_state.get("last_result") or {}
+    mastered_mp3 = active_master.get("mastered_mp3") or last_result.get("mastered_mp3") or last_result.get("mp3_preview") or ""
+    mastered_wav = active_master.get("mastered_wav") or last_result.get("mastered_wav") or ""
+    mp3_path = Path(str(mastered_mp3 or ""))
+    wav_path = Path(str(mastered_wav or ""))
+    if mp3_path.is_file():
+        return {
+            "ok": True,
+            "source_type": "Project Master",
+            "path": str(mp3_path),
+            "mastered_mp3": str(mp3_path),
+            "mastered_wav": str(wav_path) if wav_path.is_file() else "",
+            "filename": mp3_path.name,
+            "status": "Ready",
+            "report_path": active_master.get("report_path") or last_result.get("report_path", ""),
+            "report_txt_path": active_master.get("report_txt_path") or last_result.get("report_txt_path", ""),
+        }
+    return {"ok": False, "source_type": "Project Master", "path": "", "status": "Missing"}
+
+
+def _render_music_pipeline_status(project: dict[str, Any], *, current_step: str = "") -> None:
+    song_done = bool((project.get("creative_pack_v1", {}) or {}).get("release_pack") or (project.get("song", {}) or {}).get("lyrics"))
+    master = _project_master_audio(project)
+    audio_done = bool(((project.get("audio_editor", {}) or {}).get("last_ok")) or ((project.get("audio_editor", {}) or {}).get("batch_ok")))
+    visual_done = bool((project.get("creative_pack_v1", {}) or {}).get("visual_pack") or (project.get("visual_studio", {}) or {}).get("last_result"))
+    release_ready = bool(song_done and (master.get("ok") or audio_done or (project.get("creative_pack_v1", {}) or {}).get("export")))
+    statuses = [
+        ("Song Studio", "✓ Completed" if song_done else ("Current" if current_step == "Song Studio" else "Waiting")),
+        ("Remaster Studio", "✓ Master Ready" if master.get("ok") else ("Current" if current_step == "Remaster Studio" else "Waiting")),
+        ("Audio Editor", "✓ Hook Ready" if audio_done else ("Current" if current_step == "Audio Editor" else "Waiting")),
+        ("Visual Studio", "✓ Visual Ready" if visual_done else ("Current" if current_step == "Visual Studio" else "Waiting")),
+        ("Release Pack", "Ready" if release_ready else "Waiting"),
+    ]
+    cols = st.columns(len(statuses))
+    for col, (label, status) in zip(cols, statuses):
+        col.caption(label)
+        col.markdown(f"**{status}**")
+
+
 def _render_audio_editor(project: dict[str, Any]) -> None:
     _page_header("Audio Editor", "Cut hooks, choruses, or selected MP3 sections without remastering the audio.", project)
-    st.caption("Audio Editor is separate from Remaster Studio. MP3 only. Lossless Quick Cut preserves the MP3 stream with no re-encoding; Precise Cut re-encodes to MP3 320 kbps.")
+    st.caption("Recommended workflow: create song -> master full song -> cut hooks from the mastered MP3 -> build release pack.")
+    _render_music_pipeline_status(project, current_step="Audio Editor")
     editor_state = project.setdefault("audio_editor", {})
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
     if not ffmpeg_probe.get("ok"):
         st.error("FFmpeg is required for Audio Editor. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
-    uploaded = st.file_uploader(
-        "1. Upload MP3",
-        type=["mp3"],
-        key="audio_editor_upload",
-        help=f"MP3 only. Output is MP3. Max: {max_upload_mb} MB.",
-    )
-    if uploaded:
-        if uploaded.size > max_upload_mb * 1024 * 1024:
-            st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
+    project_master = _project_master_audio(project)
+    st.markdown("### 1. Audio Source")
+    source_options = ["Use Project Master (Recommended)", "Upload External MP3"]
+    default_source_index = 0 if project_master.get("ok") else 1
+    source_choice = st.radio("Audio Source", source_options, index=default_source_index, key="audio_editor_source_choice")
+    if not project_master.get("ok"):
+        st.warning("No remastered master found.")
+        st.info("Please either open Remaster Studio first or upload an external MP3.")
+    source_path = ""
+    source_info: dict[str, Any] = {}
+    if source_choice == "Use Project Master (Recommended)":
+        if project_master.get("ok"):
+            source_path = str(project_master["path"])
+            source_info = {"original_filename": project_master.get("filename", Path(source_path).name), "format": "MP3", "source_type": "Project Master"}
+            st.success("✓ Ready")
+            st.caption("Current Audio Source: Project Master")
         else:
-            upload_result = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song")
-            if upload_result.get("ok"):
-                ext = Path(uploaded.name).suffix.lower().lstrip(".")
-                if ext != "mp3":
-                    st.warning("Audio Editor V1 supports MP3 input only.")
-                    return
-                upload_result["data"]["original_filename"] = uploaded.name
-                upload_result["data"]["format"] = ext.upper()
-                upload_result["data"]["mime_type"] = getattr(uploaded, "type", "")
-                editor_state["source_audio"] = upload_result["data"]
-                project["audio_editor"] = editor_state
-                _save_project()
-                st.success("Audio uploaded")
+            pass
+    if source_choice == "Upload External MP3" or not project_master.get("ok"):
+        uploaded = st.file_uploader(
+            "Upload External MP3",
+            type=["mp3"],
+            key="audio_editor_upload",
+            help=f"MP3 only. Output is MP3. Max: {max_upload_mb} MB.",
+        )
+        if uploaded:
+            if uploaded.size > max_upload_mb * 1024 * 1024:
+                st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
             else:
-                st.warning(upload_result.get("error") or upload_result.get("message"))
-    source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
-    source_info = editor_state.get("source_audio") or {}
+                upload_result = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song")
+                if upload_result.get("ok"):
+                    ext = Path(uploaded.name).suffix.lower().lstrip(".")
+                    if ext != "mp3":
+                        st.warning("Audio Editor V1 supports MP3 input only.")
+                        return
+                    upload_result["data"]["original_filename"] = uploaded.name
+                    upload_result["data"]["format"] = ext.upper()
+                    upload_result["data"]["mime_type"] = getattr(uploaded, "type", "")
+                    upload_result["data"]["source_type"] = "External Upload"
+                    editor_state["source_audio"] = upload_result["data"]
+                    project["audio_editor"] = editor_state
+                    _save_project()
+                    st.success("External MP3 uploaded")
+                else:
+                    st.warning(upload_result.get("error") or upload_result.get("message"))
+        if source_choice == "Upload External MP3" or not project_master.get("ok"):
+            source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
+            source_info = editor_state.get("source_audio") or {}
     if not source_path or not Path(source_path).is_file():
-        st.info("Upload an MP3 to start cutting a hook.")
+        st.info("Choose Project Master after remastering, or upload an external MP3 to start cutting a hook.")
         return
     probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
     duration = float(probe.get("duration") or 0)
-    st.markdown("### 2. Original Audio")
+    st.markdown("### Current Audio Source")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
+    c1.metric("Source", str(source_info.get("source_type") or "External Upload"))
     c2.metric("Duration", format_timecode(duration))
     c3.metric("Codec", str(probe.get("audio_codec") or "Unknown"))
+    c4, c5, c6 = st.columns(3)
+    c4.metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
+    c5.metric("Sample Rate", f"{probe.get('sample_rate', 0)} Hz" if probe.get("sample_rate") else "Unknown")
+    c6.metric("Bitrate", str(probe.get("audio_bit_rate") or "Unknown"))
     st.audio(source_path)
     preset = st.selectbox("Hook duration helper", list(HOOK_DURATION_PRESETS), index=0, key="audio_editor_duration_preset")
     default_start = float(editor_state.get("start_time", 0.0) or 0.0)
@@ -5249,10 +5328,10 @@ with st.sidebar:
     if not developer_mode:
         if st.button("Song Studio", use_container_width=True, key="sidebar_nav_song_studio_workspace"):
             go_to_page("WORKSPACES", "Song Studio")
-        if st.button("Audio Editor", use_container_width=True, key="sidebar_nav_audio_editor_workspace"):
-            go_to_page("WORKSPACES", "Audio Editor")
         if st.button("Remaster Studio", use_container_width=True, key="sidebar_nav_remaster_studio_workspace"):
             go_to_page("WORKSPACES", "Remaster Studio")
+        if st.button("Audio Editor", use_container_width=True, key="sidebar_nav_audio_editor_workspace"):
+            go_to_page("WORKSPACES", "Audio Editor")
         if st.button("Visual Studio", use_container_width=True, key="sidebar_nav_visual_studio"):
             go_to_page("WORKSPACES", "Visual Studio")
         if st.button("Release Pack", use_container_width=True, key="sidebar_nav_release_pack"):
