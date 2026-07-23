@@ -24,6 +24,10 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
+WAVEFORM_SELECTOR_COMPONENT = components.declare_component(
+    "velaflow_waveform_selector",
+    path=str(ROOT / "app" / "components" / "waveform_selector"),
+)
 
 from core.artist_presets import (
     DEFAULT_ARTIST_ID,
@@ -47,7 +51,7 @@ from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, clamp_audio_selection, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -1940,6 +1944,35 @@ def _resolved_audio_export_default(*, source_info: dict[str, Any], source_path: 
     )
 
 
+def _render_interactive_waveform_selector(waveform_data: dict[str, Any], *, start: float, end: float, duration: float, key: str) -> dict[str, Any]:
+    selection = clamp_audio_selection(start, end, duration)
+    component_value = WAVEFORM_SELECTOR_COMPONENT(
+        points=waveform_data.get("points", []),
+        duration=float(duration or waveform_data.get("duration") or 0),
+        start=selection["start"],
+        end=selection["end"],
+        key=key,
+        default=selection,
+    )
+    if isinstance(component_value, dict):
+        return {
+            "start": float(component_value.get("start", selection["start"])),
+            "end": float(component_value.get("end", selection["end"])),
+            "duration": float(component_value.get("duration", selection["duration"])),
+            "status": str(component_value.get("status") or ""),
+        }
+    return selection | {"status": ""}
+
+
+def _sync_audio_editor_selection(editor_state: dict[str, Any], start: float, end: float, duration: float) -> dict[str, float]:
+    selection = clamp_audio_selection(start, end, duration)
+    st.session_state["audio_editor_selection_start"] = selection["start"]
+    st.session_state["audio_editor_selection_end"] = selection["end"]
+    editor_state["start_time"] = selection["start"]
+    editor_state["end_time"] = selection["end"]
+    return selection
+
+
 def _render_remaster_studio(project: dict[str, Any]) -> None:
     _page_header("Remaster Studio", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
     st.caption("Separate workspace for completed audio from Suno, Udio, or another source. Local FFmpeg only. Original audio stays unchanged.")
@@ -2326,16 +2359,46 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         )
         soft_range = SMART_HOOK_TYPES[hook_type]["soft_range"]
         st.caption(f"{hook_type}: target feel around {int(soft_range[0])}-{int(soft_range[1])}s, refined to musical boundaries.")
+    selection_source_id = _audio_source_signature(source_info, source_path)
+    if st.session_state.get("audio_editor_selection_source_id") != selection_source_id:
+        initial = clamp_audio_selection(float(editor_state.get("start_time", 0.0) or 0.0), float(editor_state.get("end_time", min(duration, 15.0)) or min(duration, 15.0)), duration)
+        st.session_state["audio_editor_selection_source_id"] = selection_source_id
+        st.session_state["audio_editor_selection_start"] = initial["start"]
+        st.session_state["audio_editor_selection_end"] = initial["end"]
     else:
-        with st.expander("Legacy fixed-duration helpers", expanded=False):
-            preset = st.selectbox("Hook duration helper", list(HOOK_DURATION_PRESETS), index=0, key="audio_editor_duration_preset")
-            if HOOK_DURATION_PRESETS[preset] > 0:
-                editor_state["end_time"] = min(duration, float(editor_state.get("start_time", 0.0) or 0.0) + HOOK_DURATION_PRESETS[preset])
-    default_start = float(editor_state.get("start_time", 0.0) or 0.0)
-    default_end = float(editor_state.get("end_time", min(duration, 15.0)) or min(duration, 15.0))
+        current = clamp_audio_selection(float(st.session_state.get("audio_editor_selection_start", 0.0)), float(st.session_state.get("audio_editor_selection_end", min(duration, 15.0))), duration)
+        st.session_state["audio_editor_selection_start"] = current["start"]
+        st.session_state["audio_editor_selection_end"] = current["end"]
+    st.markdown("### 2. Waveform and Selection")
+    st.caption("Drag the start handle, end handle, highlighted region, or empty waveform area to set the hook.")
+    waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
+    waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
+    waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
+    if waveform_result.get("ok"):
+        waveform_data = waveform_result.get("data", {})
+        interactive_value = _render_interactive_waveform_selector(
+            waveform_data,
+            start=float(st.session_state.get("audio_editor_selection_start", 0.0)),
+            end=float(st.session_state.get("audio_editor_selection_end", min(duration, 15.0))),
+            duration=duration,
+            key=f"audio_editor_interactive_waveform_{hashlib.sha1(selection_source_id.encode('utf-8')).hexdigest()[:12]}",
+        )
+        if interactive_value.get("status"):
+            dragged = _sync_audio_editor_selection(editor_state, float(interactive_value.get("start", 0.0)), float(interactive_value.get("end", 0.0)), duration)
+            if interactive_value.get("status") == "Manually Adjusted":
+                editor_state["smart_override_status"] = "Manually Adjusted"
+            project["audio_editor"] = editor_state
+            _save_project()
+        editor_state["waveform"] = {"waveform_json": str(waveform_json), "point_count": waveform_data.get("point_count", 0), "cache_status": waveform_data.get("cache_status", ""), "method": waveform_data.get("method", ""), "interactive": True}
+        st.caption(f"Interactive waveform: {waveform_data.get('point_count', 0)} points • cache {waveform_data.get('cache_status', 'unknown')} • desktop mouse + mobile touch supported")
+    else:
+        st.caption("Interactive waveform unavailable. Manual cutting still works.")
     col_start, col_end = st.columns(2)
-    start_time = col_start.number_input("Start marker", min_value=0.0, max_value=max(0.0, duration), value=min(default_start, max(0.0, duration)), step=0.1, format="%.3f", key="audio_editor_start")
-    end_time = col_end.number_input("End marker", min_value=0.0, max_value=max(0.0, duration), value=min(max(default_end, start_time + 1.0), max(1.0, duration)), step=0.1, format="%.3f", key="audio_editor_end")
+    manual_start = col_start.number_input("Start marker", min_value=0.0, max_value=max(0.0, duration), value=float(st.session_state.get("audio_editor_selection_start", 0.0)), step=0.1, format="%.3f")
+    manual_end = col_end.number_input("End marker", min_value=0.0, max_value=max(0.0, duration), value=float(st.session_state.get("audio_editor_selection_end", min(duration, 15.0))), step=0.1, format="%.3f")
+    synced_selection = _sync_audio_editor_selection(editor_state, float(manual_start), float(manual_end), duration)
+    start_time = synced_selection["start"]
+    end_time = synced_selection["end"]
     time_cols = st.columns(3)
     rough_start_text = time_cols[0].text_input("Start time (MM:SS or seconds)", value=format_timecode(start_time), key="audio_editor_start_text")
     rough_end_text = time_cols[1].text_input("End time (MM:SS or seconds)", value=format_timecode(end_time), key="audio_editor_end_text")
@@ -2343,8 +2406,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         try:
             parsed_start = max(0.0, min(duration, parse_time_input(rough_start_text)))
             parsed_end = max(0.0, min(duration, parse_time_input(rough_end_text)))
-            editor_state["start_time"] = parsed_start
-            editor_state["end_time"] = parsed_end
+            applied = _sync_audio_editor_selection(editor_state, parsed_start, parsed_end, duration)
             editor_state["smart_override_status"] = "Manually Adjusted"
             project["audio_editor"] = editor_state
             _save_project()
@@ -2364,30 +2426,14 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     ]
     for idx, (label, field, delta) in enumerate(nudge_actions):
         if nudge_cols[idx].button(label, use_container_width=True, key=f"audio_editor_nudge_{idx}"):
-            current_value = float(start_time if field == "start_time" else end_time)
-            editor_state[field] = max(0.0, min(duration, current_value + delta))
+            nudged_start = start_time + delta if field == "start_time" else start_time
+            nudged_end = end_time + delta if field == "end_time" else end_time
+            nudged = _sync_audio_editor_selection(editor_state, nudged_start, nudged_end, duration)
             editor_state["smart_override_status"] = "Manually Adjusted"
             project["audio_editor"] = editor_state
             _save_project()
             st.rerun()
     selection = validate_audio_selection(start_time, end_time, duration)
-    st.markdown("### 2. Waveform and Selection")
-    st.caption("Waveform Timeline")
-    waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
-    waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
-    waveform_svg = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_selection.svg"
-    waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
-    if waveform_result.get("ok"):
-        waveform_data = waveform_result.get("data", {})
-        svg_result = render_waveform_svg(waveform_data, waveform_svg, start_time=start_time, end_time=end_time)
-        if svg_result.get("ok") and waveform_svg.is_file():
-            st.image(str(waveform_svg), use_container_width=True)
-            st.caption(f"Waveform: {waveform_data.get('point_count', 0)} points • cache {waveform_data.get('cache_status', 'unknown')} • markers update from Start/End fields")
-            editor_state["waveform"] = {"waveform_json": str(waveform_json), "waveform_svg": str(waveform_svg), "point_count": waveform_data.get("point_count", 0), "cache_status": waveform_data.get("cache_status", ""), "method": waveform_data.get("method", "")}
-        else:
-            st.caption("Waveform markers unavailable; manual cutting still works.")
-    else:
-        st.caption("Waveform preview unavailable. Manual cutting still works.")
     st.markdown(f"Start: `{format_timecode(start_time)}`  End: `{format_timecode(end_time)}`  Duration: `{format_timecode(max(0.0, end_time - start_time))}`")
     if not selection.get("ok"):
         st.warning(selection.get("message", "Invalid selection"))
@@ -2405,8 +2451,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             st.rerun()
         if refine_cols[3].button("Restore Rough Selection", use_container_width=True, disabled=not bool(editor_state.get("rough_selection")), key="audio_editor_restore_rough"):
             rough = editor_state.get("rough_selection") or {}
-            editor_state["start_time"] = float(rough.get("start_time", start_time))
-            editor_state["end_time"] = float(rough.get("end_time", end_time))
+            _sync_audio_editor_selection(editor_state, float(rough.get("start_time", start_time)), float(rough.get("end_time", end_time)), duration)
             editor_state["smart_override_status"] = "Rough Restored"
             project["audio_editor"] = editor_state
             _save_project()
@@ -2425,6 +2470,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                 refined_data = refined.get("data", {})
                 editor_state["rough_selection"] = {"start_time": float(start_time), "end_time": float(end_time)}
                 editor_state["smart_refined_hook"] = refined_data
+                _sync_audio_editor_selection(editor_state, float(refined_data.get("refined_start", start_time)), float(refined_data.get("refined_end", end_time)), duration)
                 editor_state["smart_override_status"] = "Smart Refined"
                 project["audio_editor"] = editor_state
                 _save_project()
@@ -2444,8 +2490,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     st.caption(f"- {reason}")
                 accept_col, preview_col, last8_col, before_col = st.columns(4)
                 if accept_col.button("Accept Refined Boundaries", use_container_width=True, key="audio_editor_accept_refined"):
-                    editor_state["start_time"] = float(refined_hook.get("refined_start", start_time))
-                    editor_state["end_time"] = float(refined_hook.get("refined_end", end_time))
+                    _sync_audio_editor_selection(editor_state, float(refined_hook.get("refined_start", start_time)), float(refined_hook.get("refined_end", end_time)), duration)
                     editor_state["smart_override_status"] = "Accepted Refined Boundaries"
                     project["audio_editor"] = editor_state
                     _save_project()
@@ -2529,8 +2574,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     "reasons": candidate.get("boundary_reasons", []),
                     "user_override_status": "Smart Refined",
                 }
-                editor_state["start_time"] = candidate_start
-                editor_state["end_time"] = candidate_end
+                _sync_audio_editor_selection(editor_state, candidate_start, candidate_end, duration)
                 editor_state["rough_selection"] = {"start_time": refined_candidate["rough_start"], "end_time": refined_candidate["rough_end"]}
                 editor_state["smart_refined_hook"] = refined_candidate
                 editor_state["smart_override_status"] = "Smart Refined"
@@ -2550,8 +2594,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         st.info("No strong hook candidate detected. Manual selection is recommended.")
     action_cols = st.columns(3)
     if action_cols[0].button("Reset selection", use_container_width=True, key="audio_editor_reset_selection"):
-        editor_state["start_time"] = 0.0
-        editor_state["end_time"] = min(duration, 15.0)
+        _sync_audio_editor_selection(editor_state, 0.0, min(duration, 15.0), duration)
         project["audio_editor"] = editor_state
         _save_project()
         st.rerun()

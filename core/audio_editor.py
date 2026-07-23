@@ -83,6 +83,29 @@ def parse_time_input(value: str | float | int) -> float:
     return minutes * 60 + seconds
 
 
+def clamp_audio_selection(start: float, end: float, duration: float, *, min_gap: float = 0.1) -> dict[str, float]:
+    source_duration = max(0.0, float(duration or 0.0))
+    gap = max(0.001, float(min_gap or 0.1))
+    if source_duration <= gap:
+        return {"start": 0.0, "end": source_duration, "duration": source_duration}
+    clean_start = max(0.0, min(source_duration - gap, float(start or 0.0)))
+    clean_end = max(clean_start + gap, min(source_duration, float(end or 0.0)))
+    if clean_end > source_duration:
+        clean_end = source_duration
+        clean_start = max(0.0, clean_end - gap)
+    return {"start": round(clean_start, 3), "end": round(clean_end, 3), "duration": round(clean_end - clean_start, 3)}
+
+
+def move_audio_selection_region(start: float, end: float, delta: float, duration: float, *, min_gap: float = 0.1) -> dict[str, float]:
+    selection = clamp_audio_selection(start, end, duration, min_gap=min_gap)
+    region_duration = selection["duration"]
+    source_duration = max(0.0, float(duration or 0.0))
+    if source_duration <= region_duration:
+        return selection
+    next_start = max(0.0, min(source_duration - region_duration, selection["start"] + float(delta or 0.0)))
+    return {"start": round(next_start, 3), "end": round(next_start + region_duration, 3), "duration": round(region_duration, 3)}
+
+
 def build_audio_editor_project_id(original_name: str) -> str:
     stem = sanitize_filename(Path(original_name).stem or "audio_editor")
     return safe_name(f"{stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
