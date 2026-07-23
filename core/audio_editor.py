@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import math
 import shutil
 import subprocess
@@ -38,7 +39,11 @@ WAVEFORM_TARGET_POINTS = 1600
 
 def _source_signature(path: Path) -> dict[str, Any]:
     stat = path.stat()
-    return {"path": str(path.resolve()), "size": stat.st_size, "mtime": int(stat.st_mtime)}
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {"path": str(path.resolve()), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": digest.hexdigest()}
 
 
 def format_timecode(seconds: float) -> str:

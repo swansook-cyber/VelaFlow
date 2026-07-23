@@ -6187,6 +6187,16 @@ def export_creative_release_pack(
             file_path = Path(str(file_value or ""))
             if file_path.is_file():
                 audio_edit_files[archive_name] = str(file_path)
+        for item in audio_edit.get("generated_files", []) or []:
+            file_path = Path(str(item.get("path") or ""))
+            if file_path.is_file():
+                audio_edit_files[f"audio_editor/batch/{file_path.name}"] = str(file_path)
+        batch_report_path = Path(str(audio_edit.get("batch_report_path") or audio_edit.get("batch_report_json") or ""))
+        batch_report_txt_path = Path(str(audio_edit.get("batch_report_txt_path") or ""))
+        if batch_report_path.is_file():
+            audio_edit_files["audio_editor/batch_edit_report.json"] = str(batch_report_path)
+        if batch_report_txt_path.is_file():
+            audio_edit_files["audio_editor/batch_edit_report.txt"] = str(batch_report_txt_path)
         txt_path = ensure_unique_path(export_dir / build_export_filename(title, artist_name, "Release_Pack", "txt"))
         txt_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         manifest = {

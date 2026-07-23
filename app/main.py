@@ -2083,7 +2083,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     start_time = col_start.number_input("Start marker", min_value=0.0, max_value=max(0.0, duration), value=min(default_start, max(0.0, duration)), step=0.1, format="%.3f", key="audio_editor_start")
     end_time = col_end.number_input("End marker", min_value=0.0, max_value=max(0.0, duration), value=min(max(default_end, start_time + 1.0), max(1.0, duration)), step=0.1, format="%.3f", key="audio_editor_end")
     selection = validate_audio_selection(start_time, end_time, duration)
-    st.markdown("### 3. Waveform Timeline")
+    st.markdown("### 2. Waveform and Selection")
+    st.caption("Waveform Timeline")
     waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
     waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
     waveform_svg = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_selection.svg"
@@ -2102,9 +2103,9 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     st.markdown(f"Start: `{format_timecode(start_time)}`  End: `{format_timecode(end_time)}`  Duration: `{format_timecode(max(0.0, end_time - start_time))}`")
     if not selection.get("ok"):
         st.warning(selection.get("message", "Invalid selection"))
-    st.markdown("### Smart Hook Finder")
+    st.markdown("### 3. Smart Hook Finder")
     st.caption("ระบบวิเคราะห์จากพลังเสียง ความต่อเนื่อง และช่วงที่เงียบน้อย ยังไม่ได้วิเคราะห์ความหมายของเนื้อเพลง")
-    if st.button("Analyze Hook Candidates", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_analyze_hooks"):
+    if st.button("วิเคราะห์ช่วง Hook (Analyze Hook Candidates)", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_analyze_hooks"):
         with st.spinner("Analyzing hook candidates..."):
             analysis_dir = ROOT / "exports" / "audio_editor" / "hook_analysis" / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}"
             analysis = analyze_hook_candidates(source_path, output_dir=analysis_dir, ffmpeg_path=settings.ffmpeg_path)
@@ -2130,13 +2131,13 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             st.caption(f"Duration: {int(float(candidate.get('duration', 0)))} sec • Energy: {int(candidate.get('energy_score', 0))}% • Activity: {int(candidate.get('vocal_activity_score', 0))}%")
             st.write(candidate.get("reason_summary", "Manual review recommended"))
             c_use, c_preview = st.columns(2)
-            if c_use.button("Use This Hook", use_container_width=True, key=f"audio_editor_use_hook_{candidate.get('rank')}"):
+            if c_use.button("ใช้ช่วงนี้ (Use This Hook)", use_container_width=True, key=f"audio_editor_use_hook_{candidate.get('rank')}"):
                 editor_state["start_time"] = float(candidate.get("start_time", 0))
                 editor_state["end_time"] = float(candidate.get("end_time", 0))
                 project["audio_editor"] = editor_state
                 _save_project()
                 st.rerun()
-            if c_preview.button("Preview Candidate", use_container_width=True, key=f"audio_editor_preview_hook_{candidate.get('rank')}"):
+            if c_preview.button("ทดลองฟังช่วงนี้ (Preview Candidate)", use_container_width=True, key=f"audio_editor_preview_hook_{candidate.get('rank')}"):
                 preview = export_audio_selection(source_path, start_time=float(candidate.get("start_time", 0)), end_time=float(candidate.get("end_time", 0)), project_name=f"{project.get('title') or 'audio_editor'} Candidate Preview", output_name=f"{Path(source_path).stem}_candidate_{candidate.get('rank')}_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
                 if preview.get("ok"):
                     editor_state["preview_result"] = preview.get("data", {})
@@ -2169,13 +2170,18 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     if preview_mp3.is_file():
         st.markdown("**Selected-section preview**")
         st.audio(str(preview_mp3))
-    st.markdown("### 4. Cut Mode")
+    st.markdown("### 4. Cut Settings")
+    cut_mode_labels = {
+        "Lossless Quick Cut": "ตัดแบบรักษาคุณภาพเดิม (Lossless Quick Cut)",
+        "Precise Cut": "ตัดแบบแม่นยำ (Precise Cut)",
+    }
     cut_mode = st.radio(
         "Cut mode",
         AUDIO_EDITOR_CUT_MODES,
         index=0,
         key="audio_editor_cut_mode",
         help="Lossless Quick Cut uses FFmpeg stream copy. Precise Cut re-encodes to MP3 320 kbps.",
+        format_func=lambda value: cut_mode_labels.get(value, value),
     )
     st.caption("Lossless Quick Cut: No re-encoding. MP3 frame boundaries may shift the cut slightly.")
     st.caption("Precise Cut: Re-encoded to MP3 320 kbps for more accurate start/end positions.")
@@ -2188,7 +2194,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     if effective_mode != cut_mode:
         st.warning("Re-encoding required: fades automatically use Precise Cut.")
     custom_name = st.text_input("Output name", value=f"{Path(str(source_info.get('original_filename') or source_path)).stem}_hook", key="audio_editor_output_name")
-    if st.button("5. Export Hook MP3", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
+    st.markdown("### 5. Single Export")
+    if st.button("ส่งออก Hook MP3 (Export Hook MP3)", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
         result = export_audio_selection(
             source_path,
             start_time=start_time,
@@ -2218,7 +2225,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     result_data = editor_state.get("last_result") or {}
     hook_mp3 = Path(str(result_data.get("hook_mp3") or ""))
     if hook_mp3.is_file():
-        st.markdown("### 6. Result")
+        st.markdown("### 7. Reports")
         st.audio(str(hook_mp3))
         report = result_data.get("report") or {}
         st.caption("No re-encoding" if not report.get("reencoded") else "Re-encoded to MP3 320 kbps")
@@ -2228,7 +2235,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             report_txt = Path(str(result_data.get("report_txt_path") or ""))
             if report_txt.is_file():
                 st.download_button("Download Edit Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="audio_editor_download_report_txt")
-    st.markdown("### Batch Hook Export")
+    st.markdown("### 6. Batch Export")
+    st.caption("Batch Hook Export")
     st.caption("Export several social-media hook lengths from the same start marker. Items beyond the song duration are skipped with a warning.")
     batch_options = [15, 30, 45, 60]
     selected_batch: list[float] = []
@@ -2236,7 +2244,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     for idx, batch_duration in enumerate(batch_options):
         if batch_cols[idx].checkbox(f"{batch_duration}s", value=batch_duration in {15, 30}, key=f"audio_editor_batch_{batch_duration}s"):
             selected_batch.append(float(batch_duration))
-    if st.button("Export Selected Durations", use_container_width=True, disabled=not selected_batch or not ffmpeg_probe.get("ok"), key="audio_editor_batch_export"):
+    if st.button("ส่งออกหลายความยาว (Export Selected Durations)", use_container_width=True, disabled=not selected_batch or not ffmpeg_probe.get("ok"), key="audio_editor_batch_export"):
         batch = export_audio_batch(
             source_path,
             start_time=float(start_time),
@@ -2275,7 +2283,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     st.download_button("Download MP3", data=file_path.read_bytes(), file_name=file_path.name, mime="audio/mpeg", use_container_width=True, key=f"audio_editor_batch_download_{idx}_{file_path.name}")
         zip_path = Path(str(batch_data.get("zip_path") or ""))
         if zip_path.is_file():
-            st.download_button("Download All as ZIP", data=zip_path.read_bytes(), file_name=zip_path.name, mime="application/zip", use_container_width=True, key="audio_editor_batch_download_zip")
+            st.download_button("ดาวน์โหลดทั้งหมดเป็น ZIP (Download All as ZIP)", data=zip_path.read_bytes(), file_name=zip_path.name, mime="application/zip", use_container_width=True, key="audio_editor_batch_download_zip")
     if batch_skipped:
         with st.expander("Skipped batch durations", expanded=True):
             for item in batch_skipped:
@@ -2692,12 +2700,20 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         if not result.get("ok"):
             _show_api_quality_stop(result.get("provider_status") or gate)
             return
+        audio_editor_state = project.get("audio_editor", {}) or {}
+        audio_edit_export_data = dict(audio_editor_state.get("last_result") or {})
+        batch_export_data = audio_editor_state.get("batch_result") or {}
+        if batch_export_data:
+            audio_edit_export_data["generated_files"] = batch_export_data.get("generated_files", [])
+            audio_edit_export_data["batch_report_path"] = batch_export_data.get("report_path", "")
+            audio_edit_export_data["batch_report_txt_path"] = batch_export_data.get("report_txt_path", "")
+            audio_edit_export_data["batch_zip_path"] = batch_export_data.get("zip_path", "")
         export = export_creative_release_pack(
             project.get("title") or result["pack"].get("Suggested title") or "VelaFlow Release",
             result,
             artist_name,
             remaster_data=(project.get("remaster_studio", {}) or {}).get("last_result") or {},
-            audio_edit_data=(project.get("audio_editor", {}) or {}).get("last_result") or {},
+            audio_edit_data=audio_edit_export_data,
         )
         state.update(
             {

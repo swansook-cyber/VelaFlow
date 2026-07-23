@@ -2039,6 +2039,25 @@ def main():
         waveform_data = waveform_first.get("data", {})
         waveform_render = render_waveform_svg(waveform_data, waveform_svg, start_time=8.0, end_time=38.0)
         assert_true(waveform_first["ok"] and 1000 <= int(waveform_data.get("point_count", 0)) <= 3000 and waveform_second.get("data", {}).get("cache_status") == "hit" and waveform_render["ok"] and waveform_svg.exists(), "Audio Editor waveform generation/cache/render failed")
+        alternate_hook_source = out / "hook_clip_projects" / "smart_hook_source_alt.mp3"
+        subprocess.run(
+            [
+                find_ffmpeg(),
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "sine=frequency=660:duration=12:sample_rate=44100",
+                "-c:a",
+                "libmp3lame",
+                str(alternate_hook_source),
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        waveform_third = generate_waveform_data(alternate_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
+        assert_true(waveform_third["ok"] and waveform_third.get("data", {}).get("cache_status") == "miss" and waveform_third.get("data", {}).get("source_signature", {}).get("sha256") != waveform_data.get("source_signature", {}).get("sha256"), "Audio Editor waveform cache fingerprint did not reject stale source")
         hook_analysis = analyze_hook_candidates(smart_hook_source, output_dir=out / "hook_clip_projects" / "exports" / "hook_analysis", ffmpeg_path=find_ffmpeg())
         hook_candidates = (hook_analysis.get("data") or {}).get("candidates", [])
         assert_true(hook_analysis["ok"] and hook_candidates and len(hook_candidates) <= 3 and Path((hook_analysis.get("data") or {}).get("report_path", "")).exists(), "Smart Hook Finder did not return/report candidates")
@@ -2061,6 +2080,27 @@ def main():
         precise_batch_report = (batch_precise.get("data") or {}).get("report", {})
         precise_batch_file = ((batch_precise.get("data") or {}).get("generated_files") or [{}])[0]
         assert_true(batch_precise["ok"] and precise_batch_report.get("cut_mode") == "Precise Cut" and precise_batch_report.get("reencoded") is True and "libmp3lame" in precise_batch_file.get("command", []), "Audio Editor fade batch must force Precise Cut 320k")
+        thai_audio_name = out / "hook_clip_projects" / "เพลง.ทดสอบ hook.mp3"
+        shutil.copy2(smart_hook_source, thai_audio_name)
+        thai_lossless = export_audio_selection(thai_audio_name, start_time=0.0, end_time=1.0, project_name="Smoke Thai Audio Editor", output_name="เพลง ทดสอบ hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg())
+        assert_true(thai_lossless["ok"] and Path(thai_lossless.get("data", {}).get("hook_mp3", "")).name.endswith(".mp3") and "เพลง" in Path(thai_lossless.get("data", {}).get("hook_mp3", "")).name, "Audio Editor Thai/multiple-dot filename handling failed")
+        audio_batch_release = export_creative_release_pack(
+            "Smoke Audio Batch Release",
+            release_pack,
+            "Vela Moon",
+            base_dir=out / "audio_batch_release_pack",
+            audio_edit_data={
+                "hook_mp3": lossless_data.get("hook_mp3"),
+                "report_path": lossless_data.get("report_path"),
+                "report_txt_path": lossless_data.get("report_txt_path"),
+                "generated_files": batch_data.get("generated_files", []),
+                "batch_report_path": batch_data.get("report_path"),
+                "batch_report_txt_path": batch_data.get("report_txt_path"),
+            },
+        )
+        with zipfile.ZipFile(Path(audio_batch_release.get("data", {}).get("zip_path", ""))) as archive:
+            release_audio_names = set(archive.namelist())
+        assert_true(audio_batch_release["ok"] and "audio_editor/hook.mp3" in release_audio_names and "audio_editor/batch_edit_report.json" in release_audio_names and any(name.startswith("audio_editor/batch/") and name.endswith("_15s.mp3") for name in release_audio_names), "Release Pack did not include Audio Editor single and batch outputs")
         original_hash = long_hook_source.read_bytes()
         remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
         remaster_data = remaster.get("data", {})
