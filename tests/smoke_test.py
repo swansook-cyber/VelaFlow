@@ -55,7 +55,7 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
-from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, make_safe_filename, sanitize_filename
+from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, initialize_export_name_state, make_safe_filename, sanitize_filename
 from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
@@ -531,6 +531,13 @@ def main():
     assert_true(audio_source_export_name(source_type="External Upload", original_filename="k-den พาฟิน.mp3", song_title="พอได้แล้วใจ") == "k-den พาฟิน", "external upload export name should override stale project title")
     assert_true(audio_source_export_name(source_type="Project Master", original_filename="k-den พาฟิน.mp3", song_title="พอได้แล้วใจ") == "พอได้แล้วใจ", "project master export name should use current song title")
     assert_true(audio_source_export_name(source_type="External Upload", original_filename="Fiore Sports2026.mp3", song_title="Demo Song") == "Fiore Sports2026", "mixed English/Thai external export fallback failed")
+    export_widget_state: dict[str, object] = {}
+    assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "external|k-den พาฟิน.mp3|1", "k-den พาฟิน") == "k-den พาฟิน", "export widget first render default failed")
+    export_widget_state["remaster_export_name"] = "Manual Thai Name"
+    export_widget_state["remaster_export_name_manual"] = True
+    assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "external|k-den พาฟิน.mp3|1", "k-den พาฟิน") == "Manual Thai Name", "same source should preserve manual export name")
+    assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "external|New Upload.mp3|2", "New Upload") == "New Upload" and export_widget_state["remaster_export_name_manual"] is False, "new external upload should reset export name")
+    assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "project-master|พอได้แล้วใจ", "พอได้แล้วใจ") == "พอได้แล้วใจ", "switching project master should update export name default")
     assert_true(build_asset_export_filename('ผู้พิทักษ์โลก', '', 'Master', 'mp3') == 'ผู้พิทักษ์โลก_Master.mp3' and build_asset_export_filename('', 'Best Song Ever.mp3', 'Hook30', 'mp3') == 'Best Song Ever_Hook30.mp3', "asset export filename builder failed")
     export_text_with_title = "====================\nSONG METADATA\n====================\n\nSong title: เดินต่อ\n"
     assert_true(extract_song_title_from_export_text(export_text_with_title) == "เดินต่อ", "export title parser failed")
@@ -2698,6 +2705,7 @@ def main():
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and "1. Upload Audio" in main_source and "4. Process Audio" in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "Remaster Studio UI missing")
         assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
         assert_true("Audio Editor" in main_source and "MP3 only. Output is MP3." in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Timeline" in main_source and "Export Hook MP3" in main_source and "Download Hook MP3" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor UI missing")
+        assert_true('st.text_input("Export Name", key="remaster_export_name")' in main_source and 'st.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
         assert_true("Smart Hook Finder" in main_source and "Smart Musical Hook — Recommended" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source and "Batch Hook Export" in main_source and "Export Selected Durations" in main_source and "Download All as ZIP" in main_source, "Audio Editor V2 smart hook/batch UI missing")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")

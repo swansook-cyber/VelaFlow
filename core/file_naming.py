@@ -49,6 +49,27 @@ def audio_source_export_name(
     return export_name_base(song_title or project_title, original_filename)
 
 
+def initialize_export_name_state(
+    state: dict,
+    widget_key: str,
+    source_id: str,
+    resolved_default_name: str,
+    *,
+    manual_key: str | None = None,
+    source_key: str | None = None,
+) -> str:
+    manual_key = manual_key or f"{widget_key}_manual"
+    source_key = source_key or f"{widget_key}_source_id"
+    if state.get(source_key) != source_id:
+        state[source_key] = source_id
+        state[widget_key] = resolved_default_name
+        state[manual_key] = False
+    elif widget_key not in state:
+        state[widget_key] = resolved_default_name
+        state.setdefault(manual_key, False)
+    return str(state.get(widget_key) or resolved_default_name)
+
+
 def build_asset_export_filename(song_title: str | None, original_filename: str | None, suffix: str, ext: str) -> str:
     base = export_name_base(song_title, original_filename)
     clean_suffix = make_safe_filename(suffix).replace(" ", "_")
