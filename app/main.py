@@ -2387,32 +2387,34 @@ def _render_music_pipeline_status(project: dict[str, Any], *, current_step: str 
 
 
 def _render_audio_editor(project: dict[str, Any]) -> None:
-    _page_header("Audio Editor", "Cut hooks, choruses, or selected MP3/WAV sections without remastering the audio.", project)
-    st.caption("Recommended workflow: create song -> master full song -> cut hooks from the mastered source -> build release pack.")
+    _page_header("Audio Editor", "A simple waveform cutter for MP3/WAV hooks.", project)
+    st.caption("Workflow: choose source -> drag waveform or find a smart hook -> preview -> export MP3/WAV.")
     _render_music_pipeline_status(project, current_step="Audio Editor")
+
     editor_state = project.setdefault("audio_editor", {})
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
     if not ffmpeg_probe.get("ok"):
         st.error("FFmpeg is required for Audio Editor. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
+
     project_master = _project_master_audio(project)
-    st.markdown("### 1. Audio Source")
+    st.markdown("### Audio Source")
     source_options = ["Use Project Master (Recommended)", "Upload External MP3/WAV"]
     default_source_index = 0 if project_master.get("ok") else 1
     source_choice = st.radio("Audio Source", source_options, index=default_source_index, key="audio_editor_source_choice")
     if not project_master.get("ok"):
         st.warning("No remastered master found.")
-        st.info("Please either open Remaster Studio first or upload an external MP3.")
+        st.info("Open Remaster Studio first, or upload an external MP3/WAV.")
+
     source_path = ""
     source_info: dict[str, Any] = {}
-    if source_choice == "Use Project Master (Recommended)":
-        if project_master.get("ok"):
-            source_path = str(project_master["path"])
-            source_info = {"original_filename": project_master.get("filename", Path(source_path).name), "format": "MP3", "source_type": "Project Master"}
-            st.success("✓ Ready")
-            st.caption("Current Audio Source: Project Master")
-        else:
-            pass
+    if source_choice == "Use Project Master (Recommended)" and project_master.get("ok"):
+        source_path = str(project_master["path"])
+        source_info = {
+            "original_filename": project_master.get("filename", Path(source_path).name),
+            "format": "MP3",
+            "source_type": "Project Master",
+        }
     if source_choice == "Upload External MP3/WAV" or not project_master.get("ok"):
         uploaded = st.file_uploader(
             "Upload External MP3/WAV",
@@ -2443,29 +2445,24 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     st.success(f"External {ext.upper()} uploaded")
                 else:
                     st.warning(upload_result.get("error") or upload_result.get("message"))
-        if source_choice == "Upload External MP3/WAV" or not project_master.get("ok"):
-            source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
-            source_info = editor_state.get("source_audio") or {}
+        source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
+        source_info = editor_state.get("source_audio") or {}
+
     if not source_path or not Path(source_path).is_file():
         st.info("Choose Project Master after remastering, or upload an external MP3/WAV to start cutting a hook.")
         return
+
     probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
     duration = float(probe.get("duration") or 0)
-    st.markdown("### Current Audio Source")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Source", str(source_info.get("source_type") or "External Upload"))
-    c2.metric("Duration", format_timecode(duration))
-    c3.metric("Codec", str(probe.get("audio_codec") or "Unknown"))
-    c4, c5, c6 = st.columns(3)
-    c4.metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
-    c5.metric("Sample Rate", f"{probe.get('sample_rate', 0)} Hz" if probe.get("sample_rate") else "Unknown")
-    c6.metric("Bitrate", str(probe.get("audio_bit_rate") or "Unknown"))
-    source_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="audio_editor_source", label="Audio Editor Source", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
-    if source_preview.get("ok"):
-        st.audio(source_preview["bytes"], format=source_preview["format"])
-        editor_state["preview_diagnostics"] = {"source": source_preview.get("diagnostics", {})}
-    else:
-        st.warning(f"Preview unavailable: {source_preview.get('reason', 'unknown')}")
+    with st.container(border=True):
+        st.markdown("**Current Audio Source**")
+        source_cols = st.columns(4)
+        source_cols[0].metric("Source", str(source_info.get("source_type") or "External Upload"))
+        source_cols[1].metric("Duration", format_timecode(duration))
+        source_cols[2].metric("Codec", str(probe.get("audio_codec") or "Unknown"))
+        source_cols[3].metric("Status", "✓ Ready")
+        st.caption(f"{source_info.get('original_filename') or Path(source_path).name} • {probe.get('sample_rate', 'Unknown')} Hz • {probe.get('audio_bit_rate') or 'Unknown'}")
+
     default_audio_export_name = _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project)
     audio_source_id = _audio_source_signature(source_info, source_path)
     initialize_export_name_state(
@@ -2476,7 +2473,6 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         manual_key="audio_editor_export_name_manual",
         source_key="audio_editor_export_source_id",
     )
-    st.text_input("Export Name", key="audio_editor_export_name")
     audio_export_name = str(st.session_state.get("audio_editor_export_name") or default_audio_export_name)
     editor_state["export_name"] = audio_export_name
     editor_state["export_name_source_signature"] = audio_source_id
@@ -2484,37 +2480,53 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     st.session_state["audio_editor_export_name_manual"] = editor_state["export_name_manual"]
     project["audio_editor"] = editor_state
     _save_project()
-    editor_mode = st.radio(
-        "Hook Workflow",
-        ["Smart Musical Hook — Recommended", "Precise Manual Cut"],
-        index=0,
-        key="audio_editor_workflow_mode",
-        help="Smart Musical Hook refines rough markers to musical start/end boundaries. Precise Manual Cut keeps your markers exactly as entered.",
-    )
-    smart_mode = editor_mode.startswith("Smart Musical Hook")
-    hook_type = "Hook"
-    if smart_mode:
-        hook_type = st.selectbox(
-            "Smart hook type",
-            list(SMART_HOOK_TYPES),
-            index=list(SMART_HOOK_TYPES).index("Best Hook"),
-            key="audio_editor_smart_hook_type",
-            help="These are soft musical ranges. VelaFlow will not force the hook to exactly 15/30/45/60 seconds.",
-        )
-        soft_range = SMART_HOOK_TYPES[hook_type]["soft_range"]
-        st.caption(f"{hook_type}: target feel around {int(soft_range[0])}-{int(soft_range[1])}s, refined to musical boundaries.")
+
     selection_source_id = _audio_source_signature(source_info, source_path)
     if st.session_state.get("audio_editor_selection_source_id") != selection_source_id:
-        initial = clamp_audio_selection(float(editor_state.get("start_time", 0.0) or 0.0), float(editor_state.get("end_time", min(duration, 15.0)) or min(duration, 15.0)), duration)
+        initial = clamp_audio_selection(
+            float(editor_state.get("start_time", 0.0) or 0.0),
+            float(editor_state.get("end_time", min(duration, 30.0)) or min(duration, 30.0)),
+            duration,
+        )
         st.session_state["audio_editor_selection_source_id"] = selection_source_id
         st.session_state["audio_editor_selection_start"] = initial["start"]
         st.session_state["audio_editor_selection_end"] = initial["end"]
     else:
-        current = clamp_audio_selection(float(st.session_state.get("audio_editor_selection_start", 0.0)), float(st.session_state.get("audio_editor_selection_end", min(duration, 15.0))), duration)
+        current = clamp_audio_selection(
+            float(st.session_state.get("audio_editor_selection_start", 0.0)),
+            float(st.session_state.get("audio_editor_selection_end", min(duration, 30.0))),
+            duration,
+        )
         st.session_state["audio_editor_selection_start"] = current["start"]
         st.session_state["audio_editor_selection_end"] = current["end"]
-    st.markdown("### 2. Waveform and Selection")
-    st.caption("Drag the start handle, end handle, highlighted region, or empty waveform area to set the hook.")
+
+    def _candidate_to_refined(candidate: dict[str, Any]) -> dict[str, Any]:
+        candidate_start = float(candidate.get("refined_start", candidate.get("start_time", 0)) or 0)
+        candidate_end = float(candidate.get("refined_end", candidate.get("end_time", 0)) or 0)
+        return {
+            "source": "Smart Hook Finder",
+            "hook_type": candidate.get("hook_type", "Best Hook"),
+            "rough_start": float(candidate.get("rough_start", candidate.get("start_time", 0)) or 0),
+            "rough_end": float(candidate.get("rough_end", candidate.get("end_time", 0)) or 0),
+            "refined_start": candidate_start,
+            "refined_end": candidate_end,
+            "actual_duration": float(candidate.get("actual_duration", candidate.get("duration", max(0.0, candidate_end - candidate_start))) or 0),
+            "boundary_confidence": candidate.get("boundary_confidence", "Review"),
+            "boundary_confidence_score": candidate.get("boundary_confidence_score", candidate.get("confidence_score", 0)),
+            "start_boundary_score": candidate.get("start_boundary_score", 0),
+            "end_boundary_score": candidate.get("end_boundary_score", 0),
+            "preferred_duration_range": candidate.get("preferred_duration_range", []),
+            "phrase_completion_result": candidate.get("phrase_completion_result", ""),
+            "continuation_penalty": candidate.get("continuation_penalty", ""),
+            "stable_boundary_duration": candidate.get("stable_boundary_duration", ""),
+            "seconds_extended_to_complete_phrase": candidate.get("seconds_extended_to_complete_phrase", ""),
+            "reasons": candidate.get("boundary_reasons", []),
+            "warnings": candidate.get("boundary_warnings", []),
+            "user_override_status": "Smart Refined",
+        }
+
+    st.markdown("### Waveform Cutter")
+    st.caption("Drag the start handle, end handle, selected region, or empty waveform area to set the hook.")
     waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
     waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
     waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
@@ -2523,80 +2535,222 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         interactive_value = _render_interactive_waveform_selector(
             waveform_data,
             start=float(st.session_state.get("audio_editor_selection_start", 0.0)),
-            end=float(st.session_state.get("audio_editor_selection_end", min(duration, 15.0))),
+            end=float(st.session_state.get("audio_editor_selection_end", min(duration, 30.0))),
             duration=duration,
             key=f"audio_editor_interactive_waveform_{hashlib.sha1(selection_source_id.encode('utf-8')).hexdigest()[:12]}",
         )
         if interactive_value.get("status"):
-            dragged = _sync_audio_editor_selection(editor_state, float(interactive_value.get("start", 0.0)), float(interactive_value.get("end", 0.0)), duration)
+            _sync_audio_editor_selection(editor_state, float(interactive_value.get("start", 0.0)), float(interactive_value.get("end", 0.0)), duration)
             if interactive_value.get("status") == "Manually Adjusted":
                 editor_state["smart_override_status"] = "Manually Adjusted"
             project["audio_editor"] = editor_state
             _save_project()
-        editor_state["waveform"] = {"waveform_json": str(waveform_json), "point_count": waveform_data.get("point_count", 0), "cache_status": waveform_data.get("cache_status", ""), "method": waveform_data.get("method", ""), "interactive": True}
-        st.caption(f"Interactive waveform: {waveform_data.get('point_count', 0)} points • cache {waveform_data.get('cache_status', 'unknown')} • desktop mouse + mobile touch supported")
+        editor_state["waveform"] = {
+            "waveform_json": str(waveform_json),
+            "point_count": waveform_data.get("point_count", 0),
+            "cache_status": waveform_data.get("cache_status", ""),
+            "method": waveform_data.get("method", ""),
+            "interactive": True,
+        }
+        st.caption(f"Interactive waveform: {waveform_data.get('point_count', 0)} points • desktop mouse + mobile touch supported")
     else:
         st.caption("Interactive waveform unavailable. Manual cutting still works.")
-    col_start, col_end = st.columns(2)
-    manual_start = col_start.number_input("Start marker", min_value=0.0, max_value=max(0.0, duration), value=float(st.session_state.get("audio_editor_selection_start", 0.0)), step=0.1, format="%.3f")
-    manual_end = col_end.number_input("End marker", min_value=0.0, max_value=max(0.0, duration), value=float(st.session_state.get("audio_editor_selection_end", min(duration, 15.0))), step=0.1, format="%.3f")
-    synced_selection = _sync_audio_editor_selection(editor_state, float(manual_start), float(manual_end), duration)
+
+    synced_selection = _sync_audio_editor_selection(
+        editor_state,
+        float(st.session_state.get("audio_editor_selection_start", 0.0)),
+        float(st.session_state.get("audio_editor_selection_end", min(duration, 30.0))),
+        duration,
+    )
     start_time = synced_selection["start"]
     end_time = synced_selection["end"]
-    time_cols = st.columns(3)
-    rough_start_text = time_cols[0].text_input("Start time (MM:SS or seconds)", value=format_timecode(start_time), key="audio_editor_start_text")
-    rough_end_text = time_cols[1].text_input("End time (MM:SS or seconds)", value=format_timecode(end_time), key="audio_editor_end_text")
-    if time_cols[2].button("Apply Time Inputs", use_container_width=True, key="audio_editor_apply_time_inputs"):
-        try:
-            parsed_start = max(0.0, min(duration, parse_time_input(rough_start_text)))
-            parsed_end = max(0.0, min(duration, parse_time_input(rough_end_text)))
-            applied = _sync_audio_editor_selection(editor_state, parsed_start, parsed_end, duration)
-            editor_state["smart_override_status"] = "Manually Adjusted"
-            project["audio_editor"] = editor_state
-            _save_project()
-            st.rerun()
-        except Exception as exc:
-            st.warning(f"Time input could not be parsed: {exc}")
-    nudge_cols = st.columns(8)
-    nudge_actions = [
-        ("Start -1s", "start_time", -1.0),
-        ("Start -0.1s", "start_time", -0.1),
-        ("Start +0.1s", "start_time", 0.1),
-        ("Start +1s", "start_time", 1.0),
-        ("End -1s", "end_time", -1.0),
-        ("End -0.1s", "end_time", -0.1),
-        ("End +0.1s", "end_time", 0.1),
-        ("End +1s", "end_time", 1.0),
-    ]
-    for idx, (label, field, delta) in enumerate(nudge_actions):
-        if nudge_cols[idx].button(label, use_container_width=True, key=f"audio_editor_nudge_{idx}"):
-            nudged_start = start_time + delta if field == "start_time" else start_time
-            nudged_end = end_time + delta if field == "end_time" else end_time
-            nudged = _sync_audio_editor_selection(editor_state, nudged_start, nudged_end, duration)
-            editor_state["smart_override_status"] = "Manually Adjusted"
-            project["audio_editor"] = editor_state
-            _save_project()
-            st.rerun()
     selection = validate_audio_selection(start_time, end_time, duration)
-    st.markdown(f"Start: `{format_timecode(start_time)}`  End: `{format_timecode(end_time)}`  Duration: `{format_timecode(max(0.0, end_time - start_time))}`")
+    status_cols = st.columns(3)
+    status_cols[0].metric("Start", format_timecode(start_time))
+    status_cols[1].metric("End", format_timecode(end_time))
+    status_cols[2].metric("Selected", format_timecode(max(0.0, end_time - start_time)))
     if not selection.get("ok"):
         st.warning(selection.get("message", "Invalid selection"))
-    if smart_mode:
-        st.markdown("### Refine to Musical Boundaries")
-        st.caption("Start search: ±3s • End search: ±6s • flexible duration, no forced 15/30/45/60 cut.")
-        refined_hook = editor_state.get("smart_refined_hook") or {}
-        refine_cols = st.columns(4)
-        run_refine = refine_cols[0].button("Refine to Musical Boundaries", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_refine_boundaries")
-        rerun_refine = refine_cols[2].button("Re-run Boundary Search", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_rerun_boundaries")
-        if refine_cols[1].button("Adjust Manually", use_container_width=True, key="audio_editor_adjust_manually"):
-            editor_state["smart_override_status"] = "Manually Adjusted"
+
+    smart_cols = st.columns([2, 1])
+    if smart_cols[0].button("✓ Find Smart Hook", type="primary", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_find_smart_hook"):
+        with st.spinner("Finding the best musical hook..."):
+            analysis_dir = ROOT / "exports" / "audio_editor" / "hook_analysis" / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}"
+            analysis = analyze_hook_candidates(source_path, output_dir=analysis_dir, ffmpeg_path=settings.ffmpeg_path)
+        editor_state["hook_analysis"] = analysis.get("data", {}) if analysis.get("ok") else {"error": analysis.get("error"), "message": analysis.get("message")}
+        candidates = (analysis.get("data") or {}).get("candidates", []) if analysis.get("ok") else []
+        if candidates:
+            refined_candidate = _candidate_to_refined(candidates[0])
+            _sync_audio_editor_selection(editor_state, refined_candidate["refined_start"], refined_candidate["refined_end"], duration)
+            editor_state["rough_selection"] = {"start_time": refined_candidate["rough_start"], "end_time": refined_candidate["rough_end"]}
+            editor_state["smart_refined_hook"] = refined_candidate
+            editor_state["smart_override_status"] = "Smart Refined"
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.success("Smart Hook selected")
+            st.rerun()
+        else:
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.warning(analysis.get("message") or "No strong hook candidate detected. Drag the waveform manually.")
+    if smart_cols[1].button("Play Selection", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_preview"):
+        preview = export_audio_selection(
+            source_path,
+            start_time=start_time,
+            end_time=end_time,
+            project_name=f"{project.get('title') or 'audio_editor'} Preview",
+            output_name=f"{Path(source_path).stem}_preview",
+            cut_mode="Precise Cut",
+            ffmpeg_path=settings.ffmpeg_path,
+            max_upload_mb=max_upload_mb,
+            preview=True,
+        )
+        if preview.get("ok"):
+            editor_state["preview_result"] = preview.get("data", {})
             project["audio_editor"] = editor_state
             _save_project()
             st.rerun()
-        if refine_cols[3].button("Restore Rough Selection", use_container_width=True, disabled=not bool(editor_state.get("rough_selection")), key="audio_editor_restore_rough"):
+        else:
+            st.warning(preview.get("message") or preview.get("error"))
+
+    refined_hook = editor_state.get("smart_refined_hook") or {}
+    if refined_hook:
+        refined_start = float(refined_hook.get("refined_start", start_time))
+        refined_end = float(refined_hook.get("refined_end", end_time))
+        natural = str(refined_hook.get("phrase_completion_result", "")).upper() == "PASS"
+        with st.container(border=True):
+            st.markdown("**Smart Hook**")
+            st.markdown(f"`{format_timecode(refined_start)}` → `{format_timecode(refined_end)}`")
+            st.caption(f"{max(0.0, refined_end - refined_start):.1f} sec")
+            st.success("✓ Natural ending detected" if natural else "Manual review recommended")
+
+    preview_data = editor_state.get("preview_result") or {}
+    preview_audio = Path(str(preview_data.get("hook_mp3") or preview_data.get("output_audio") or ""))
+    if preview_audio.is_file():
+        preview_payload = _resolve_safari_audio_preview_bytes(preview_audio, cache_key="audio_editor_selection_preview", label="Audio Editor Selection Preview", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
+        if preview_payload.get("ok"):
+            st.audio(preview_payload["bytes"], format=preview_payload["format"])
+        else:
+            st.warning(f"Preview unavailable: {preview_payload.get('reason', 'unknown')}")
+
+    fade_cols = st.columns(2)
+    fade_in_enabled = fade_cols[0].checkbox("Fade In", value=bool(editor_state.get("fade_in_enabled", False)), key="audio_editor_fade_in_enabled")
+    fade_out_enabled = fade_cols[1].checkbox("Fade Out", value=bool(editor_state.get("fade_out_enabled", False)), key="audio_editor_fade_out_enabled")
+    editor_state["fade_in_enabled"] = fade_in_enabled
+    editor_state["fade_out_enabled"] = fade_out_enabled
+    fade_in = float(editor_state.get("fade_in_duration", 0.25) or 0.25) if fade_in_enabled else 0.0
+    fade_out = float(editor_state.get("fade_out_duration", 0.25) or 0.25) if fade_out_enabled else 0.0
+
+    cut_mode = str(editor_state.get("cut_mode") or "Precise Cut")
+    output_format_label = st.radio(
+        "Export Format",
+        ["MP3 320 kbps", "WAV Lossless"],
+        horizontal=True,
+        key="audio_editor_output_format",
+        help="MP3 creates a 320 kbps platform-friendly hook. WAV keeps a lossless hook file.",
+    )
+    export_format = "wav" if output_format_label.startswith("WAV") else "mp3"
+
+    with st.expander("Advanced Editing", expanded=False):
+        st.caption("Advanced / Analysis Details")
+        adv_cols = st.columns(2)
+        manual_start = adv_cols[0].number_input("Precise Start", min_value=0.0, max_value=max(0.0, duration), value=float(start_time), step=0.1, format="%.3f", key="audio_editor_precise_start")
+        manual_end = adv_cols[1].number_input("Precise End", min_value=0.0, max_value=max(0.0, duration), value=float(end_time), step=0.1, format="%.3f", key="audio_editor_precise_end")
+        time_cols = st.columns(3)
+        rough_start_text = time_cols[0].text_input("Start time (MM:SS or seconds)", value=format_timecode(start_time), key="audio_editor_start_text")
+        rough_end_text = time_cols[1].text_input("End time (MM:SS or seconds)", value=format_timecode(end_time), key="audio_editor_end_text")
+        if time_cols[2].button("Apply Time Inputs", use_container_width=True, key="audio_editor_apply_time_inputs"):
+            try:
+                parsed_start = max(0.0, min(duration, parse_time_input(rough_start_text)))
+                parsed_end = max(0.0, min(duration, parse_time_input(rough_end_text)))
+                _sync_audio_editor_selection(editor_state, parsed_start, parsed_end, duration)
+                editor_state["smart_override_status"] = "Manually Adjusted"
+                project["audio_editor"] = editor_state
+                _save_project()
+                st.rerun()
+            except Exception as exc:
+                st.warning(f"Time input could not be parsed: {exc}")
+        if abs(float(manual_start) - float(start_time)) > 0.0001 or abs(float(manual_end) - float(end_time)) > 0.0001:
+            _sync_audio_editor_selection(editor_state, float(manual_start), float(manual_end), duration)
+            editor_state["smart_override_status"] = "Manually Adjusted"
+            project["audio_editor"] = editor_state
+            _save_project()
+
+        nudge_cols = st.columns(8)
+        nudge_actions = [
+            ("Start -1s", "start_time", -1.0),
+            ("Start -0.1s", "start_time", -0.1),
+            ("Start +0.1s", "start_time", 0.1),
+            ("Start +1s", "start_time", 1.0),
+            ("End -1s", "end_time", -1.0),
+            ("End -0.1s", "end_time", -0.1),
+            ("End +0.1s", "end_time", 0.1),
+            ("End +1s", "end_time", 1.0),
+        ]
+        for idx, (label, field, delta) in enumerate(nudge_actions):
+            if nudge_cols[idx].button(label, use_container_width=True, key=f"audio_editor_nudge_{idx}"):
+                nudged_start = start_time + delta if field == "start_time" else start_time
+                nudged_end = end_time + delta if field == "end_time" else end_time
+                _sync_audio_editor_selection(editor_state, nudged_start, nudged_end, duration)
+                editor_state["smart_override_status"] = "Manually Adjusted"
+                project["audio_editor"] = editor_state
+                _save_project()
+                st.rerun()
+        reset_cols = st.columns(2)
+        if reset_cols[0].button("Reset selection", use_container_width=True, key="audio_editor_reset_selection"):
+            _sync_audio_editor_selection(editor_state, 0.0, min(duration, 30.0), duration)
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.rerun()
+        if reset_cols[1].button("Restore Rough Selection", use_container_width=True, disabled=not bool(editor_state.get("rough_selection")), key="audio_editor_restore_rough"):
             rough = editor_state.get("rough_selection") or {}
             _sync_audio_editor_selection(editor_state, float(rough.get("start_time", start_time)), float(rough.get("end_time", end_time)), duration)
             editor_state["smart_override_status"] = "Rough Restored"
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.rerun()
+
+        hook_type = st.selectbox(
+            "Smart hook type",
+            list(SMART_HOOK_TYPES),
+            index=list(SMART_HOOK_TYPES).index(editor_state.get("hook_type", "Best Hook")) if editor_state.get("hook_type", "Best Hook") in SMART_HOOK_TYPES else list(SMART_HOOK_TYPES).index("Best Hook"),
+            key="audio_editor_smart_hook_type",
+            help="These are soft musical ranges. VelaFlow will not force the hook to exactly 15/30/45/60 seconds.",
+        )
+        editor_state["hook_type"] = hook_type
+        cut_mode_labels = {
+            "Lossless Quick Cut": "ตัดแบบรักษาคุณภาพเดิม (Lossless Quick Cut)",
+            "Precise Cut": "ตัดแบบแม่นยำ (Precise Cut)",
+        }
+        cut_mode = st.radio(
+            "Cut mode",
+            AUDIO_EDITOR_CUT_MODES,
+            index=AUDIO_EDITOR_CUT_MODES.index(cut_mode) if cut_mode in AUDIO_EDITOR_CUT_MODES else 1,
+            key="audio_editor_cut_mode",
+            help="Lossless Quick Cut uses FFmpeg stream copy. Precise Cut re-encodes to MP3 320 kbps.",
+            format_func=lambda value: cut_mode_labels.get(value, value),
+        )
+        editor_state["cut_mode"] = cut_mode
+        fade_duration_cols = st.columns(2)
+        fade_in_label = fade_duration_cols[0].selectbox("Fade In duration", list(AUDIO_EDITOR_FADE_OPTIONS), index=1 if fade_in_enabled else 0, key="audio_editor_fade_in")
+        fade_out_label = fade_duration_cols[1].selectbox("Fade Out duration", list(AUDIO_EDITOR_FADE_OPTIONS), index=1 if fade_out_enabled else 0, key="audio_editor_fade_out")
+        editor_state["fade_in_duration"] = AUDIO_EDITOR_FADE_OPTIONS[fade_in_label] or 0.25
+        editor_state["fade_out_duration"] = AUDIO_EDITOR_FADE_OPTIONS[fade_out_label] or 0.25
+
+        st.markdown("**Smart Hook Finder diagnostics**")
+        refine_cols = st.columns(4)
+        run_refine = refine_cols[0].button("Refine to Musical Boundaries", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_refine_boundaries")
+        rerun_refine = refine_cols[1].button("Re-run Boundary Search", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_rerun_boundaries")
+        if refine_cols[2].button("Adjust Manually", use_container_width=True, key="audio_editor_adjust_manually"):
+            editor_state["smart_override_status"] = "Manually Adjusted"
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.rerun()
+        if refine_cols[3].button("Analyze Hook Candidates", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_analyze_hooks"):
+            with st.spinner("Analyzing hook candidates..."):
+                analysis_dir = ROOT / "exports" / "audio_editor" / "hook_analysis" / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}"
+                analysis = analyze_hook_candidates(source_path, output_dir=analysis_dir, ffmpeg_path=settings.ffmpeg_path)
+            editor_state["hook_analysis"] = analysis.get("data", {}) if analysis.get("ok") else {"error": analysis.get("error"), "message": analysis.get("message")}
             project["audio_editor"] = editor_state
             _save_project()
             st.rerun()
@@ -2618,148 +2772,54 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                 editor_state["smart_override_status"] = "Smart Refined"
                 project["audio_editor"] = editor_state
                 _save_project()
-                st.success("Musical boundaries found")
                 st.rerun()
             else:
                 st.warning(refined.get("message") or refined.get("error") or "Boundary search failed")
+
         if refined_hook:
-            with st.container(border=True):
-                st.markdown("**Refined Hook Preview**")
-                r1, r2, r3, r4 = st.columns(4)
-                r1.metric("Rough", f"{format_timecode(float(refined_hook.get('rough_start', start_time)))} → {format_timecode(float(refined_hook.get('rough_end', end_time)))}")
-                r2.metric("Refined", f"{format_timecode(float(refined_hook.get('refined_start', start_time)))} → {format_timecode(float(refined_hook.get('refined_end', end_time)))}")
-                r3.metric("Actual Duration", format_timecode(float(refined_hook.get("actual_duration", 0))))
-                r4.metric("Boundary Confidence", str(refined_hook.get("boundary_confidence", "Review")))
-                preferred_range = refined_hook.get("preferred_duration_range") or []
-                if len(preferred_range) == 2:
-                    st.caption(f"Preferred Range: {int(float(preferred_range[0]))}-{int(float(preferred_range[1]))} sec • Actual Complete Hook: {float(refined_hook.get('actual_duration', 0)):.1f} sec")
-                if refined_hook.get("phrase_completion_result"):
-                    st.caption(f"Phrase Completion Gate: {refined_hook.get('phrase_completion_result')} • Continuation penalty: {refined_hook.get('continuation_penalty', '')}")
-                for reason in refined_hook.get("reasons", [])[:4]:
-                    st.caption(f"- {reason}")
-                for warning in refined_hook.get("warnings", [])[:3]:
-                    st.warning(warning)
-                accept_col, preview_col, last8_col, before_col = st.columns(4)
-                if accept_col.button("Accept Refined Boundaries", use_container_width=True, key="audio_editor_accept_refined"):
-                    _sync_audio_editor_selection(editor_state, float(refined_hook.get("refined_start", start_time)), float(refined_hook.get("refined_end", end_time)), duration)
-                    editor_state["smart_override_status"] = "Accepted Refined Boundaries"
-                    project["audio_editor"] = editor_state
-                    _save_project()
-                    st.rerun()
-                refined_start = float(refined_hook.get("refined_start", start_time))
-                refined_end = float(refined_hook.get("refined_end", end_time))
-                if preview_col.button("Preview Refined Hook", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_preview_refined"):
-                    preview = export_audio_selection(source_path, start_time=refined_start, end_time=refined_end, project_name=f"{project.get('title') or 'audio_editor'} Refined Preview", output_name=f"{Path(source_path).stem}_refined_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
-                    if preview.get("ok"):
-                        editor_state["preview_result"] = preview.get("data", {})
-                        project["audio_editor"] = editor_state
-                        _save_project()
-                        st.rerun()
-                    else:
-                        st.warning(preview.get("message") or preview.get("error"))
-                if last8_col.button("Play Last 8 Seconds", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_preview_last8"):
-                    preview = export_audio_selection(source_path, start_time=max(refined_start, refined_end - 8.0), end_time=refined_end, project_name=f"{project.get('title') or 'audio_editor'} Ending Preview", output_name=f"{Path(source_path).stem}_last8_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
-                    if preview.get("ok"):
-                        editor_state["preview_result"] = preview.get("data", {})
-                        project["audio_editor"] = editor_state
-                        _save_project()
-                        st.rerun()
-                    else:
-                        st.warning(preview.get("message") or preview.get("error"))
-                if before_col.button("Play 3 Seconds Before Start", use_container_width=True, disabled=not ffmpeg_probe.get("ok") or refined_start < 0.3, key="audio_editor_preview_before_start"):
-                    preview = export_audio_selection(source_path, start_time=max(0.0, refined_start - 3.0), end_time=refined_start, project_name=f"{project.get('title') or 'audio_editor'} Pre Start Preview", output_name=f"{Path(source_path).stem}_before_start_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
-                    if preview.get("ok"):
-                        editor_state["preview_result"] = preview.get("data", {})
-                        project["audio_editor"] = editor_state
-                        _save_project()
-                        st.rerun()
-                    else:
-                        st.warning(preview.get("message") or preview.get("error"))
-                after_col, transition_col = st.columns(2)
-                if after_col.button("Play 5 Seconds After End", use_container_width=True, disabled=not ffmpeg_probe.get("ok") or refined_end >= duration - 1.0, key="audio_editor_preview_after_end"):
-                    preview = export_audio_selection(source_path, start_time=refined_end, end_time=min(duration, refined_end + 5.0), project_name=f"{project.get('title') or 'audio_editor'} After End Preview", output_name=f"{Path(source_path).stem}_after_end_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
-                    if preview.get("ok"):
-                        editor_state["preview_result"] = preview.get("data", {})
-                        project["audio_editor"] = editor_state
-                        _save_project()
-                        st.rerun()
-                    else:
-                        st.warning(preview.get("message") or preview.get("error"))
-                if transition_col.button("Preview End Transition", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_preview_end_transition"):
-                    preview = export_audio_selection(source_path, start_time=max(0.0, refined_end - 6.0), end_time=min(duration, refined_end + 4.0), project_name=f"{project.get('title') or 'audio_editor'} End Transition Preview", output_name=f"{Path(source_path).stem}_end_transition_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
-                    if preview.get("ok"):
-                        editor_state["preview_result"] = preview.get("data", {})
-                        project["audio_editor"] = editor_state
-                        _save_project()
-                        st.rerun()
-                    else:
-                        st.warning(preview.get("message") or preview.get("error"))
-    st.markdown("### 3. Smart Hook Finder")
-    st.caption("ระบบวิเคราะห์จากพลังเสียง ความต่อเนื่อง และช่วงที่เงียบน้อย ยังไม่ได้วิเคราะห์ความหมายของเนื้อเพลง")
-    if st.button("วิเคราะห์ช่วง Hook (Analyze Hook Candidates)", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_analyze_hooks"):
-        with st.spinner("Analyzing hook candidates..."):
-            analysis_dir = ROOT / "exports" / "audio_editor" / "hook_analysis" / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}"
-            analysis = analyze_hook_candidates(source_path, output_dir=analysis_dir, ffmpeg_path=settings.ffmpeg_path)
-        editor_state["hook_analysis"] = analysis.get("data", {}) if analysis.get("ok") else {"error": analysis.get("error"), "message": analysis.get("message")}
-        project["audio_editor"] = editor_state
-        _save_project()
-        if analysis.get("ok"):
-            if (analysis.get("data") or {}).get("low_confidence"):
-                st.warning((analysis.get("data") or {}).get("message"))
-            else:
-                st.success("Hook candidates ready")
-            st.rerun()
-        else:
-            st.warning(analysis.get("message") or "Hook analysis failed. Manual cutting still works.")
-    hook_analysis = editor_state.get("hook_analysis") or {}
-    for candidate in hook_analysis.get("candidates", [])[:3]:
-        with st.container(border=True):
-            st.markdown(f"**Candidate {candidate.get('rank')}**")
-            h1, h2, h3 = st.columns(3)
-            candidate_start = float(candidate.get("refined_start", candidate.get("start_time", 0)) or 0)
-            candidate_end = float(candidate.get("refined_end", candidate.get("end_time", 0)) or 0)
-            candidate_duration = float(candidate.get("actual_duration", candidate.get("duration", 0)) or 0)
-            h1.metric("Refined Start", format_timecode(candidate_start))
-            h2.metric("Refined End", format_timecode(candidate_end))
-            h3.metric("Confidence", f"{int(candidate.get('boundary_confidence_score', candidate.get('confidence_score', 0)) or 0)}%")
-            st.caption(f"Rough: {format_timecode(float(candidate.get('rough_start', candidate.get('start_time', 0)) or 0))} → {format_timecode(float(candidate.get('rough_end', candidate.get('end_time', 0)) or 0))} • Refined duration: {format_timecode(candidate_duration)} • Type: {candidate.get('hook_type', 'Best Hook')}")
-            preferred_range = candidate.get("preferred_duration_range") or []
+            st.markdown("**Refined Hook Preview**")
+            r1, r2, r3, r4 = st.columns(4)
+            r1.metric("Rough", f"{format_timecode(float(refined_hook.get('rough_start', start_time)))} → {format_timecode(float(refined_hook.get('rough_end', end_time)))}")
+            r2.metric("Refined", f"{format_timecode(float(refined_hook.get('refined_start', start_time)))} → {format_timecode(float(refined_hook.get('refined_end', end_time)))}")
+            r3.metric("Actual Complete Hook", format_timecode(float(refined_hook.get("actual_duration", 0))))
+            r4.metric("Boundary Confidence", str(refined_hook.get("boundary_confidence", "Review")))
+            preferred_range = refined_hook.get("preferred_duration_range") or []
             if len(preferred_range) == 2:
-                st.caption(f"Preferred Range: {int(float(preferred_range[0]))}-{int(float(preferred_range[1]))} sec • Actual Complete Hook: {candidate_duration:.1f} sec")
-            if candidate.get("phrase_completion_result"):
-                st.caption(f"Phrase Completion Gate: {candidate.get('phrase_completion_result')} • Continuation penalty: {candidate.get('continuation_penalty', '')}")
-            st.caption(f"Energy: {int(candidate.get('energy_score', 0))}% • Activity: {int(candidate.get('vocal_activity_score', 0))}%")
-            st.write(candidate.get("reason_summary", "Manual review recommended"))
-            for reason in candidate.get("boundary_reasons", [])[:3]:
+                st.caption(f"Preferred Range: {int(float(preferred_range[0]))}-{int(float(preferred_range[1]))} sec")
+            if refined_hook.get("phrase_completion_result"):
+                st.caption(f"Phrase Completion Gate: {refined_hook.get('phrase_completion_result')} • Continuation penalty: {refined_hook.get('continuation_penalty', '')}")
+            for reason in refined_hook.get("reasons", [])[:4]:
                 st.caption(f"- {reason}")
-            for warning in candidate.get("boundary_warnings", [])[:2]:
+            for warning in refined_hook.get("warnings", [])[:3]:
                 st.warning(warning)
-            c_use, c_preview = st.columns(2)
-            if c_use.button("ใช้ช่วงนี้ (Use This Hook)", use_container_width=True, key=f"audio_editor_use_hook_{candidate.get('rank')}"):
-                refined_candidate = {
-                    "source": "Smart Hook Finder",
-                    "hook_type": candidate.get("hook_type", "Best Hook"),
-                    "rough_start": float(candidate.get("rough_start", candidate.get("start_time", 0)) or 0),
-                    "rough_end": float(candidate.get("rough_end", candidate.get("end_time", 0)) or 0),
-                    "refined_start": candidate_start,
-                    "refined_end": candidate_end,
-                    "actual_duration": candidate_duration,
-                    "boundary_confidence": candidate.get("boundary_confidence", "Review"),
-                    "boundary_confidence_score": candidate.get("boundary_confidence_score", candidate.get("confidence_score", 0)),
-                    "start_boundary_score": candidate.get("start_boundary_score", 0),
-                    "end_boundary_score": candidate.get("end_boundary_score", 0),
-                    "reasons": candidate.get("boundary_reasons", []),
-                    "user_override_status": "Smart Refined",
-                }
-                _sync_audio_editor_selection(editor_state, candidate_start, candidate_end, duration)
-                editor_state["rough_selection"] = {"start_time": refined_candidate["rough_start"], "end_time": refined_candidate["rough_end"]}
-                editor_state["smart_refined_hook"] = refined_candidate
-                editor_state["smart_override_status"] = "Smart Refined"
+            accept_col, preview_col, last8_col, before_col = st.columns(4)
+            if accept_col.button("Accept Refined Boundaries", use_container_width=True, key="audio_editor_accept_refined"):
+                _sync_audio_editor_selection(editor_state, float(refined_hook.get("refined_start", start_time)), float(refined_hook.get("refined_end", end_time)), duration)
+                editor_state["smart_override_status"] = "Accepted Refined Boundaries"
                 project["audio_editor"] = editor_state
                 _save_project()
                 st.rerun()
-            if c_preview.button("ทดลองฟังช่วงนี้ (Preview Candidate)", use_container_width=True, key=f"audio_editor_preview_hook_{candidate.get('rank')}"):
-                preview = export_audio_selection(source_path, start_time=candidate_start, end_time=candidate_end, project_name=f"{project.get('title') or 'audio_editor'} Candidate Preview", output_name=f"{Path(source_path).stem}_candidate_{candidate.get('rank')}_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+            refined_start = float(refined_hook.get("refined_start", start_time))
+            refined_end = float(refined_hook.get("refined_end", end_time))
+            preview_buttons = [
+                ("Preview Refined Hook", refined_start, refined_end, "refined_preview"),
+                ("Play Last 8 Seconds", max(refined_start, refined_end - 8.0), refined_end, "last8_preview"),
+                ("Play 3 Seconds Before Start", max(0.0, refined_start - 3.0), refined_start, "before_start_preview"),
+                ("Play 5 Seconds After End", refined_end, min(duration, refined_end + 5.0), "after_end_preview"),
+            ]
+            for idx, (label, p_start, p_end, suffix) in enumerate(preview_buttons):
+                col = [preview_col, last8_col, before_col, accept_col][idx]
+                if col.button(label, use_container_width=True, disabled=not ffmpeg_probe.get("ok") or p_end <= p_start, key=f"audio_editor_preview_{suffix}"):
+                    preview = export_audio_selection(source_path, start_time=p_start, end_time=p_end, project_name=f"{project.get('title') or 'audio_editor'} {label}", output_name=f"{Path(source_path).stem}_{suffix}", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
+                    if preview.get("ok"):
+                        editor_state["preview_result"] = preview.get("data", {})
+                        project["audio_editor"] = editor_state
+                        _save_project()
+                        st.rerun()
+                    else:
+                        st.warning(preview.get("message") or preview.get("error"))
+            if st.button("Preview End Transition", use_container_width=True, disabled=not ffmpeg_probe.get("ok"), key="audio_editor_preview_end_transition"):
+                preview = export_audio_selection(source_path, start_time=max(0.0, refined_end - 6.0), end_time=min(duration, refined_end + 4.0), project_name=f"{project.get('title') or 'audio_editor'} End Transition Preview", output_name=f"{Path(source_path).stem}_end_transition_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True, smart_hook_data=refined_hook, output_suffix="Hook")
                 if preview.get("ok"):
                     editor_state["preview_result"] = preview.get("data", {})
                     project["audio_editor"] = editor_state
@@ -2767,71 +2827,72 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     st.rerun()
                 else:
                     st.warning(preview.get("message") or preview.get("error"))
-    if hook_analysis.get("low_confidence"):
-        st.info("No strong hook candidate detected. Manual selection is recommended.")
-    action_cols = st.columns(3)
-    if action_cols[0].button("Reset selection", use_container_width=True, key="audio_editor_reset_selection"):
-        _sync_audio_editor_selection(editor_state, 0.0, min(duration, 15.0), duration)
-        project["audio_editor"] = editor_state
-        _save_project()
-        st.rerun()
-    loop_selection = action_cols[1].toggle("Loop selected section", value=bool(editor_state.get("loop_selection", False)), key="audio_editor_loop_selection")
-    editor_state["loop_selection"] = loop_selection
-    if action_cols[2].button("Preview Selection", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_preview"):
-        preview = export_audio_selection(source_path, start_time=start_time, end_time=end_time, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name=f"{Path(source_path).stem}_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
-        if preview.get("ok"):
-            editor_state["preview_result"] = preview.get("data", {})
-            project["audio_editor"] = editor_state
-            _save_project()
-            st.rerun()
-        else:
-            st.warning(preview.get("message") or preview.get("error"))
-    preview_mp3 = Path(str((editor_state.get("preview_result") or {}).get("hook_mp3") or ""))
-    if preview_mp3.is_file():
-        st.markdown("**Selected-section preview**")
-        st.audio(str(preview_mp3))
-    st.markdown("### 4. Cut Settings")
-    cut_mode_labels = {
-        "Lossless Quick Cut": "ตัดแบบรักษาคุณภาพเดิม (Lossless Quick Cut)",
-        "Precise Cut": "ตัดแบบแม่นยำ (Precise Cut)",
-    }
-    cut_mode = st.radio(
-        "Cut mode",
-        AUDIO_EDITOR_CUT_MODES,
-        index=1 if smart_mode else 0,
-        key="audio_editor_cut_mode",
-        help="Lossless Quick Cut uses FFmpeg stream copy. Precise Cut re-encodes to MP3 320 kbps.",
-        format_func=lambda value: cut_mode_labels.get(value, value),
-    )
-    st.caption("Lossless Quick Cut: No re-encoding. MP3 frame boundaries may shift the cut slightly.")
-    st.caption("Precise Cut: Re-encoded to MP3 320 kbps for more accurate start/end positions.")
-    output_format_label = st.radio(
-        "Export Format",
-        ["MP3 320 kbps", "WAV Lossless"],
-        horizontal=True,
-        key="audio_editor_output_format",
-        help="WAV keeps a lossless hook file. MP3 creates a 320 kbps browser/platform-friendly hook.",
-    )
-    export_format = "wav" if output_format_label.startswith("WAV") else "mp3"
-    fade_cols = st.columns(2)
-    fade_in_label = fade_cols[0].selectbox("Fade In", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_in")
-    fade_out_label = fade_cols[1].selectbox("Fade Out", list(AUDIO_EDITOR_FADE_OPTIONS), index=0, key="audio_editor_fade_out")
-    fade_in = AUDIO_EDITOR_FADE_OPTIONS[fade_in_label]
-    fade_out = AUDIO_EDITOR_FADE_OPTIONS[fade_out_label]
+
+        hook_analysis = editor_state.get("hook_analysis") or {}
+        if hook_analysis.get("low_confidence"):
+            st.info("No strong hook candidate detected. Manual selection is recommended.")
+        for candidate in hook_analysis.get("candidates", [])[:3]:
+            with st.container(border=True):
+                st.markdown(f"**Candidate {candidate.get('rank')}**")
+                candidate_start = float(candidate.get("refined_start", candidate.get("start_time", 0)) or 0)
+                candidate_end = float(candidate.get("refined_end", candidate.get("end_time", 0)) or 0)
+                candidate_duration = float(candidate.get("actual_duration", candidate.get("duration", 0)) or 0)
+                h1, h2, h3 = st.columns(3)
+                h1.metric("Refined Start", format_timecode(candidate_start))
+                h2.metric("Refined End", format_timecode(candidate_end))
+                h3.metric("Confidence", f"{int(candidate.get('boundary_confidence_score', candidate.get('confidence_score', 0)) or 0)}%")
+                st.caption(f"Rough: {format_timecode(float(candidate.get('rough_start', candidate.get('start_time', 0)) or 0))} → {format_timecode(float(candidate.get('rough_end', candidate.get('end_time', 0)) or 0))} • Refined duration: {format_timecode(candidate_duration)} • Type: {candidate.get('hook_type', 'Best Hook')}")
+                preferred_range = candidate.get("preferred_duration_range") or []
+                if len(preferred_range) == 2:
+                    st.caption(f"Preferred Range: {int(float(preferred_range[0]))}-{int(float(preferred_range[1]))} sec • Actual Complete Hook: {candidate_duration:.1f} sec")
+                if candidate.get("phrase_completion_result"):
+                    st.caption(f"Phrase Completion Gate: {candidate.get('phrase_completion_result')} • Continuation penalty: {candidate.get('continuation_penalty', '')}")
+                st.caption(f"Energy: {int(candidate.get('energy_score', 0))}% • Activity: {int(candidate.get('vocal_activity_score', 0))}%")
+                st.write(candidate.get("reason_summary", "Manual review recommended"))
+                for reason in candidate.get("boundary_reasons", [])[:3]:
+                    st.caption(f"- {reason}")
+                for warning in candidate.get("boundary_warnings", [])[:2]:
+                    st.warning(warning)
+                c_use, c_preview = st.columns(2)
+                if c_use.button("Use This Hook", use_container_width=True, key=f"audio_editor_use_hook_{candidate.get('rank')}"):
+                    refined_candidate = _candidate_to_refined(candidate)
+                    _sync_audio_editor_selection(editor_state, candidate_start, candidate_end, duration)
+                    editor_state["rough_selection"] = {"start_time": refined_candidate["rough_start"], "end_time": refined_candidate["rough_end"]}
+                    editor_state["smart_refined_hook"] = refined_candidate
+                    editor_state["smart_override_status"] = "Smart Refined"
+                    project["audio_editor"] = editor_state
+                    _save_project()
+                    st.rerun()
+                if c_preview.button("Preview Candidate", use_container_width=True, key=f"audio_editor_preview_hook_{candidate.get('rank')}"):
+                    preview = export_audio_selection(source_path, start_time=candidate_start, end_time=candidate_end, project_name=f"{project.get('title') or 'audio_editor'} Candidate Preview", output_name=f"{Path(source_path).stem}_candidate_{candidate.get('rank')}_preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+                    if preview.get("ok"):
+                        editor_state["preview_result"] = preview.get("data", {})
+                        project["audio_editor"] = editor_state
+                        _save_project()
+                        st.rerun()
+                    else:
+                        st.warning(preview.get("message") or preview.get("error"))
+
+    st.markdown("### Export")
+    st.text_input("Export Name", key="audio_editor_export_name")
+    audio_export_name = str(st.session_state.get("audio_editor_export_name") or default_audio_export_name)
+    editor_state["export_name"] = audio_export_name
+    editor_state["export_name_manual"] = audio_export_name != default_audio_export_name
+    st.session_state["audio_editor_export_name_manual"] = editor_state["export_name_manual"]
     effective_mode = "Precise Cut" if fade_in > 0 or fade_out > 0 else cut_mode
     if effective_mode != cut_mode:
-        st.warning("Re-encoding required: fades automatically use Precise Cut.")
-    if smart_mode and effective_mode != "Precise Cut":
-        st.info("Smart Musical Hook uses Precise Cut by default so refined boundaries stay accurate. Lossless is available only as an explicit manual choice.")
-    audio_export_base = str(editor_state.get("export_name") or default_audio_export_name)
-    custom_name = audio_export_base
-    st.markdown("### 5. Single Export")
-    if st.button("ส่งออก Hook (Export Hook)", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
-        selected_smart_hook = dict(editor_state.get("smart_refined_hook") or {}) if smart_mode else {}
-        if smart_mode and not selected_smart_hook:
+        st.caption("Fades use Precise Cut automatically.")
+    selected_smart_hook = dict(editor_state.get("smart_refined_hook") or {})
+    output_suffix = smart_hook_suffix(str(selected_smart_hook.get("hook_type") or "Best Hook")) if selected_smart_hook else "Hook"
+    if st.button("Export", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_probe.get("ok"), key="audio_editor_export_hook"):
+        if selected_smart_hook:
+            selected_smart_hook["user_override_status"] = editor_state.get("smart_override_status") or selected_smart_hook.get("user_override_status") or "Smart Refined"
+            selected_smart_hook["export_mode"] = effective_mode
+            selected_smart_hook["fade_settings"] = {"fade_in": float(fade_in), "fade_out": float(fade_out)}
+        else:
             selected_smart_hook = {
-                "source": "Manual Smart Musical Hook",
-                "hook_type": hook_type,
+                "source": "Manual Waveform Selection",
+                "hook_type": "Hook",
                 "rough_start": float(start_time),
                 "rough_end": float(end_time),
                 "refined_start": float(start_time),
@@ -2839,21 +2900,18 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                 "actual_duration": float(end_time - start_time),
                 "boundary_confidence": "Manual Review",
                 "boundary_confidence_score": 0,
-                "start_boundary_score": 0,
-                "end_boundary_score": 0,
-                "reasons": ["User exported rough markers without boundary refinement."],
-                "user_override_status": editor_state.get("smart_override_status", "Manual Rough Export"),
+                "reasons": ["User exported the waveform selection."],
+                "user_override_status": editor_state.get("smart_override_status", "Manual Export"),
+                "export_mode": effective_mode,
+                "fade_settings": {"fade_in": float(fade_in), "fade_out": float(fade_out)},
             }
-        if selected_smart_hook:
-            selected_smart_hook["user_override_status"] = editor_state.get("smart_override_status") or selected_smart_hook.get("user_override_status") or "Smart Refined"
-            selected_smart_hook["export_mode"] = effective_mode
-            selected_smart_hook["fade_settings"] = {"fade_in": float(fade_in), "fade_out": float(fade_out)}
+        hook_analysis = editor_state.get("hook_analysis") or {}
         result = export_audio_selection(
             source_path,
             start_time=start_time,
             end_time=end_time,
             project_name=project.get("title") or "audio_editor",
-            output_name=custom_name,
+            output_name=audio_export_name,
             cut_mode=effective_mode,
             fade_in=fade_in,
             fade_out=fade_out,
@@ -2862,7 +2920,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             waveform_summary=editor_state.get("waveform") or {},
             hook_analysis_summary={key: hook_analysis.get(key) for key in ["analysis_method", "window_sizes", "candidate_count", "low_confidence", "report_path"] if key in hook_analysis},
             smart_hook_data=selected_smart_hook,
-            output_suffix=smart_hook_suffix(str(selected_smart_hook.get("hook_type") or hook_type)) if smart_mode else "Hook",
+            output_suffix=output_suffix,
             output_format=export_format,
         )
         editor_state["start_time"] = float(start_time)
@@ -2870,10 +2928,10 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         editor_state["last_result"] = result.get("data", {})
         editor_state["last_ok"] = bool(result.get("ok"))
         editor_state["last_error"] = result.get("error", "")
-        if result.get("ok") and smart_mode:
+        if result.get("ok"):
             stored_hook = dict(selected_smart_hook)
-            stored_hook["exported_file"] = (result.get("data") or {}).get("hook_mp3", "")
-            stored_hook["manual"] = stored_hook.get("user_override_status") in {"Manually Adjusted", "Manual Rough Export"}
+            stored_hook["exported_file"] = (result.get("data") or {}).get("output_audio", "")
+            stored_hook["manual"] = stored_hook.get("user_override_status") in {"Manually Adjusted", "Manual Export"}
             editor_state.setdefault("hooks", []).append(stored_hook)
         project["audio_editor"] = editor_state
         _save_project()
@@ -2882,13 +2940,15 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         else:
             st.error(result.get("message") or result.get("error") or "Audio export failed")
         st.rerun()
+
     result_data = editor_state.get("last_result") or {}
-    hook_mp3 = Path(str(result_data.get("hook_mp3") or ""))
-    hook_wav = Path(str(result_data.get("hook_wav") or ""))
-    output_audio = Path(str(result_data.get("output_audio") or hook_mp3 or hook_wav or ""))
+    output_audio_value = result_data.get("output_audio") or result_data.get("hook_mp3") or result_data.get("hook_wav") or ""
+    output_audio = Path(str(output_audio_value))
     if output_audio.is_file():
-        st.markdown("### 6. Reports")
-        output_preview_source = hook_mp3 if hook_mp3.is_file() else output_audio
+        st.markdown("### Download")
+        output_preview_source = Path(str(result_data.get("hook_mp3") or output_audio))
+        if not output_preview_source.is_file():
+            output_preview_source = output_audio
         output_preview = _resolve_safari_audio_preview_bytes(output_preview_source, cache_key="audio_editor_output", label="Audio Editor Output", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
         if output_preview.get("ok"):
             st.audio(output_preview["bytes"], format=output_preview["format"])
@@ -2912,8 +2972,6 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             report_txt = Path(str(result_data.get("report_txt_path") or ""))
             if report_txt.is_file():
                 st.download_button("Download Edit Report TXT", data=report_txt.read_bytes(), file_name=report_txt.name, mime="text/plain", use_container_width=True, key="audio_editor_download_report_txt")
-
-
 def _hook_comparison_cards(detection: dict[str, Any], full_hook: str, target_duration: float) -> list[dict[str, Any]]:
     base_confidence = int(detection.get("confidence_score", detection.get("confidence", 62)) or 62)
     energy_text = str(detection.get("energy_profile_summary") or "")
