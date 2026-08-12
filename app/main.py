@@ -25,8 +25,14 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
-VELAFLOW_LOGO = ROOT / "assets" / "velaflow_logo.jpg"
-VELAFLOW_LOGO_ICON = ROOT / "assets" / "velaflow_logo_icon.jpg"
+VELAFLOW_ICON_512 = ROOT / "assets" / "velaflow_icon_512.png"
+VELAFLOW_ICON_192 = ROOT / "assets" / "velaflow_icon_192.png"
+VELAFLOW_APPLE_TOUCH_ICON = ROOT / "assets" / "apple_touch_icon.png"
+VELAFLOW_STATIC_ICON_512 = "/app/static/velaflow_icon_512.png"
+VELAFLOW_STATIC_ICON_192 = "/app/static/velaflow_icon_192.png"
+VELAFLOW_STATIC_APPLE_TOUCH_ICON = "/app/static/apple_touch_icon.png"
+VELAFLOW_STATIC_FAVICON_32 = "/app/static/favicon-32.png"
+VELAFLOW_STATIC_MANIFEST = "/app/static/manifest.webmanifest"
 WAVEFORM_SELECTOR_COMPONENT = components.declare_component(
     "velaflow_waveform_selector",
     path=str(ROOT / "app" / "components" / "waveform_selector"),
@@ -309,11 +315,50 @@ from app.presets import (
 )
 
 
-st.set_page_config(page_title="VelaFlow", page_icon=str(VELAFLOW_LOGO_ICON) if VELAFLOW_LOGO_ICON.is_file() else "🎬", layout="wide")
+st.set_page_config(page_title="VelaFlow", page_icon=str(VELAFLOW_ICON_512) if VELAFLOW_ICON_512.is_file() else "🎬", layout="wide")
 apply_global_styles()
 settings = get_settings()
 license_service = get_license_service()
 ensure_beta_runtime_dirs()
+
+
+def _inject_velaflow_icon_metadata() -> None:
+    """Add local Retina/iOS icon metadata to the Streamlit document head."""
+    script = f"""
+(function() {{
+  const doc = window.parent && window.parent.document ? window.parent.document : document;
+  const head = doc.head || doc.getElementsByTagName('head')[0];
+  if (!head) return;
+  function upsertLink(selector, attrs) {{
+    let el = head.querySelector(selector);
+    if (!el) {{
+      el = doc.createElement('link');
+      head.appendChild(el);
+    }}
+    Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+  }}
+  function upsertMeta(selector, attrs) {{
+    let el = head.querySelector(selector);
+    if (!el) {{
+      el = doc.createElement('meta');
+      head.appendChild(el);
+    }}
+    Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+  }}
+  upsertLink('link[rel="apple-touch-icon"]', {{ rel: 'apple-touch-icon', sizes: '180x180', href: '{VELAFLOW_STATIC_APPLE_TOUCH_ICON}' }});
+  upsertLink('link[rel="icon"][sizes="32x32"]', {{ rel: 'icon', type: 'image/png', sizes: '32x32', href: '{VELAFLOW_STATIC_FAVICON_32}' }});
+  upsertLink('link[rel="icon"][sizes="192x192"]', {{ rel: 'icon', type: 'image/png', sizes: '192x192', href: '{VELAFLOW_STATIC_ICON_192}' }});
+  upsertLink('link[rel="icon"][sizes="512x512"]', {{ rel: 'icon', type: 'image/png', sizes: '512x512', href: '{VELAFLOW_STATIC_ICON_512}' }});
+  upsertLink('link[rel="manifest"]', {{ rel: 'manifest', href: '{VELAFLOW_STATIC_MANIFEST}' }});
+  upsertMeta('meta[name="theme-color"]', {{ name: 'theme-color', content: '#050815' }});
+  upsertMeta('meta[name="apple-mobile-web-app-title"]', {{ name: 'apple-mobile-web-app-title', content: 'VelaFlow' }});
+  upsertMeta('meta[name="apple-mobile-web-app-capable"]', {{ name: 'apple-mobile-web-app-capable', content: 'yes' }});
+}})();
+"""
+    components.html(f"<script>{script}</script>", height=0)
+
+
+_inject_velaflow_icon_metadata()
 
 
 DISPLAY_TEXT_FIXES = {}
@@ -2995,9 +3040,6 @@ def _read_creator_file(path: Path) -> str:
 
 
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
-    if VELAFLOW_LOGO.is_file():
-        _, logo_col, _ = st.columns([1.2, 1, 1.2])
-        logo_col.image(str(VELAFLOW_LOGO), width=180)
     _page_header("Creator Dashboard", "Single-path music creation for release-ready Suno/Udio packs.", project)
     state = project.setdefault("creator_dashboard", {})
     st.markdown(
@@ -4168,12 +4210,16 @@ def _load_managed_project(path: str) -> dict[str, Any]:
 
 
 def _page_header(title: str, subtitle: str = "", project_context: dict[str, Any] | None = None) -> None:
-    if VELAFLOW_LOGO_ICON.is_file():
-        logo_col, title_col = st.columns([0.08, 0.92])
-        logo_col.image(str(VELAFLOW_LOGO_ICON), width=48)
-        title_col.subheader(title)
+    if VELAFLOW_ICON_512.is_file():
+        logo_col, brand_col = st.columns([0.07, 0.93])
+        logo_col.image(str(VELAFLOW_ICON_512), width=48)
+        with brand_col:
+            st.markdown(f"### VelaFlow Beta {APP_VERSION}")
+            st.caption("AI Content Automation Pipeline by VelaLab")
     else:
-        st.subheader(title)
+        st.markdown(f"### VelaFlow Beta {APP_VERSION}")
+        st.caption("AI Content Automation Pipeline by VelaLab")
+    st.subheader(title)
     if subtitle:
         st.caption(subtitle)
     if project_context is not None:
@@ -5862,8 +5908,8 @@ _sync_navigation_state()
 
 with st.sidebar:
     brand_logo_col, brand_text_col = st.columns([0.28, 0.72])
-    if VELAFLOW_LOGO_ICON.is_file():
-        brand_logo_col.image(str(VELAFLOW_LOGO_ICON), width=56)
+    if VELAFLOW_ICON_512.is_file():
+        brand_logo_col.image(str(VELAFLOW_ICON_512), width=64)
     with brand_text_col:
         st.markdown("### VelaFlow")
         st.caption("AI Music Production")

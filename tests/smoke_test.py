@@ -2750,10 +2750,20 @@ def main():
         assert_true(not clip_v2_fail["ok"] and clip_v2_fail_manifest.get("fallback_used") is False and clip_v2_fail_manifest.get("final_video_path") == "", "Clip Studio V2 created fallback success")
         main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
         creative_source = (ROOT / "core" / "creative_pack_generator.py").read_text(encoding="utf-8")
-        logo_asset = ROOT / "assets" / "velaflow_logo.jpg"
-        logo_icon_asset = ROOT / "assets" / "velaflow_logo_icon.jpg"
-        assert_true(logo_asset.is_file() and logo_asset.stat().st_size > 0 and logo_icon_asset.is_file() and logo_icon_asset.stat().st_size > 0, "VelaFlow logo assets missing")
-        assert_true("VELAFLOW_LOGO" in main_source and "VELAFLOW_LOGO_ICON" in main_source and 'st.set_page_config(page_title="VelaFlow"' in main_source and "AI Music Production" in main_source and "codex-clipboard" not in main_source, "VelaFlow branding logo wiring missing or references temp path")
+        def png_size(path: Path) -> tuple[int, int]:
+            data = path.read_bytes()
+            assert_true(data.startswith(b"\x89PNG\r\n\x1a\n"), f"{path.name} is not PNG")
+            return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+        logo_512 = ROOT / "assets" / "velaflow_icon_512.png"
+        logo_192 = ROOT / "assets" / "velaflow_icon_192.png"
+        apple_icon = ROOT / "assets" / "apple_touch_icon.png"
+        manifest_path = ROOT / "static" / "manifest.webmanifest"
+        streamlit_config = ROOT / ".streamlit" / "config.toml"
+        assert_true(logo_512.is_file() and png_size(logo_512) == (512, 512) and logo_192.is_file() and png_size(logo_192) == (192, 192) and apple_icon.is_file() and png_size(apple_icon) == (180, 180), "VelaFlow Retina PNG icon assets missing or wrong size")
+        manifest_source = manifest_path.read_text(encoding="utf-8")
+        config_source = streamlit_config.read_text(encoding="utf-8")
+        assert_true("VELAFLOW_ICON_512" in main_source and "VELAFLOW_LOGO_ICON" not in main_source and 'st.set_page_config(page_title="VelaFlow"' in main_source and "AI Music Production" in main_source and "AI Content Automation Pipeline by VelaLab" in main_source and "apple-touch-icon" in main_source and "manifest.webmanifest" in main_source and "velaflow_logo_icon.jpg" not in main_source and "codex-clipboard" not in main_source, "VelaFlow Retina branding or iPhone metadata wiring missing")
+        assert_true("enableStaticServing = true" in config_source and "velaflow_icon_192.png" in manifest_source and "velaflow_icon_512.png" in manifest_source and "standalone" in manifest_source, "VelaFlow static icon serving or manifest missing")
         assert_true(creative_source.count("def improve_hook_singability") == 1 and "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก" not in creative_source and "อารมณ์หลัก:" not in creative_source, "creative pack hook helper duplicate or unreachable fallback returned")
         assert_true("def _copy_to_clipboard_button" in main_source and "navigator.clipboard.writeText" in main_source and "document.execCommand('copy')" in main_source and "_clipboard_count" in main_source and "✓ Copied to clipboard" in main_source, "repeatable clipboard helper missing")
         assert_true('_copy_to_clipboard_button("Copy Lyrics for Suno"' in main_source and '_copy_to_clipboard_button("Copy Style for Suno"' in main_source and '_copy_to_clipboard_button("Copy Producer Notes"' in main_source, "Suno copy buttons are not wired to clipboard helper")
