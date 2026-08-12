@@ -2750,6 +2750,10 @@ def main():
         assert_true(not clip_v2_fail["ok"] and clip_v2_fail_manifest.get("fallback_used") is False and clip_v2_fail_manifest.get("final_video_path") == "", "Clip Studio V2 created fallback success")
         main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
         creative_source = (ROOT / "core" / "creative_pack_generator.py").read_text(encoding="utf-8")
+        logo_asset = ROOT / "assets" / "velaflow_logo.jpg"
+        logo_icon_asset = ROOT / "assets" / "velaflow_logo_icon.jpg"
+        assert_true(logo_asset.is_file() and logo_asset.stat().st_size > 0 and logo_icon_asset.is_file() and logo_icon_asset.stat().st_size > 0, "VelaFlow logo assets missing")
+        assert_true("VELAFLOW_LOGO" in main_source and "VELAFLOW_LOGO_ICON" in main_source and 'st.set_page_config(page_title="VelaFlow"' in main_source and "AI Music Production" in main_source and "codex-clipboard" not in main_source, "VelaFlow branding logo wiring missing or references temp path")
         assert_true(creative_source.count("def improve_hook_singability") == 1 and "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก" not in creative_source and "อารมณ์หลัก:" not in creative_source, "creative pack hook helper duplicate or unreachable fallback returned")
         assert_true("def _copy_to_clipboard_button" in main_source and "navigator.clipboard.writeText" in main_source and "document.execCommand('copy')" in main_source and "_clipboard_count" in main_source and "✓ Copied to clipboard" in main_source, "repeatable clipboard helper missing")
         assert_true('_copy_to_clipboard_button("Copy Lyrics for Suno"' in main_source and '_copy_to_clipboard_button("Copy Style for Suno"' in main_source and '_copy_to_clipboard_button("Copy Producer Notes"' in main_source, "Suno copy buttons are not wired to clipboard helper")

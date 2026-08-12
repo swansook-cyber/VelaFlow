@@ -25,6 +25,8 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT))
+VELAFLOW_LOGO = ROOT / "assets" / "velaflow_logo.jpg"
+VELAFLOW_LOGO_ICON = ROOT / "assets" / "velaflow_logo_icon.jpg"
 WAVEFORM_SELECTOR_COMPONENT = components.declare_component(
     "velaflow_waveform_selector",
     path=str(ROOT / "app" / "components" / "waveform_selector"),
@@ -307,7 +309,7 @@ from app.presets import (
 )
 
 
-st.set_page_config(page_title=WINDOW_TITLE, page_icon="🎬", layout="wide")
+st.set_page_config(page_title="VelaFlow", page_icon=str(VELAFLOW_LOGO_ICON) if VELAFLOW_LOGO_ICON.is_file() else "🎬", layout="wide")
 apply_global_styles()
 settings = get_settings()
 license_service = get_license_service()
@@ -2993,6 +2995,9 @@ def _read_creator_file(path: Path) -> str:
 
 
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
+    if VELAFLOW_LOGO.is_file():
+        _, logo_col, _ = st.columns([1.2, 1, 1.2])
+        logo_col.image(str(VELAFLOW_LOGO), width=180)
     _page_header("Creator Dashboard", "Single-path music creation for release-ready Suno/Udio packs.", project)
     state = project.setdefault("creator_dashboard", {})
     st.markdown(
@@ -4163,7 +4168,12 @@ def _load_managed_project(path: str) -> dict[str, Any]:
 
 
 def _page_header(title: str, subtitle: str = "", project_context: dict[str, Any] | None = None) -> None:
-    st.subheader(title)
+    if VELAFLOW_LOGO_ICON.is_file():
+        logo_col, title_col = st.columns([0.08, 0.92])
+        logo_col.image(str(VELAFLOW_LOGO_ICON), width=48)
+        title_col.subheader(title)
+    else:
+        st.subheader(title)
     if subtitle:
         st.caption(subtitle)
     if project_context is not None:
@@ -5851,7 +5861,12 @@ def go_to_page(section_name: str, page_name: str) -> None:
 _sync_navigation_state()
 
 with st.sidebar:
-    st.header("VelaFlow V1")
+    brand_logo_col, brand_text_col = st.columns([0.28, 0.72])
+    if VELAFLOW_LOGO_ICON.is_file():
+        brand_logo_col.image(str(VELAFLOW_LOGO_ICON), width=56)
+    with brand_text_col:
+        st.markdown("### VelaFlow")
+        st.caption("AI Music Production")
     beta_profile = load_beta_access()
     st.info(
         f"VelaFlow Closed Beta\n\nFounding Creator Build\n\nVersion {APP_VERSION} · Build {BUILD_VERSION}\n\nStatus: {str(beta_profile.get('beta_status', 'active')).title()}",
