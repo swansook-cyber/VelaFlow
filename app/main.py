@@ -4210,16 +4210,8 @@ def _load_managed_project(path: str) -> dict[str, Any]:
 
 
 def _page_header(title: str, subtitle: str = "", project_context: dict[str, Any] | None = None) -> None:
-    if VELAFLOW_ICON_512.is_file():
-        logo_col, brand_col = st.columns([0.07, 0.93])
-        logo_col.image(str(VELAFLOW_ICON_512), width=48)
-        with brand_col:
-            st.markdown(f"### VelaFlow Beta {APP_VERSION}")
-            st.caption("AI Content Automation Pipeline by VelaLab")
-    else:
-        st.markdown(f"### VelaFlow Beta {APP_VERSION}")
-        st.caption("AI Content Automation Pipeline by VelaLab")
-    st.subheader(title)
+    st.markdown(f"### VelaFlow Beta {APP_VERSION}")
+    st.caption("AI Content Automation Pipeline by VelaLab")
     if subtitle:
         st.caption(subtitle)
     if project_context is not None:
@@ -5907,12 +5899,8 @@ def go_to_page(section_name: str, page_name: str) -> None:
 _sync_navigation_state()
 
 with st.sidebar:
-    brand_logo_col, brand_text_col = st.columns([0.28, 0.72])
-    if VELAFLOW_ICON_512.is_file():
-        brand_logo_col.image(str(VELAFLOW_ICON_512), width=64)
-    with brand_text_col:
-        st.markdown("### VelaFlow")
-        st.caption("AI Music Production")
+    st.markdown("### VelaFlow")
+    st.caption("AI Music Production")
     beta_profile = load_beta_access()
     st.info(
         f"VelaFlow Closed Beta\n\nFounding Creator Build\n\nVersion {APP_VERSION} · Build {BUILD_VERSION}\n\nStatus: {str(beta_profile.get('beta_status', 'active')).title()}",
