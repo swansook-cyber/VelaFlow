@@ -80,7 +80,7 @@ from core.affiliate_engine import (
 )
 from core.automatic_hook_clip import export_tiktok_package, quick_generate_hook_clip
 from core.character_engine import CHARACTER_TYPES, PERSONALITY_PROMPTS, STYLE_PROMPTS, random_viral_character_idea
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_mode_label, mask_api_key, provider_key_env_name, resolve_gemini_api_key, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_key_persistence_enabled, api_mode_label, build_browser_api_key_storage_script, mask_api_key, provider_key_env_name, resolve_gemini_api_key, resolve_provider_credentials
 from core.asset_manager import clear_image_cache, clear_rejected_images, clear_temp_renders, project_asset_summary
 from core.beta_testing import (
     BETA_RATING_AREAS,
@@ -531,7 +531,8 @@ JSON.stringify({
   provider: localStorage.getItem('velaflow_ai_provider') || '',
   gemini: localStorage.getItem('velaflow_gemini_key') || '',
   openai: localStorage.getItem('velaflow_openai_key') || '',
-  xai: localStorage.getItem('velaflow_xai_key') || ''
+  xai: localStorage.getItem('velaflow_xai_key') || '',
+  remember: localStorage.getItem('velaflow_remember_api_keys') || ''
 })
 """
     try:
@@ -621,15 +622,21 @@ def _restore_local_api_state() -> None:
     if restored:
         restored_mode = api_mode_label(restored.get("api_mode", API_MODE_OWN_KEY))
         restored_provider = normalize_provider(restored.get("provider") or st.session_state.get("default_ai_provider") or "gemini")
-        keys = {
+        persisted_keys = {
             provider: str(restored.get(provider, "") or "").strip()
             for provider in ("gemini", "openai", "xai")
             if str(restored.get(provider, "") or "").strip()
         }
+        remember_keys = api_key_persistence_enabled(restored.get("remember"))
+        current_keys = dict(st.session_state.get("user_api_keys", {}) or {})
+        # Legacy browser keys may be loaded once, but future edits stay session-only
+        # until the user explicitly enables device persistence.
+        current_keys.update({key: value for key, value in persisted_keys.items() if key not in current_keys})
         st.session_state.api_mode = restored_mode
         st.session_state.default_ai_provider = restored_provider
-        st.session_state.user_api_keys = keys
-        st.session_state.local_api_state_source = "localStorage"
+        st.session_state.user_api_keys = current_keys
+        st.session_state.remember_api_keys = remember_keys
+        st.session_state.local_api_state_source = "localStorage" if remember_keys else "legacy_localStorage_loaded_once" if persisted_keys else "localStorage_preferences_only"
     elif streamlit_js_eval is None:
         st.session_state.local_api_state_source = "session_state_only"
     else:
@@ -638,16 +645,11 @@ def _restore_local_api_state() -> None:
     _sync_provider_runtime_state()
 
 
-def _save_api_state_to_local_storage(provider: str, api_mode: str, api_key: str = "") -> None:
+def _save_api_state_to_local_storage(provider: str, api_mode: str, api_key: str = "", *, remember: bool | None = None) -> None:
     provider = normalize_provider(provider)
-    storage_key = LOCAL_STORAGE_KEYS.get(provider, "velaflow_gemini_key")
-    statements = [
-        f"localStorage.setItem('velaflow_api_mode', {_js_string(api_mode_label(api_mode))});",
-        f"localStorage.setItem('velaflow_ai_provider', {_js_string(provider)});",
-    ]
-    if api_key.strip():
-        statements.append(f"localStorage.setItem({_js_string(storage_key)}, {_js_string(api_key.strip())});")
-    _local_storage_script("\n".join(statements), f"velaflow_save_api_state_{provider}_{st.session_state.get('api_storage_nonce', 0)}")
+    should_remember = bool(st.session_state.get("remember_api_keys", False)) if remember is None else bool(remember)
+    script = build_browser_api_key_storage_script(provider, api_mode, api_key, remember=should_remember)
+    _local_storage_script(script, f"velaflow_save_api_state_{provider}_{st.session_state.get('api_storage_nonce', 0)}")
 
 
 def _forget_api_key_from_local_storage(provider: str) -> None:
@@ -3361,16 +3363,15 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
             selected_hook = hooks[hook_index]
             selected_title = titles[title_index]
             st.markdown(
-                f"""
-                <div class="vf-output-card">
-                  <h4>Selected Seed</h4>
-                  <p><strong>Story:</strong> {selected_story.get('label', '')}</p>
-                  <p><strong>Hook:</strong><br>{str(selected_hook.get('hook', '')).replace(chr(10), '<br>')}</p>
-                  <p><strong>Title:</strong> {selected_title.get('title', '')}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
+                "**Selected Seed**",
             )
+            with st.container(border=True):
+                st.caption("Story")
+                st.text(str(selected_story.get("label", "") or ""))
+                st.caption("Hook")
+                st.text(str(selected_hook.get("hook", "") or ""))
+                st.caption("Title")
+                st.text(str(selected_title.get("title", "") or ""))
             with st.expander("View all candidate details", expanded=False):
                 for idx, item in enumerate(stories):
                     st.markdown(("**Selected Story**  " if idx == story_index else "**Story Candidate**  ") + str(item.get("label", "")))
@@ -8187,9 +8188,22 @@ elif page == "AI Settings":
         _sync_provider_runtime_state()
         st.success(f"Active AI provider set to {provider_label}")
     st.warning("Your API key is used only to call the selected AI provider. Do not share it with others.")
-    st.caption("Your API key is stored only in this browser/device. Do not use shared devices.")
+    st.session_state.setdefault("remember_api_keys", False)
+    previous_remember = bool(st.session_state.get("remember_api_keys_last", st.session_state.get("remember_api_keys", False)))
+    remember_api_keys = st.checkbox("Remember API keys on this device", key="remember_api_keys")
+    if remember_api_keys:
+        st.warning("Stored in this browser. Do not enable on shared devices.")
+    else:
+        st.caption("Session only: API keys are cleared when this Streamlit session ends.")
+    if remember_api_keys != previous_remember:
+        st.session_state.api_storage_nonce += 1
+        current_key = str((st.session_state.get("user_api_keys", {}) or {}).get(selected_provider, "") or "")
+        _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY), current_key, remember=remember_api_keys)
+    st.session_state.remember_api_keys_last = remember_api_keys
+    if st.session_state.get("local_api_state_source") == "legacy_localStorage_loaded_once":
+        st.info("A previously stored browser key was loaded for this session. Enable Remember API keys to keep future edits on this device.")
     if st.session_state.get("local_api_state_source") == "session_state_only":
-        st.caption("localStorage helper is unavailable in this environment, so keys persist only for this Streamlit session.")
+        st.caption("Browser persistence is unavailable in this environment. Keys remain in this Streamlit session only.")
     user_keys = st.session_state.setdefault("user_api_keys", {})
     st.markdown("### Gemini API Key")
     st.caption("Used by Podcast Studio, Agent Studio, and other Gemini-powered tools. The key is never written to logs or exports.")
@@ -8207,9 +8221,9 @@ elif page == "AI Settings":
             st.session_state.api_mode = API_MODE_OWN_KEY
             st.session_state.default_ai_provider = "gemini"
             st.session_state.api_storage_nonce += 1
-            _save_api_state_to_local_storage("gemini", API_MODE_OWN_KEY, quick_gemini_key.strip())
+            _save_api_state_to_local_storage("gemini", API_MODE_OWN_KEY, quick_gemini_key.strip(), remember=remember_api_keys)
             _sync_provider_runtime_state()
-            st.success("Gemini key saved for this session/device")
+            st.success("Gemini key saved on this device" if remember_api_keys else "Gemini key saved for this session")
         else:
             st.warning("Paste a Gemini key before saving.")
     if gk2.button("Forget Gemini Key", use_container_width=True, key="settings_forget_gemini_key"):
@@ -8235,15 +8249,15 @@ elif page == "AI Settings":
         key=f"user_api_key_input_{selected_provider}_{st.session_state[input_nonce_key]}",
     )
     k1, k2 = st.columns(2)
-    if k1.button("Save on this device", use_container_width=True):
+    if k1.button("Save API Key", use_container_width=True):
         if entered_key.strip():
             st.session_state.user_api_keys[selected_provider] = entered_key.strip()
             st.session_state.api_mode = API_MODE_OWN_KEY
             st.session_state.default_ai_provider = selected_provider
             st.session_state.api_storage_nonce += 1
-            _save_api_state_to_local_storage(selected_provider, API_MODE_OWN_KEY, entered_key.strip())
+            _save_api_state_to_local_storage(selected_provider, API_MODE_OWN_KEY, entered_key.strip(), remember=remember_api_keys)
             _sync_provider_runtime_state()
-            st.success("API key saved on this device")
+            st.success("API key saved on this device" if remember_api_keys else "API key saved for this session")
         else:
             st.warning("Paste an API key before saving.")
     if k2.button("Forget API Key", use_container_width=True):

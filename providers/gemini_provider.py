@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from core.api_keys import resolve_gemini_api_key
+from core.api_keys import redact_secret, resolve_gemini_api_key
 from providers.base_provider import BaseTextProvider
 
 
@@ -40,7 +40,15 @@ class GeminiTextProvider(BaseTextProvider):
 
     def _record_debug(self, **details: Any) -> None:
         safe_details = {
-            key: ("yes" if key == "api_key_detected" and value else "no" if key == "api_key_detected" else value)
+            key: (
+                "yes"
+                if key == "api_key_detected" and value
+                else "no"
+                if key == "api_key_detected"
+                else redact_secret(value, self.api_key)
+                if isinstance(value, str)
+                else value
+            )
             for key, value in details.items()
         }
         self.debug_log.append(safe_details)
@@ -59,13 +67,13 @@ class GeminiTextProvider(BaseTextProvider):
             self.last_error = "GEMINI_API_KEY missing"
             self._record_debug(event="request_skipped", exception_message=self.last_error)
             return ""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
         try:
             request = urllib.request.Request(
                 url,
                 data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
                 method="POST",
             )
             with urllib.request.urlopen(request, timeout=25) as response:
@@ -90,11 +98,11 @@ class GeminiTextProvider(BaseTextProvider):
             detail = f"{type(exc).__name__}: {exc}"
             if body:
                 detail = f"{detail} | {body[:800]}"
-            self.last_error = detail
+            self.last_error = redact_secret(detail, self.api_key)
             self._record_debug(event="request_exception", api_response_status=self.last_status, exception_message=self.last_error)
             return ""
         except (urllib.error.URLError, TimeoutError, Exception) as exc:
-            self.last_error = f"{type(exc).__name__}: {exc}"
+            self.last_error = redact_secret(f"{type(exc).__name__}: {exc}", self.api_key)
             self._record_debug(event="request_exception", api_response_status=self.last_status, exception_message=self.last_error)
             return ""
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import sys
 from typing import Any
 
@@ -16,7 +18,48 @@ LOCAL_STORAGE_KEYS = {
     "gemini": "velaflow_gemini_key",
     "openai": "velaflow_openai_key",
     "xai": "velaflow_xai_key",
+    "remember": "velaflow_remember_api_keys",
 }
+REMEMBER_API_KEYS_DEFAULT = False
+
+
+def api_key_persistence_enabled(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def build_browser_api_key_storage_script(
+    provider: str,
+    api_mode: str,
+    api_key: str = "",
+    *,
+    remember: bool = REMEMBER_API_KEYS_DEFAULT,
+) -> str:
+    """Build browser storage commands without persisting secrets by default."""
+    normalized = normalize_provider(provider)
+    statements = [
+        f"localStorage.setItem({json.dumps(LOCAL_STORAGE_KEYS['api_mode'])}, {json.dumps(api_mode_label(api_mode))});",
+        f"localStorage.setItem({json.dumps(LOCAL_STORAGE_KEYS['provider'])}, {json.dumps(normalized)});",
+        f"localStorage.setItem({json.dumps(LOCAL_STORAGE_KEYS['remember'])}, {json.dumps('true' if remember else 'false')});",
+    ]
+    if remember and str(api_key or "").strip():
+        storage_key = LOCAL_STORAGE_KEYS.get(normalized, LOCAL_STORAGE_KEYS["gemini"])
+        statements.append(f"localStorage.setItem({json.dumps(storage_key)}, {json.dumps(str(api_key).strip())});")
+    return "\n".join(statements)
+
+
+def redact_secret(value: Any, *secrets: str) -> str:
+    """Redact known credentials and common API-key transports from diagnostics."""
+    result = str(value or "")
+    for secret in secrets:
+        token = str(secret or "").strip()
+        if token:
+            result = result.replace(token, "[REDACTED]")
+    result = re.sub(r"([?&]key=)[^&\s]+", r"\1[REDACTED]", result, flags=re.IGNORECASE)
+    result = re.sub(r"(x-goog-api-key\s*[:=]\s*)[^\s,;]+", r"\1[REDACTED]", result, flags=re.IGNORECASE)
+    result = re.sub(r"(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+", r"\1[REDACTED]", result, flags=re.IGNORECASE)
+    return result
 
 
 def normalize_provider(provider: str | None = None) -> str:

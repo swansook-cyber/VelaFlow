@@ -33,6 +33,7 @@ from core.storyboard_manager import add_scene, create_storyboard, export_storybo
 import core.asset_manager as asset_manager_module
 from providers.base_provider import LocalFallbackProvider
 from providers.gemini_provider import GeminiProvider, GeminiTextProvider
+import providers.gemini_provider as gemini_provider_module
 from providers.openai_provider import OpenAITextProvider
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
@@ -47,7 +48,7 @@ from core.affiliate_engine import (
 )
 from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, mask_api_key, resolve_gemini_api_key, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, REMEMBER_API_KEYS_DEFAULT, api_key_persistence_enabled, build_browser_api_key_storage_script, mask_api_key, redact_secret, resolve_gemini_api_key, resolve_provider_credentials
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_MISSING_KEY, STATUS_PROVIDER_ERROR, STATUS_RATE_LIMITED, build_api_quality_gate
 from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
@@ -270,7 +271,7 @@ from core.stable_build import STABLE_FREEZE_NAME, create_stable_candidate_snapsh
 from core.render_engine import run_render
 from core.scene_scoring import score_project_scenes, smart_tiktok_recommendations
 from core.seller_content import HOOK_STYLES, build_seller_dashboard_status, compress_selling_points, export_seller_content, generate_seller_content, seller_content_to_text
-from core.product_link_analyzer import analyze_product_link, detect_product_platform
+from core.product_link_analyzer import UnsafeProductURLError, analyze_product_link, detect_product_platform, validate_outbound_product_url
 import core.product_link_analyzer as product_link_analyzer
 from core.scene_story_engine import build_scene_sequence, build_subtitle_timing
 from core.style_consistency import build_style_consistency_report
@@ -1251,6 +1252,46 @@ def main():
     gemini_provider = GeminiProvider(api_key="smoke-test-key")
     assert_true(gemini_provider.available and gemini_provider.model == "gemini-2.5-flash", "GeminiProvider key/model init failed")
     assert_true(gemini_provider.diagnostics().get("api_key_detected") is True, "GeminiProvider diagnostics missing key state")
+    assert_true(REMEMBER_API_KEYS_DEFAULT is False and not api_key_persistence_enabled("false"), "API key persistence must default to OFF")
+    session_only_script = build_browser_api_key_storage_script("gemini", API_MODE_OWN_KEY, "session-secret", remember=False)
+    persistent_script = build_browser_api_key_storage_script("gemini", API_MODE_OWN_KEY, "persistent-secret", remember=True)
+    openai_persistent_script = build_browser_api_key_storage_script("openai", API_MODE_OWN_KEY, "openai-secret", remember=True)
+    assert_true("session-secret" not in session_only_script and "velaflow_gemini_key" not in session_only_script, "session-only API key was written to localStorage")
+    assert_true("persistent-secret" in persistent_script and "velaflow_gemini_key" in persistent_script, "opt-in API key persistence failed")
+    assert_true("openai-secret" in openai_persistent_script and "velaflow_openai_key" in openai_persistent_script, "OpenAI opt-in persistence compatibility failed")
+    session_gemini = resolve_gemini_api_key(session_state={"user_api_keys": {"gemini": "session-secret"}, "remember_api_keys": False})
+    assert_true(session_gemini.get("enabled") and session_gemini.get("source") == "session", "session Gemini key failed while persistence was OFF")
+    assert_true("super-secret" not in redact_secret("https://example.test?key=super-secret x-goog-api-key: super-secret", "super-secret"), "secret redaction failed")
+
+    captured_gemini_request = {}
+    saved_urlopen = gemini_provider_module.urllib.request.urlopen
+    class FakeGeminiResponse:
+        status = 200
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc, tb):
+            return False
+        def read(self):
+            return json.dumps({"candidates": [{"content": {"parts": [{"text": "Gemini OK"}]}}]}).encode("utf-8")
+    try:
+        def fake_gemini_urlopen(request, timeout=0):
+            captured_gemini_request["url"] = request.full_url
+            captured_gemini_request["headers"] = {key.lower(): value for key, value in request.header_items()}
+            return FakeGeminiResponse()
+        gemini_provider_module.urllib.request.urlopen = fake_gemini_urlopen
+        transport_provider = GeminiProvider(api_key="transport-secret")
+        assert_true(transport_provider.generate_text("hello") == "Gemini OK", "Gemini header transport request failed")
+        transport_diagnostics = json.dumps(transport_provider.diagnostics(), ensure_ascii=False)
+        assert_true("transport-secret" not in captured_gemini_request["url"] and "?key=" not in captured_gemini_request["url"], "Gemini key leaked into request URL")
+        assert_true(captured_gemini_request["headers"].get("x-goog-api-key") == "transport-secret", "Gemini credential header missing")
+        assert_true("transport-secret" not in transport_diagnostics, "Gemini diagnostics leaked the API key")
+        def failing_gemini_urlopen(request, timeout=0):
+            raise gemini_provider_module.urllib.error.URLError("transport-secret provider failure")
+        gemini_provider_module.urllib.request.urlopen = failing_gemini_urlopen
+        assert_true(transport_provider.generate_text("fail") == "", "Gemini provider error fixture should return empty output")
+        assert_true("transport-secret" not in json.dumps(transport_provider.diagnostics(), ensure_ascii=False), "Gemini error diagnostics leaked the API key")
+    finally:
+        gemini_provider_module.urllib.request.urlopen = saved_urlopen
     missing_gemini = GeminiTextProvider(api_key="")
     assert_true(missing_gemini.generate_text("test") == "" and "missing" in missing_gemini.last_error.lower(), "gemini missing-key fallback failed")
     resolved_gemini = resolve_agent_provider("Gemini", provider_api_key="smoke-test-key")
@@ -1934,7 +1975,7 @@ def main():
     assert_true(viral_stage_names == ["Hooks", "Script", "Subtitles", "Video Prompt", "Export Package"], "viral clips dashboard stages failed")
     assert_true("Song" not in viral_stage_names and "Seller" not in viral_stage_names and "Render" not in viral_stage_names, "viral clips dashboard leaked other workflow labels")
     assert_true(detect_product_platform("https://shopee.co.th/sample-product-i.123.456") == "shopee", "product platform detection failed")
-    link_analysis = analyze_product_link("https://www.tiktok.com/shop/product/smoke-bottle", "price 199, creator-friendly bottle")
+    link_analysis = analyze_product_link("https://www.tiktok.com/shop/product/smoke-bottle", "price 199, creator-friendly bottle", fetch=False)
     assert_true(link_analysis["ok"] and link_analysis["data"]["platform"] == "tiktok_shop" and link_analysis["data"]["keywords"], "product link analyzer failed")
     best_music_hook = extract_best_hook("music", {"selected_hook": {"hook_text": "เดินต่อ ทั้งที่ใจยังเจ็บ"}})
     song_to_short_song = {
@@ -2810,6 +2851,9 @@ def main():
         assert_true("Quick Song" in main_source and "_render_quick_song" in main_source and "Suno Package" in main_source and "A. Lyrics" in main_source and "B. Music Style Prompt" in main_source, "Quick Song or Suno package UI missing")
         assert_true("AI Creative Pack Generator" in main_source and "Generate Song" in main_source and "Generate Final Release Pack" in main_source and "No Render" in main_source and "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools." in main_source and "แนวเพลงหลัก" in main_source and "ชื่อศิลปิน" in main_source, "creative pack generator UI missing")
         assert_true("Song Idea → Generate Song → Select Story/Hook/Title → Generate Final Release Pack" in main_source and "Selected Seed" in main_source and "View all candidate details" in main_source, "creative pack single-path workflow missing")
+        selected_seed_block = main_source[main_source.find('"**Selected Seed**"'):main_source.find('"View all candidate details"')]
+        assert_true(selected_seed_block and "unsafe_allow_html=True" not in selected_seed_block and selected_seed_block.count("st.text(") >= 3, "dynamic selected Story/Hook/Title values must render as non-HTML text")
+        assert_true(all(payload not in selected_seed_block for payload in ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>", '<iframe src="https://example.com"></iframe>']), "executable HTML fixture leaked into selected seed renderer")
         assert_true("AI Quality Mode" in main_source and "VelaFlow เลือกค่าที่เหมาะสมให้อัตโนมัติ" in main_source and "Reset to Recommended" in main_source and "Advanced Creative Controls" in main_source and "Manual Override Active" in main_source and "AI Quality Mode: Auto Optimized" not in main_source, "creative pack AI control cleanup missing")
         assert_true("แนวดนตรี" in main_source and "อารมณ์เพลง" in main_source and "ประเภทเรื่องราว" in main_source and "รูปแบบฮุก" in main_source and "ป๊อปร็อกอารมณ์ลึก" in main_source and "อินดี้อบอุ่น" in main_source, "Thai creator UI labels/options missing")
         assert_true("Generate Song Seeds" not in main_source and "Generate Full Lyrics from Selected Seed" not in main_source and "Generate Final Song" not in main_source, "old duplicate song generation actions still visible")
@@ -2864,48 +2908,115 @@ def main():
         affiliate_link = analyze_product_link("https://www.amazon.com/example-product", "warm desk lamp, price 399, rating 4.8", fetch=False)
         assert_true(affiliate_link["ok"] and affiliate_link["data"]["platform"] == "amazon" and affiliate_link["data"]["keywords"], "affiliate URL parsing failed")
         assert_true(detect_product_platform("https://s.shopee.co.th/abc") == "shopee" and detect_product_platform("https://vt.tiktok.com/abc") == "tiktok_shop", "affiliate short platform detection failed")
+        assert_true(detect_product_platform("https://shopee.co.th.attacker.com/item") == "unknown", "deceptive marketplace suffix was accepted")
+
+        def public_product_resolver(host, port, type=0):
+            return [(product_link_analyzer.socket.AF_INET, product_link_analyzer.socket.SOCK_STREAM, 6, "", ("8.8.8.8", port))]
+
+        for blocked_url in [
+            "http://127.0.0.1/item",
+            "http://localhost/item",
+            "http://10.0.0.1/item",
+            "http://172.16.0.1/item",
+            "http://192.168.1.1/item",
+            "http://169.254.169.254/latest/meta-data",
+            "http://[::1]/item",
+            "http://[fc00::1]/item",
+            "http://[fe80::1]/item",
+            "ftp://amazon.com/item",
+            "https://user:pass@amazon.com/item",
+            "https://shopee.co.th.attacker.com/item",
+        ]:
+            try:
+                validate_outbound_product_url(blocked_url, resolver=public_product_resolver)
+                raise AssertionError(f"unsafe product URL accepted: {blocked_url}")
+            except UnsafeProductURLError:
+                pass
+        assert_true(validate_outbound_product_url("https://amazon.com/item", resolver=public_product_resolver)["platform"] == "amazon", "valid marketplace host rejected")
+        assert_true(validate_outbound_product_url("https://www.shopee.co.th/item", resolver=public_product_resolver)["platform"] == "shopee", "valid marketplace subdomain rejected")
+        def private_product_resolver(host, port, type=0):
+            return [(product_link_analyzer.socket.AF_INET, product_link_analyzer.socket.SOCK_STREAM, 6, "", ("192.168.10.20", port))]
+        try:
+            validate_outbound_product_url("https://amazon.com/item", resolver=private_product_resolver)
+            raise AssertionError("marketplace hostname resolving to a private IP was accepted")
+        except UnsafeProductURLError:
+            pass
+
         class FakeResponse:
-            def __init__(self, url, text, status_code=200):
+            def __init__(self, url, text, status_code=200, headers=None):
                 self.url = url
                 self.text = text
                 self.status_code = status_code
+                self.headers = headers or {}
+                self.closed = False
             def raise_for_status(self):
                 if self.status_code >= 400:
                     raise product_link_analyzer.requests.HTTPError(f"HTTP {self.status_code}")
+            def close(self):
+                self.closed = True
 
         saved_get = product_link_analyzer.requests.get
         try:
             def fake_get_empty(url, **kwargs):
+                assert_true(kwargs.get("allow_redirects") is False, "product requests must disable automatic redirects")
                 return FakeResponse(url, "<html><head></head><body></body></html>")
             product_link_analyzer.requests.get = fake_get_empty
-            empty_result = analyze_product_link("https://www.amazon.com/empty-product", fetch=True)
+            empty_result = analyze_product_link("https://www.amazon.com/empty-product", fetch=True, resolver=public_product_resolver)
             assert_true(empty_result["data"]["extracted_success"] is False and not empty_result["data"]["title"] and empty_result["data"]["manual_fallback_message"], "affiliate empty extraction false success failed")
 
             def fake_get_redirect(url, **kwargs):
+                if url == "https://s.shopee.co.th/short":
+                    return FakeResponse(url, "", status_code=302, headers={"Location": "https://shopee.co.th/final-product"})
                 return FakeResponse(
-                    "https://shopee.co.th/final-product",
+                    url,
                     '<html><head><meta property="og:title" content="Redirected Shopee Bottle"><meta property="og:description" content="Keeps drinks cold"><meta property="og:image" content="https://img.example/bottle.jpg"><meta property="product:price:amount" content="199"></head></html>',
                 )
             product_link_analyzer.requests.get = fake_get_redirect
-            redirected = analyze_product_link("https://s.shopee.co.th/short", fetch=True)
+            redirected = analyze_product_link("https://s.shopee.co.th/short", fetch=True, resolver=public_product_resolver)
             assert_true(redirected["data"]["original_url"].startswith("https://s.shopee") and redirected["data"]["resolved_url"].endswith("final-product") and redirected["data"]["title"] == "Redirected Shopee Bottle" and redirected["data"]["price"] == "199" and redirected["data"]["extracted_success"] is True, "affiliate short URL redirect extraction failed")
+
+            private_request_count = {"value": 0}
+            def fake_get_private_redirect(url, **kwargs):
+                private_request_count["value"] += 1
+                return FakeResponse(url, "", status_code=302, headers={"Location": "http://127.0.0.1/private"})
+            product_link_analyzer.requests.get = fake_get_private_redirect
+            private_redirect = analyze_product_link("https://bit.ly/private-fixture", fetch=True, resolver=public_product_resolver)
+            assert_true(private_redirect["data"]["extraction_status"] == "unsafe_url" and private_request_count["value"] == 1, "redirect to private IP was not blocked before request")
+
+            multi_hop_count = {"value": 0}
+            def fake_get_multi_hop(url, **kwargs):
+                multi_hop_count["value"] += 1
+                if url.startswith("https://bit.ly"):
+                    return FakeResponse(url, "", status_code=302, headers={"Location": "https://tinyurl.com/next"})
+                return FakeResponse(url, "", status_code=302, headers={"Location": "http://169.254.169.254/latest/meta-data"})
+            product_link_analyzer.requests.get = fake_get_multi_hop
+            multi_hop_private = analyze_product_link("https://bit.ly/multi-hop", fetch=True, resolver=public_product_resolver)
+            assert_true(multi_hop_private["data"]["extraction_status"] == "unsafe_url" and multi_hop_count["value"] == 2, "multi-hop private redirect was not blocked")
+
+            loop_count = {"value": 0}
+            def fake_get_loop(url, **kwargs):
+                loop_count["value"] += 1
+                return FakeResponse(url, "", status_code=302, headers={"Location": "https://bit.ly/loop"})
+            product_link_analyzer.requests.get = fake_get_loop
+            redirect_loop = analyze_product_link("https://bit.ly/loop", fetch=True, resolver=public_product_resolver)
+            assert_true(redirect_loop["data"]["extraction_status"] == "unsafe_url" and loop_count["value"] == 1, "redirect loop was not rejected")
 
             def fake_get_title(url, **kwargs):
                 return FakeResponse(url, "<html><head><title>Plain Title Product</title></head><body>sample</body></html>")
             product_link_analyzer.requests.get = fake_get_title
-            title_fallback = analyze_product_link("https://www.amazon.com/plain-title", fetch=True)
+            title_fallback = analyze_product_link("https://www.amazon.com/plain-title", fetch=True, resolver=public_product_resolver)
             assert_true(title_fallback["data"]["title"] == "Plain Title Product" and title_fallback["data"]["extraction_status"] == "partial_metadata" and title_fallback["data"]["extracted_success"] is True, "affiliate HTML title fallback failed")
 
             def fake_get_jsonld(url, **kwargs):
                 return FakeResponse(url, '<script type="application/ld+json">{"@type":"Product","name":"Schema Product","description":"Schema description","image":"https://img.example/schema.jpg","offers":{"price":"299"},"category":"Beauty"}</script>')
             product_link_analyzer.requests.get = fake_get_jsonld
-            schema_result = analyze_product_link("https://www.amazon.com/schema-product", fetch=True)
+            schema_result = analyze_product_link("https://www.amazon.com/schema-product", fetch=True, resolver=public_product_resolver)
             assert_true(schema_result["data"]["title"] == "Schema Product" and schema_result["data"]["category"] == "Beauty" and schema_result["data"]["extraction_source"]["title"] == "json_ld", "affiliate JSON-LD extraction failed")
 
             def fake_get_timeout(url, **kwargs):
                 raise product_link_analyzer.requests.Timeout("timed out")
             product_link_analyzer.requests.get = fake_get_timeout
-            timeout_result = analyze_product_link("https://www.amazon.com/timeout", fetch=True, timeout_seconds=0.01, retry_count=1)
+            timeout_result = analyze_product_link("https://www.amazon.com/timeout", fetch=True, timeout_seconds=0.01, retry_count=1, resolver=public_product_resolver)
             assert_true(timeout_result["data"]["extraction_status"] == "metadata_unavailable" and timeout_result["data"]["manual_fallback_message"], "affiliate timeout fallback failed")
         finally:
             product_link_analyzer.requests.get = saved_get
