@@ -2,6 +2,7 @@ import hashlib
 import json
 import logging
 import os
+import socket
 import tempfile
 import time
 import uuid
@@ -32,6 +33,67 @@ class ProjectLockTimeout(TimeoutError):
     pass
 
 
+def _process_is_alive(pid: Any, hostname: str) -> bool | None:
+    """Return owner liveness on this host; None means it cannot be proven."""
+    if str(hostname or "") != socket.gethostname():
+        return None
+    try:
+        process_id = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if process_id <= 0:
+        return False
+    if process_id == os.getpid():
+        return True
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            process_query_limited_information = 0x1000
+            still_active = 259
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(process_query_limited_information, False, process_id)
+            if not handle:
+                return False
+            try:
+                exit_code = ctypes.c_ulong()
+                if not kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                    return None
+                return exit_code.value == still_active
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception:
+            return None
+    try:
+        os.kill(process_id, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+
+
+def _read_lock_owner(lock_path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(lock_path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (OSError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+def _release_owned_lock(lock_path: Path, token: str) -> bool:
+    current = _read_lock_owner(lock_path) if lock_path.is_file() else {}
+    if current.get("token") != token:
+        return False
+    try:
+        lock_path.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
 def safe_name(name: str) -> str:
     keep = [ch for ch in (name or "").strip() if ch.isalnum() or ch in (" ", "-", "_")]
     return ("".join(keep).strip().replace(" ", "_") or "untitled_project")
@@ -59,7 +121,7 @@ def project_file_lock(
     lock_path = _project_lock_path(project_folder, source)
     token = uuid.uuid4().hex
     deadline = time.monotonic() + max(0.0, timeout)
-    payload = json.dumps({"token": token, "pid": os.getpid(), "created_at": time.time()})
+    payload = json.dumps({"token": token, "pid": os.getpid(), "hostname": socket.gethostname(), "created_at": time.time()})
     while True:
         try:
             descriptor = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -72,8 +134,16 @@ def project_file_lock(
         except FileExistsError:
             try:
                 if stale_after > 0 and time.time() - lock_path.stat().st_mtime > stale_after:
-                    lock_path.unlink(missing_ok=True)
-                    continue
+                    owner = _read_lock_owner(lock_path)
+                    owner_alive = _process_is_alive(owner.get("pid"), str(owner.get("hostname") or socket.gethostname()))
+                    # Age alone is never sufficient. Recover only when the
+                    # recorded local owner can be proven dead (or malformed).
+                    if owner_alive is False:
+                        observed_token = str(owner.get("token") or "")
+                        latest = _read_lock_owner(lock_path)
+                        if str(latest.get("token") or "") == observed_token:
+                            lock_path.unlink(missing_ok=True)
+                            continue
             except FileNotFoundError:
                 continue
             if time.monotonic() >= deadline:
@@ -83,12 +153,7 @@ def project_file_lock(
     try:
         yield lock_path
     finally:
-        try:
-            current = json.loads(lock_path.read_text(encoding="utf-8")) if lock_path.is_file() else {}
-            if current.get("token") == token:
-                lock_path.unlink(missing_ok=True)
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
+        _release_owned_lock(lock_path, token)
 
 
 def _fsync_directory(folder: Path) -> None:

@@ -22,7 +22,16 @@ Required:
 
 ```text
 VELAFLOW_MODE=CLOUD
+VELAFLOW_ACCESS_PASSWORD=<strong single-user access password>
 ```
+
+VelaFlow fails closed in network production when `VELAFLOW_ACCESS_PASSWORD`
+is absent. The password is kept in the Streamlit session after sign-in and is
+never stored in browser localStorage, project files, exports, or logs.
+
+Project storage is a **SINGLE-USER GLOBAL PROJECT STORE**. It is acceptable
+only behind this access gate and is not multi-user isolation. Any future
+multi-user deployment must add authenticated per-user project namespaces.
 
 Optional:
 
@@ -41,9 +50,11 @@ flow is:
 4. Select Gemini, OpenAI GPT, or xAI Grok.
 5. Save the key on this device.
 
-User keys are stored only in browser `localStorage` and Streamlit session state.
-They are not written to project files, exports, logs, analytics, render
-packages, or server JSON files.
+User keys remain in Streamlit session state by default. Browser `localStorage`
+is used only after explicit **Remember API keys on this device** opt-in. Legacy
+saved keys are detected but stay inactive until the user chooses to use or
+remove them. Keys are not written to project files, exports, logs, analytics,
+render packages, or server JSON files.
 
 ## Cloud-Safe Runtime Paths
 

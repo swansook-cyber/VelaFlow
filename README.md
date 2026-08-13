@@ -479,7 +479,10 @@ and release-channel metadata where applicable.
 ## Licensing Foundation
 
 VelaFlow currently uses a local mock license file at `config/license.json`.
-There is no payment, auth, server activation, or online license check yet.
+There is no payment, multi-user account system, server activation, or online
+license check yet. Network production is protected by the single-user
+`VELAFLOW_ACCESS_PASSWORD` gate and uses a SINGLE-USER GLOBAL PROJECT STORE;
+it must not be treated as multi-user project isolation.
 Application modules should ask `LicenseService` for feature access instead of
 hard-coding plan checks throughout the codebase.
 

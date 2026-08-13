@@ -46,7 +46,34 @@ def build_browser_api_key_storage_script(
     if remember and str(api_key or "").strip():
         storage_key = LOCAL_STORAGE_KEYS.get(normalized, LOCAL_STORAGE_KEYS["gemini"])
         statements.append(f"localStorage.setItem({json.dumps(storage_key)}, {json.dumps(str(api_key).strip())});")
+    elif not remember:
+        for provider_name in ("gemini", "openai", "xai"):
+            statements.append(f"localStorage.removeItem({json.dumps(LOCAL_STORAGE_KEYS[provider_name])});")
     return "\n".join(statements)
+
+
+def saved_browser_api_keys(restored: Any) -> dict[str, str]:
+    values = restored if isinstance(restored, dict) else {}
+    return {
+        provider: str(values.get(provider, "") or "").strip()
+        for provider in ("gemini", "openai", "xai")
+        if str(values.get(provider, "") or "").strip()
+    }
+
+
+def browser_api_key_restore_plan(restored: Any, *, use_saved_keys: bool = False) -> dict[str, Any]:
+    """Keep legacy keys inactive unless persistence was opted in or use is explicit."""
+    values = restored if isinstance(restored, dict) else {}
+    saved = saved_browser_api_keys(values)
+    remember = api_key_persistence_enabled(values.get("remember"))
+    activate = remember or bool(use_saved_keys)
+    return {
+        "remember": remember,
+        "active_keys": dict(saved) if activate else {},
+        "pending_keys": {} if activate else dict(saved),
+        "saved_keys_found": bool(saved),
+        "source": "localStorage" if remember else "explicit_saved_keys" if use_saved_keys and saved else "legacy_saved_keys_detected" if saved else "localStorage_preferences_only",
+    }
 
 
 def redact_secret(value: Any, *secrets: str) -> str:

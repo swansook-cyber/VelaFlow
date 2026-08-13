@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -21,6 +22,7 @@ from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
 from core.agent_memory import load_agent_memory, save_agent_memory, update_agent_memory
 from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, agent_package_to_text, generate_agent_package
+from core.access_control import access_gate_policy, authenticate_access_password, is_network_production, sign_out_access_session
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
@@ -49,7 +51,7 @@ from core.affiliate_engine import (
 )
 from core.affiliate_caption_engine import build_affiliate_caption_package
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, REMEMBER_API_KEYS_DEFAULT, api_key_persistence_enabled, build_browser_api_key_storage_script, mask_api_key, redact_secret, resolve_gemini_api_key, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, LOCAL_STORAGE_KEYS, REMEMBER_API_KEYS_DEFAULT, api_key_persistence_enabled, browser_api_key_restore_plan, build_browser_api_key_storage_script, mask_api_key, redact_secret, resolve_gemini_api_key, resolve_provider_credentials
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_MISSING_KEY, STATUS_PROVIDER_ERROR, STATUS_RATE_LIMITED, build_api_quality_gate
 from core.provider_runtime import build_ffmpeg_runtime_diagnostics, build_provider_runtime_diagnostics
 from core.clip_factory import choose_clip_scene, generate_clip, generate_clip_set
@@ -169,7 +171,7 @@ from core.song_title_engine import generate_song_title_candidates, generate_song
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
-from core.project_io import atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
+from core.project_io import _release_owned_lock, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
     autosave_project_state,
     archive_project,
@@ -353,6 +355,17 @@ def synthetic_hook_frames(segments, frame_seconds: float = 0.25):
 def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
+    local_policy = access_gate_policy({"VELAFLOW_MODE": "LOCAL"}, configured_password="")
+    missing_network_policy = access_gate_policy({"VELAFLOW_MODE": "CLOUD"}, configured_password="")
+    protected_network_policy = access_gate_policy({"RAILWAY_ENVIRONMENT": "production"}, configured_password="correct horse battery staple")
+    assert_true(local_policy["local_development_bypass"] and not local_policy["authentication_required"], "documented local development bypass failed")
+    assert_true(is_network_production({"VELAFLOW_MODE": "CLOUD"}) and missing_network_policy["fail_closed"], "network production without access password must fail closed")
+    assert_true(protected_network_policy["authentication_required"] and not protected_network_policy["fail_closed"] and protected_network_policy["project_namespace"] == "SINGLE-USER GLOBAL PROJECT STORE", "protected single-user network policy failed")
+    assert_true(authenticate_access_password("correct horse battery staple", "correct horse battery staple"), "correct access password was rejected")
+    assert_true(not authenticate_access_password("incorrect", "correct horse battery staple") and not authenticate_access_password("", ""), "incorrect or unconfigured access password was accepted")
+    auth_session = {"velaflow_authenticated": True, "velaflow_access_password_input": "must-not-survive", "project": {"title": "preserved"}}
+    sign_out_access_session(auth_session)
+    assert_true("velaflow_authenticated" not in auth_session and "velaflow_access_password_input" not in auth_session and auth_session["project"]["title"] == "preserved", "sign out did not clear authenticated session state safely")
     remaster_validation_dir = out / "wave3_remaster_validation"
     remaster_validation_dir.mkdir(parents=True, exist_ok=True)
     validation_wav = remaster_validation_dir / "valid.wav"
@@ -1360,11 +1373,18 @@ def main():
     session_only_script = build_browser_api_key_storage_script("gemini", API_MODE_OWN_KEY, "session-secret", remember=False)
     persistent_script = build_browser_api_key_storage_script("gemini", API_MODE_OWN_KEY, "persistent-secret", remember=True)
     openai_persistent_script = build_browser_api_key_storage_script("openai", API_MODE_OWN_KEY, "openai-secret", remember=True)
-    assert_true("session-secret" not in session_only_script and "velaflow_gemini_key" not in session_only_script, "session-only API key was written to localStorage")
+    assert_true("session-secret" not in session_only_script and "localStorage.removeItem" in session_only_script, "persistence OFF must not write a key and must remove legacy provider keys")
     assert_true("persistent-secret" in persistent_script and "velaflow_gemini_key" in persistent_script, "opt-in API key persistence failed")
     assert_true("openai-secret" in openai_persistent_script and "velaflow_openai_key" in openai_persistent_script, "OpenAI opt-in persistence compatibility failed")
     session_gemini = resolve_gemini_api_key(session_state={"user_api_keys": {"gemini": "session-secret"}, "remember_api_keys": False})
     assert_true(session_gemini.get("enabled") and session_gemini.get("source") == "session", "session Gemini key failed while persistence was OFF")
+    legacy_browser_state = {"remember": "false", "gemini": "legacy-gemini", "openai": "legacy-openai", "provider": "gemini"}
+    ignored_legacy_plan = browser_api_key_restore_plan(legacy_browser_state)
+    explicit_legacy_plan = browser_api_key_restore_plan(legacy_browser_state, use_saved_keys=True)
+    opted_in_plan = browser_api_key_restore_plan({**legacy_browser_state, "remember": "true"})
+    assert_true(not ignored_legacy_plan["active_keys"] and ignored_legacy_plan["pending_keys"].get("gemini") == "legacy-gemini", "Remember OFF silently activated a legacy browser key")
+    assert_true(explicit_legacy_plan["active_keys"].get("gemini") == "legacy-gemini" and not explicit_legacy_plan["pending_keys"], "explicit Use Saved Keys did not activate keys for the session")
+    assert_true(opted_in_plan["active_keys"].get("openai") == "legacy-openai" and opted_in_plan["remember"], "Remember ON did not restore opted-in keys")
     assert_true("super-secret" not in redact_secret("https://example.test?key=super-secret x-goog-api-key: super-secret", "super-secret"), "secret redaction failed")
 
     captured_gemini_request = {}
@@ -2557,6 +2577,8 @@ def main():
             scene_file = Path(real_clip["data"]["scene_jobs"][0]["path"]).parent / scene_filename
             assert_true(scene_file.exists() and validate_mp4(scene_file, min_duration=1.0, min_file_size=100 * 1024)["valid_mp4"], f"{scene_filename} not playable")
         assert_true(real_clip["data"].get("audio_attached"), "audio attach status missing")
+        # Keep the version assertions deterministic across repeated smoke runs.
+        shutil.rmtree(workflow_project_root("clips") / "Smoke_Quick_Hook_Clip", ignore_errors=True)
         quick_clip = quick_generate_hook_clip(
             "Smoke Quick Hook Clip",
             "ทดสอบคลิปสั้นแนวตั้งสำหรับ VelaFlow",
@@ -2897,6 +2919,14 @@ def main():
         assert_true(not clip_v2_fail["ok"] and clip_v2_fail_manifest.get("fallback_used") is False and clip_v2_fail_manifest.get("final_video_path") == "", "Clip Studio V2 created fallback success")
         main_source = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
         creative_source = (ROOT / "core" / "creative_pack_generator.py").read_text(encoding="utf-8")
+        access_source = (ROOT / "core" / "access_control.py").read_text(encoding="utf-8")
+        gate_call_pos = main_source.find("if not _render_access_gate():")
+        state_init_pos = main_source.find("_ensure_state()", gate_call_pos)
+        project_render_pos = main_source.find("project = _project()", gate_call_pos)
+        assert_true(gate_call_pos > 0 and gate_call_pos < state_init_pos < project_render_pos and "st.stop()" in main_source[gate_call_pos:state_init_pos], "unauthenticated network session can reach project UI initialization")
+        assert_true("hmac.compare_digest" in access_source and "VELAFLOW_ACCESS_PASSWORD" not in access_source and "SINGLE-USER GLOBAL PROJECT STORE" in access_source, "access gate constant-time comparison or single-user classification missing")
+        assert_true("Sign out" in main_source and "sign_out_access_session" in main_source and "VelaFlow access protection is not configured." in main_source, "access gate fail-closed/sign-out UI missing")
+        assert_true("logging" not in access_source and "print(" not in access_source, "access password helper must not log credentials")
         def png_size(path: Path) -> tuple[int, int]:
             data = path.read_bytes()
             assert_true(data.startswith(b"\x89PNG\r\n\x1a\n"), f"{path.name} is not PNG")
@@ -3049,11 +3079,27 @@ def main():
                 pass
         assert_true(validate_outbound_product_url("https://amazon.com/item", resolver=public_product_resolver)["platform"] == "amazon", "valid marketplace host rejected")
         assert_true(validate_outbound_product_url("https://www.shopee.co.th/item", resolver=public_product_resolver)["platform"] == "shopee", "valid marketplace subdomain rejected")
+        for generic_shortener in ("https://bit.ly/product", "https://tinyurl.com/product", "https://cutt.ly/product"):
+            try:
+                validate_outbound_product_url(generic_shortener, resolver=public_product_resolver)
+                raise AssertionError(f"generic shortener accepted: {generic_shortener}")
+            except UnsafeProductURLError as error:
+                assert_true("Generic short links are not supported" in str(error), "generic shortener did not return the safe direct-link message")
         def private_product_resolver(host, port, type=0):
             return [(product_link_analyzer.socket.AF_INET, product_link_analyzer.socket.SOCK_STREAM, 6, "", ("192.168.10.20", port))]
         try:
             validate_outbound_product_url("https://amazon.com/item", resolver=private_product_resolver)
             raise AssertionError("marketplace hostname resolving to a private IP was accepted")
+        except UnsafeProductURLError:
+            pass
+        def mixed_product_resolver(host, port, type=0):
+            return [
+                (product_link_analyzer.socket.AF_INET, product_link_analyzer.socket.SOCK_STREAM, 6, "", ("8.8.8.8", port)),
+                (product_link_analyzer.socket.AF_INET, product_link_analyzer.socket.SOCK_STREAM, 6, "", ("10.0.0.5", port)),
+            ]
+        try:
+            validate_outbound_product_url("https://amazon.com/item", resolver=mixed_product_resolver)
+            raise AssertionError("DNS result containing a private IP was accepted")
         except UnsafeProductURLError:
             pass
 
@@ -3074,6 +3120,7 @@ def main():
         try:
             def fake_get_empty(url, **kwargs):
                 assert_true(kwargs.get("allow_redirects") is False, "product requests must disable automatic redirects")
+                assert_true(kwargs.get("verify", True) is not False, "product requests must not disable TLS verification")
                 return FakeResponse(url, "<html><head></head><body></body></html>")
             product_link_analyzer.requests.get = fake_get_empty
             empty_result = analyze_product_link("https://www.amazon.com/empty-product", fetch=True, resolver=public_product_resolver)
@@ -3095,26 +3142,32 @@ def main():
                 private_request_count["value"] += 1
                 return FakeResponse(url, "", status_code=302, headers={"Location": "http://127.0.0.1/private"})
             product_link_analyzer.requests.get = fake_get_private_redirect
-            private_redirect = analyze_product_link("https://bit.ly/private-fixture", fetch=True, resolver=public_product_resolver)
+            private_redirect = analyze_product_link("https://s.shopee.co.th/private-fixture", fetch=True, resolver=public_product_resolver)
             assert_true(private_redirect["data"]["extraction_status"] == "unsafe_url" and private_request_count["value"] == 1, "redirect to private IP was not blocked before request")
 
-            multi_hop_count = {"value": 0}
-            def fake_get_multi_hop(url, **kwargs):
-                multi_hop_count["value"] += 1
-                if url.startswith("https://bit.ly"):
-                    return FakeResponse(url, "", status_code=302, headers={"Location": "https://tinyurl.com/next"})
-                return FakeResponse(url, "", status_code=302, headers={"Location": "http://169.254.169.254/latest/meta-data"})
-            product_link_analyzer.requests.get = fake_get_multi_hop
-            multi_hop_private = analyze_product_link("https://bit.ly/multi-hop", fetch=True, resolver=public_product_resolver)
-            assert_true(multi_hop_private["data"]["extraction_status"] == "unsafe_url" and multi_hop_count["value"] == 2, "multi-hop private redirect was not blocked")
+            unapproved_count = {"value": 0}
+            def fake_get_unapproved_redirect(url, **kwargs):
+                unapproved_count["value"] += 1
+                return FakeResponse(url, "", status_code=302, headers={"Location": "https://example.com/not-approved"})
+            product_link_analyzer.requests.get = fake_get_unapproved_redirect
+            unapproved_redirect = analyze_product_link("https://s.shopee.co.th/unapproved", fetch=True, resolver=public_product_resolver)
+            assert_true(unapproved_redirect["data"]["extraction_status"] == "unsafe_url" and unapproved_count["value"] == 1, "redirect to unapproved public domain was not blocked before request")
 
             loop_count = {"value": 0}
             def fake_get_loop(url, **kwargs):
                 loop_count["value"] += 1
-                return FakeResponse(url, "", status_code=302, headers={"Location": "https://bit.ly/loop"})
+                return FakeResponse(url, "", status_code=302, headers={"Location": "https://s.shopee.co.th/loop"})
             product_link_analyzer.requests.get = fake_get_loop
-            redirect_loop = analyze_product_link("https://bit.ly/loop", fetch=True, resolver=public_product_resolver)
+            redirect_loop = analyze_product_link("https://s.shopee.co.th/loop", fetch=True, resolver=public_product_resolver)
             assert_true(redirect_loop["data"]["extraction_status"] == "unsafe_url" and loop_count["value"] == 1, "redirect loop was not rejected")
+
+            generic_request_count = {"value": 0}
+            def fake_get_generic(url, **kwargs):
+                generic_request_count["value"] += 1
+                return FakeResponse(url, "")
+            product_link_analyzer.requests.get = fake_get_generic
+            generic_result = analyze_product_link("https://bit.ly/product", fetch=True, resolver=public_product_resolver)
+            assert_true(generic_result["data"]["extraction_status"] == "unsupported_short_link" and generic_request_count["value"] == 0, "generic shortener reached the network")
 
             def fake_get_title(url, **kwargs):
                 return FakeResponse(url, "<html><head><title>Plain Title Product</title></head><body>sample</body></html>")
@@ -3443,6 +3496,22 @@ def main():
     with project_file_lock(exception_lock_dir, timeout=0.2):
         lock_reacquired = True
     assert_true(lock_reacquired and not (exception_lock_dir / ".project_save.lock").exists(), "project lock was not released after exception")
+
+    active_stale_dir = persistence_root / "active_stale_lock"
+    active_stale_dir.mkdir(parents=True, exist_ok=True)
+    active_stale_path = active_stale_dir / ".project_save.lock"
+    active_stale_path.write_text(json.dumps({"token": "active-owner", "pid": os.getpid(), "hostname": socket.gethostname(), "created_at": time.time() - 120}), encoding="utf-8")
+    old_timestamp = time.time() - 120
+    os.utime(active_stale_path, (old_timestamp, old_timestamp))
+    active_lock_timed_out = False
+    try:
+        with project_file_lock(active_stale_dir, timeout=0.08, stale_after=0.01, poll_interval=0.01):
+            raise AssertionError("active old lock was stolen")
+    except TimeoutError:
+        active_lock_timed_out = True
+    assert_true(active_lock_timed_out and active_stale_path.exists(), "active lock was removed solely because its mtime was old")
+    assert_true(not _release_owned_lock(active_stale_path, "wrong-owner") and active_stale_path.exists(), "wrong owner released a project lock")
+    assert_true(_release_owned_lock(active_stale_path, "active-owner") and not active_stale_path.exists(), "correct owner could not release project lock")
 
     stale_lock_dir = persistence_root / "stale_lock"
     stale_lock_dir.mkdir(parents=True, exist_ok=True)

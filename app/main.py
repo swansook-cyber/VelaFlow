@@ -59,6 +59,7 @@ from core.agent_memory import load_agent_memory, save_agent_memory
 from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
+from core.access_control import access_gate_policy, authenticate_access_password, sign_out_access_session
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, cached_probe_media, clamp_audio_selection, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
@@ -80,7 +81,7 @@ from core.affiliate_engine import (
 )
 from core.automatic_hook_clip import export_tiktok_package, quick_generate_hook_clip
 from core.character_engine import CHARACTER_TYPES, PERSONALITY_PROMPTS, STYLE_PROMPTS, random_viral_character_idea
-from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_key_persistence_enabled, api_mode_label, build_browser_api_key_storage_script, mask_api_key, provider_key_env_name, resolve_gemini_api_key, resolve_provider_credentials
+from core.api_keys import API_MODE_BETA_KEY, API_MODE_OWN_KEY, API_MODES, LOCAL_STORAGE_KEYS, api_key_persistence_enabled, api_mode_label, browser_api_key_restore_plan, build_browser_api_key_storage_script, mask_api_key, provider_key_env_name, resolve_gemini_api_key, resolve_provider_credentials
 from core.asset_manager import clear_image_cache, clear_rejected_images, clear_temp_renders, project_asset_summary
 from core.beta_testing import (
     BETA_RATING_AREAS,
@@ -622,21 +623,16 @@ def _restore_local_api_state() -> None:
     if restored:
         restored_mode = api_mode_label(restored.get("api_mode", API_MODE_OWN_KEY))
         restored_provider = normalize_provider(restored.get("provider") or st.session_state.get("default_ai_provider") or "gemini")
-        persisted_keys = {
-            provider: str(restored.get(provider, "") or "").strip()
-            for provider in ("gemini", "openai", "xai")
-            if str(restored.get(provider, "") or "").strip()
-        }
-        remember_keys = api_key_persistence_enabled(restored.get("remember"))
+        restore_plan = browser_api_key_restore_plan(restored)
+        remember_keys = bool(restore_plan["remember"])
         current_keys = dict(st.session_state.get("user_api_keys", {}) or {})
-        # Legacy browser keys may be loaded once, but future edits stay session-only
-        # until the user explicitly enables device persistence.
-        current_keys.update({key: value for key, value in persisted_keys.items() if key not in current_keys})
+        current_keys.update({key: value for key, value in restore_plan["active_keys"].items() if key not in current_keys})
         st.session_state.api_mode = restored_mode
         st.session_state.default_ai_provider = restored_provider
         st.session_state.user_api_keys = current_keys
+        st.session_state.pending_browser_api_keys = dict(restore_plan["pending_keys"])
         st.session_state.remember_api_keys = remember_keys
-        st.session_state.local_api_state_source = "localStorage" if remember_keys else "legacy_localStorage_loaded_once" if persisted_keys else "localStorage_preferences_only"
+        st.session_state.local_api_state_source = restore_plan["source"]
     elif streamlit_js_eval is None:
         st.session_state.local_api_state_source = "session_state_only"
     else:
@@ -661,6 +657,48 @@ localStorage.setItem('velaflow_ai_provider', {_js_string(provider)});
 localStorage.setItem('velaflow_api_mode', {_js_string(API_MODE_OWN_KEY)});
 """
     _local_storage_script(script, f"velaflow_forget_api_key_{provider}_{st.session_state.get('api_storage_nonce', 0)}")
+
+
+def _configured_access_password() -> str:
+    environment_password = str(os.getenv("VELAFLOW_ACCESS_PASSWORD") or "")
+    if environment_password:
+        return environment_password
+    try:
+        return str(st.secrets.get("VELAFLOW_ACCESS_PASSWORD", "") or "")
+    except Exception:
+        return ""
+
+
+def _render_access_gate() -> bool:
+    configured_password = _configured_access_password()
+    policy = access_gate_policy(configured_password=configured_password)
+    st.session_state["velaflow_access_policy"] = {
+        key: value for key, value in policy.items() if key != "password_configured"
+    }
+    if policy["local_development_bypass"]:
+        return True
+    if policy["fail_closed"]:
+        st.title("VelaFlow")
+        st.error("VelaFlow access protection is not configured.")
+        return False
+    if st.session_state.get("velaflow_authenticated"):
+        st.session_state.pop("velaflow_access_password_input", None)
+        return True
+
+    st.title("VelaFlow")
+    with st.form("velaflow_access_form", clear_on_submit=False):
+        supplied_password = st.text_input("Password", type="password", key="velaflow_access_password_input")
+        submitted = st.form_submit_button("Sign in", use_container_width=True)
+    if submitted:
+        if authenticate_access_password(supplied_password, configured_password):
+            st.session_state["velaflow_authenticated"] = True
+            st.session_state.pop("velaflow_access_error", None)
+            st.rerun()
+        else:
+            st.session_state["velaflow_access_error"] = True
+    if st.session_state.get("velaflow_access_error"):
+        st.error("Incorrect password.")
+    return False
 
 
 def _visual_controls(prefix: str, defaults: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -5927,6 +5965,9 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 st.json(song.get("tiktok_clip_cut_recommendation", []), expanded=False)
 
 
+if not _render_access_gate():
+    st.stop()
+
 _ensure_state()
 _restore_local_api_state()
 _sync_provider_runtime_state()
@@ -6022,6 +6063,10 @@ _sync_navigation_state()
 with st.sidebar:
     st.markdown("### VelaFlow")
     st.caption("AI Music Production")
+    if (st.session_state.get("velaflow_access_policy") or {}).get("authentication_required"):
+        if st.button("Sign out", use_container_width=True, key="velaflow_sign_out"):
+            sign_out_access_session(st.session_state)
+            st.rerun()
     beta_profile = load_beta_access()
     st.info(
         f"VelaFlow Closed Beta\n\nFounding Creator Build\n\nVersion {APP_VERSION} · Build {BUILD_VERSION}\n\nStatus: {str(beta_profile.get('beta_status', 'active')).title()}",
@@ -8320,8 +8365,27 @@ elif page == "AI Settings":
         current_key = str((st.session_state.get("user_api_keys", {}) or {}).get(selected_provider, "") or "")
         _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY), current_key, remember=remember_api_keys)
     st.session_state.remember_api_keys_last = remember_api_keys
-    if st.session_state.get("local_api_state_source") == "legacy_localStorage_loaded_once":
-        st.info("A previously stored browser key was loaded for this session. Enable Remember API keys to keep future edits on this device.")
+    pending_browser_keys = dict(st.session_state.get("pending_browser_api_keys", {}) or {})
+    if pending_browser_keys:
+        st.info("Saved API keys were found on this device.")
+        saved_key_cols = st.columns(2)
+        if saved_key_cols[0].button("Use saved keys this session", use_container_width=True, key="settings_use_saved_keys_session"):
+            st.session_state.setdefault("user_api_keys", {}).update(pending_browser_keys)
+            # Migrate into this session, then remove the legacy persistent copy
+            # because Remember remains OFF.
+            st.session_state.api_storage_nonce += 1
+            _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY), "", remember=False)
+            st.session_state.pending_browser_api_keys = {}
+            st.session_state.local_api_state_source = "explicit_saved_keys"
+            _sync_provider_runtime_state()
+            st.rerun()
+        if saved_key_cols[1].button("Remove saved keys", use_container_width=True, key="settings_remove_saved_keys"):
+            st.session_state.api_storage_nonce += 1
+            _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY), "", remember=False)
+            st.session_state.pending_browser_api_keys = {}
+            st.session_state.local_api_state_source = "localStorage_preferences_only"
+            st.success("Saved API keys removed from this device")
+            st.rerun()
     if st.session_state.get("local_api_state_source") == "session_state_only":
         st.caption("Browser persistence is unavailable in this environment. Keys remain in this Streamlit session only.")
     user_keys = st.session_state.setdefault("user_api_keys", {})

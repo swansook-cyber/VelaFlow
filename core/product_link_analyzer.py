@@ -22,7 +22,12 @@ SUPPORTED_PRODUCT_DOMAINS = {
     "lazada": ["lazada.co.th", "lazada.com", "lazada.sg", "lazada.ph"],
     "amazon": ["amazon.com", "amazon.co.jp", "amazon.co.uk"],
 }
-SHORT_LINK_DOMAINS = ["s.shopee.co.th", "vt.tiktok.com", "tinyurl.com", "bit.ly", "cutt.ly", "shorturl.at", "t.co"]
+OFFICIAL_SHORT_LINK_DOMAINS = ["s.shopee.co.th", "vt.tiktok.com"]
+GENERIC_SHORT_LINK_DOMAINS = ["tinyurl.com", "bit.ly", "cutt.ly", "shorturl.at", "t.co"]
+# Backward-compatible public constant, now intentionally restricted to trusted
+# marketplace short-link hosts.
+SHORT_LINK_DOMAINS = OFFICIAL_SHORT_LINK_DOMAINS
+GENERIC_SHORT_LINK_MESSAGE = "Generic short links are not supported. Please use the direct marketplace link."
 MAX_REDIRECT_HOPS = 5
 MAX_RESPONSE_BYTES = 1_048_576
 REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
@@ -87,8 +92,10 @@ def validate_outbound_product_url(
     host = parsed.hostname.lower().rstrip(".")
     if not host or host in BLOCKED_HOSTS or host.endswith(BLOCKED_HOST_SUFFIXES):
         raise UnsafeProductURLError()
+    if _host_in_domains(host, GENERIC_SHORT_LINK_DOMAINS):
+        raise UnsafeProductURLError(GENERIC_SHORT_LINK_MESSAGE)
     marketplace = detect_product_platform(cleaned)
-    is_short = _host_in_domains(host, SHORT_LINK_DOMAINS)
+    is_short = _host_in_domains(host, OFFICIAL_SHORT_LINK_DOMAINS)
     if require_marketplace and marketplace == "unknown":
         raise UnsafeProductURLError("This redirect destination is not allowed.")
     if marketplace == "unknown" and not is_short:
@@ -139,7 +146,12 @@ def _request_headers() -> dict[str, str]:
 
 def _is_short_link(url: str) -> bool:
     host = str(urlparse(str(url or "").strip()).hostname or "").lower().rstrip(".")
-    return _host_in_domains(host, SHORT_LINK_DOMAINS)
+    return _host_in_domains(host, OFFICIAL_SHORT_LINK_DOMAINS)
+
+
+def _is_generic_short_link(url: str) -> bool:
+    host = str(urlparse(str(url or "").strip()).hostname or "").lower().rstrip(".")
+    return _host_in_domains(host, GENERIC_SHORT_LINK_DOMAINS)
 
 
 def _response_text_limited(response: Any, limit: int = MAX_RESPONSE_BYTES) -> str:
@@ -342,6 +354,9 @@ def analyze_product_link(url: str, notes: str = "", *, timeout_seconds: float = 
     if cleaned and not valid_url:
         extraction_status = "invalid_url"
         fetch_error = "Invalid URL. Paste a full product link starting with https://"
+    elif cleaned and _is_generic_short_link(cleaned):
+        extraction_status = "unsupported_short_link"
+        fetch_error = GENERIC_SHORT_LINK_MESSAGE
     elif cleaned and platform == "unknown" and not _is_short_link(cleaned):
         extraction_status = "unsupported_domain"
         fetch_error = "Unsupported domain. Use manual product details instead."
