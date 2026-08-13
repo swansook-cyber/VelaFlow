@@ -20,7 +20,7 @@ from core.paths import (
 )
 from providers.ai_provider import normalize_provider
 from core.api_keys import api_mode_label, API_MODE_OWN_KEY
-from core.project_io import new_project, safe_name, save_project_folder
+from core.project_io import atomic_write_json, new_project, safe_name, save_project_folder
 from core.workspace_manager import (
     append_generation_run as append_workspace_generation_run,
     append_history as append_workspace_history,
@@ -116,10 +116,7 @@ def _read_json(path: Path, default: Any) -> Any:
 
 
 def _write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    atomic_write_json(path, data)
 
 
 def sanitize_project_name(name: str) -> str:

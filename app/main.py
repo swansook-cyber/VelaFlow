@@ -198,7 +198,7 @@ from core.visual_presets import (
     list_visual_mood_presets,
 )
 from core.preset_system import list_project_templates
-from core.project_io import load_project, new_project, safe_name, save_project, save_project_folder
+from core.project_io import load_project, new_project, safe_name, save_project, save_project_folder, save_project_if_dirty
 from core.product_link_analyzer import analyze_product_link
 from core.paths import project_folder, resolve_project_folder, workflow_project_root
 from core.project_lock import acquire_project_lock, project_lock_status, release_project_lock
@@ -4273,14 +4273,25 @@ def _latest_render_dir(project: dict[str, Any]) -> Path:
     return dirs[0] if dirs else root
 
 
-def _save_project() -> None:
+def _save_project() -> dict[str, Any]:
     project_context = _project()
-    save_project_folder(project_context, workflow_project_root(project_context.get("workflow_type") or project_context.get("project_type")))
-    autosave_project_state(
-        project_context.get("title", "project"),
-        project_context.get("workflow_type") or project_context.get("project_type"),
+    workflow_type = project_context.get("workflow_type") or project_context.get("project_type")
+    base_dir = workflow_project_root(workflow_type)
+    tracker = st.session_state.setdefault("project_save_fingerprints", {})
+    identity = str((base_dir / safe_name(project_context.get("title", "project"))).resolve())
+    result = save_project_if_dirty(
         project_context,
+        base_dir,
+        last_saved_fingerprint=str(tracker.get(identity) or ""),
     )
+    if result.get("ok") and result.get("saved"):
+        tracker[identity] = result.get("fingerprint", "")
+        autosave_project_state(
+            project_context.get("title", "project"),
+            workflow_type,
+            project_context,
+        )
+    return result
 
 
 def _render_project_health_card(project_name: str, workflow_type: str = "song", key_prefix: str = "project_health") -> None:

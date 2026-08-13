@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import zipfile
 from pathlib import Path
@@ -168,7 +169,7 @@ from core.song_title_engine import generate_song_title_candidates, generate_song
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
-from core.project_io import load_project, new_project, save_project, save_project_folder
+from core.project_io import atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
     autosave_project_state,
     archive_project,
@@ -2950,6 +2951,10 @@ def main():
         assert_true('st.text_input("Export Name", key="remaster_export_name")' in main_source and 'st.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3/WAV" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
         assert_true('result_status == "success" and result.get("ok")' in main_source and 'result_status == "partial"' in main_source and "Remaster partially completed" in main_source and 'reported_status in {"success", "ready"}' in main_source, "Remaster UI/project master must distinguish success, partial, and failed outputs")
+        project_io_source = (ROOT / "core" / "project_io.py").read_text(encoding="utf-8")
+        save_helper_slice = main_source[main_source.find("def _save_project()") : main_source.find("def _render_project_health_card")]
+        assert_true("save_project_if_dirty" in save_helper_slice and 'if result.get("ok") and result.get("saved"):' in save_helper_slice and "autosave_project_state" in save_helper_slice, "central project save must gate project and autosave writes on dirty state")
+        assert_true("tempfile.mkstemp" in project_io_source and "os.replace" in project_io_source and "os.fsync" in project_io_source and "project_file_lock" in project_io_source and "PROJECT_LOAD_ATTEMPTS = 3" in project_io_source, "atomic project write, per-project lock, or bounded load retry implementation missing")
         assert_true("Advanced Editing" in main_source and "Advanced / Analysis Details" in main_source and "Smart Hook Finder diagnostics" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source, "Audio Editor smart hook advanced UI missing")
         assert_true("Play 5 Seconds After End" in main_source and "Preview End Transition" in main_source and "Phrase Completion Gate" in main_source and "Actual Complete Hook" in main_source, "Smart Hook Finder phrase-completion verification UI missing")
         audio_editor_source = (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8")
@@ -3413,6 +3418,149 @@ def main():
     project_path = save_project(project, out)
     loaded = load_project(str(project_path))
     assert_true(loaded.get("title") == project["title"], "project save/load failed")
+
+    persistence_root = out / "wave4_project_persistence"
+    persistence_root.mkdir(parents=True, exist_ok=True)
+    atomic_target = persistence_root / "atomic_project.json"
+    atomic_target.write_text('{"version":"previous"}', encoding="utf-8")
+
+    def fail_before_replace(_source: str, _target: str) -> None:
+        raise OSError("injected replace failure")
+
+    try:
+        atomic_write_text(atomic_target, '{"version":"new"}', replace_func=fail_before_replace)
+        raise AssertionError("atomic write fault injection did not fail")
+    except OSError:
+        pass
+    assert_true(json.loads(atomic_target.read_text(encoding="utf-8"))["version"] == "previous" and not list(persistence_root.glob(".atomic_project.json.tmp.*")), "interrupted atomic write must preserve previous file and clean temp data")
+
+    exception_lock_dir = persistence_root / "exception_lock"
+    try:
+        with project_file_lock(exception_lock_dir, timeout=0.2):
+            raise RuntimeError("injected transaction failure")
+    except RuntimeError:
+        pass
+    with project_file_lock(exception_lock_dir, timeout=0.2):
+        lock_reacquired = True
+    assert_true(lock_reacquired and not (exception_lock_dir / ".project_save.lock").exists(), "project lock was not released after exception")
+
+    stale_lock_dir = persistence_root / "stale_lock"
+    stale_lock_dir.mkdir(parents=True, exist_ok=True)
+    stale_lock_path = stale_lock_dir / ".project_save.lock"
+    stale_lock_path.write_text(json.dumps({"token": "abandoned", "pid": -1}), encoding="utf-8")
+    old_timestamp = time.time() - 120
+    os.utime(stale_lock_path, (old_timestamp, old_timestamp))
+    with project_file_lock(stale_lock_dir, timeout=0.2, stale_after=1):
+        stale_lock_recovered = True
+    assert_true(stale_lock_recovered and not stale_lock_path.exists(), "stale lock must not survive application restart indefinitely")
+
+    independent_a = persistence_root / "independent_a"
+    independent_b = persistence_root / "independent_b"
+    with project_file_lock(independent_a, timeout=0.2):
+        started = time.monotonic()
+        with project_file_lock(independent_b, timeout=0.2):
+            independent_elapsed = time.monotonic() - started
+    assert_true(independent_elapsed < 0.15, "different projects should not block each other")
+
+    concurrent_root = persistence_root / "concurrent"
+    writer_barrier = threading.Barrier(3)
+    writer_errors: list[str] = []
+
+    def concurrent_writer(marker: str) -> None:
+        try:
+            payload = new_project("Concurrent Save", workflow_type="song")
+            payload["save_marker"] = marker
+            payload["song"] = {"save_marker": marker, "complete_lyrics": f"lyrics {marker}"}
+            writer_barrier.wait(timeout=2)
+            save_project_folder(payload, concurrent_root)
+        except Exception as exc:
+            writer_errors.append(str(exc))
+
+    writers = [threading.Thread(target=concurrent_writer, args=(marker,)) for marker in ("A", "B")]
+    for writer in writers:
+        writer.start()
+    writer_barrier.wait(timeout=2)
+    for writer in writers:
+        writer.join(timeout=5)
+    concurrent_folder = concurrent_root / "Concurrent_Save"
+    concurrent_project = json.loads((concurrent_folder / "project.json").read_text(encoding="utf-8"))
+    concurrent_song = json.loads((concurrent_folder / "song.json").read_text(encoding="utf-8"))
+    assert_true(not writer_errors and all(not writer.is_alive() for writer in writers) and concurrent_project["save_marker"] == concurrent_song["save_marker"], "same-project writers interleaved a logical save")
+
+    read_during_write_dir = persistence_root / "read_during_write"
+    read_during_write_dir.mkdir(parents=True, exist_ok=True)
+    read_during_write_path = read_during_write_dir / "project.json"
+    read_during_write_path.write_text(json.dumps({"title": "Before"}), encoding="utf-8")
+    loaded_during_write: dict[str, Any] = {}
+    with project_file_lock(read_during_write_dir, timeout=0.2):
+        reader_thread = threading.Thread(target=lambda: loaded_during_write.update(load_project(str(read_during_write_path))))
+        reader_thread.start()
+        time.sleep(0.08)
+        assert_true(reader_thread.is_alive(), "project reader did not wait for active save transaction")
+        atomic_write_text(read_during_write_path, json.dumps({"title": "After"}))
+    reader_thread.join(timeout=3)
+    assert_true(not reader_thread.is_alive() and loaded_during_write.get("title") == "After", "read during save did not retry under the project lock")
+
+    transient_path = persistence_root / "transient_project.json"
+    transient_path.write_text(json.dumps({"title": "Transient Safe"}), encoding="utf-8")
+    transient_calls = {"count": 0}
+
+    def transient_reader(path: Path) -> str:
+        transient_calls["count"] += 1
+        if transient_calls["count"] == 1:
+            raise OSError("temporary sharing violation")
+        return path.read_text(encoding="utf-8")
+
+    transient_result = read_project_json(transient_path, attempts=3, retry_delay=0, reader=transient_reader)
+    assert_true(transient_result["ok"] and transient_calls["count"] == 2 and transient_path.is_file() and not list(persistence_root.glob("transient_project.broken_*.json")), "transient read failure must retry without quarantine")
+
+    transient_parse_path = persistence_root / "transient_parse_project.json"
+    transient_parse_path.write_text(json.dumps({"title": "Transient Parse Safe"}), encoding="utf-8")
+    transient_parse_calls = {"count": 0}
+
+    def transient_parse_reader(path: Path) -> str:
+        transient_parse_calls["count"] += 1
+        return "{partial" if transient_parse_calls["count"] == 1 else path.read_text(encoding="utf-8")
+
+    transient_parse_result = read_project_json(transient_parse_path, attempts=3, retry_delay=0, reader=transient_parse_reader)
+    assert_true(transient_parse_result["ok"] and transient_parse_calls["count"] == 2 and transient_parse_path.is_file(), "transient partial JSON read must recover without quarantine")
+
+    malformed_path = persistence_root / "malformed_project.json"
+    malformed_path.write_text("{broken json", encoding="utf-8")
+    malformed_calls = {"count": 0}
+
+    def malformed_reader(path: Path) -> str:
+        malformed_calls["count"] += 1
+        return path.read_text(encoding="utf-8")
+
+    malformed_result = read_project_json(malformed_path, attempts=3, retry_delay=0, reader=malformed_reader)
+    assert_true(not malformed_result["ok"] and malformed_result["status"] == "confirmed_corruption" and malformed_calls["count"] == 3 and malformed_result.get("broken_path") and Path(malformed_result["broken_path"]).is_file(), "persistent malformed JSON must retry before quarantine")
+
+    permission_path = persistence_root / "permission_project.json"
+    permission_path.write_text(json.dumps({"title": "Permission Safe"}), encoding="utf-8")
+    permission_result = read_project_json(permission_path, attempts=2, retry_delay=0, reader=lambda _path: (_ for _ in ()).throw(PermissionError("busy")))
+    assert_true(not permission_result["ok"] and permission_result["status"] == "temporary_read_failure" and permission_path.is_file(), "permission/transient failure must not quarantine project")
+
+    dirty_root = persistence_root / "dirty_state"
+    dirty_project = new_project("Dirty State", workflow_type="song")
+    first_save = save_project_if_dirty(dirty_project, dirty_root)
+    dirty_project_path = dirty_root / "Dirty_State" / "project.json"
+    first_mtime = dirty_project_path.stat().st_mtime_ns
+    unchanged_save = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=first_save["fingerprint"])
+    export_format_only = "WAV"
+    export_format_save = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=first_save["fingerprint"])
+    assert_true(export_format_only == "WAV" and first_save["saved"] and not unchanged_save["saved"] and not export_format_save["saved"] and dirty_project_path.stat().st_mtime_ns == first_mtime, "unchanged rerun or session-only Export Format must produce zero project saves")
+    dirty_project["song"]["title"] = "Meaningful Change"
+    metadata_save = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=first_save["fingerprint"])
+    metadata_repeat = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=metadata_save["fingerprint"])
+    dirty_project["remaster_studio"] = {"last_status": "success", "last_result": {"mastered_mp3": "master.mp3"}}
+    remaster_save = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=metadata_save["fingerprint"])
+    remaster_repeat = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=remaster_save["fingerprint"])
+    dirty_project["audio_editor"] = {"last_ok": True, "last_result": {"hook_mp3": "hook.mp3"}}
+    audio_save = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=remaster_save["fingerprint"])
+    audio_repeat = save_project_if_dirty(dirty_project, dirty_root, last_saved_fingerprint=audio_save["fingerprint"])
+    assert_true(metadata_save["saved"] and not metadata_repeat["saved"] and remaster_save["saved"] and not remaster_repeat["saved"] and audio_save["saved"] and not audio_repeat["saved"], "project metadata, Remaster, and Audio Editor updates must each save once without loops")
+    assert_true(project_state_fingerprint({**dirty_project, "runtime": {"temporary": True}, "preview_diagnostics": {"bytes": 10}}) == project_state_fingerprint(dirty_project), "ephemeral project fields must not mark project dirty")
 
     image_path = out / "offline_image.png"
     generate_image("offline", "cinematic Thai singer in rain", str(image_path), {"size": "512x512"})
