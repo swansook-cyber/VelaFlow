@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import subprocess
 import zipfile
@@ -179,6 +180,148 @@ def _decode_analysis_pcm(path: Path, ffmpeg: str, *, sample_rate: int = 8000, ma
     return {"ok": bool(samples), "samples": samples, "sample_rate": sample_rate, "command": args}
 
 
+def _integrated_lufs(ffmpeg: str, path: Path) -> float | None:
+    result = _run([ffmpeg, "-hide_banner", "-nostats", "-i", str(path), "-filter_complex", "ebur128=peak=true", "-f", "null", "-"], timeout=180)
+    matches = re.findall(r"^\s*I:\s*(-?(?:\d+(?:\.\d+)?|inf))\s+LUFS", str(result.get("output") or ""), flags=re.MULTILINE)
+    if not matches or matches[-1].lower() == "-inf":
+        return None
+    try:
+        return round(float(matches[-1]), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def analyze_remaster_quality_metrics(source_audio_path: str | Path, *, ffmpeg_path: str = "", max_duration: float = 360.0) -> dict[str, Any]:
+    """Measure transparent before/after proxies without changing the mastering chain."""
+    source = Path(source_audio_path)
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not source.is_file() or not ffmpeg:
+        return {"ok": False, "error": "missing_source_or_ffmpeg", "metrics": {}}
+    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    args = [ffmpeg, "-v", "error", "-i", str(source), "-map", "0:a:0", "-t", f"{max_duration:.3f}", "-ac", "2", "-ar", "8000", "-f", "s16le", "-"]
+    try:
+        proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=150)
+    except Exception as exc:
+        return {"ok": False, "error": f"decode_failed: {exc}", "metrics": {}}
+    if proc.returncode != 0 or not proc.stdout:
+        return {"ok": False, "error": "decode_failed", "metrics": {}}
+    samples = array("h")
+    samples.frombytes(proc.stdout)
+    frame_count = len(samples) // 2
+    if frame_count <= 0:
+        return {"ok": False, "error": "empty_audio", "metrics": {}}
+    sum_sq = sum_mid_sq = sum_side_sq = 0.0
+    peak = 0.0
+    for idx in range(0, frame_count * 2, 2):
+        left = samples[idx] / 32768.0
+        right = samples[idx + 1] / 32768.0
+        sum_sq += (left * left + right * right) * 0.5
+        mid = (left + right) * 0.5
+        side = (left - right) * 0.5
+        sum_mid_sq += mid * mid
+        sum_side_sq += side * side
+        peak = max(peak, abs(left), abs(right))
+    rms = math.sqrt(sum_sq / frame_count)
+    crest = peak / max(rms, 0.000001)
+    stereo_width = math.sqrt(sum_side_sq / frame_count) / max(math.sqrt(sum_mid_sq / frame_count), 0.000001)
+    metrics = {
+        "integrated_lufs": _integrated_lufs(ffmpeg, source),
+        "peak_dbfs_proxy": round(20.0 * math.log10(max(peak, 0.000001)), 2),
+        "rms_dbfs": round(20.0 * math.log10(max(rms, 0.000001)), 2),
+        "crest_factor_db": round(20.0 * math.log10(max(crest, 0.000001)), 2),
+        "stereo_width_proxy": round(min(4.0, stereo_width), 3),
+        "duration": round(float(probe.get("duration") or frame_count / 8000.0), 3),
+        "sample_rate": probe.get("sample_rate"),
+        "channels": probe.get("channels"),
+    }
+    return {"ok": True, "metrics": metrics, "method": "FFmpeg ebur128 plus stereo PCM peak/RMS/crest/width proxies", "error": ""}
+
+
+def select_remaster_preview_range(source_audio_path: str | Path, *, ffmpeg_path: str = "", preview_duration: float = 15.0) -> dict[str, Any]:
+    source = Path(source_audio_path)
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not source.is_file() or not ffmpeg:
+        return {"ok": False, "start": 0.0, "duration": preview_duration, "error": "missing_source_or_ffmpeg"}
+    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    duration = float(probe.get("duration") or 0.0)
+    decoded = _decode_analysis_pcm(source, ffmpeg, sample_rate=4000, max_duration=min(480.0, duration or 480.0))
+    if not decoded.get("ok") or duration <= 0:
+        return {"ok": False, "start": 0.0, "duration": min(preview_duration, duration or preview_duration), "error": "analysis_unavailable"}
+    samples = decoded["samples"]
+    rate = int(decoded["sample_rate"])
+    clip_duration = min(float(preview_duration), duration)
+    window = max(1, int(clip_duration * rate))
+    step = max(1, int(2.0 * rate))
+    start_floor = 0 if duration <= clip_duration + 4 else int(2.0 * rate)
+    end_limit = min(len(samples) - window, int(max(0.0, duration - clip_duration - 2.0) * rate))
+    best_start, best_score = 0, -1.0
+    for start in range(start_floor, max(start_floor, end_limit) + 1, step):
+        chunk = samples[start : start + window]
+        if not chunk:
+            continue
+        rms = math.sqrt(sum((value / 32768.0) ** 2 for value in chunk) / len(chunk))
+        silence = sum(1 for value in chunk if abs(value) < 420) / len(chunk)
+        score = rms * (1.0 - min(0.9, silence))
+        if score > best_score:
+            best_start, best_score = start, score
+    return {"ok": True, "start": round(best_start / rate, 3), "duration": round(clip_duration, 3), "method": "highest stable non-silent RMS window", "error": ""}
+
+
+def _comparison_direction(before: float | None, after: float | None, *, tolerance: float = 0.25) -> str:
+    if before is None or after is None:
+        return "Unknown"
+    delta = after - before
+    if abs(delta) <= tolerance:
+        return "Similar"
+    return "Higher" if delta > 0 else "Lower"
+
+
+def build_remaster_quality_comparison(original_path: str | Path, mastered_path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
+    before = analyze_remaster_quality_metrics(original_path, ffmpeg_path=ffmpeg_path)
+    after = analyze_remaster_quality_metrics(mastered_path, ffmpeg_path=ffmpeg_path)
+    before_metrics = before.get("metrics", {})
+    after_metrics = after.get("metrics", {})
+    return {
+        "ok": bool(before.get("ok") and after.get("ok")),
+        "original": before_metrics,
+        "mastered": after_metrics,
+        "summary": {
+            "loudness": _comparison_direction(before_metrics.get("integrated_lufs"), after_metrics.get("integrated_lufs")),
+            "peak": _comparison_direction(before_metrics.get("peak_dbfs_proxy"), after_metrics.get("peak_dbfs_proxy")),
+            "rms": _comparison_direction(before_metrics.get("rms_dbfs"), after_metrics.get("rms_dbfs")),
+            "dynamics": _comparison_direction(before_metrics.get("crest_factor_db"), after_metrics.get("crest_factor_db")),
+            "stereo_width": _comparison_direction(before_metrics.get("stereo_width_proxy"), after_metrics.get("stereo_width_proxy"), tolerance=0.04),
+        },
+        "method": "Measured locally; peak, dynamics, and width are PCM proxies. Missing LUFS remains unknown.",
+        "errors": [item for item in [before.get("error"), after.get("error")] if item],
+    }
+
+
+def build_remaster_ab_previews(original_path: str | Path, mastered_path: str | Path, output_dir: str | Path, *, ffmpeg_path: str = "", preview_duration: float = 15.0) -> dict[str, Any]:
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    selected = select_remaster_preview_range(original_path, ffmpeg_path=ffmpeg, preview_duration=preview_duration)
+    if not ffmpeg or not selected.get("ok"):
+        return {"ok": False, "error": selected.get("error") or "missing_ffmpeg"}
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    original_preview = output / "quality_preview_original.mp3"
+    mastered_preview = output / "quality_preview_mastered.mp3"
+    results = []
+    for source, target in ((Path(original_path), original_preview), (Path(mastered_path), mastered_preview)):
+        results.append(_run([ffmpeg, "-y", "-ss", str(selected["start"]), "-t", str(selected["duration"]), "-i", str(source), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-ar", "48000", "-ac", "2", str(target)], timeout=120))
+    ok = all(item.get("ok") for item in results) and original_preview.is_file() and mastered_preview.is_file()
+    return {
+        "ok": ok,
+        "start": selected["start"],
+        "duration": selected["duration"],
+        "original_preview": str(original_preview) if original_preview.is_file() else "",
+        "mastered_preview": str(mastered_preview) if mastered_preview.is_file() else "",
+        "format": "audio/mpeg",
+        "selection_method": selected.get("method", ""),
+        "error": "" if ok else "preview_generation_failed",
+    }
+
+
 def analyze_audio_for_remaster_recommendation(source_audio_path: str | Path, *, ffmpeg_path: str = "", max_upload_mb: int = 200) -> dict[str, Any]:
     source = Path(source_audio_path)
     validation = validate_remaster_input(source, max_upload_mb=max_upload_mb)
@@ -321,6 +464,17 @@ def _report_text(report: dict[str, Any]) -> str:
             f"Recommendation overridden: {'Yes' if recommendation.get('overridden') else 'No'}",
             "Why this preset:",
             *[f"- {reason}" for reason in recommendation.get("reasons", [])],
+        ]
+    comparison = report.get("quality_comparison") or {}
+    if comparison:
+        lines += [
+            "",
+            "Before / After Quality Summary:",
+            f"Loudness: {(comparison.get('summary') or {}).get('loudness', 'Unknown')}",
+            f"Peak proxy: {(comparison.get('summary') or {}).get('peak', 'Unknown')}",
+            f"RMS: {(comparison.get('summary') or {}).get('rms', 'Unknown')}",
+            f"Dynamics / crest proxy: {(comparison.get('summary') or {}).get('dynamics', 'Unknown')}",
+            f"Stereo width proxy: {(comparison.get('summary') or {}).get('stereo_width', 'Unknown')}",
         ]
     return "\n".join(lines)
 
@@ -506,6 +660,13 @@ def remaster_song_audio(
         warnings.append("MP3 export failed.")
     elif output_validation["mp3_status"] != "pass":
         warnings.append("MP3 export failed codec, file, or duration validation.")
+    comparison_target = mp3_path if output_validation["mp3_status"] == "pass" else wav_path
+    quality_comparison = build_remaster_quality_comparison(source_copy, comparison_target, ffmpeg_path=ffmpeg)
+    ab_previews = (
+        build_remaster_ab_previews(source_copy, mp3_path, output_dir / "quality_previews", ffmpeg_path=ffmpeg)
+        if output_validation["mp3_status"] == "pass"
+        else {"ok": False, "error": "mastered_distribution_mp3_unavailable"}
+    )
     report = {
         "ok": overall_status == "success",
         "overall_status": overall_status,
@@ -559,6 +720,8 @@ def remaster_song_audio(
         "output_validation": output_validation,
         "filters": filters,
         "preset_summary": style_config.get("summary", ""),
+        "quality_comparison": quality_comparison,
+        "ab_previews": ab_previews,
         "external_api_used": False,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
@@ -595,6 +758,8 @@ def remaster_song_audio(
             "report_txt_path": str(report_txt_path),
             "zip_path": str(zip_path) if zip_path.is_file() and overall_status in {"success", "partial"} else "",
             "report": report,
+            "quality_comparison": quality_comparison,
+            "ab_previews": ab_previews,
         },
         "error": error,
     }

@@ -27,7 +27,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_release_pack_export, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -102,7 +102,8 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
-from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, build_clipping_validation, build_remaster_project_id, recommend_remaster_preset_from_metadata, remaster_song_audio, validate_remaster_input, validate_remaster_outputs
+from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_remaster_quality_metrics, build_clipping_validation, build_remaster_project_id, build_remaster_quality_comparison, recommend_remaster_preset_from_metadata, remaster_song_audio, validate_remaster_input, validate_remaster_outputs
+from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
@@ -809,6 +810,54 @@ def main():
     assert_true(REMASTER_STYLES[0] == "Streaming Balanced" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern"}.issubset(set(REMASTER_STYLES)), "Remaster Studio V1 preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
     assert_true(build_remaster_project_id("My Song.mp3").startswith("My_Song_"), "Remaster project id safe filename failed")
+    review_ready_lyrics = """[Verse 1]
+แก้วน้ำของพ่อวางอยู่ข้างจาน
+เช้านี้พ่อยื่นมือช้ากว่าเดิม
+ผมตักข้าวให้ตรงโต๊ะตัวเก่า
+เสียงช้อนเบาลงจนผมได้ยิน
+[Pre-Chorus]
+ผมมองมือคู่นั้นอยู่นาน
+แต่ยังไม่กล้าพูดอะไร
+[Chorus]
+กินข้าวกับพ่อนาน ๆ ได้ไหม
+วันนี้ผมยังไม่รีบไปไหน
+มื้อธรรมดาที่เคยมองผ่านไป
+ตอนนี้มีค่ากว่าเวลาไหน
+[Verse 2]
+วันก่อนพ่อยกหม้อไม่ไหว
+ผมจึงลุกไปรับไว้ทัน
+คนที่เคยอุ้มผมทุกวัน
+กำลังเดินช้าลงทุกปี
+[Pre-Chorus]
+ผมมองมือคู่นั้นอยู่นาน
+คราวนี้ผมรู้ว่าควรทำอะไร
+[Chorus]
+กินข้าวกับพ่อนาน ๆ ได้ไหม
+วันนี้ผมยังไม่รีบไปไหน
+มื้อธรรมดาที่เคยมองผ่านไป
+ตอนนี้มีค่ากว่าเวลาไหน
+[Bridge]
+คนที่เคยพยุงผมไว้
+มีวันที่ต้องการมือของผม
+[Final Chorus]
+กินข้าวกับพ่อนาน ๆ ได้ไหม
+วันนี้ผมยังไม่รีบไปไหน
+จะฟังทุกเรื่องที่พ่ออยากเล่า
+จะเติมข้าวให้ก่อนพ่อเอ่ยขอ
+ถ้ายังมีมื้อเย็นอีกสักวัน
+ผมจะนั่งตรงนี้ให้นานกว่าเดิม
+[Outro]
+พรุ่งนี้เรากินข้าวด้วยกันอีกนะ"""
+    lyrics_before_review = review_ready_lyrics
+    ready_review = check_lyrics_quality(review_ready_lyrics)
+    weak_review = check_lyrics_quality("[Verse 1]\nฉันยังรักเธอ\n[Chorus]\nฉันยังรักเธอ\nTikTok-ready hook direction")
+    assert_true(ready_review["status"] == "Good" and review_ready_lyrics == lyrics_before_review, "lyrics checker should approve complete lyrics without editing them")
+    assert_true(weak_review["status"] == "Needs Review" and 1 <= len(weak_review["findings"]) <= 5 and weak_review["diagnostics"]["meta_markers"], "lyrics checker should flag concise actionable issues")
+    refinement_prompt = build_lyrics_improvement_prompt(review_ready_lyrics, ready_review)
+    cleaned_preview = clean_lyrics_improvement_preview("Here is the revision:\n```text\n[Verse 1]\nแก้วน้ำยังอยู่ตรงเดิม\n```")
+    assert_true("Return only the complete revised lyrics" in refinement_prompt and cleaned_preview.startswith("[Verse 1]") and "Here is" not in cleaned_preview, "optional AI lyrics preview must remain clean and explicit")
+    unknown_comparison = build_remaster_quality_comparison(out / "missing_before.mp3", out / "missing_after.mp3")
+    assert_true(not unknown_comparison["ok"] and unknown_comparison["summary"]["loudness"] == "Unknown", "missing loudness analysis must remain unknown")
     cheer_recommend = recommend_remaster_preset_from_metadata({"genre": "Cheer Stadium Crowd Chant High Energy", "style_prompt": "heavy drums 808"})
     edm_recommend = recommend_remaster_preset_from_metadata({"genre": "EDM Trap Dance", "style_prompt": "heavy 808 bass electronic"})
     acoustic_recommend = recommend_remaster_preset_from_metadata({"genre": "Acoustic Emotional Ballad", "vocal_type": "soft vocal"})
@@ -2445,6 +2494,17 @@ def main():
         assert_true("Preset Recommendation:" in Path(remaster_data.get("report_txt_path", "")).read_text(encoding="utf-8"), "remaster TXT report missing recommendation details")
         assert_true(mastered_wav.name.endswith("_Master.wav") and remaster_report.get("output_wav_settings", {}).get("codec") == "pcm_s24le" and remaster_report.get("output_wav_settings", {}).get("sample_rate_hz") == 48000, "Remaster WAV V1 settings failed")
         assert_true(mastered_mp3.exists() and mastered_mp3.name.endswith("_Master.mp3") and remaster_report.get("output_mp3_settings", {}).get("bitrate") == "320 kbps" and mastered_mp3_probe.get("has_audio") and mastered_mp3_probe.get("audio_codec") == "mp3" and int(mastered_mp3_probe.get("sample_rate") or 0) in {44100, 48000} and int(mastered_mp3_probe.get("channels") or 0) == 2, "Remaster MP3 Safari-compatible 320k output failed")
+        quality_comparison = remaster_data.get("quality_comparison") or remaster_report.get("quality_comparison") or {}
+        original_quality = quality_comparison.get("original") or {}
+        mastered_quality = quality_comparison.get("mastered") or {}
+        ab_previews = remaster_data.get("ab_previews") or remaster_report.get("ab_previews") or {}
+        assert_true(quality_comparison.get("ok") and all(key in original_quality and key in mastered_quality for key in ["integrated_lufs", "peak_dbfs_proxy", "rms_dbfs", "crest_factor_db", "stereo_width_proxy"]), "Remaster before/after quality metrics missing")
+        assert_true(ab_previews.get("ok") and 10 <= float(ab_previews.get("duration") or 0) <= 20 and Path(ab_previews.get("original_preview", "")).is_file() and Path(ab_previews.get("mastered_preview", "")).is_file(), "Remaster representative A/B previews missing")
+        original_ab_probe = probe_media(ab_previews["original_preview"], ffmpeg_path=find_ffmpeg())
+        mastered_ab_probe = probe_media(ab_previews["mastered_preview"], ffmpeg_path=find_ffmpeg())
+        assert_true(original_ab_probe.get("audio_codec") == "mp3" and mastered_ab_probe.get("audio_codec") == "mp3" and abs(float(original_ab_probe.get("duration") or 0) - float(mastered_ab_probe.get("duration") or 0)) < 0.2, "A/B previews must use the same Safari-compatible MP3 range")
+        hook_quality = evaluate_hook_selection_quality(long_hook_source, start_time=5.0, end_time=25.0, ffmpeg_path=find_ffmpeg())
+        assert_true(hook_quality.get("ok") and hook_quality.get("label") in {"GOOD", "REVIEW", "POOR"} and hook_quality.get("findings") and all(key in hook_quality.get("diagnostics", {}) for key in ["start_boundary_score", "end_boundary_score", "silence_ratio", "clip_density"]), "Audio Editor hook quality check failed")
         assert_true(long_hook_source.read_bytes() == original_hash, "Remaster modified the original source file")
         assert_true(Path(remaster_data.get("zip_path", "")).exists(), "remaster package ZIP missing")
         assert_true(Path(remaster_data.get("report_path", "")).name.endswith("_Remaster_Report.json") and Path(remaster_data.get("report_txt_path", "")).name.endswith("_Remaster_Report.txt"), "remaster report outputs missing")
@@ -2970,10 +3030,11 @@ def main():
         assert_true("upload_token" in upload_helper_source and "file_id" in upload_helper_source and "save_uploaded_audio_once" in upload_helper_source and "uploaded.getbuffer()" not in upload_helper_source, "stable upload identity/save-on-change helper wiring missing")
         assert_true('upload_state_key="remaster_upload_id"' in main_source and 'upload_state_key="audio_editor_upload_id"' in main_source and main_source.count('get("source_changed")') >= 2, "Remaster/Audio Editor source-change guards missing")
         assert_true("_cached_audio_probe" in main_source and "audio_ffprobe_cache" in main_source and "source_signature=_trusted_audio_signature" in main_source and "max_cache_bytes = 64 * 1024 * 1024" in main_source, "audio probe/waveform/preview cache reuse wiring missing")
-        assert_true('st.audio(original_preview["bytes"], format=original_preview["format"])' in remaster_ui_slice and 'st.audio(mastered_preview["bytes"], format=mastered_preview["format"])' in remaster_ui_slice and "st.audio(str(mastered_wav))" not in remaster_ui_slice and "st.audio(source_path)" not in remaster_ui_slice, "Remaster preview should render validated bytes with explicit MIME, not local paths")
+        assert_true('st.audio(ab_preview["bytes"], format=ab_preview["format"])' in remaster_ui_slice and "quality_preview_original.mp3" in remaster_engine_source and "quality_preview_mastered.mp3" in remaster_engine_source and "st.audio(str(mastered_wav))" not in remaster_ui_slice and "st.audio(source_path)" not in remaster_ui_slice, "Remaster A/B should render one validated Safari-compatible preview range at a time")
         assert_true("remaster_play_original" not in remaster_ui_slice and "remaster_play_mastered" not in remaster_ui_slice and "Preview unavailable" in remaster_ui_slice and "preview_diagnostics" in remaster_ui_slice and "autoplay" not in remaster_ui_slice.lower(), "Remaster preview controls/diagnostics cleanup missing")
         assert_true('"libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2"' in remaster_engine_source, "Remaster MP3 preview/export should be explicit 320k 48k stereo libmp3lame")
         assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
+        assert_true("Before / After Quality" in remaster_ui_slice and "Advanced Analysis" in remaster_ui_slice and "integrated_lufs" in remaster_engine_source and "crest_factor_db" in remaster_engine_source and "stereo_width_proxy" in remaster_engine_source, "Remaster quality comparison UI or metrics missing")
         waveform_component_source = (ROOT / "app" / "components" / "waveform_selector" / "index.html").read_text(encoding="utf-8")
         assert_true("Audio Editor" in main_source and "Upload External MP3/WAV" in main_source and "MP3 or WAV" in main_source and "WAV is analyzed directly" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Cutter" in main_source and "✓ Find Smart Hook" in main_source and "Play Selection" in main_source and "Export Format" in main_source and "Download Hook MP3" in main_source and "Download Hook WAV" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor UI missing")
         assert_true("velaflow_waveform_selector" in main_source and "WAVEFORM_SELECTOR_COMPONENT" in main_source and "audio_editor_selection_start" in main_source and "audio_editor_selection_end" in main_source and "_sync_audio_editor_selection" in main_source and "desktop mouse + mobile touch supported" in main_source, "interactive waveform selector wiring missing")
@@ -2990,6 +3051,8 @@ def main():
         assert_true("Play 5 Seconds After End" in main_source and "Preview End Transition" in main_source and "Phrase Completion Gate" in main_source and "Actual Complete Hook" in main_source, "Smart Hook Finder phrase-completion verification UI missing")
         audio_editor_source = (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8")
         assert_true("analyze_phrase_completion" in audio_editor_source and "expand_end_to_complete_phrase" in audio_editor_source and "continuation_penalty" in audio_editor_source and "phrase_completion_result" in audio_editor_source and "stable_boundary_duration" in audio_editor_source and "seconds_extended_to_complete_phrase" in audio_editor_source and "SUPPORTED_AUDIO_EDITOR_FORMATS" in audio_editor_source and "source_format" in audio_editor_source and "preview_format" in audio_editor_source and "export_format" in audio_editor_source, "Smart Hook Finder phrase-completion or WAV report fields missing")
+        assert_true("evaluate_hook_selection_quality" in audio_editor_source and "Hook Quality: GOOD" in main_source and "Hook Quality: REVIEW" in main_source and "Hook Quality: POOR" in main_source and "Advanced Hook Analysis" in main_source, "Audio Editor hook quality check missing")
+        assert_true("Check Lyrics" in main_source and "Lyrics Quality: Good" in main_source and "Lyrics Quality: Needs Review" in main_source and "AI Improve Lyrics" in main_source and "Apply Improved Lyrics" in main_source and "Undo Applied Improvement" in main_source, "Song Studio lyric quality review/apply workflow missing")
         assert_true("shell=True" not in audio_editor_source, "Audio Editor must not use shell=True")
         assert_true("Batch Hook Export" not in main_source and "Export Selected Durations" not in main_source and "audio_editor_batch_export" not in main_source and "Download All as ZIP" not in main_source, "legacy fixed-duration Batch Export UI should be removed")
         assert_true("Creator Dashboard" in main_source and "Start Music Creation" in main_source and "Seed Selection workflow" in main_source, "creator dashboard single-path card missing")

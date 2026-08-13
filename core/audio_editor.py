@@ -151,6 +151,8 @@ def reset_source_dependent_state(workflow_state: dict[str, Any], session_state: 
             "rough_selection",
             "smart_refined_hook",
             "smart_override_status",
+            "hook_quality",
+            "hook_quality_source_id",
             "preview_result",
             "waveform",
             "last_result",
@@ -173,7 +175,7 @@ def reset_source_dependent_state(workflow_state: dict[str, Any], session_state: 
         recommendation = workflow_state.get("remaster_recommendation") or {}
         if recommendation.get("source") == "audio_analysis":
             workflow_state.pop("remaster_recommendation", None)
-        preview_prefixes = ("remaster_original", "remaster_mastered")
+        preview_prefixes = ("remaster_original", "remaster_mastered", "remaster_ab_")
     preview_cache = session_state.get("remaster_preview_bytes_cache")
     if isinstance(preview_cache, dict):
         for key in list(preview_cache):
@@ -733,6 +735,88 @@ def refine_musical_hook_boundaries(
             "user_override_status": "Smart Refined",
         },
         "error": "",
+    }
+
+
+def evaluate_hook_selection_quality(
+    source_audio_path: str | Path,
+    *,
+    start_time: float,
+    end_time: float,
+    ffmpeg_path: str = "",
+    max_upload_mb: int = 200,
+) -> dict[str, Any]:
+    """Classify a selected hook using existing PCM and boundary diagnostics."""
+    source = Path(source_audio_path)
+    validation = validate_audio_editor_input(source, max_upload_mb=max_upload_mb)
+    if not validation.get("ok"):
+        return {"ok": False, "label": "REVIEW", "findings": [validation.get("message", "Invalid audio")], "diagnostics": {}}
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    probe = probe_media(source, ffmpeg_path=ffmpeg) if ffmpeg else {"ok": False}
+    duration = float(probe.get("duration") or 0.0)
+    selection = validate_audio_selection(start_time, end_time, duration)
+    if not ffmpeg or not selection.get("ok"):
+        return {"ok": False, "label": "REVIEW", "findings": [selection.get("message", "Analysis unavailable")], "diagnostics": {}}
+    decoded = _decode_pcm_mono(source, ffmpeg_path=ffmpeg, max_duration=min(480.0, duration or 480.0))
+    if not decoded.get("ok"):
+        return {"ok": False, "label": "REVIEW", "findings": [decoded.get("message", "Analysis unavailable")], "diagnostics": {}}
+    frames = _frame_features(decoded["data"]["samples"], int(decoded["data"]["sample_rate"]), frame_seconds=0.25)
+    selected = _frames_between(frames, start_time, end_time)
+    if not selected:
+        return {"ok": False, "label": "POOR", "findings": ["Selected range contains no measurable audio."], "diagnostics": {}}
+    start = score_start_boundary(frames, start_time)
+    end = score_end_boundary(frames, end_time)
+    global_rms = _average_frame_value(frames, "rms")
+    selected_rms = _average_frame_value(selected, "rms")
+    silence_ratio = _average_frame_value(selected, "silent")
+    clip_density = _average_frame_value(selected, "clip_density")
+    energy_variance = sum((frame["rms"] - selected_rms) ** 2 for frame in selected) / len(selected)
+    stability = max(0.0, min(1.0, 1.0 - math.sqrt(energy_variance) / max(selected_rms, 0.001)))
+    issues: list[str] = []
+    severe = 0
+    if int(start.get("score", 0)) < 45:
+        issues.append("Start may cut into an active phrase or transient.")
+        severe += 1
+    elif int(start.get("score", 0)) < 62:
+        issues.append("Start boundary is usable but worth a quick listen.")
+    phrase_result = str(end.get("phrase_completion_result") or "REJECT")
+    if phrase_result == "REJECT":
+        issues.append("Music appears to continue immediately after the endpoint.")
+        severe += 1
+    elif phrase_result == "EXTEND":
+        issues.append("Ending may need a little more time to complete the phrase.")
+    if clip_density > 0.002:
+        issues.append("Possible clipping is present inside the selection.")
+        severe += 1
+    if silence_ratio > 0.35:
+        issues.append("Selection contains a large amount of silence.")
+        severe += 1
+    elif selected_rms < max(0.012, global_rms * 0.55):
+        issues.append("Selection is low-energy compared with the full track.")
+    if stability < 0.28:
+        issues.append("Energy changes sharply across the selected range.")
+    if severe >= 2 or len(issues) >= 5:
+        label = "POOR"
+    elif issues:
+        label = "REVIEW"
+    else:
+        label = "GOOD"
+    return {
+        "ok": True,
+        "label": label,
+        "findings": issues[:4] or ["Start, sustained energy, and phrase ending look usable."],
+        "diagnostics": {
+            "start_boundary_score": start.get("score"),
+            "end_boundary_score": end.get("score"),
+            "phrase_completion_result": phrase_result,
+            "continuation_penalty": end.get("continuation_penalty"),
+            "immediate_reentry_delay": end.get("immediate_reentry_delay"),
+            "selected_rms": round(selected_rms, 5),
+            "global_rms": round(global_rms, 5),
+            "silence_ratio": round(silence_ratio, 4),
+            "clip_density": round(clip_density, 6),
+            "energy_stability": round(stability, 4),
+        },
     }
 
 

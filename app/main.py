@@ -61,7 +61,7 @@ from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.access_control import access_gate_policy, authenticate_access_password, sign_out_access_session
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, cached_probe_media, clamp_audio_selection, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -135,6 +135,7 @@ from core.hook_package_generator import build_final_creator_zip, extract_full_ho
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.prompt_director import CREATOR_EXPORT_MODES, PROMPT_STYLES
+from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
 from core.licensing import get_license_service
 from core.lyrics_expander import analyze_song_completeness, apply_music_direction_tags, ensure_full_song_structure
 from core.music_direction_engine import build_music_direction
@@ -2453,36 +2454,47 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     zip_path = Path(str(result_data.get("zip_path") or ""))
     report = result_data.get("report") or {}
     if mastered_wav.is_file():
-        st.markdown("### 5. Before / After Preview")
-        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=source_identity) if source_path and Path(source_path).is_file() else {"ok": False, "reason": "missing_original"}
-        mastered_preview = _resolve_safari_audio_preview_bytes(mp3_preview, cache_key="remaster_mastered", label="Remastered", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if mp3_preview.is_file() else {"ok": False, "reason": "missing_mastered_mp3_preview"}
+        st.markdown("### 5. Before / After Quality")
+        comparison = result_data.get("quality_comparison") or report.get("quality_comparison") or {}
+        summary = comparison.get("summary") or {}
+        quality_cols = st.columns(3)
+        quality_cols[0].metric("Loudness", str(summary.get("loudness") or "Unknown"))
+        quality_cols[1].metric("Dynamics", str(summary.get("dynamics") or "Unknown"))
+        quality_cols[2].metric("Stereo Width", str(summary.get("stereo_width") or "Unknown"))
+        original_metrics = comparison.get("original") or {}
+        mastered_metrics = comparison.get("mastered") or {}
+        loudness_before = original_metrics.get("integrated_lufs")
+        loudness_after = mastered_metrics.get("integrated_lufs")
+        st.caption(
+            "LUFS: "
+            f"{loudness_before if loudness_before is not None else 'Unknown'} → "
+            f"{loudness_after if loudness_after is not None else 'Unknown'} · "
+            f"Peak proxy: {original_metrics.get('peak_dbfs_proxy', 'Unknown')} → {mastered_metrics.get('peak_dbfs_proxy', 'Unknown')} dBFS"
+        )
+        ab_data = result_data.get("ab_previews") or report.get("ab_previews") or {}
+        original_ab_path = Path(str(ab_data.get("original_preview") or ""))
+        mastered_ab_path = Path(str(ab_data.get("mastered_preview") or ""))
+        original_preview = _resolve_safari_audio_preview_bytes(original_ab_path, cache_key="remaster_ab_original", label="Original A/B", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if original_ab_path.is_file() else {"ok": False, "reason": ab_data.get("error") or "missing_original_ab_preview"}
+        mastered_preview = _resolve_safari_audio_preview_bytes(mastered_ab_path, cache_key="remaster_ab_mastered", label="Remastered A/B", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if mastered_ab_path.is_file() else {"ok": False, "reason": ab_data.get("error") or "missing_mastered_ab_preview"}
         remaster_state["preview_diagnostics"] = {
             "original": original_preview.get("diagnostics", {"ok": False, "reason": original_preview.get("reason", "")}),
             "mastered": mastered_preview.get("diagnostics", {"ok": False, "reason": mastered_preview.get("reason", "")}),
         }
         project["remaster_studio"] = remaster_state
         _save_project()
-        preview_cols = st.columns(2)
-        with preview_cols[0]:
-            st.markdown("**Original**")
-            if original_preview.get("ok"):
-                st.audio(original_preview["bytes"], format=original_preview["format"])
-            else:
-                st.warning(f"Preview unavailable: {original_preview.get('reason', 'unknown')}")
-        with preview_cols[1]:
-            st.markdown("**Remastered**")
-            if mastered_preview.get("ok"):
-                st.audio(mastered_preview["bytes"], format=mastered_preview["format"])
-            else:
-                st.warning(f"Preview unavailable: {mastered_preview.get('reason', 'unknown')}")
         ab_choice = st.radio("A/B Compare", ["Original", "Remastered"], horizontal=True, key="remaster_ab_compare")
         ab_preview = original_preview if ab_choice == "Original" else mastered_preview
         if ab_preview.get("ok"):
-            st.caption(f"A/B preview source: {ab_choice} ({ab_preview.get('mime_type', 'audio/mpeg')})")
+            st.audio(ab_preview["bytes"], format=ab_preview["format"])
+            st.caption(f"{ab_choice} · same {float(ab_data.get('duration') or 15):.0f}s range from {format_timecode(float(ab_data.get('start') or 0))}")
+        else:
+            st.warning(f"Preview unavailable: {ab_preview.get('reason', 'unknown')}")
         c1, c2 = st.columns(2)
         c1.metric("Duration Match", "Yes" if report.get("duration_matches_original") else "Review")
         clipping_status = str((report.get("clipping_validation") or {}).get("status") or "unknown")
         c2.metric("Clipping", {"pass": "Protected", "fail": "Failed", "unknown": "Unknown"}.get(clipping_status, "Unknown"))
+        with st.expander("Advanced Analysis", expanded=False):
+            st.json({"comparison": comparison, "a_b_preview": ab_data}, expanded=False)
         st.markdown("### 6. Export")
         st.download_button(
             "Download Mastered WAV",
@@ -2817,6 +2829,32 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             st.markdown(f"`{format_timecode(refined_start)}` → `{format_timecode(refined_end)}`")
             st.caption(f"{max(0.0, refined_end - refined_start):.1f} sec")
             st.success("✓ Natural ending detected" if natural else "Manual review recommended")
+
+    hook_quality_id = f"{audio_source_id}|{start_time:.3f}|{end_time:.3f}"
+    if selection.get("ok") and ffmpeg_probe.get("ok") and editor_state.get("hook_quality_source_id") != hook_quality_id:
+        editor_state["hook_quality"] = evaluate_hook_selection_quality(
+            source_path,
+            start_time=start_time,
+            end_time=end_time,
+            ffmpeg_path=settings.ffmpeg_path,
+            max_upload_mb=max_upload_mb,
+        )
+        editor_state["hook_quality_source_id"] = hook_quality_id
+        project["audio_editor"] = editor_state
+        _save_project()
+    hook_quality = editor_state.get("hook_quality") or {}
+    if hook_quality:
+        label = str(hook_quality.get("label") or "REVIEW")
+        if label == "GOOD":
+            st.success("Hook Quality: GOOD")
+        elif label == "POOR":
+            st.error("Hook Quality: POOR — manual adjustment recommended")
+        else:
+            st.warning("Hook Quality: REVIEW")
+        for finding in (hook_quality.get("findings") or [])[:4]:
+            st.caption(f"• {finding}")
+        with st.expander("Advanced Hook Analysis", expanded=False):
+            st.json(hook_quality.get("diagnostics") or {}, expanded=False)
 
     preview_data = editor_state.get("preview_result") or {}
     preview_audio = Path(str(preview_data.get("hook_mp3") or preview_data.get("output_audio") or ""))
@@ -4305,6 +4343,31 @@ def _current_lyrics() -> str:
     return song.get("normalized_song_output") or song.get("complete_lyrics") or st.session_state.get("manual_lyrics", "")
 
 
+def _generate_lyrics_improvement_preview(lyrics: str, review: dict[str, Any]) -> dict[str, Any]:
+    provider_name, api_key, model = _active_text_credentials()
+    gate = _production_api_gate(provider_name, api_key)
+    if not gate.get("ok"):
+        return {"ok": False, "error": gate.get("error") or gate.get("message") or "AI provider unavailable"}
+    try:
+        if provider_name == "gemini":
+            from providers.gemini_provider import GeminiTextProvider
+
+            provider = GeminiTextProvider(api_key=api_key, model=model)
+        elif provider_name == "openai":
+            from providers.openai_provider import OpenAITextProvider
+
+            provider = OpenAITextProvider(api_key=api_key, model=model)
+        else:
+            return {"ok": False, "error": f"Lyrics improvement is not available for {provider_display_name(provider_name)}."}
+        generated = provider.generate_text(build_lyrics_improvement_prompt(lyrics, review))
+        cleaned = clean_lyrics_improvement_preview(generated)
+        if not cleaned:
+            return {"ok": False, "error": getattr(provider, "last_error", "Provider returned no lyrics") or "Provider returned no lyrics"}
+        return {"ok": True, "lyrics": cleaned, "provider": provider_name, "model": model}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def _latest_render_dir(project: dict[str, Any]) -> Path:
     root = ROOT / "outputs" / "renders" / safe_name(project.get("title", "project"))
     dirs = sorted([path for path in root.glob("*") if path.is_dir()], key=lambda path: path.stat().st_mtime, reverse=True) if root.exists() else []
@@ -5302,9 +5365,17 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         if lyrics_for_editor:
             st.divider()
             st.markdown("## Edit Lyrics")
+            pending_lyrics = st.session_state.pop("song_creator_pending_lyrics", "")
+            if pending_lyrics:
+                lyrics_for_editor = pending_lyrics
+            lyrics_editor_source_id = hashlib.sha1(lyrics_for_editor.encode("utf-8")).hexdigest()
+            if pending_lyrics or st.session_state.get("song_creator_lyrics_source_id") != lyrics_editor_source_id:
+                st.session_state["song_creator_lyrics_editor"] = pending_lyrics
+                if not pending_lyrics:
+                    st.session_state["song_creator_lyrics_editor"] = lyrics_for_editor
+                st.session_state["song_creator_lyrics_source_id"] = lyrics_editor_source_id
             edited_creator_lyrics = st.text_area(
                 "Lyrics Editor",
-                value=lyrics_for_editor,
                 height=420,
                 key="song_creator_lyrics_editor",
                 help="แก้เนื้อเพลงได้ต่อเนื่อง แล้วใช้ปุ่มด้านล่างเพื่อบันทึกหรือส่งออก",
@@ -5321,6 +5392,57 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             sc4.metric("Est. Duration", f"{completeness_view.get('estimated_duration_seconds', 0)}s")
             if not completeness_view.get("ok"):
                 st.warning("Song structure is still short. Full generation should include verses, pre-chorus, chorus, bridge, final chorus, and outro.")
+            lyrics_review_id = hashlib.sha1(edited_creator_lyrics.encode("utf-8")).hexdigest()
+            if st.button("Check Lyrics", use_container_width=True, key="song_check_lyrics"):
+                st.session_state["song_lyrics_quality_review"] = {
+                    "source_id": lyrics_review_id,
+                    "review": check_lyrics_quality(edited_creator_lyrics),
+                }
+            review_state = st.session_state.get("song_lyrics_quality_review") or {}
+            if review_state.get("source_id") == lyrics_review_id:
+                lyrics_review = review_state.get("review") or {}
+                if lyrics_review.get("status") == "Good":
+                    st.success("Lyrics Quality: Good")
+                else:
+                    st.warning("Lyrics Quality: Needs Review")
+                for finding in (lyrics_review.get("findings") or [])[:5]:
+                    st.caption(f"• {finding}")
+                with st.expander("Lyrics Analysis Details", expanded=False):
+                    st.json(lyrics_review.get("diagnostics") or {}, expanded=False)
+                improve_cols = st.columns(2)
+                if improve_cols[0].button("AI Improve Lyrics", use_container_width=True, disabled=not bool(active_api_key), key="song_ai_improve_lyrics"):
+                    with st.spinner("Preparing an improved lyrics preview..."):
+                        improved = _generate_lyrics_improvement_preview(edited_creator_lyrics, lyrics_review)
+                    if improved.get("ok"):
+                        st.session_state["song_lyrics_improvement_preview"] = improved
+                        st.session_state["song_lyrics_improvement_source_id"] = lyrics_review_id
+                    else:
+                        st.warning(improved.get("error") or "AI lyrics improvement unavailable")
+                if improve_cols[1].button("Undo Applied Improvement", use_container_width=True, disabled=not bool(st.session_state.get("song_lyrics_quality_undo")), key="song_undo_lyrics_improvement"):
+                    restored = str(st.session_state.pop("song_lyrics_quality_undo", "") or "")
+                    if restored:
+                        song["complete_lyrics"] = restored
+                        song["normalized_song_output"] = restored
+                        project["song"] = song
+                        st.session_state["song_creator_pending_lyrics"] = restored
+                        st.session_state.pop("song_lyrics_improvement_preview", None)
+                        _save_project()
+                        st.rerun()
+                improvement = st.session_state.get("song_lyrics_improvement_preview") or {}
+                if improvement and st.session_state.get("song_lyrics_improvement_source_id") == lyrics_review_id:
+                    st.text_area("Improved Lyrics Preview", value=improvement.get("lyrics", ""), height=320, key="song_lyrics_improvement_preview_text")
+                    st.caption("Preview only. Your current lyrics stay unchanged until you apply this version.")
+                    if st.button("Apply Improved Lyrics", type="primary", use_container_width=True, key="song_apply_lyrics_improvement"):
+                        applied = str(st.session_state.get("song_lyrics_improvement_preview_text") or improvement.get("lyrics") or "").strip()
+                        if applied:
+                            st.session_state["song_lyrics_quality_undo"] = edited_creator_lyrics
+                            song["complete_lyrics"] = applied
+                            song["normalized_song_output"] = applied
+                            project["song"] = song
+                            st.session_state["song_creator_pending_lyrics"] = applied
+                            st.session_state.pop("song_lyrics_improvement_preview", None)
+                            _save_project()
+                            st.rerun()
             music_direction_view = song.get("music_direction") or build_music_direction(
                 genre=str(song.get("genre") or ""),
                 mood=str(song.get("mood") or ""),
