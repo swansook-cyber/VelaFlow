@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.file_naming import build_asset_export_filename, ensure_unique_path, export_name_base, sanitize_filename
+from core.file_naming import build_asset_export_filename, ensure_unique_path, export_name_base, make_safe_filename, sanitize_filename
 from core.paths import ROOT
 from core.project_io import safe_name
 from core.real_clip_pipeline import find_ffmpeg, probe_media
@@ -44,6 +44,7 @@ SMART_HOOK_TYPES = {
     "Extended Hook": {"soft_range": (40.0, 70.0), "suffix": "ExtendedHook"},
     "Full Chorus": {"soft_range": (25.0, 75.0), "suffix": "FullChorus"},
 }
+JOIN_CROSSFADE_DURATIONS = (1.0, 2.0, 3.0, 5.0)
 
 
 def build_upload_identity(original_filename: str, payload: bytes) -> dict[str, Any]:
@@ -1505,4 +1506,229 @@ def export_audio_batch(
             "zip_path": str(zip_path),
         },
         "error": "" if generated else "no_outputs",
+    }
+
+
+def remove_join_track(tracks: list[dict[str, Any]], track_id: str) -> list[dict[str, Any]]:
+    return [dict(track) for track in tracks if str(track.get("track_id") or track.get("upload_id") or track.get("path")) != str(track_id)]
+
+
+def move_join_track(tracks: list[dict[str, Any]], track_id: str, direction: int) -> list[dict[str, Any]]:
+    ordered = [dict(track) for track in tracks]
+    index = next((idx for idx, track in enumerate(ordered) if str(track.get("track_id") or track.get("upload_id") or track.get("path")) == str(track_id)), -1)
+    target = index + (-1 if int(direction) < 0 else 1)
+    if index >= 0 and 0 <= target < len(ordered):
+        ordered[index], ordered[target] = ordered[target], ordered[index]
+    return ordered
+
+
+def _join_track_identity(track: dict[str, Any]) -> dict[str, Any]:
+    source = Path(str(track.get("path") or ""))
+    if not source.is_file():
+        return {"path": str(source), "missing": True}
+    signature = _source_signature(source, trusted_identity=track)
+    return {
+        "path": str(source.resolve()),
+        "sha256": signature.get("sha256"),
+        "upload_id": signature.get("upload_id"),
+        "size": signature.get("size"),
+        "start": round(float(track.get("start") or 0.0), 3),
+        "end": round(float(track.get("end") or track.get("duration") or 0.0), 3),
+    }
+
+
+def build_join_arrangement_fingerprint(
+    tracks: list[dict[str, Any]],
+    *,
+    crossfades: list[dict[str, Any]] | None = None,
+    fade_in: bool = False,
+    fade_out: bool = False,
+) -> str:
+    payload = {
+        "tracks": [_join_track_identity(track) for track in tracks],
+        "crossfades": [
+            {"enabled": bool(item.get("enabled")), "duration": round(float(item.get("duration") or 0.0), 3)}
+            for item in (crossfades or [])
+        ],
+        "fade_in": bool(fade_in),
+        "fade_out": bool(fade_out),
+    }
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _validate_join_tracks(tracks: list[dict[str, Any]], ffmpeg: str, max_upload_mb: int) -> dict[str, Any]:
+    if len(tracks) < 2:
+        return {"ok": False, "error": "not_enough_tracks", "message": "Add at least two MP3 or WAV files."}
+    normalized: list[dict[str, Any]] = []
+    for index, track in enumerate(tracks):
+        source = Path(str(track.get("path") or ""))
+        validation = validate_audio_editor_input(source, max_upload_mb=max_upload_mb)
+        if not validation.get("ok"):
+            return {"ok": False, "error": validation.get("error", "invalid_audio"), "message": f"Track {index + 1}: {validation.get('message', 'invalid audio')}"}
+        probe = probe_media(source, ffmpeg_path=ffmpeg)
+        duration = float(probe.get("duration") or 0.0)
+        if not probe.get("ok") or not probe.get("has_audio") or duration <= 0:
+            return {"ok": False, "error": "invalid_audio", "message": f"Track {index + 1}: audio could not be read."}
+        start = max(0.0, float(track.get("start") or 0.0))
+        end = min(duration, float(track.get("end") or duration))
+        if end - start < 0.25:
+            return {"ok": False, "error": "invalid_trim", "message": f"Track {index + 1}: trim range is too short."}
+        normalized.append({**dict(track), "path": str(source), "start": round(start, 3), "end": round(end, 3), "duration": round(duration, 3), "trimmed_duration": round(end - start, 3), "probe": probe})
+    return {"ok": True, "tracks": normalized, "error": "", "message": ""}
+
+
+def _normalized_crossfades(crossfades: list[dict[str, Any]] | None, tracks: list[dict[str, Any]]) -> dict[str, Any]:
+    transitions: list[dict[str, Any]] = []
+    for index in range(max(0, len(tracks) - 1)):
+        raw = (crossfades or [])[index] if index < len(crossfades or []) else {}
+        enabled = bool(raw.get("enabled"))
+        duration = float(raw.get("duration") or 2.0) if enabled else 0.0
+        if enabled and duration not in JOIN_CROSSFADE_DURATIONS:
+            duration = 2.0
+        maximum = min(float(tracks[index]["trimmed_duration"]), float(tracks[index + 1]["trimmed_duration"])) - 0.05
+        if enabled and (maximum <= 0 or duration > maximum):
+            return {"ok": False, "error": "crossfade_too_long", "message": f"Crossfade between tracks {index + 1} and {index + 2} is longer than the trimmed audio."}
+        transitions.append({"enabled": enabled, "duration": duration})
+    return {"ok": True, "crossfades": transitions, "error": "", "message": ""}
+
+
+def _build_join_filter(tracks: list[dict[str, Any]], crossfades: list[dict[str, Any]], *, fade_in: bool, fade_out: bool) -> tuple[str, str, float]:
+    filters: list[str] = []
+    for index, track in enumerate(tracks):
+        filters.append(
+            f"[{index}:a]atrim=start={float(track['start']):.3f}:end={float(track['end']):.3f},"
+            f"asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[t{index}]"
+        )
+    current = "t0"
+    expected_duration = float(tracks[0]["trimmed_duration"])
+    for index in range(1, len(tracks)):
+        output_label = f"j{index}"
+        transition = crossfades[index - 1]
+        if transition.get("enabled"):
+            duration = float(transition["duration"])
+            filters.append(f"[{current}][t{index}]acrossfade=d={duration:.3f}:c1=qsin:c2=qsin[{output_label}]")
+            expected_duration += float(tracks[index]["trimmed_duration"]) - duration
+        else:
+            filters.append(f"[{current}][t{index}]concat=n=2:v=0:a=1[{output_label}]")
+            expected_duration += float(tracks[index]["trimmed_duration"])
+        current = output_label
+    if fade_in or fade_out:
+        fade_filters: list[str] = []
+        if fade_in:
+            fade_filters.append("afade=t=in:st=0:d=1.000")
+        if fade_out:
+            fade_filters.append(f"afade=t=out:st={max(0.0, expected_duration - 1.0):.3f}:d=1.000")
+        filters.append(f"[{current}]{','.join(fade_filters)}[joined]")
+        current = "joined"
+    return ";".join(filters), current, round(expected_duration, 3)
+
+
+def _validate_join_output(path: Path, *, output_format: str, expected_duration: float, ffmpeg: str) -> dict[str, Any]:
+    if not path.is_file() or path.stat().st_size <= 0:
+        return {"ok": False, "error": "missing_output", "message": "Joined output was not created."}
+    probe = probe_media(path, ffmpeg_path=ffmpeg)
+    codec = str(probe.get("audio_codec") or "").lower()
+    codec_ok = codec == "mp3" if output_format == "mp3" else codec.startswith("pcm")
+    duration = float(probe.get("duration") or 0.0)
+    tolerance = max(0.5, expected_duration * 0.015)
+    duration_ok = duration > 0 and abs(duration - expected_duration) <= tolerance
+    checks = {"file_nonempty": path.stat().st_size > 0, "probe_ok": bool(probe.get("ok") and probe.get("has_audio")), "codec_ok": codec_ok, "duration_ok": duration_ok}
+    return {"ok": all(checks.values()), "error": "" if all(checks.values()) else "output_validation_failed", "message": "" if all(checks.values()) else "Joined output failed codec or duration validation.", "checks": checks, "probe": probe, "duration": duration, "expected_duration": expected_duration, "duration_delta": round(abs(duration - expected_duration), 3)}
+
+
+def join_audio_tracks(
+    tracks: list[dict[str, Any]],
+    *,
+    crossfades: list[dict[str, Any]] | None = None,
+    fade_in: bool = False,
+    fade_out: bool = False,
+    export_name: str = "Joined Audio",
+    output_format: str = "mp3",
+    project_name: str = "audio_joiner",
+    output_dir: str | Path = "",
+    ffmpeg_path: str = "",
+    max_upload_mb: int = 200,
+    preview: bool = False,
+) -> dict[str, Any]:
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return {"ok": False, "message": "FFmpeg not found", "data": {}, "error": "missing_ffmpeg"}
+    validated = _validate_join_tracks(tracks, ffmpeg, max_upload_mb)
+    if not validated.get("ok"):
+        return {"ok": False, "message": validated.get("message"), "data": {}, "error": validated.get("error")}
+    normalized_tracks = validated["tracks"]
+    transitions = _normalized_crossfades(crossfades, normalized_tracks)
+    if not transitions.get("ok"):
+        return {"ok": False, "message": transitions.get("message"), "data": {}, "error": transitions.get("error")}
+    normalized_fades = transitions["crossfades"]
+    arrangement_id = build_join_arrangement_fingerprint(normalized_tracks, crossfades=normalized_fades, fade_in=fade_in, fade_out=fade_out)
+    export_format = "wav" if str(output_format or "").lower() == "wav" and not preview else "mp3"
+    base_dir = Path(output_dir) if output_dir else ROOT / "exports" / "audio_joiner" / safe_name(project_name or "audio_joiner")
+    target_dir = base_dir / ("previews" if preview else "output")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    safe_export_name = make_safe_filename(export_name or "Joined Audio") or "Joined Audio"
+    output_path = target_dir / (f"join_preview_{arrangement_id[:16]}.mp3" if preview else f"{safe_export_name}.{export_format}")
+    if not preview:
+        output_path = ensure_unique_path(output_path)
+    filter_complex, output_label, expected_duration = _build_join_filter(normalized_tracks, normalized_fades, fade_in=fade_in, fade_out=fade_out)
+    if preview and output_path.is_file():
+        cached_validation = _validate_join_output(output_path, output_format="mp3", expected_duration=expected_duration, ffmpeg=ffmpeg)
+        if cached_validation.get("ok"):
+            return {"ok": True, "message": "Joined preview ready", "data": {"output_audio": str(output_path), "preview_mp3": str(output_path), "output_format": "mp3", "arrangement_fingerprint": arrangement_id, "cache_status": "hit", "expected_duration": expected_duration, "output_duration": cached_validation.get("duration"), "validation": cached_validation}, "error": ""}
+    args = [ffmpeg, "-y"]
+    for track in normalized_tracks:
+        args += ["-i", str(track["path"])]
+    args += ["-filter_complex", filter_complex, "-map", f"[{output_label}]", "-vn"]
+    if export_format == "mp3":
+        args += ["-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2", "-write_xing", "0"]
+    else:
+        args += ["-c:a", "pcm_s24le", "-ar", "48000", "-ac", "2"]
+    args.append(str(output_path))
+    result = _run(args, timeout=300)
+    if not result.get("ok"):
+        output_path.unlink(missing_ok=True)
+        return {"ok": False, "message": str(result.get("output") or "Audio join failed")[:600], "data": {"command": args}, "error": "audio_join_failed"}
+    output_validation = _validate_join_output(output_path, output_format=export_format, expected_duration=expected_duration, ffmpeg=ffmpeg)
+    if not output_validation.get("ok"):
+        return {"ok": False, "message": output_validation.get("message"), "data": {"output_audio": str(output_path), "validation": output_validation}, "error": output_validation.get("error")}
+    report = {
+        "ok": True,
+        "track_count": len(normalized_tracks),
+        "tracks": [{"filename": Path(track["path"]).name, "start": track["start"], "end": track["end"], "trimmed_duration": track["trimmed_duration"]} for track in normalized_tracks],
+        "crossfades": normalized_fades,
+        "fade_in": bool(fade_in),
+        "fade_out": bool(fade_out),
+        "export_name": safe_export_name,
+        "output_format": export_format.upper(),
+        "output_codec": output_validation.get("probe", {}).get("audio_codec"),
+        "output_bitrate": "320 kbps CBR" if export_format == "mp3" else "lossless PCM 24-bit",
+        "expected_duration": expected_duration,
+        "output_duration": output_validation.get("duration"),
+        "arrangement_fingerprint": arrangement_id,
+        "processing_mode": "normalized FFmpeg filter_complex",
+        "preview": bool(preview),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    report_path = base_dir / "join_report.json"
+    if not preview:
+        report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {
+        "ok": True,
+        "message": "Joined preview ready" if preview else "Joined audio ready",
+        "data": {
+            "output_audio": str(output_path),
+            "joined_mp3": str(output_path) if export_format == "mp3" else "",
+            "joined_wav": str(output_path) if export_format == "wav" else "",
+            "preview_mp3": str(output_path) if preview else "",
+            "output_format": export_format,
+            "export_name": safe_export_name,
+            "arrangement_fingerprint": arrangement_id,
+            "cache_status": "miss",
+            "expected_duration": expected_duration,
+            "output_duration": output_validation.get("duration"),
+            "validation": output_validation,
+            "report": report,
+            "report_path": str(report_path) if not preview else "",
+        },
+        "error": "",
     }

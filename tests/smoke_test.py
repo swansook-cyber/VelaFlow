@@ -27,7 +27,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, move_audio_selection_region, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_release_pack_export, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -799,6 +799,10 @@ def main():
     assert_true(validate_audio_selection(1.0, 3.0, 10.0)["ok"] and not validate_audio_selection(3.0, 1.0, 10.0)["ok"] and validate_audio_selection(0.0, 20.0, 10.0)["error"] == "end_beyond_duration" and validate_audio_selection(0.0, 0.5, 10.0)["error"] == "selection_too_short", "Audio Editor selection validation failed")
     assert_true({"15 seconds", "30 seconds", "45 seconds", "60 seconds", "Custom"}.issubset(set(HOOK_DURATION_PRESETS)), "Audio Editor hook duration helpers missing")
     assert_true("Best Hook" in SMART_HOOK_TYPES and smart_hook_suffix("Best Hook") == "BestHook" and parse_time_input("01:25.5") == 85.5 and parse_time_input("85.5") == 85.5, "Smart Musical Hook type/time parsing failed")
+    join_order_fixture = [{"track_id": "a", "path": "a.mp3"}, {"track_id": "b", "path": "b.mp3"}, {"track_id": "c", "path": "c.mp3"}]
+    assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", -1)] == ["b", "a", "c"], "Audio Joiner move-up ordering failed")
+    assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", 1)] == ["a", "c", "b"], "Audio Joiner move-down ordering failed")
+    assert_true([track["track_id"] for track in remove_join_track(join_order_fixture, "b")] == ["a", "c"] and JOIN_CROSSFADE_DURATIONS == (1.0, 2.0, 3.0, 5.0), "Audio Joiner remove/crossfade options failed")
     assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
     lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
     precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
@@ -2271,6 +2275,55 @@ def main():
         assert_true(validate_audio_editor_input(long_hook_source)["ok"], "Audio Editor MP3 validation failed")
         assert_true(not validate_audio_editor_input(unsupported_audio)["ok"], "Audio Editor unsupported input validation failed")
         audio_source_hash = long_hook_source.read_bytes()
+        join_root = out / "audio_joiner" / str(time.time_ns())
+        join_root.mkdir(parents=True, exist_ok=True)
+        join_a_mp3 = join_root / "Intro.mp3"
+        join_b_mp3 = join_root / "เพลงหลัก.mp3"
+        join_a_wav = join_root / "Intro.wav"
+        join_b_wav = join_root / "Outro.wav"
+        for path, frequency, codec in [
+            (join_a_mp3, 220, "libmp3lame"),
+            (join_b_mp3, 440, "libmp3lame"),
+            (join_a_wav, 330, "pcm_s24le"),
+            (join_b_wav, 550, "pcm_s24le"),
+        ]:
+            subprocess.run(
+                [find_ffmpeg(), "-y", "-f", "lavfi", "-i", f"sine=frequency={frequency}:duration=3:sample_rate=48000", "-ac", "2", "-c:a", codec, str(path)],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        mp3_tracks = [{"track_id": "intro", "path": str(join_a_mp3), "start": 0, "end": 3}, {"track_id": "main", "path": str(join_b_mp3), "start": 0, "end": 3}]
+        wav_tracks = [{"track_id": "wav-a", "path": str(join_a_wav), "start": 0, "end": 3}, {"track_id": "wav-b", "path": str(join_b_wav), "start": 0, "end": 3}]
+        no_crossfade = [{"enabled": False, "duration": 2.0}]
+        two_second_crossfade = [{"enabled": True, "duration": 2.0}]
+        joined_mp3 = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, export_name="Vela Mix ไทย", output_format="mp3", project_name="join_mp3", output_dir=join_root / "mp3", ffmpeg_path=find_ffmpeg())
+        joined_wav = join_audio_tracks(wav_tracks, crossfades=no_crossfade, export_name="Vela WAV Mix", output_format="wav", project_name="join_wav", output_dir=join_root / "wav", ffmpeg_path=find_ffmpeg())
+        joined_mixed = join_audio_tracks([mp3_tracks[0], wav_tracks[1]], crossfades=no_crossfade, export_name="Mixed Join", output_format="mp3", project_name="join_mixed", output_dir=join_root / "mixed", ffmpeg_path=find_ffmpeg())
+        joined_crossfade = join_audio_tracks(mp3_tracks, crossfades=two_second_crossfade, export_name="Crossfade Join", output_format="mp3", project_name="join_crossfade", output_dir=join_root / "crossfade", ffmpeg_path=find_ffmpeg())
+        trimmed_tracks = [{**mp3_tracks[0], "start": 1.0}, {**mp3_tracks[1], "end": 2.0}]
+        joined_trimmed = join_audio_tracks(trimmed_tracks, crossfades=no_crossfade, export_name="Trimmed Join", output_format="wav", project_name="join_trim", output_dir=join_root / "trim", ffmpeg_path=find_ffmpeg())
+        joined_fades = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, fade_in=True, fade_out=True, export_name="Fade Join", output_format="mp3", project_name="join_fades", output_dir=join_root / "fades", ffmpeg_path=find_ffmpeg())
+        assert_true(joined_mp3["ok"] and Path(joined_mp3["data"]["joined_mp3"]).name == "Vela Mix ไทย.mp3" and abs(float(joined_mp3["data"]["output_duration"]) - 6.0) < 0.25, "Audio Joiner MP3/order/Thai filename failed")
+        assert_true(joined_wav["ok"] and Path(joined_wav["data"]["joined_wav"]).is_file() and str((joined_wav["data"]["report"] or {}).get("output_codec", "")).startswith("pcm"), "Audio Joiner WAV PCM output failed")
+        assert_true(joined_mixed["ok"] and Path(joined_mixed["data"]["joined_mp3"]).is_file(), "Audio Joiner mixed MP3/WAV failed")
+        assert_true(joined_crossfade["ok"] and abs(float(joined_crossfade["data"]["output_duration"]) - 4.0) < 0.25 and joined_crossfade["data"]["report"]["crossfades"][0]["duration"] == 2.0, "Audio Joiner 2-second crossfade duration failed")
+        assert_true(joined_trimmed["ok"] and abs(float(joined_trimmed["data"]["output_duration"]) - 4.0) < 0.25 and joined_trimmed["data"]["report"]["tracks"][0]["start"] == 1.0 and joined_trimmed["data"]["report"]["tracks"][1]["end"] == 2.0, "Audio Joiner per-track trim failed")
+        assert_true(joined_fades["ok"] and joined_fades["data"]["report"]["fade_in"] and joined_fades["data"]["report"]["fade_out"], "Audio Joiner sequence fades failed")
+        joined_mp3_probe = probe_media(joined_mp3["data"]["joined_mp3"], ffmpeg_path=find_ffmpeg())
+        assert_true(joined_mp3_probe.get("audio_codec") == "mp3" and int(joined_mp3_probe.get("audio_bit_rate") or 0) >= 315000 and int(joined_mp3_probe.get("sample_rate") or 0) == 48000 and int(joined_mp3_probe.get("channels") or 0) == 2, "Audio Joiner MP3 must be Safari-compatible 320 kbps stereo")
+        preview_first = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, project_name="join_preview", output_dir=join_root / "preview", ffmpeg_path=find_ffmpeg(), preview=True)
+        preview_second = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, project_name="join_preview", output_dir=join_root / "preview", ffmpeg_path=find_ffmpeg(), preview=True)
+        preview_changed = join_audio_tracks(list(reversed(mp3_tracks)), crossfades=no_crossfade, project_name="join_preview", output_dir=join_root / "preview", ffmpeg_path=find_ffmpeg(), preview=True)
+        trimmed_fingerprint = build_join_arrangement_fingerprint(trimmed_tracks, crossfades=no_crossfade)
+        assert_true(preview_first["ok"] and preview_first["data"]["cache_status"] == "miss" and preview_second["data"]["cache_status"] == "hit" and preview_first["data"]["output_audio"] == preview_second["data"]["output_audio"], "Audio Joiner preview cache reuse failed")
+        assert_true(preview_changed["ok"] and preview_changed["data"]["arrangement_fingerprint"] != preview_first["data"]["arrangement_fingerprint"] and trimmed_fingerprint != preview_first["data"]["arrangement_fingerprint"], "Audio Joiner preview did not invalidate after order/trim change")
+        missing_join = join_audio_tracks([{**mp3_tracks[0], "path": str(join_root / "missing.mp3")}, mp3_tracks[1]], crossfades=no_crossfade, output_dir=join_root / "missing", ffmpeg_path=find_ffmpeg())
+        bad_ffmpeg_join = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, output_dir=join_root / "bad_ffmpeg", ffmpeg_path=str(join_root / "not_ffmpeg.exe"))
+        assert_true(not missing_join["ok"] and not bad_ffmpeg_join["ok"], "Audio Joiner missing source/FFmpeg failure must not report success")
+        same_name_a = build_upload_identity("same.mp3", b"first payload")
+        same_name_b = build_upload_identity("same.mp3", b"other payload")
+        assert_true(same_name_a["upload_id"] != same_name_b["upload_id"], "Audio Joiner same-name different-content identity failed")
         lossless_edit = export_audio_selection(long_hook_source, start_time=1.0, end_time=4.0, project_name="Smoke Audio Editor Lossless", output_name="smoke_hook", cut_mode="Lossless Quick Cut", ffmpeg_path=find_ffmpeg())
         lossless_data = lossless_edit.get("data", {})
         lossless_hook = Path(lossless_data.get("hook_mp3", ""))
@@ -3036,7 +3089,13 @@ def main():
         assert_true("Preset Selection" in main_source and "Auto Recommended" in main_source and "Analyze Audio & Recommend Preset" in main_source and "Use Recommended Preset" in main_source and "Choose Manually" in main_source and "Recommended by VelaFlow" in main_source and "Custom / Advanced preset controls are coming later" in main_source, "Remaster auto preset recommendation UI missing")
         assert_true("Before / After Quality" in remaster_ui_slice and "Advanced Analysis" in remaster_ui_slice and "integrated_lufs" in remaster_engine_source and "crest_factor_db" in remaster_engine_source and "stereo_width_proxy" in remaster_engine_source, "Remaster quality comparison UI or metrics missing")
         waveform_component_source = (ROOT / "app" / "components" / "waveform_selector" / "index.html").read_text(encoding="utf-8")
-        assert_true("Audio Editor" in main_source and "Upload External MP3/WAV" in main_source and "MP3 or WAV" in main_source and "WAV is analyzed directly" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Cutter" in main_source and "✓ Find Smart Hook" in main_source and "Play Selection" in main_source and "Export Format" in main_source and "Download Hook MP3" in main_source and "Download Hook WAV" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor UI missing")
+        assert_true("Audio Editor" in main_source and "Upload External MP3/WAV" in main_source and "MP3 or WAV" in main_source and "WAV is analyzed directly" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Cutter" in main_source and "✓ Find Smart Hook" in main_source and "Play Selection" in main_source and "Export Format" in main_source and "Download Hook MP3" in main_source and "Download Hook WAV" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor backend compatibility missing")
+        active_editor_slice = main_source[main_source.find("def _render_audio_editor(project"):main_source.find("def _hook_comparison_cards")]
+        cutter_slice = main_source[main_source.find("def _render_audio_cutter"):main_source.find("def _render_audio_editor(project")]
+        joiner_slice = main_source[main_source.find("def _render_audio_joiner"):main_source.find("def _render_audio_cutter")]
+        assert_true('st.radio("Mode", ["Cut", "Join"]' in active_editor_slice and "_render_audio_joiner" in active_editor_slice and "_render_audio_cutter" in active_editor_slice, "Audio Editor Cut/Join mode switch missing")
+        assert_true("Find Smart Hook" not in cutter_slice and "Smart Hook candidates" not in cutter_slice and "phrase-completion" not in cutter_slice and "Select MP3 or WAV" in cutter_slice and "Play Selection" in cutter_slice and "Fade In" in cutter_slice and "Fade Out" in cutter_slice, "Cut mode must remain simple and manual-only")
+        assert_true("Add Selected Files" in joiner_slice and "Arrange" in joiner_slice and "Crossfade" in joiner_slice and "Preview Joined Audio" in joiner_slice and "Join & Export" in joiner_slice and "accept_multiple_files=True" in joiner_slice and "audio_joiner" in joiner_slice, "Audio Joiner simple workflow missing")
         assert_true("velaflow_waveform_selector" in main_source and "WAVEFORM_SELECTOR_COMPONENT" in main_source and "audio_editor_selection_start" in main_source and "audio_editor_selection_end" in main_source and "_sync_audio_editor_selection" in main_source and "desktop mouse + mobile touch supported" in main_source, "interactive waveform selector wiring missing")
         assert_true("pointerdown" in waveform_component_source and "pointermove" in waveform_component_source and "pointerup" in waveform_component_source and "touch-action: none" in waveform_component_source and "streamlit:setComponentValue" in waveform_component_source and "Start 0:00" in waveform_component_source and "Duration 0:00" in waveform_component_source, "interactive waveform component events missing")
         assert_true("https://" not in waveform_component_source and "http://" not in waveform_component_source and "cdn" not in waveform_component_source.lower(), "interactive waveform component must stay local-only")
