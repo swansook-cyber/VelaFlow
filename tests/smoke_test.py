@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from core.asset_manager import attach_asset_to_project, clear_rejected_images, generate_asset_metadata, import_asset, list_assets as list_registered_assets, register_asset, safe_asset_filename
 import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
+import core.project_io as project_io_module
 from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, resolve_agent_provider, select_best_workflow, think
 from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
@@ -171,7 +172,7 @@ from core.song_title_engine import generate_song_title_candidates, generate_song
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
-from core.project_io import _read_lock_snapshot, _release_owned_lock, _remove_lock_if_unchanged, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
+from core.project_io import ProjectLockPermissionError, _read_lock_snapshot, _release_owned_lock, _remove_lock_if_unchanged, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
     autosave_project_state,
     archive_project,
@@ -3527,6 +3528,56 @@ def main():
     with project_file_lock(stale_lock_dir, timeout=0.2, stale_after=1):
         stale_lock_recovered = True
     assert_true(stale_lock_recovered and not stale_lock_path.exists(), "stale lock must not survive application restart indefinitely")
+
+    permission_retry_dir = persistence_root / "permission_retry"
+    original_create_lock_file = project_io_module._create_lock_file
+    original_permission_classifier = project_io_module._is_transient_windows_lock_permission_error
+    transient_calls = {"count": 0}
+
+    def transient_create(lock_path: Path, payload: bytes) -> None:
+        transient_calls["count"] += 1
+        if transient_calls["count"] <= 2:
+            raise PermissionError(13, "injected transient sharing contention", str(lock_path))
+        original_create_lock_file(lock_path, payload)
+
+    try:
+        project_io_module._is_transient_windows_lock_permission_error = lambda _path, _error: True
+        project_io_module._create_lock_file = transient_create
+        with project_file_lock(permission_retry_dir, timeout=0.5, poll_interval=0.001):
+            transient_retry_succeeded = True
+        assert_true(transient_retry_succeeded and transient_calls["count"] == 3, "transient PermissionError was not retried successfully")
+
+        project_io_module._create_lock_file = lambda lock_path, _payload: (_ for _ in ()).throw(PermissionError(13, "repeated transient contention", str(lock_path)))
+        transient_timeout = False
+        try:
+            with project_file_lock(permission_retry_dir, timeout=0.04, poll_interval=0.001):
+                pass
+        except TimeoutError:
+            transient_timeout = True
+        assert_true(transient_timeout and not (permission_retry_dir / ".project_save.lock").exists(), "repeated transient PermissionError did not end in a clean timeout")
+
+        protected_lock = permission_retry_dir / ".project_save.lock"
+        protected_lock.write_text(json.dumps({"lock_id": "protected", "token": "protected", "pid": os.getpid(), "hostname": socket.gethostname()}), encoding="utf-8")
+        protected_timeout = False
+        try:
+            with project_file_lock(permission_retry_dir, timeout=0.04, stale_after=0.01, poll_interval=0.001):
+                pass
+        except TimeoutError:
+            protected_timeout = True
+        assert_true(protected_timeout and _read_lock_snapshot(protected_lock)["lock_id"] == "protected", "transient PermissionError triggered lock deletion")
+        assert_true(_release_owned_lock(protected_lock, "protected"), "protected test lock could not be released")
+
+        project_io_module._is_transient_windows_lock_permission_error = lambda _path, _error: False
+        persistent_permission_reported = False
+        try:
+            with project_file_lock(permission_retry_dir, timeout=0.2, poll_interval=0.001):
+                pass
+        except ProjectLockPermissionError:
+            persistent_permission_reported = True
+        assert_true(persistent_permission_reported, "persistent permission failure was misreported as lock contention")
+    finally:
+        project_io_module._create_lock_file = original_create_lock_file
+        project_io_module._is_transient_windows_lock_permission_error = original_permission_classifier
 
     aba_lock_dir = persistence_root / "aba_lock"
     aba_lock_dir.mkdir(parents=True, exist_ok=True)

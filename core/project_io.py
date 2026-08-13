@@ -33,6 +33,10 @@ class ProjectLockTimeout(TimeoutError):
     pass
 
 
+class ProjectLockPermissionError(PermissionError):
+    pass
+
+
 def _process_is_alive(pid: Any, hostname: str) -> bool | None:
     """Return owner liveness on this host; None means it cannot be proven."""
     if str(hostname or "") != socket.gethostname():
@@ -79,6 +83,8 @@ def _read_lock_owner(lock_path: Path) -> dict[str, Any]:
     try:
         value = json.loads(lock_path.read_text(encoding="utf-8"))
         return value if isinstance(value, dict) else {}
+    except PermissionError:
+        raise
     except (OSError, ValueError, json.JSONDecodeError):
         return {}
 
@@ -144,6 +150,56 @@ def _create_lock_file(lock_path: Path, payload: bytes) -> None:
         os.close(descriptor)
 
 
+def _lock_directory_is_writable(lock_path: Path) -> bool:
+    descriptor: int | None = None
+    probe_path: Path | None = None
+    try:
+        descriptor, probe_name = tempfile.mkstemp(prefix=".lock_write_probe.", dir=str(lock_path.parent))
+        probe_path = Path(probe_name)
+        return True
+    except (OSError, PermissionError):
+        return False
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if probe_path is not None:
+            try:
+                probe_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _is_transient_windows_lock_permission_error(lock_path: Path, error: PermissionError) -> bool:
+    if os.name != "nt":
+        return False
+    winerror = getattr(error, "winerror", None)
+    if winerror in {32, 33}:
+        return _lock_directory_is_writable(lock_path)
+    if winerror not in {None, 5}:
+        return False
+    # Windows can report access denied while a just-released name remains in
+    # delete-pending state. A still-present denied path may have a real ACL
+    # problem and must not be silently converted into contention.
+    return not lock_path.exists() and _lock_directory_is_writable(lock_path)
+
+
+def _retry_transient_lock_permission(
+    lock_path: Path,
+    error: PermissionError,
+    *,
+    deadline: float,
+    attempt: int,
+    poll_interval: float,
+) -> int:
+    if not _is_transient_windows_lock_permission_error(lock_path, error):
+        raise ProjectLockPermissionError(f"Project lock path is not writable: {lock_path}") from error
+    if time.monotonic() >= deadline:
+        raise ProjectLockTimeout(f"Timed out waiting for project lock: {lock_path}") from None
+    delay = min(0.025, max(0.01, poll_interval) * (1.25 ** min(attempt, 4)))
+    time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+    return attempt + 1
+
+
 def _try_lock_recovery_handle(handle: Any) -> bool:
     if os.name == "nt":
         import msvcrt
@@ -179,7 +235,19 @@ def _unlock_recovery_handle(handle: Any) -> None:
 def _stale_recovery_guard(lock_path: Path, *, deadline: float, poll_interval: float) -> Iterator[None]:
     """Serialize stale recovery with an OS lock that is released on process exit."""
     guard_path = lock_path.with_name(f"{lock_path.name}.recovery.guard")
-    handle = guard_path.open("a+b")
+    permission_attempt = 0
+    while True:
+        try:
+            handle = guard_path.open("a+b")
+            break
+        except PermissionError as exc:
+            permission_attempt = _retry_transient_lock_permission(
+                guard_path,
+                exc,
+                deadline=deadline,
+                attempt=permission_attempt,
+                poll_interval=poll_interval,
+            )
     try:
         handle.seek(0, os.SEEK_END)
         if handle.tell() == 0:
@@ -267,19 +335,40 @@ def project_file_lock(
     token = uuid.uuid4().hex
     deadline = time.monotonic() + max(0.0, timeout)
     payload = json.dumps({"lock_id": token, "token": token, "pid": os.getpid(), "hostname": socket.gethostname(), "acquired_at": time.time()}).encode("utf-8")
+    permission_attempt = 0
     while True:
         try:
             _create_lock_file(lock_path, payload)
             break
-        except FileExistsError:
-            if _recover_stale_lock(
+        except PermissionError as exc:
+            permission_attempt = _retry_transient_lock_permission(
                 lock_path,
-                payload,
+                exc,
                 deadline=deadline,
-                stale_after=stale_after,
+                attempt=permission_attempt,
                 poll_interval=poll_interval,
-            ):
-                break
+            )
+        except FileExistsError:
+            try:
+                if _recover_stale_lock(
+                    lock_path,
+                    payload,
+                    deadline=deadline,
+                    stale_after=stale_after,
+                    poll_interval=poll_interval,
+                ):
+                    break
+            except ProjectLockPermissionError:
+                raise
+            except PermissionError as exc:
+                permission_attempt = _retry_transient_lock_permission(
+                    lock_path,
+                    exc,
+                    deadline=deadline,
+                    attempt=permission_attempt,
+                    poll_interval=poll_interval,
+                )
+                continue
             if not lock_path.exists():
                 continue
             if time.monotonic() >= deadline:
