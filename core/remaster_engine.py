@@ -287,6 +287,11 @@ def _report_text(report: dict[str, Any]) -> str:
     lines = [
         "VELAFLOW REMASTER REPORT",
         "",
+        f"Overall status: {report.get('overall_status', report.get('status', 'failed'))}",
+        f"WAV status: {report.get('wav_status', 'unknown')}",
+        f"MP3 status: {report.get('mp3_status', 'unknown')}",
+        f"Duration status: {report.get('duration_status', 'unknown')}",
+        f"Clipping validation: {(report.get('clipping_validation') or {}).get('status', 'unknown')}",
         f"Original filename: {report.get('original_filename', '')}",
         f"Input format: {report.get('input_format', '')}",
         f"Input sample rate: {report.get('input_sample_rate', 'unknown')}",
@@ -320,6 +325,83 @@ def _report_text(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def build_clipping_validation(max_volume_db: Any) -> dict[str, Any]:
+    """Classify measured clipping without treating unavailable data as a pass."""
+    try:
+        measured_peak = float(max_volume_db)
+    except (TypeError, ValueError):
+        return {
+            "status": "unknown",
+            "measured_peak_db": None,
+            "no_clipping_above_0db": None,
+            "reason": "Peak measurement unavailable.",
+        }
+    passed = measured_peak <= 0.0
+    return {
+        "status": "pass" if passed else "fail",
+        "measured_peak_db": measured_peak,
+        "no_clipping_above_0db": passed,
+        "reason": "Peak is at or below 0 dB." if passed else "Peak exceeds 0 dB.",
+    }
+
+
+def validate_remaster_outputs(
+    source_probe: dict[str, Any],
+    wav_path: str | Path,
+    wav_probe: dict[str, Any],
+    mp3_path: str | Path,
+    mp3_probe: dict[str, Any],
+    *,
+    wav_command_ok: bool = True,
+    mp3_command_ok: bool = True,
+    duration_tolerance: float = 0.25,
+) -> dict[str, Any]:
+    """Classify required remaster deliverables as success, partial, or failed."""
+    source_duration = float(source_probe.get("duration") or 0.0)
+
+    def inspect(path_value: str | Path, probe: dict[str, Any], expected: str, command_ok: bool) -> dict[str, Any]:
+        path = Path(path_value)
+        codec = str(probe.get("audio_codec") or "").lower()
+        duration = float(probe.get("duration") or 0.0)
+        codec_ok = codec.startswith("pcm") if expected == "wav" else codec == "mp3"
+        delta = abs(source_duration - duration) if source_duration > 0 and duration > 0 else None
+        duration_ok = delta is not None and delta <= duration_tolerance
+        checks = {
+            "command_ok": bool(command_ok),
+            "file_exists": path.is_file(),
+            "file_nonempty": path.is_file() and path.stat().st_size > 0,
+            "probe_ok": bool(probe.get("ok") and probe.get("has_audio", True)),
+            "codec_ok": codec_ok,
+            "duration_ok": duration_ok,
+        }
+        return {
+            "status": "pass" if all(checks.values()) else "fail",
+            "checks": checks,
+            "codec": codec,
+            "duration": duration,
+            "duration_delta_seconds": round(delta, 3) if delta is not None else None,
+        }
+
+    wav_result = inspect(wav_path, wav_probe, "wav", wav_command_ok)
+    mp3_result = inspect(mp3_path, mp3_probe, "mp3", mp3_command_ok)
+    if wav_result["status"] != "pass":
+        overall_status = "failed"
+    elif mp3_result["status"] != "pass":
+        overall_status = "partial"
+    else:
+        overall_status = "success"
+    duration_status = "pass" if wav_result["checks"]["duration_ok"] and mp3_result["checks"]["duration_ok"] else "fail"
+    return {
+        "ok": overall_status == "success",
+        "overall_status": overall_status,
+        "wav_status": wav_result["status"],
+        "mp3_status": mp3_result["status"],
+        "duration_status": duration_status,
+        "wav_validation": wav_result,
+        "mp3_validation": mp3_result,
+    }
+
+
 def remaster_song_audio(
     source_audio_path: str | Path,
     *,
@@ -333,12 +415,13 @@ def remaster_song_audio(
     ffmpeg = ffmpeg_path or find_ffmpeg()
     input_validation = validate_remaster_input(source, max_upload_mb=max_upload_mb)
     if not input_validation.get("ok"):
-        return {"ok": False, "message": input_validation.get("message", "Invalid audio"), "data": {"validation": input_validation}, "error": input_validation.get("error", "invalid_audio")}
+        return {"ok": False, "status": "failed", "message": input_validation.get("message", "Invalid audio"), "data": {"overall_status": "failed", "validation": input_validation}, "error": input_validation.get("error", "invalid_audio")}
     if not ffmpeg:
         return {
             "ok": False,
+            "status": "failed",
             "message": "FFmpeg not found. Install on Debian with: sudo apt-get update && sudo apt-get install -y ffmpeg",
-            "data": {"setup_hint": "sudo apt-get update && sudo apt-get install -y ffmpeg"},
+            "data": {"overall_status": "failed", "setup_hint": "sudo apt-get update && sudo apt-get install -y ffmpeg"},
             "error": "missing_ffmpeg",
         }
 
@@ -367,19 +450,24 @@ def remaster_song_audio(
         recommendation["overridden"] = bool(recommendation.get("recommended_preset") and recommendation.get("recommended_preset") != style)
     source_probe = probe_media(source, ffmpeg_path=ffmpeg)
     if not source_probe.get("ok") or not source_probe.get("has_audio", True):
-        return {"ok": False, "message": "Invalid or corrupt audio file", "data": {"source_probe": source_probe}, "error": "invalid_audio"}
+        return {"ok": False, "status": "failed", "message": "Invalid or corrupt audio file", "data": {"overall_status": "failed", "source_probe": source_probe}, "error": "invalid_audio"}
     convert = _run([ffmpeg, "-y", "-i", str(source), "-vn", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(converted_path)])
     if not convert.get("ok"):
-        return {"ok": False, "message": "Audio conversion failed", "data": {"command": convert.get("command", [])}, "error": "audio_convert_failed"}
+        return {"ok": False, "status": "failed", "message": "Audio conversion failed", "data": {"overall_status": "failed", "command": convert.get("command", [])}, "error": "audio_convert_failed"}
 
     filters = style_config["filters"]
     wav = _run([ffmpeg, "-y", "-i", str(converted_path), "-vn", "-af", filters, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(wav_path)])
     wav_probe = probe_media(wav_path, ffmpeg_path=ffmpeg)
     max_volume = _max_volume_db(ffmpeg, wav_path) if wav_path.is_file() else None
-    no_clipping = max_volume is None or max_volume <= 0.0
-    if not wav.get("ok") or not wav_probe.get("ok") or not no_clipping:
+    clipping_validation = build_clipping_validation(max_volume)
+    no_clipping = clipping_validation["no_clipping_above_0db"]
+    if not wav.get("ok") or not wav_probe.get("ok") or clipping_validation["status"] == "fail":
         report = {
             "ok": False,
+            "overall_status": "failed",
+            "wav_status": "failed",
+            "mp3_status": "not_attempted",
+            "duration_status": "failed",
             "style": style,
             "export_name": project_name,
             "source_path": str(source_copy),
@@ -388,6 +476,7 @@ def remaster_song_audio(
             "wav_probe": wav_probe,
             "max_volume_db": max_volume,
             "no_clipping_above_0db": no_clipping,
+            "clipping_validation": clipping_validation,
             "remaster_recommendation": recommendation,
             "error": "master_wav_failed" if wav.get("ok") else wav.get("output", "master_wav_failed")[:1200],
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -395,18 +484,34 @@ def remaster_song_audio(
         ensure_parent_dir(report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         ensure_parent_dir(legacy_report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
         ensure_parent_dir(report_txt_path).write_text(_report_text(report), encoding="utf-8")
-        return {"ok": False, "message": "Mastered WAV failed validation", "data": {"report_path": str(report_path), "report": report}, "error": "master_wav_failed"}
+        return {"ok": False, "status": "failed", "message": "Mastered WAV failed validation", "data": {"overall_status": "failed", "report_path": str(report_path), "report": report}, "error": "master_wav_failed"}
 
     mp3 = _run([ffmpeg, "-y", "-i", str(wav_path), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2", "-write_xing", "0", str(mp3_path)])
     mp3_probe = probe_media(mp3_path, ffmpeg_path=ffmpeg) if mp3_path.is_file() else {"ok": False}
-    duration_delta = abs(float(source_probe.get("duration") or 0) - float(wav_probe.get("duration") or 0))
+    output_validation = validate_remaster_outputs(
+        source_probe,
+        wav_path,
+        wav_probe,
+        mp3_path,
+        mp3_probe,
+        wav_command_ok=bool(wav.get("ok")),
+        mp3_command_ok=bool(mp3.get("ok")),
+    )
+    overall_status = output_validation["overall_status"]
+    duration_delta = output_validation["wav_validation"].get("duration_delta_seconds")
     warnings: list[str] = []
     if max_volume is None:
         warnings.append("Peak level is estimated because exact true-peak measurement is unavailable.")
     if not mp3.get("ok"):
         warnings.append("MP3 export failed.")
+    elif output_validation["mp3_status"] != "pass":
+        warnings.append("MP3 export failed codec, file, or duration validation.")
     report = {
-        "ok": True,
+        "ok": overall_status == "success",
+        "overall_status": overall_status,
+        "wav_status": output_validation["wav_status"],
+        "mp3_status": output_validation["mp3_status"],
+        "duration_status": output_validation["duration_status"],
         "project_id": project_id,
         "original_filename": source.name,
         "export_name": project_name,
@@ -446,10 +551,12 @@ def remaster_song_audio(
         "source_probe": source_probe,
         "wav_probe": wav_probe,
         "mp3_probe": mp3_probe,
-        "duration_matches_original": duration_delta <= 0.25,
-        "duration_delta_seconds": round(duration_delta, 3),
+        "duration_matches_original": output_validation["duration_status"] == "pass",
+        "duration_delta_seconds": duration_delta,
         "max_volume_db": max_volume,
         "no_clipping_above_0db": no_clipping,
+        "clipping_validation": clipping_validation,
+        "output_validation": output_validation,
         "filters": filters,
         "preset_summary": style_config.get("summary", ""),
         "external_api_used": False,
@@ -458,24 +565,36 @@ def remaster_song_audio(
     ensure_parent_dir(report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     ensure_parent_dir(legacy_report_path).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     ensure_parent_dir(report_txt_path).write_text(_report_text(report), encoding="utf-8")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        for path in [source_copy, wav_path, mp3_path, report_path, report_txt_path]:
-            if path.is_file():
-                archive.write(path, str(path.relative_to(base_dir)))
+    if overall_status in {"success", "partial"}:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path in [source_copy, wav_path, mp3_path, report_path, report_txt_path]:
+                if path.is_file():
+                    archive.write(path, str(path.relative_to(base_dir)))
+    if overall_status == "success":
+        message = "Remaster ready"
+        error = ""
+    elif overall_status == "partial":
+        message = "Remaster partially completed: WAV is valid but MP3 is unavailable or invalid."
+        error = "master_mp3_failed"
+    else:
+        message = "Remaster failed output validation."
+        error = "master_output_validation_failed"
     return {
-        "ok": True,
-        "message": "Remaster ready",
+        "ok": overall_status == "success",
+        "status": overall_status,
+        "message": message,
         "data": {
+            "overall_status": overall_status,
             "project_id": project_id,
             "original_audio": str(source_copy),
             "export_name": project_name,
-            "mastered_wav": str(wav_path),
-            "mp3_preview": str(mp3_path) if mp3_path.is_file() and mp3.get("ok") else "",
-            "mastered_mp3": str(mp3_path) if mp3_path.is_file() and mp3.get("ok") else "",
+            "mastered_wav": str(wav_path) if output_validation["wav_status"] == "pass" else "",
+            "mp3_preview": str(mp3_path) if output_validation["mp3_status"] == "pass" else "",
+            "mastered_mp3": str(mp3_path) if output_validation["mp3_status"] == "pass" else "",
             "report_path": str(report_path),
             "report_txt_path": str(report_txt_path),
-            "zip_path": str(zip_path),
+            "zip_path": str(zip_path) if zip_path.is_file() and overall_status in {"success", "partial"} else "",
             "report": report,
         },
-        "error": "",
+        "error": error,
     }

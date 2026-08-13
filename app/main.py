@@ -2378,9 +2378,12 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 recommendation_data=remaster_state.get("remaster_recommendation") or {"source": "manual", "recommended_preset": style, "selected_preset": style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}},
             )
         remaster_state["last_result"] = result.get("data", {})
-        remaster_state["last_ok"] = bool(result.get("ok"))
+        result_status = str(result.get("status") or (result.get("data") or {}).get("overall_status") or ("success" if result.get("ok") else "failed"))
+        remaster_state["last_status"] = result_status
+        remaster_state["last_ok"] = result_status == "success" and bool(result.get("ok"))
         remaster_state["last_error"] = result.get("error", "")
-        if result.get("ok"):
+        remaster_state["last_message"] = result.get("message", "")
+        if result_status == "success" and result.get("ok"):
             data = result.get("data", {}) or {}
             remaster_state["active_master"] = {
                 "mastered_wav": data.get("mastered_wav", ""),
@@ -2394,14 +2397,19 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 "selected_preset": style,
                 "export_name": remaster_export_title,
             }
+        else:
+            remaster_state.pop("active_master", None)
         project["remaster_studio"] = remaster_state
         _save_project()
-        if result.get("ok"):
-            st.success("Remaster complete")
-        else:
-            st.error(result.get("error") or result.get("message") or "Remaster failed")
         st.rerun()
     result_data = remaster_state.get("last_result") or {}
+    result_status = str(remaster_state.get("last_status") or result_data.get("overall_status") or "")
+    if result_status == "success":
+        st.success("Remaster complete")
+    elif result_status == "partial":
+        st.warning(remaster_state.get("last_message") or "Remaster partially completed. WAV is available, but MP3 failed validation and was not marked master-ready.")
+    elif result_status == "failed" and (remaster_state.get("last_error") or remaster_state.get("last_message")):
+        st.error(remaster_state.get("last_message") or remaster_state.get("last_error") or "Remaster failed")
     mastered_wav = Path(str(result_data.get("mastered_wav") or ""))
     mp3_preview = Path(str(result_data.get("mastered_mp3") or result_data.get("mp3_preview") or ""))
     zip_path = Path(str(result_data.get("zip_path") or ""))
@@ -2435,7 +2443,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             st.caption(f"A/B preview source: {ab_choice} ({ab_preview.get('mime_type', 'audio/mpeg')})")
         c1, c2 = st.columns(2)
         c1.metric("Duration Match", "Yes" if report.get("duration_matches_original") else "Review")
-        c2.metric("Clipping", "Protected" if report.get("no_clipping_above_0db") else "Check")
+        clipping_status = str((report.get("clipping_validation") or {}).get("status") or "unknown")
+        c2.metric("Clipping", {"pass": "Protected", "fail": "Failed", "unknown": "Unknown"}.get(clipping_status, "Unknown"))
         st.markdown("### 6. Export")
         st.download_button(
             "Download Mastered WAV",
@@ -2481,7 +2490,10 @@ def _project_master_audio(project: dict[str, Any]) -> dict[str, Any]:
     mastered_wav = active_master.get("mastered_wav") or last_result.get("mastered_wav") or ""
     mp3_path = Path(str(mastered_mp3 or ""))
     wav_path = Path(str(mastered_wav or ""))
-    if mp3_path.is_file():
+    reported_status = str(last_result.get("overall_status") or remaster_state.get("last_status") or active_master.get("status") or "").lower()
+    legacy_ready = not reported_status and bool(remaster_state.get("last_ok"))
+    fully_ready = reported_status in {"success", "ready"} or legacy_ready
+    if fully_ready and mp3_path.is_file() and mp3_path.stat().st_size > 0:
         return {
             "ok": True,
             "source_type": "Project Master",
@@ -2493,7 +2505,8 @@ def _project_master_audio(project: dict[str, Any]) -> dict[str, Any]:
             "report_path": active_master.get("report_path") or last_result.get("report_path", ""),
             "report_txt_path": active_master.get("report_txt_path") or last_result.get("report_txt_path", ""),
         }
-    return {"ok": False, "source_type": "Project Master", "path": "", "status": "Missing"}
+    unavailable_status = "Partial" if reported_status == "partial" else "Failed" if reported_status == "failed" else "Missing"
+    return {"ok": False, "source_type": "Project Master", "path": "", "status": unavailable_status}
 
 
 def _render_music_pipeline_status(project: dict[str, Any], *, current_step: str = "") -> None:
@@ -3561,10 +3574,12 @@ def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: st
         project["song"]["style_prompt"] = result["pack"].get("AI PRODUCER PROMPT", result["pack"].get("AI Producer Prompt", result["pack"].get("Music style prompt for Suno/Udio", "")))
         _save_project()
         _log_beta_event("generate", workflow="creative_pack_v1", metadata={"page": active_stage, "preset": preset})
-        if export.get("ok"):
+        if export.get("ok") and export.get("status") == "partial":
+            st.warning(export.get("message") or "Release Pack ready with missing optional assets")
+        elif export.get("ok"):
             st.success("Release Pack ready")
         else:
-            st.warning(export.get("error") or "Release Pack generated, but export failed")
+            st.error(export.get("message") or export.get("error") or "Release Pack export failed validation")
         st.rerun()
 
     result = state.get("release_pack") or {}

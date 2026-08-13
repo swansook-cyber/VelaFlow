@@ -24,7 +24,7 @@ from core.agent_tools import build_multi_agent_creator_exports, build_release_pa
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
-from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
+from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_release_pack_export, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
 from core.media_pipeline import cover_pipeline, create_pipeline_item, load_pipeline, mv_pipeline, release_package_pipeline, save_pipeline, storyboard_pipeline, transition_stage
@@ -98,7 +98,7 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
-from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, build_remaster_project_id, recommend_remaster_preset_from_metadata, remaster_song_audio, validate_remaster_input
+from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, build_clipping_validation, build_remaster_project_id, recommend_remaster_preset_from_metadata, remaster_song_audio, validate_remaster_input, validate_remaster_outputs
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
@@ -352,6 +352,29 @@ def synthetic_hook_frames(segments, frame_seconds: float = 0.25):
 def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
+    remaster_validation_dir = out / "wave3_remaster_validation"
+    remaster_validation_dir.mkdir(parents=True, exist_ok=True)
+    validation_wav = remaster_validation_dir / "valid.wav"
+    validation_mp3 = remaster_validation_dir / "valid.mp3"
+    validation_wav.write_bytes(b"RIFF-wave-output")
+    validation_mp3.write_bytes(b"ID3-mp3-output")
+    source_probe_fixture = {"ok": True, "has_audio": True, "duration": 30.0}
+    wav_probe_fixture = {"ok": True, "has_audio": True, "audio_codec": "pcm_s24le", "duration": 30.0}
+    mp3_probe_fixture = {"ok": True, "has_audio": True, "audio_codec": "mp3", "duration": 30.0}
+    remaster_full = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, mp3_probe_fixture)
+    remaster_partial = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, remaster_validation_dir / "missing.mp3", {"ok": False}, mp3_command_ok=False)
+    remaster_failed = validate_remaster_outputs(source_probe_fixture, remaster_validation_dir / "missing.wav", {"ok": False}, validation_mp3, mp3_probe_fixture, wav_command_ok=False)
+    duration_mismatch_probe = dict(mp3_probe_fixture, duration=28.0)
+    remaster_duration_mismatch = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, duration_mismatch_probe)
+    assert_true(remaster_full["overall_status"] == "success" and remaster_full["wav_status"] == "pass" and remaster_full["mp3_status"] == "pass", "full remaster validation should require valid WAV and MP3")
+    assert_true(not remaster_partial["ok"] and remaster_partial["overall_status"] == "partial" and remaster_partial["wav_status"] == "pass" and remaster_partial["mp3_status"] == "fail", "WAV success plus MP3 failure must be partial and not ok")
+    assert_true(remaster_failed["overall_status"] == "failed", "invalid WAV must fail remaster output validation")
+    assert_true(not remaster_duration_mismatch["ok"] and remaster_duration_mismatch["overall_status"] == "partial" and remaster_duration_mismatch["duration_status"] == "fail", "duration mismatch must block full remaster success")
+    clipping_unknown = build_clipping_validation(None)
+    clipping_pass = build_clipping_validation(-0.4)
+    clipping_fail = build_clipping_validation(0.1)
+    assert_true(clipping_unknown["status"] == "unknown" and clipping_unknown["no_clipping_above_0db"] is None, "unavailable clipping measurement must be unknown, not pass")
+    assert_true(clipping_pass["status"] == "pass" and clipping_fail["status"] == "fail", "clipping validation pass/fail classification failed")
     project = make_project()
     vela_moon = get_artist_preset("vela_moon")
     thai_tag_lyrics = "[Intro]\n(กีต้าร์โปร่งคลอเบาๆ คลอด้วยแพดนุ่มๆ)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(ดนตรีค่อยๆ เฟด)"
@@ -794,7 +817,24 @@ def main():
     release_zip = Path((release_export.get("data") or {}).get("zip_path", ""))
     release_txt = creative_release_pack_to_text(release_pack)
     assert_true(release_pack["ok"] and set(RELEASE_PACK_FILES.values()).issubset(set(release_pack["pack"].keys())), "creative release pack missing required outputs")
-    assert_true(release_export["ok"], "release pack should work without remaster data")
+    assert_true(release_export["ok"] and release_export.get("status") == "success" and not release_export.get("missing_optional_requested"), "Release Pack should allow optional remaster omission")
+    blank_release_result = {"pack": {"Suggested title": "   ", "SUNO LYRICS FIELD": "\n", "SUNO STYLE OF MUSIC FIELD": " "}}
+    blank_export_root = out / "creative_pack_blank_required"
+    blank_release_export = export_creative_release_pack("Blank Required Pack", blank_release_result, base_dir=blank_export_root)
+    assert_true(not blank_release_export["ok"] and blank_release_export.get("status") == "failed" and blank_release_export.get("error") == "release_pack_validation_failed", "blank required Release Pack content must fail before export")
+    assert_true(not list(blank_export_root.rglob("*.zip")), "failed Release Pack validation must not create a misleading ZIP")
+    missing_optional_asset = out / "missing_optional_master.wav"
+    partial_release_validation = validate_release_pack_export(release_pack, remaster_data={"mastered_wav": str(missing_optional_asset)})
+    partial_release_export = export_creative_release_pack("Partial Asset Pack", release_pack, base_dir=out / "creative_pack_partial_asset", remaster_data={"mastered_wav": str(missing_optional_asset)})
+    assert_true(partial_release_validation["overall_status"] == "partial" and "remaster.mastered_wav" in partial_release_validation["missing_optional_requested"], "supplied missing optional asset must be reported explicitly")
+    assert_true(partial_release_export["ok"] and partial_release_export.get("status") == "partial" and "remaster.mastered_wav" in partial_release_export.get("missing_optional_requested", []) and Path(partial_release_export["data"]["zip_path"]).is_file(), "partial Release Pack should remain downloadable with explicit warning status")
+    required_missing_export = export_creative_release_pack(
+        "Required Asset Pack",
+        release_pack,
+        base_dir=out / "creative_pack_required_asset_missing",
+        remaster_data={"overall_status": "success", "mastered_wav": str(missing_optional_asset), "mastered_mp3": str(out / "missing_required_master.mp3")},
+    )
+    assert_true(not required_missing_export["ok"] and required_missing_export.get("status") == "failed" and not list((out / "creative_pack_required_asset_missing").rglob("*.zip")), "missing required supplied master assets must block Release Pack ZIP")
     release_title = release_pack["pack"].get("Suggested title", "Untitled")
     dummy_remaster_dir = out / "dummy_remaster"
     dummy_remaster_dir.mkdir(parents=True, exist_ok=True)
@@ -2909,6 +2949,7 @@ def main():
         assert_true("https://" not in waveform_component_source and "http://" not in waveform_component_source and "cdn" not in waveform_component_source.lower(), "interactive waveform component must stay local-only")
         assert_true('st.text_input("Export Name", key="remaster_export_name")' in main_source and 'st.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3/WAV" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")
+        assert_true('result_status == "success" and result.get("ok")' in main_source and 'result_status == "partial"' in main_source and "Remaster partially completed" in main_source and 'reported_status in {"success", "ready"}' in main_source, "Remaster UI/project master must distinguish success, partial, and failed outputs")
         assert_true("Advanced Editing" in main_source and "Advanced / Analysis Details" in main_source and "Smart Hook Finder diagnostics" in main_source and "Refine to Musical Boundaries" in main_source and "Accept Refined Boundaries" in main_source and "Play Last 8 Seconds" in main_source and "Play 3 Seconds Before Start" in main_source and "Analyze Hook Candidates" in main_source and "Use This Hook" in main_source and "Preview Candidate" in main_source, "Audio Editor smart hook advanced UI missing")
         assert_true("Play 5 Seconds After End" in main_source and "Preview End Transition" in main_source and "Phrase Completion Gate" in main_source and "Actual Complete Hook" in main_source, "Smart Hook Finder phrase-completion verification UI missing")
         audio_editor_source = (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8")

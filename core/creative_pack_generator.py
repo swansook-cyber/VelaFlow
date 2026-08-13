@@ -6142,6 +6142,92 @@ def creative_release_pack_to_text(result: dict[str, Any]) -> str:
     return "\n\n".join(sections).strip() + "\n"
 
 
+def validate_release_pack_export(
+    result: dict[str, Any],
+    *,
+    remaster_data: dict[str, Any] | None = None,
+    audio_edit_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate required text and any explicitly supplied assets before packaging."""
+    pack = result.get("pack") or {}
+    required_values = {
+        "Suggested title": pack.get("Suggested title"),
+        "SUNO LYRICS FIELD": pack.get("SUNO LYRICS FIELD") or pack.get("Full lyrics"),
+        "SUNO STYLE OF MUSIC FIELD": pack.get("SUNO STYLE OF MUSIC FIELD"),
+    }
+    missing_required = [label for label, value in required_values.items() if not str(value or "").strip()]
+    asset_validation: dict[str, dict[str, Any]] = {}
+    missing_optional_requested: list[str] = []
+
+    def inspect_assets(group: str, data: dict[str, Any], specs: dict[str, tuple[str, ...]]) -> None:
+        explicit_required = {str(item) for item in (data.get("required_assets") or [])}
+        state = str(data.get("overall_status") or data.get("status") or (data.get("report") or {}).get("overall_status") or "").lower()
+        if group == "remaster" and state == "success":
+            explicit_required.update({"mastered_wav", "mastered_mp3"})
+        for canonical, aliases in specs.items():
+            value = next((data.get(alias) for alias in aliases if data.get(alias)), "")
+            requested = bool(value) or canonical in explicit_required
+            if not requested:
+                asset_validation[f"{group}.{canonical}"] = {"status": "omitted", "path": "", "required": False}
+                continue
+            path = Path(str(value or ""))
+            exists = path.is_file() and path.stat().st_size > 0
+            required = canonical in explicit_required
+            status = "pass" if exists else "fail"
+            asset_validation[f"{group}.{canonical}"] = {"status": status, "path": str(value or ""), "required": required}
+            if not exists:
+                label = f"{group}.{canonical}"
+                if required:
+                    missing_required.append(label)
+                else:
+                    missing_optional_requested.append(label)
+
+    inspect_assets(
+        "remaster",
+        dict(remaster_data or {}),
+        {
+            "mastered_wav": ("mastered_wav",),
+            "mastered_mp3": ("mastered_mp3", "mp3_preview"),
+            "report_path": ("report_path",),
+            "report_txt_path": ("report_txt_path",),
+        },
+    )
+    inspect_assets(
+        "audio_editor",
+        dict(audio_edit_data or {}),
+        {
+            "hook_mp3": ("hook_mp3", "output_mp3"),
+            "report_path": ("report_path",),
+            "report_txt_path": ("report_txt_path",),
+        },
+    )
+    for index, item in enumerate((audio_edit_data or {}).get("generated_files", []) or []):
+        value = item.get("path") if isinstance(item, dict) else ""
+        path = Path(str(value or ""))
+        key = f"audio_editor.generated_files[{index}]"
+        exists = bool(value) and path.is_file() and path.stat().st_size > 0
+        asset_validation[key] = {"status": "pass" if exists else "fail", "path": str(value or ""), "required": False}
+        if not exists:
+            missing_optional_requested.append(key)
+
+    if missing_required:
+        overall_status = "failed"
+    elif missing_optional_requested:
+        overall_status = "partial"
+    else:
+        overall_status = "success"
+    required_validation = {label: "pass" if str(value or "").strip() else "fail" for label, value in required_values.items()}
+    return {
+        "overall_status": overall_status,
+        "required_validation": required_validation,
+        "required_content": required_validation,
+        "asset_validation": asset_validation,
+        "missing_required": missing_required,
+        "missing_optional_requested": missing_optional_requested,
+        "warnings": [f"Supplied asset unavailable: {item}" for item in missing_optional_requested],
+    }
+
+
 def export_creative_release_pack(
     project_name: str,
     result: dict[str, Any],
@@ -6154,6 +6240,19 @@ def export_creative_release_pack(
         pack = result.get("pack") or {}
         remaster = remaster_data or {}
         audio_edit = audio_edit_data or {}
+        validation = validate_release_pack_export(result, remaster_data=remaster, audio_edit_data=audio_edit)
+        if validation["overall_status"] == "failed":
+            missing = ", ".join(validation["missing_required"])
+            return {
+                "ok": False,
+                "status": "failed",
+                "message": f"Release Pack validation failed: {missing}",
+                "missing_required": validation["missing_required"],
+                "missing_optional_requested": validation["missing_optional_requested"],
+                "warnings": validation["warnings"],
+                "data": {"overall_status": "failed", "validation": validation},
+                "error": "release_pack_validation_failed",
+            }
         external_export_name = (
             remaster.get("export_name")
             or (remaster.get("report") or {}).get("export_name")
@@ -6217,6 +6316,12 @@ def export_creative_release_pack(
         txt_path.write_text(creative_release_pack_to_text(result), encoding="utf-8-sig")
         manifest = {
             "package_type": "ai_creative_release_pack",
+            "overall_status": validation["overall_status"],
+            "required_validation": validation["required_validation"],
+            "missing_required": validation["missing_required"],
+            "missing_optional_requested": validation["missing_optional_requested"],
+            "warnings": validation["warnings"],
+            "validation": validation,
             "render_features_used": False,
             "project_name": project_name,
             "song_title": title,
@@ -6247,7 +6352,14 @@ def export_creative_release_pack(
                 archive.write(Path(path_value), archive_name)
         return {
             "ok": True,
+            "status": validation["overall_status"],
+            "message": "Release Pack ready" if validation["overall_status"] == "success" else "Release Pack ready with missing optional supplied assets.",
+            "missing_required": validation["missing_required"],
+            "missing_optional_requested": validation["missing_optional_requested"],
+            "warnings": validation["warnings"],
             "data": {
+                "overall_status": validation["overall_status"],
+                "validation": validation,
                 "export_dir": str(export_dir),
                 "txt_path": str(txt_path),
                 "zip_path": str(zip_path),
@@ -6257,4 +6369,4 @@ def export_creative_release_pack(
             "error": "",
         }
     except Exception as exc:
-        return {"ok": False, "data": {}, "error": str(exc)}
+        return {"ok": False, "status": "failed", "message": "Release Pack export failed.", "data": {"overall_status": "failed"}, "error": str(exc)}
