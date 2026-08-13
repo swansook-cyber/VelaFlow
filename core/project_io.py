@@ -83,14 +83,44 @@ def _read_lock_owner(lock_path: Path) -> dict[str, Any]:
         return {}
 
 
+def _lock_identity(owner: dict[str, Any]) -> str:
+    return str(owner.get("lock_id") or owner.get("token") or "")
+
+
+def _read_lock_snapshot(lock_path: Path) -> dict[str, Any] | None:
+    try:
+        before = lock_path.stat()
+        owner = _read_lock_owner(lock_path)
+        after = lock_path.stat()
+    except FileNotFoundError:
+        return None
+    before_signature = (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+    after_signature = (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+    if before_signature != after_signature:
+        return None
+    return {
+        "owner": owner,
+        "lock_id": _lock_identity(owner),
+        "signature": after_signature,
+        "mtime": after.st_mtime,
+    }
+
+
 def _release_owned_lock(lock_path: Path, token: str) -> bool:
-    current = _read_lock_owner(lock_path) if lock_path.is_file() else {}
-    if current.get("token") != token:
+    if not lock_path.is_file():
         return False
     try:
-        lock_path.unlink(missing_ok=True)
-        return True
-    except OSError:
+        with _stale_recovery_guard(
+            lock_path,
+            deadline=time.monotonic() + PROJECT_LOCK_TIMEOUT_SECONDS,
+            poll_interval=0.01,
+        ):
+            current = _read_lock_owner(lock_path) if lock_path.is_file() else {}
+            if _lock_identity(current) != token:
+                return False
+            lock_path.unlink()
+            return True
+    except (OSError, ProjectLockTimeout):
         return False
 
 
@@ -103,6 +133,121 @@ def _project_lock_path(folder: Path, project_file: Path | None = None) -> Path:
     if project_file is not None and project_file.name != "project.json":
         return folder / f".{project_file.stem}.save.lock"
     return folder / ".project_save.lock"
+
+
+def _create_lock_file(lock_path: Path, payload: bytes) -> None:
+    descriptor = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    try:
+        os.write(descriptor, payload)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _try_lock_recovery_handle(handle: Any) -> bool:
+    if os.name == "nt":
+        import msvcrt
+
+        handle.seek(0)
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    import fcntl
+
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def _unlock_recovery_handle(handle: Any) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        return
+    import fcntl
+
+    fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def _stale_recovery_guard(lock_path: Path, *, deadline: float, poll_interval: float) -> Iterator[None]:
+    """Serialize stale recovery with an OS lock that is released on process exit."""
+    guard_path = lock_path.with_name(f"{lock_path.name}.recovery.guard")
+    handle = guard_path.open("a+b")
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+            os.fsync(handle.fileno())
+        acquired = False
+        while not acquired:
+            acquired = _try_lock_recovery_handle(handle)
+            if acquired:
+                break
+            if time.monotonic() >= deadline:
+                raise ProjectLockTimeout(f"Timed out waiting for stale lock recovery: {lock_path}")
+            time.sleep(max(0.005, poll_interval))
+        try:
+            yield
+        finally:
+            _unlock_recovery_handle(handle)
+    finally:
+        handle.close()
+
+
+def _remove_lock_if_unchanged(lock_path: Path, observed: dict[str, Any]) -> bool:
+    current = _read_lock_snapshot(lock_path)
+    if current is None:
+        return False
+    if current["lock_id"] != observed["lock_id"] or current["signature"] != observed["signature"]:
+        return False
+    try:
+        lock_path.unlink()
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def _recover_stale_lock(
+    lock_path: Path,
+    payload: bytes,
+    *,
+    deadline: float,
+    stale_after: float,
+    poll_interval: float,
+) -> bool:
+    if stale_after <= 0:
+        return False
+    try:
+        if time.time() - lock_path.stat().st_mtime <= stale_after:
+            return False
+    except FileNotFoundError:
+        return False
+
+    with _stale_recovery_guard(lock_path, deadline=deadline, poll_interval=poll_interval):
+        observed = _read_lock_snapshot(lock_path)
+        if observed is None or time.time() - float(observed["mtime"]) <= stale_after:
+            return False
+        owner = observed["owner"]
+        owner_alive = _process_is_alive(owner.get("pid"), str(owner.get("hostname") or socket.gethostname()))
+        if owner_alive is not False:
+            return False
+        if not _remove_lock_if_unchanged(lock_path, observed):
+            return False
+        try:
+            _create_lock_file(lock_path, payload)
+            return True
+        except FileExistsError:
+            # Another normal contender won the creation window. Its lock is
+            # authoritative and must never be removed from this observation.
+            return False
 
 
 @contextmanager
@@ -121,30 +266,21 @@ def project_file_lock(
     lock_path = _project_lock_path(project_folder, source)
     token = uuid.uuid4().hex
     deadline = time.monotonic() + max(0.0, timeout)
-    payload = json.dumps({"token": token, "pid": os.getpid(), "hostname": socket.gethostname(), "created_at": time.time()})
+    payload = json.dumps({"lock_id": token, "token": token, "pid": os.getpid(), "hostname": socket.gethostname(), "acquired_at": time.time()}).encode("utf-8")
     while True:
         try:
-            descriptor = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            try:
-                os.write(descriptor, payload.encode("utf-8"))
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
+            _create_lock_file(lock_path, payload)
             break
         except FileExistsError:
-            try:
-                if stale_after > 0 and time.time() - lock_path.stat().st_mtime > stale_after:
-                    owner = _read_lock_owner(lock_path)
-                    owner_alive = _process_is_alive(owner.get("pid"), str(owner.get("hostname") or socket.gethostname()))
-                    # Age alone is never sufficient. Recover only when the
-                    # recorded local owner can be proven dead (or malformed).
-                    if owner_alive is False:
-                        observed_token = str(owner.get("token") or "")
-                        latest = _read_lock_owner(lock_path)
-                        if str(latest.get("token") or "") == observed_token:
-                            lock_path.unlink(missing_ok=True)
-                            continue
-            except FileNotFoundError:
+            if _recover_stale_lock(
+                lock_path,
+                payload,
+                deadline=deadline,
+                stale_after=stale_after,
+                poll_interval=poll_interval,
+            ):
+                break
+            if not lock_path.exists():
                 continue
             if time.monotonic() >= deadline:
                 LOGGER.warning("project_lock_timeout path=%s", lock_path)

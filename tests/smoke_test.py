@@ -171,7 +171,7 @@ from core.song_title_engine import generate_song_title_candidates, generate_song
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
-from core.project_io import _release_owned_lock, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
+from core.project_io import _read_lock_snapshot, _release_owned_lock, _remove_lock_if_unchanged, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
     autosave_project_state,
     archive_project,
@@ -3513,6 +3513,11 @@ def main():
     assert_true(not _release_owned_lock(active_stale_path, "wrong-owner") and active_stale_path.exists(), "wrong owner released a project lock")
     assert_true(_release_owned_lock(active_stale_path, "active-owner") and not active_stale_path.exists(), "correct owner could not release project lock")
 
+    pid_reuse_path = active_stale_dir / ".project_save.lock"
+    pid_reuse_path.write_text(json.dumps({"lock_id": "new-generation", "token": "new-generation", "pid": os.getpid(), "hostname": socket.gethostname()}), encoding="utf-8")
+    assert_true(not _release_owned_lock(pid_reuse_path, "old-generation") and pid_reuse_path.exists(), "old generation released a PID-reused owner's lock")
+    assert_true(_release_owned_lock(pid_reuse_path, "new-generation"), "current lock generation could not release its lock")
+
     stale_lock_dir = persistence_root / "stale_lock"
     stale_lock_dir.mkdir(parents=True, exist_ok=True)
     stale_lock_path = stale_lock_dir / ".project_save.lock"
@@ -3522,6 +3527,52 @@ def main():
     with project_file_lock(stale_lock_dir, timeout=0.2, stale_after=1):
         stale_lock_recovered = True
     assert_true(stale_lock_recovered and not stale_lock_path.exists(), "stale lock must not survive application restart indefinitely")
+
+    aba_lock_dir = persistence_root / "aba_lock"
+    aba_lock_dir.mkdir(parents=True, exist_ok=True)
+    aba_lock_path = aba_lock_dir / ".project_save.lock"
+    aba_lock_path.write_text(json.dumps({"lock_id": "stale-x", "token": "stale-x", "pid": -1, "hostname": socket.gethostname()}), encoding="utf-8")
+    stale_x = _read_lock_snapshot(aba_lock_path)
+    assert_true(stale_x is not None, "ABA stale snapshot missing")
+    aba_lock_path.unlink()
+    aba_lock_path.write_text(json.dumps({"lock_id": "owner-a", "token": "owner-a", "pid": os.getpid(), "hostname": socket.gethostname()}), encoding="utf-8")
+    assert_true(not _remove_lock_if_unchanged(aba_lock_path, stale_x) and _read_lock_snapshot(aba_lock_path)["lock_id"] == "owner-a", "stale generation removed a replacement lock")
+    assert_true(_release_owned_lock(aba_lock_path, "owner-a"), "ABA replacement owner could not release lock")
+
+    stale_race_root = persistence_root / "stale_recovery_race"
+    stale_race_root.mkdir(parents=True, exist_ok=True)
+    for iteration in range(100):
+        stale_race_path = stale_race_root / ".project_save.lock"
+        stale_race_path.unlink(missing_ok=True)
+        stale_race_path.write_text(json.dumps({"lock_id": f"dead-{iteration}", "token": f"dead-{iteration}", "pid": -1, "hostname": socket.gethostname()}), encoding="utf-8")
+        old_timestamp = time.time() - 120
+        os.utime(stale_race_path, (old_timestamp, old_timestamp))
+        start_barrier = threading.Barrier(3)
+        active_count = {"value": 0, "maximum": 0}
+        active_guard = threading.Lock()
+        race_errors: list[str] = []
+
+        def stale_recovery_contender() -> None:
+            try:
+                start_barrier.wait(timeout=2)
+                with project_file_lock(stale_race_root, timeout=3, stale_after=0.01, poll_interval=0.001):
+                    with active_guard:
+                        active_count["value"] += 1
+                        active_count["maximum"] = max(active_count["maximum"], active_count["value"])
+                    time.sleep(0.002)
+                    with active_guard:
+                        active_count["value"] -= 1
+            except Exception as exc:
+                race_errors.append(f"{type(exc).__name__}: {exc}")
+
+        contenders = [threading.Thread(target=stale_recovery_contender) for _ in range(2)]
+        for contender in contenders:
+            contender.start()
+        start_barrier.wait(timeout=2)
+        for contender in contenders:
+            contender.join(timeout=5)
+        assert_true(not race_errors and all(not contender.is_alive() for contender in contenders), f"stale recovery contenders failed at iteration {iteration}: {race_errors}")
+        assert_true(active_count["maximum"] == 1, f"dual stale-lock ownership observed at iteration {iteration}")
 
     independent_a = persistence_root / "independent_a"
     independent_b = persistence_root / "independent_b"
