@@ -46,13 +46,139 @@ SMART_HOOK_TYPES = {
 }
 
 
-def _source_signature(path: Path) -> dict[str, Any]:
+def build_upload_identity(original_filename: str, payload: bytes) -> dict[str, Any]:
+    """Build a stable upload identity from the original name and uploaded bytes."""
+    content = bytes(payload or b"")
+    filename = str(original_filename or "audio").strip()
+    content_digest = hashlib.sha256(content).hexdigest()
+    identity_digest = hashlib.sha256()
+    identity_digest.update(filename.encode("utf-8", errors="replace"))
+    identity_digest.update(b"\0")
+    identity_digest.update(str(len(content)).encode("ascii"))
+    identity_digest.update(b"\0")
+    identity_digest.update(content_digest.encode("ascii"))
+    return {
+        "upload_id": identity_digest.hexdigest(),
+        "original_filename": filename,
+        "size_bytes": len(content),
+        "content_digest": content_digest,
+    }
+
+
+def save_uploaded_audio_once(
+    destination: str | Path,
+    *,
+    original_filename: str,
+    payload: bytes,
+    previous_upload_id: str = "",
+) -> dict[str, Any]:
+    """Write an upload only when its stable content identity has changed."""
+    output = Path(destination)
+    identity = build_upload_identity(original_filename, payload)
+    unchanged = bool(previous_upload_id and previous_upload_id == identity["upload_id"] and output.is_file())
+    if not unchanged:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(bytes(payload or b""))
+    return {
+        "ok": True,
+        "path": str(output),
+        **identity,
+        "source_changed": not unchanged,
+        "saved": not unchanged,
+        "save_count": 1 if not unchanged else 0,
+    }
+
+
+def _source_signature(path: Path, trusted_identity: dict[str, Any] | None = None) -> dict[str, Any]:
     stat = path.stat()
+    trusted = trusted_identity or {}
+    upload_id = str(trusted.get("upload_id") or "").strip()
+    stored_digest = str(trusted.get("content_digest") or trusted.get("sha256") or "").strip()
+    stored_size = int(trusted.get("size_bytes") or trusted.get("size") or 0)
+    if upload_id and stored_digest and stored_size == stat.st_size:
+        return {
+            "path": str(path.resolve()),
+            "size": stat.st_size,
+            "mtime_ns": stat.st_mtime_ns,
+            "upload_id": upload_id,
+            "sha256": stored_digest,
+            "identity_source": "trusted_upload",
+        }
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
-    return {"path": str(path.resolve()), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": digest.hexdigest()}
+    return {"path": str(path.resolve()), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "sha256": digest.hexdigest(), "identity_source": "disk_hash"}
+
+
+def build_source_signature(path: str | Path, trusted_identity: dict[str, Any] | None = None) -> dict[str, Any]:
+    return _source_signature(Path(path), trusted_identity=trusted_identity)
+
+
+def cached_probe_media(
+    path: str | Path,
+    cache: dict[str, Any],
+    *,
+    source_identity: str,
+    ffmpeg_path: str = "",
+    probe_func: Any | None = None,
+    max_entries: int = 24,
+) -> dict[str, Any]:
+    """Cache FFprobe metadata in a caller-owned, session-local mapping."""
+    source = Path(path)
+    identity = str(source_identity or "").strip()
+    if not identity:
+        signature = _source_signature(source)
+        identity = str(signature.get("sha256") or "")
+    cache_key = f"{source.resolve()}|{identity}|{ffmpeg_path or 'auto'}"
+    cached = cache.get(cache_key)
+    if isinstance(cached, dict):
+        return {**cached, "cache_status": "hit"}
+    probe = (probe_func or probe_media)(source, ffmpeg_path=ffmpeg_path)
+    result = {**dict(probe or {}), "cache_status": "miss"}
+    while len(cache) >= max(1, int(max_entries or 1)):
+        cache.pop(next(iter(cache)))
+    cache[cache_key] = dict(result)
+    return result
+
+
+def reset_source_dependent_state(workflow_state: dict[str, Any], session_state: dict[str, Any], workflow: str) -> None:
+    """Reset only state that belongs to a changed audio source."""
+    normalized = str(workflow or "").strip().lower()
+    if normalized == "audio_editor":
+        for key in (
+            "hook_analysis",
+            "rough_selection",
+            "smart_refined_hook",
+            "smart_override_status",
+            "preview_result",
+            "waveform",
+            "last_result",
+            "last_ok",
+            "last_error",
+            "start_time",
+            "end_time",
+        ):
+            workflow_state.pop(key, None)
+        for key in (
+            "audio_editor_selection_source_id",
+            "audio_editor_selection_start",
+            "audio_editor_selection_end",
+        ):
+            session_state.pop(key, None)
+        preview_prefixes = ("audio_editor_",)
+    else:
+        for key in ("last_result", "last_ok", "last_error", "active_master", "preview_diagnostics"):
+            workflow_state.pop(key, None)
+        recommendation = workflow_state.get("remaster_recommendation") or {}
+        if recommendation.get("source") == "audio_analysis":
+            workflow_state.pop("remaster_recommendation", None)
+        preview_prefixes = ("remaster_original", "remaster_mastered")
+    preview_cache = session_state.get("remaster_preview_bytes_cache")
+    if isinstance(preview_cache, dict):
+        for key in list(preview_cache):
+            if str(key).startswith(preview_prefixes):
+                preview_cache.pop(key, None)
 
 
 def format_timecode(seconds: float) -> str:
@@ -617,11 +743,12 @@ def generate_waveform_data(
     ffmpeg_path: str = "",
     target_points: int = WAVEFORM_TARGET_POINTS,
     max_analysis_duration: float = 480.0,
+    source_signature: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     output_json = Path(output_json_path)
     output_json.parent.mkdir(parents=True, exist_ok=True)
-    signature = _source_signature(source)
+    signature = _source_signature(source, trusted_identity=source_signature)
     if output_json.is_file():
         try:
             cached = json.loads(output_json.read_text(encoding="utf-8"))

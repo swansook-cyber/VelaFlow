@@ -60,7 +60,7 @@ from core.agent_executor import run_agent_workflow
 from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, clamp_audio_selection, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, cached_probe_media, clamp_audio_selection, export_audio_selection, format_timecode, generate_waveform_data, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -1839,7 +1839,14 @@ def _render_creator_music_flow(project: dict[str, Any]) -> None:
                     st.warning(friendly_error_message(feedback.get("error") or feedback.get("message")))
 
 
-def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = "song") -> dict[str, Any]:
+def _save_uploaded_audio(
+    project_name: str,
+    uploaded: Any,
+    workflow_type: str = "song",
+    *,
+    upload_state_key: str = "",
+    previous_source: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if not uploaded:
         return {"ok": False, "message": "No audio uploaded", "data": {}, "error": "missing_upload"}
     try:
@@ -1849,9 +1856,42 @@ def _save_uploaded_audio(project_name: str, uploaded: Any, workflow_type: str = 
         suffix = Path(uploaded.name).suffix.lower() if getattr(uploaded, "name", "") else ".mp3"
         if suffix not in {".mp3", ".wav", ".m4a"}:
             suffix = ".mp3"
-        path = ensure_parent_dir(folder / f"song_audio{suffix}")
-        path.write_bytes(uploaded.getbuffer())
-        return {"ok": True, "message": "Song audio uploaded", "data": {"path": str(path), "filename": getattr(uploaded, "name", path.name)}, "error": ""}
+        state_key = upload_state_key or f"audio_upload::{workflow_type}::{safe_name(project_name or 'project')}"
+        storage_stem = "remaster_source_audio" if state_key == "remaster_upload_id" else "audio_editor_source_audio" if state_key == "audio_editor_upload_id" else "song_audio"
+        path = ensure_parent_dir(folder / f"{storage_stem}{suffix}")
+        descriptor_key = f"{state_key}::descriptor"
+        upload_token = "|".join(
+            [
+                str(getattr(uploaded, "file_id", "") or id(uploaded)),
+                str(getattr(uploaded, "name", "") or path.name),
+                str(getattr(uploaded, "size", "") or ""),
+            ]
+        )
+        cached_descriptor = st.session_state.get(descriptor_key) or {}
+        cached_path = Path(str(cached_descriptor.get("path") or path))
+        if cached_descriptor.get("upload_token") == upload_token and cached_descriptor.get("upload_id") and cached_path.is_file() and cached_path.stat().st_size == int(cached_descriptor.get("size_bytes") or -1):
+            data = {key: value for key, value in cached_descriptor.items() if key != "upload_token"}
+            data.update({"source_changed": False, "saved": False, "save_count": 0, "digest_from_upload_count": 0})
+            return {"ok": True, "message": "Song audio ready", "data": data, "error": ""}
+
+        payload = bytes(uploaded.getvalue())
+        previous = previous_source or {}
+        previous_upload_id = str(st.session_state.get(state_key) or previous.get("upload_id") or "")
+        saved = save_uploaded_audio_once(
+            path,
+            original_filename=str(getattr(uploaded, "name", "") or path.name),
+            payload=payload,
+            previous_upload_id=previous_upload_id,
+        )
+        data = {
+            **saved,
+            "filename": str(getattr(uploaded, "name", "") or path.name),
+            "original_filename": str(getattr(uploaded, "name", "") or path.name),
+            "digest_from_upload_count": 1,
+        }
+        st.session_state[state_key] = data["upload_id"]
+        st.session_state[descriptor_key] = {**data, "upload_token": upload_token}
+        return {"ok": True, "message": "Song audio uploaded" if data["source_changed"] else "Song audio ready", "data": data, "error": ""}
     except Exception as exc:
         return {"ok": False, "message": "Audio upload failed", "data": {}, "error": str(exc)}
 
@@ -1973,6 +2013,14 @@ def _project_song_metadata_for_remaster(project: dict[str, Any]) -> dict[str, An
 
 
 def _audio_source_signature(source_info: dict[str, Any], source_path: str | Path = "") -> str:
+    upload_id = str(source_info.get("upload_id") or "").strip()
+    path = Path(str(source_path or source_info.get("path") or ""))
+    file_marker = ""
+    if path.is_file():
+        stat = path.stat()
+        file_marker = f"{stat.st_size}|{stat.st_mtime_ns}"
+    if upload_id:
+        return "|".join([str(source_info.get("source_type") or ""), upload_id, str(source_path or source_info.get("path") or ""), file_marker])
     return "|".join(
         [
             str(source_info.get("source_type") or ""),
@@ -1980,8 +2028,25 @@ def _audio_source_signature(source_info: dict[str, Any], source_path: str | Path
             str(source_info.get("size_bytes") or ""),
             str(source_info.get("uploaded_at") or source_info.get("created_at") or ""),
             str(source_path or source_info.get("path") or ""),
+            file_marker,
         ]
     )
+
+
+def _trusted_audio_signature(source_info: dict[str, Any], source_path: str | Path) -> dict[str, Any] | None:
+    if source_info.get("upload_id") and source_info.get("content_digest"):
+        return {
+            "upload_id": source_info.get("upload_id"),
+            "content_digest": source_info.get("content_digest"),
+            "size_bytes": source_info.get("size_bytes"),
+            "path": str(source_path),
+        }
+    return None
+
+
+def _cached_audio_probe(source_path: str | Path, *, source_identity: str, ffmpeg_path: str = "") -> dict[str, Any]:
+    cache = st.session_state.setdefault("audio_ffprobe_cache", {})
+    return cached_probe_media(source_path, cache, source_identity=source_identity, ffmpeg_path=ffmpeg_path)
 
 
 def _resolved_audio_export_default(*, source_info: dict[str, Any], source_path: str | Path, project: dict[str, Any]) -> str:
@@ -2002,14 +2067,14 @@ def _audio_file_fingerprint(path: str | Path) -> str:
     return f"{audio.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
 
 
-def _validate_preview_audio_payload(path: str | Path, *, mime_type: str, ffmpeg_path: str = "") -> dict[str, Any]:
+def _validate_preview_audio_payload(path: str | Path, *, mime_type: str, ffmpeg_path: str = "", source_identity: str = "") -> dict[str, Any]:
     audio = Path(path)
     if not audio.is_file():
         return {"ok": False, "reason": "missing_file", "mime_type": mime_type, "payload_size": 0, "path": str(audio)}
     payload_size = audio.stat().st_size
     if payload_size <= 0:
         return {"ok": False, "reason": "empty_file", "mime_type": mime_type, "payload_size": payload_size, "path": str(audio)}
-    probe = probe_media(audio, ffmpeg_path=ffmpeg_path)
+    probe = _cached_audio_probe(audio, source_identity=source_identity or _audio_file_fingerprint(audio), ffmpeg_path=ffmpeg_path)
     codec = str(probe.get("audio_codec") or "").lower()
     expected_codec_ok = codec.startswith("mp3") if mime_type == "audio/mpeg" else codec.startswith("pcm") or codec in {"wavpack"}
     ok = bool(probe.get("ok") and probe.get("has_audio") and float(probe.get("duration") or 0) > 0 and expected_codec_ok)
@@ -2073,12 +2138,12 @@ def _build_safari_preview_mp3(source_path: str | Path, *, cache_stem: str, ffmpe
     return {"ok": True, "path": str(preview_path), "source": "generated_safari_mp3_preview"}
 
 
-def _resolve_safari_audio_preview_bytes(source_path: str | Path, *, cache_key: str, label: str, ffmpeg_path: str = "", prefer_mp3: bool = True) -> dict[str, Any]:
+def _resolve_safari_audio_preview_bytes(source_path: str | Path, *, cache_key: str, label: str, ffmpeg_path: str = "", prefer_mp3: bool = True, source_identity: str = "") -> dict[str, Any]:
     source = Path(source_path)
     if not source.is_file():
         return {"ok": False, "reason": "missing_file", "label": label}
     cache_state = st.session_state.setdefault("remaster_preview_bytes_cache", {})
-    source_fingerprint = _audio_file_fingerprint(source)
+    source_fingerprint = source_identity or _audio_file_fingerprint(source)
     cache_id = f"{cache_key}|{source_fingerprint}|{'mp3' if prefer_mp3 else source.suffix.lower()}"
     cached = cache_state.get(cache_id)
     if cached and cached.get("bytes"):
@@ -2095,7 +2160,8 @@ def _resolve_safari_audio_preview_bytes(source_path: str | Path, *, cache_key: s
     elif source.suffix.lower() == ".wav" and not prefer_mp3:
         mime_type = "audio/wav"
         preview_source_note = "source_wav"
-    diagnostics = _validate_preview_audio_payload(preview_source, mime_type=mime_type, ffmpeg_path=ffmpeg_path)
+    preview_identity = f"{source_fingerprint}|{preview_source.resolve()}|{preview_source.stat().st_size}"
+    diagnostics = _validate_preview_audio_payload(preview_source, mime_type=mime_type, ffmpeg_path=ffmpeg_path, source_identity=preview_identity)
     diagnostics["preview_label"] = label
     diagnostics["source_file_fingerprint"] = source_fingerprint
     diagnostics["source_used_for_preview"] = preview_source_note
@@ -2105,8 +2171,12 @@ def _resolve_safari_audio_preview_bytes(source_path: str | Path, *, cache_key: s
     if not payload:
         return {"ok": False, "reason": "empty_preview_bytes", "diagnostics": diagnostics, "label": label}
     resolved = {"ok": True, "bytes": payload, "format": mime_type, "mime_type": mime_type, "diagnostics": diagnostics, "label": label, "cache_id": cache_id}
-    if len(cache_state) > 8:
-        cache_state.clear()
+    max_cache_bytes = 64 * 1024 * 1024
+    cached_bytes = sum(len(item.get("bytes") or b"") for item in cache_state.values() if isinstance(item, dict))
+    while cache_state and cached_bytes + len(payload) > max_cache_bytes:
+        oldest_key = next(iter(cache_state))
+        removed = cache_state.pop(oldest_key)
+        cached_bytes -= len((removed or {}).get("bytes") or b"") if isinstance(removed, dict) else 0
     cache_state[cache_id] = resolved
     return resolved
 
@@ -2160,7 +2230,13 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         if uploaded.size > max_upload_mb * 1024 * 1024:
             st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
         else:
-            upload_result = _save_uploaded_audio(project.get("title") or "remaster_project", uploaded, "song")
+            upload_result = _save_uploaded_audio(
+                project.get("title") or "remaster_project",
+                uploaded,
+                "song",
+                upload_state_key="remaster_upload_id",
+                previous_source=remaster_state.get("source_audio") or {},
+            )
             if upload_result.get("ok"):
                 ext = Path(uploaded.name).suffix.lower().lstrip(".")
                 if ext not in {"mp3", "wav"}:
@@ -2171,19 +2247,23 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 upload_result["data"]["size_bytes"] = uploaded.size
                 upload_result["data"]["source_type"] = "External Upload"
                 remaster_state["source_audio"] = upload_result["data"]
-                remaster_state["export_name"] = audio_source_export_name(source_type="External Upload", original_filename=uploaded.name)
-                remaster_state["export_name_source_signature"] = _audio_source_signature(upload_result["data"], upload_result["data"].get("path", ""))
-                remaster_state["export_name_manual"] = False
-                project["remaster_studio"] = remaster_state
-                _save_project()
-                st.success("Original audio uploaded")
+                if upload_result["data"].get("source_changed"):
+                    reset_source_dependent_state(remaster_state, st.session_state, "remaster")
+                    remaster_state["source_audio"] = upload_result["data"]
+                    remaster_state["export_name"] = audio_source_export_name(source_type="External Upload", original_filename=uploaded.name)
+                    remaster_state["export_name_source_signature"] = _audio_source_signature(upload_result["data"], upload_result["data"].get("path", ""))
+                    remaster_state["export_name_manual"] = False
+                    project["remaster_studio"] = remaster_state
+                    _save_project()
+                    st.success("Original audio uploaded")
             else:
                 st.warning(upload_result.get("error") or upload_result.get("message"))
     source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
     source_info = remaster_state.get("source_audio") or {}
+    source_identity = _audio_source_signature(source_info, source_path) if source_path else ""
     st.markdown("### 2. Audio Information")
     if source_path and Path(source_path).is_file():
-        input_probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
+        input_probe = _cached_audio_probe(source_path, source_identity=source_identity, ffmpeg_path=settings.ffmpeg_path)
         cols = st.columns(3)
         cols[0].metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
         cols[1].metric("Format", str(source_info.get("format") or Path(source_path).suffix.lstrip(".")).upper())
@@ -2194,7 +2274,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         cols[2].metric("Peak", "Estimated after processing")
         st.caption("Input loudness and true peak are estimated when exact LUFS/true-peak measurement is unavailable.")
         st.markdown("**Original Preview**")
-        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
+        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=source_identity)
         if original_preview.get("ok"):
             st.audio(original_preview["bytes"], format=original_preview["format"])
             remaster_state.setdefault("preview_diagnostics", {})["original"] = original_preview.get("diagnostics", {})
@@ -2204,7 +2284,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.info("Upload a finished MP3 or WAV to begin.")
     if source_path and Path(source_path).is_file():
         default_export_name = _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project)
-        source_id = _audio_source_signature(source_info, source_path)
+        source_id = source_identity
         initialize_export_name_state(
             st.session_state,
             "remaster_export_name",
@@ -2328,7 +2408,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     report = result_data.get("report") or {}
     if mastered_wav.is_file():
         st.markdown("### 5. Before / After Preview")
-        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if source_path and Path(source_path).is_file() else {"ok": False, "reason": "missing_original"}
+        original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=source_identity) if source_path and Path(source_path).is_file() else {"ok": False, "reason": "missing_original"}
         mastered_preview = _resolve_safari_audio_preview_bytes(mp3_preview, cache_key="remaster_mastered", label="Remastered", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True) if mp3_preview.is_file() else {"ok": False, "reason": "missing_mastered_mp3_preview"}
         remaster_state["preview_diagnostics"] = {
             "original": original_preview.get("diagnostics", {"ok": False, "reason": original_preview.get("reason", "")}),
@@ -2475,7 +2555,13 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
             if uploaded.size > max_upload_mb * 1024 * 1024:
                 st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
             else:
-                upload_result = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song")
+                upload_result = _save_uploaded_audio(
+                    project.get("title") or "audio_editor",
+                    uploaded,
+                    "song",
+                    upload_state_key="audio_editor_upload_id",
+                    previous_source=editor_state.get("source_audio") or {},
+                )
                 if upload_result.get("ok"):
                     ext = Path(uploaded.name).suffix.lower().lstrip(".")
                     if ext not in {"mp3", "wav"}:
@@ -2486,12 +2572,15 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
                     upload_result["data"]["mime_type"] = getattr(uploaded, "type", "")
                     upload_result["data"]["source_type"] = "External Upload"
                     editor_state["source_audio"] = upload_result["data"]
-                    editor_state["export_name"] = audio_source_export_name(source_type="External Upload", original_filename=uploaded.name)
-                    editor_state["export_name_source_signature"] = _audio_source_signature(upload_result["data"], upload_result["data"].get("path", ""))
-                    editor_state["export_name_manual"] = False
-                    project["audio_editor"] = editor_state
-                    _save_project()
-                    st.success(f"External {ext.upper()} uploaded")
+                    if upload_result["data"].get("source_changed"):
+                        reset_source_dependent_state(editor_state, st.session_state, "audio_editor")
+                        editor_state["source_audio"] = upload_result["data"]
+                        editor_state["export_name"] = audio_source_export_name(source_type="External Upload", original_filename=uploaded.name)
+                        editor_state["export_name_source_signature"] = _audio_source_signature(upload_result["data"], upload_result["data"].get("path", ""))
+                        editor_state["export_name_manual"] = False
+                        project["audio_editor"] = editor_state
+                        _save_project()
+                        st.success(f"External {ext.upper()} uploaded")
                 else:
                     st.warning(upload_result.get("error") or upload_result.get("message"))
         source_path = str((editor_state.get("source_audio") or {}).get("path") or "")
@@ -2501,7 +2590,8 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         st.info("Choose Project Master after remastering, or upload an external MP3/WAV to start cutting a hook.")
         return
 
-    probe = probe_media(source_path, ffmpeg_path=settings.ffmpeg_path)
+    audio_source_id = _audio_source_signature(source_info, source_path)
+    probe = _cached_audio_probe(source_path, source_identity=audio_source_id, ffmpeg_path=settings.ffmpeg_path)
     duration = float(probe.get("duration") or 0)
     with st.container(border=True):
         st.markdown("**Current Audio Source**")
@@ -2513,7 +2603,6 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         st.caption(f"{source_info.get('original_filename') or Path(source_path).name} • {probe.get('sample_rate', 'Unknown')} Hz • {probe.get('audio_bit_rate') or 'Unknown'}")
 
     default_audio_export_name = _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project)
-    audio_source_id = _audio_source_signature(source_info, source_path)
     initialize_export_name_state(
         st.session_state,
         "audio_editor_export_name",
@@ -2530,7 +2619,7 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     project["audio_editor"] = editor_state
     _save_project()
 
-    selection_source_id = _audio_source_signature(source_info, source_path)
+    selection_source_id = audio_source_id
     if st.session_state.get("audio_editor_selection_source_id") != selection_source_id:
         initial = clamp_audio_selection(
             float(editor_state.get("start_time", 0.0) or 0.0),
@@ -2578,7 +2667,12 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
     st.caption("Drag the start handle, end handle, selected region, or empty waveform area to set the hook.")
     waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
     waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
-    waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
+    waveform_result = generate_waveform_data(
+        source_path,
+        waveform_json,
+        ffmpeg_path=settings.ffmpeg_path,
+        source_signature=_trusted_audio_signature(source_info, source_path),
+    ) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
     if waveform_result.get("ok"):
         waveform_data = waveform_result.get("data", {})
         interactive_value = _render_interactive_waveform_selector(

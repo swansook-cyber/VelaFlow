@@ -23,7 +23,7 @@ from core.agent_studio import AGENT_WORKFLOW_MODES, REQUIRED_AGENT_SECTIONS, age
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, clamp_audio_selection, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, move_audio_selection_region, parse_time_input, refine_musical_hook_boundaries, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -559,6 +559,69 @@ def main():
     assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "external|k-den พาฟิน.mp3|1", "k-den พาฟิน") == "Manual Thai Name", "same source should preserve manual export name")
     assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "external|New Upload.mp3|2", "New Upload") == "New Upload" and export_widget_state["remaster_export_name_manual"] is False, "new external upload should reset export name")
     assert_true(initialize_export_name_state(export_widget_state, "remaster_export_name", "project-master|พอได้แล้วใจ", "พอได้แล้วใจ") == "พอได้แล้วใจ", "switching project master should update export name default")
+
+    upload_cache_root = out / "upload_rerun_cache"
+    shutil.rmtree(upload_cache_root, ignore_errors=True)
+    upload_cache_root.mkdir(parents=True, exist_ok=True)
+    mp3_payload = b"ID3" + (b"A" * 2048)
+    wav_payload = b"RIFF" + (b"B" * 2048)
+    mp3_identity = build_upload_identity("เพลงใหม่ mix.mp3", mp3_payload)
+    wav_identity = build_upload_identity("เสียงทดสอบ.wav", wav_payload)
+    assert_true(mp3_identity["upload_id"] and wav_identity["upload_id"] and mp3_identity["upload_id"] != wav_identity["upload_id"], "stable MP3/WAV upload identity failed")
+    saved_mp3_path = upload_cache_root / "song_audio.mp3"
+    first_mp3_save = save_uploaded_audio_once(saved_mp3_path, original_filename="เพลงใหม่ mix.mp3", payload=mp3_payload)
+    first_mp3_mtime = saved_mp3_path.stat().st_mtime_ns
+    same_mp3_save = save_uploaded_audio_once(saved_mp3_path, original_filename="เพลงใหม่ mix.mp3", payload=mp3_payload, previous_upload_id=first_mp3_save["upload_id"])
+    assert_true(first_mp3_save["saved"] and first_mp3_save["save_count"] == 1 and not same_mp3_save["saved"] and same_mp3_save["save_count"] == 0, "unchanged MP3 upload was rewritten")
+    assert_true(saved_mp3_path.stat().st_mtime_ns == first_mp3_mtime, "unchanged upload modified filesystem mtime")
+    changed_mp3_payload = b"ID3" + (b"C" * 2048)
+    changed_mp3_save = save_uploaded_audio_once(saved_mp3_path, original_filename="เพลงใหม่ mix.mp3", payload=changed_mp3_payload, previous_upload_id=first_mp3_save["upload_id"])
+    assert_true(changed_mp3_save["saved"] and changed_mp3_save["source_changed"] and changed_mp3_save["upload_id"] != first_mp3_save["upload_id"], "same-name different-content MP3 was not detected")
+    saved_wav_path = upload_cache_root / "song_audio.wav"
+    first_wav_save = save_uploaded_audio_once(saved_wav_path, original_filename="เสียงทดสอบ.wav", payload=wav_payload)
+    same_wav_save = save_uploaded_audio_once(saved_wav_path, original_filename="เสียงทดสอบ.wav", payload=wav_payload, previous_upload_id=first_wav_save["upload_id"])
+    assert_true(first_wav_save["saved"] and not same_wav_save["saved"] and saved_wav_path.read_bytes() == wav_payload, "WAV upload rerun stability failed")
+
+    trusted_signature = build_source_signature(saved_wav_path, trusted_identity=first_wav_save)
+    assert_true(trusted_signature.get("identity_source") == "trusted_upload" and trusted_signature.get("sha256") == first_wav_save["content_digest"], "trusted upload signature fell back to disk hashing")
+    probe_calls = {"count": 0}
+    def fake_cached_probe(path, ffmpeg_path=""):
+        probe_calls["count"] += 1
+        return {"ok": True, "duration": 12.5, "audio_codec": "pcm_s16le"}
+    probe_cache = {}
+    first_probe = cached_probe_media(saved_wav_path, probe_cache, source_identity=first_wav_save["upload_id"], probe_func=fake_cached_probe)
+    second_probe = cached_probe_media(saved_wav_path, probe_cache, source_identity=first_wav_save["upload_id"], probe_func=fake_cached_probe)
+    changed_probe = cached_probe_media(saved_wav_path, probe_cache, source_identity="changed-source", probe_func=fake_cached_probe)
+    assert_true(first_probe["cache_status"] == "miss" and second_probe["cache_status"] == "hit" and changed_probe["cache_status"] == "miss" and probe_calls["count"] == 2, "FFprobe session cache did not reuse/invalidate by source identity")
+
+    editor_source_state = {
+        "export_name": "ชื่อแก้เอง",
+        "export_name_manual": True,
+        "hook_analysis": {"candidate_count": 2},
+        "rough_selection": {"start_time": 5, "end_time": 30},
+        "smart_refined_hook": {"refined_start": 6, "refined_end": 31},
+        "preview_result": {"path": "old-preview.mp3"},
+        "waveform": {"cache_status": "hit"},
+        "start_time": 5,
+        "end_time": 30,
+    }
+    editor_session_state = {
+        "audio_editor_selection_source_id": "old-source",
+        "audio_editor_selection_start": 5.0,
+        "audio_editor_selection_end": 30.0,
+        "remaster_preview_bytes_cache": {
+            "audio_editor_selection_preview|old": {"bytes": b"old"},
+            "remaster_original|keep": {"bytes": b"keep"},
+        },
+    }
+    unchanged_editor_state = json.loads(json.dumps(editor_source_state))
+    unchanged_editor_session = dict(editor_session_state)
+    assert_true(unchanged_editor_state["rough_selection"] and unchanged_editor_session["audio_editor_selection_start"] == 5.0 and unchanged_editor_state["export_name"] == "ชื่อแก้เอง", "normal rerun should preserve selection and manual Export Name")
+    reset_source_dependent_state(editor_source_state, editor_session_state, "audio_editor")
+    assert_true("hook_analysis" not in editor_source_state and "smart_refined_hook" not in editor_source_state and "rough_selection" not in editor_source_state, "new source did not reset Smart Hook state")
+    assert_true("audio_editor_selection_start" not in editor_session_state and "audio_editor_selection_source_id" not in editor_session_state and "waveform" not in editor_source_state, "new source did not reset waveform selection/cache state")
+    assert_true(editor_source_state["export_name"] == "ชื่อแก้เอง" and editor_source_state["export_name_manual"] is True, "source reset helper incorrectly overwrote export naming state")
+    assert_true("audio_editor_selection_preview|old" not in editor_session_state["remaster_preview_bytes_cache"] and "remaster_original|keep" in editor_session_state["remaster_preview_bytes_cache"], "preview cache invalidation crossed workflow boundaries")
     assert_true(build_asset_export_filename('ผู้พิทักษ์โลก', '', 'Master', 'mp3') == 'ผู้พิทักษ์โลก_Master.mp3' and build_asset_export_filename('', 'Best Song Ever.mp3', 'Hook30', 'mp3') == 'Best Song Ever_Hook30.mp3', "asset export filename builder failed")
     export_text_with_title = "====================\nSONG METADATA\n====================\n\nSong title: เดินต่อ\n"
     assert_true(extract_song_title_from_export_text(export_text_with_title) == "เดินต่อ", "export title parser failed")
@@ -2145,8 +2208,9 @@ def main():
         assert_true(validate_audio_editor_input(smart_hook_wav_source)["ok"], "Audio Editor WAV validation failed")
         waveform_json = out / "hook_clip_projects" / "exports" / "waveform.json"
         waveform_svg = out / "hook_clip_projects" / "exports" / "waveform.svg"
-        waveform_first = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
-        waveform_second = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
+        smart_hook_identity = build_upload_identity(smart_hook_source.name, smart_hook_source.read_bytes())
+        waveform_first = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200, source_signature=smart_hook_identity)
+        waveform_second = generate_waveform_data(smart_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200, source_signature=smart_hook_identity)
         waveform_data = waveform_first.get("data", {})
         waveform_render = render_waveform_svg(waveform_data, waveform_svg, start_time=8.0, end_time=38.0)
         assert_true(waveform_first["ok"] and 1000 <= int(waveform_data.get("point_count", 0)) <= 3000 and waveform_second.get("data", {}).get("cache_status") == "hit" and waveform_render["ok"] and waveform_svg.exists(), "Audio Editor waveform generation/cache/render failed")
@@ -2203,7 +2267,8 @@ def main():
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-        waveform_third = generate_waveform_data(alternate_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200)
+        alternate_hook_identity = build_upload_identity(alternate_hook_source.name, alternate_hook_source.read_bytes())
+        waveform_third = generate_waveform_data(alternate_hook_source, waveform_json, ffmpeg_path=find_ffmpeg(), target_points=1200, source_signature=alternate_hook_identity)
         assert_true(waveform_third["ok"] and waveform_third.get("data", {}).get("cache_status") == "miss" and waveform_third.get("data", {}).get("source_signature", {}).get("sha256") != waveform_data.get("source_signature", {}).get("sha256"), "Audio Editor waveform cache fingerprint did not reject stale source")
         hook_analysis = analyze_hook_candidates(smart_hook_source, output_dir=out / "hook_clip_projects" / "exports" / "hook_analysis", ffmpeg_path=find_ffmpeg())
         hook_candidates = (hook_analysis.get("data") or {}).get("candidates", [])
@@ -2829,6 +2894,10 @@ def main():
         remaster_ui_slice = main_source[main_source.find("def _render_remaster_studio"):main_source.find("def _project_master_audio")]
         remaster_engine_source = (ROOT / "core" / "remaster_engine.py").read_text(encoding="utf-8")
         assert_true("_resolve_safari_audio_preview_bytes" in main_source and "_validate_preview_audio_payload" in main_source and "_build_safari_preview_mp3" in main_source and "remaster_preview_bytes_cache" in main_source and "audio/mpeg" in main_source, "Safari-compatible remaster preview helpers missing")
+        upload_helper_source = main_source[main_source.find("def _save_uploaded_audio"):main_source.find("def _creator_package_recommendations")]
+        assert_true("upload_token" in upload_helper_source and "file_id" in upload_helper_source and "save_uploaded_audio_once" in upload_helper_source and "uploaded.getbuffer()" not in upload_helper_source, "stable upload identity/save-on-change helper wiring missing")
+        assert_true('upload_state_key="remaster_upload_id"' in main_source and 'upload_state_key="audio_editor_upload_id"' in main_source and main_source.count('get("source_changed")') >= 2, "Remaster/Audio Editor source-change guards missing")
+        assert_true("_cached_audio_probe" in main_source and "audio_ffprobe_cache" in main_source and "source_signature=_trusted_audio_signature" in main_source and "max_cache_bytes = 64 * 1024 * 1024" in main_source, "audio probe/waveform/preview cache reuse wiring missing")
         assert_true('st.audio(original_preview["bytes"], format=original_preview["format"])' in remaster_ui_slice and 'st.audio(mastered_preview["bytes"], format=mastered_preview["format"])' in remaster_ui_slice and "st.audio(str(mastered_wav))" not in remaster_ui_slice and "st.audio(source_path)" not in remaster_ui_slice, "Remaster preview should render validated bytes with explicit MIME, not local paths")
         assert_true("remaster_play_original" not in remaster_ui_slice and "remaster_play_mastered" not in remaster_ui_slice and "Preview unavailable" in remaster_ui_slice and "preview_diagnostics" in remaster_ui_slice and "autoplay" not in remaster_ui_slice.lower(), "Remaster preview controls/diagnostics cleanup missing")
         assert_true('"libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2"' in remaster_engine_source, "Remaster MP3 preview/export should be explicit 320k 48k stereo libmp3lame")
