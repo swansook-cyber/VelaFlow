@@ -5823,11 +5823,19 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             with st.expander("Music Preset Details", expanded=False):
                 st.json(selected_music_preset, expanded=False)
 
+    saved_advanced_explicit = dict(song.get("advanced_explicit") or {})
     advanced_explicit = {
-        "artist_preset": bool(use_preset),
-        "music_preset": selected_music_preset_name != DEFAULT_MUSIC_PRESET,
-        "vocal_direction": selected_vocal_direction_name != DEFAULT_VOCAL_DIRECTION,
-        "hook_focus": viral != "high",
+        "artist_preset": bool(
+            use_preset
+            and (
+                saved_advanced_explicit.get("artist_preset")
+                or preset.get("artist_id") != (song.get("artist_preset") or PUBLIC_DEFAULT_ARTIST_ID)
+                or preset.get("artist_id") != PUBLIC_DEFAULT_ARTIST_ID
+            )
+        ),
+        "music_preset": bool(saved_advanced_explicit.get("music_preset") or selected_music_preset_name != DEFAULT_MUSIC_PRESET),
+        "vocal_direction": bool(saved_advanced_explicit.get("vocal_direction") or selected_vocal_direction_name != DEFAULT_VOCAL_DIRECTION),
+        "hook_focus": bool(saved_advanced_explicit.get("hook_focus") or viral != "high"),
         "music_style_override": bool(style_override.strip()),
     }
     advanced_idea = _structure_for_song_idea(
