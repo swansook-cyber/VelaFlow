@@ -23,6 +23,196 @@ PROJECT_ROOT = workflow_project_root("song")
 USAGE_OPTIONS = ["chorus", "post-chorus", "TikTok clip", "title line"]
 
 
+NEUTRAL_ARTIST_PRESET: Dict[str, Any] = {
+    "artist_id": "neutral",
+    "artist_name": "Neutral",
+    "category": "System Default",
+    "genre": "",
+    "mood": "",
+    "vocal_style": "",
+    "vocal_feeling": "",
+    "brand_style": "",
+    "default_music_style_prompt": "",
+    "writing_rules": [
+        "Thai lyrics must sound natural and conversational",
+        "Keep the selected genre, mood, and vocal direction authoritative",
+        "Write a complete commercial-length song with a memorable chorus",
+    ],
+    "suno_advanced_settings": {},
+}
+
+
+def _clean_direction(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip(" ,.;")
+
+
+def _supporting_style_details(preset: Dict[str, Any]) -> list[str]:
+    details: list[str] = []
+    for key in ("arrangement", "instrumentation_style", "pacing", "prompt_suffix"):
+        value = _clean_direction(preset.get(key))
+        if value and value not in details:
+            details.append(value)
+    return details
+
+
+def _sanitize_style_override(text: str, genre: str, mood: str, vocal: str) -> str:
+    clauses = [item.strip() for item in re.split(r"[,;\n]+", text or "") if item.strip()]
+    genre_lower = genre.lower()
+    mood_lower = mood.lower()
+    vocal_lower = vocal.lower()
+    genre_groups = {
+        "edm": ("edm", "dance", "electronic"),
+        "acoustic": ("acoustic", "folk"),
+        "rock": ("rock", "pop rock"),
+    }
+    active_group = next((name for name, words in genre_groups.items() if any(word in genre_lower for word in words)), "")
+    output: list[str] = []
+    for clause in clauses:
+        lower = clause.lower()
+        if "female" in vocal_lower and re.search(r"\bmale\s+vocal\b", lower):
+            continue
+        if "male" in vocal_lower and "female vocal" in lower:
+            continue
+        if active_group and any(
+            any(word in lower for word in words)
+            for name, words in genre_groups.items()
+            if name != active_group
+        ):
+            continue
+        if "energetic" in mood_lower and any(word in lower for word in ("relaxed", "slow tempo", "sleepy")):
+            continue
+        output.append(clause)
+    return ", ".join(output)
+
+
+def resolve_song_generation_context(
+    *,
+    idea: str,
+    genre: str = "",
+    mood: str = "",
+    vocal: str = "",
+    artist_preset: Dict[str, Any] | None = None,
+    music_preset: Dict[str, Any] | None = None,
+    vocal_direction: Dict[str, Any] | None = None,
+    hook_focus: str = "high",
+    music_style_override: str = "",
+    advanced_explicit: Dict[str, bool] | None = None,
+) -> Dict[str, Any]:
+    """Resolve Song Studio controls without mixing contradictory preset defaults."""
+    artist = dict(artist_preset or {})
+    music = dict(music_preset or {})
+    vocal_preset = dict(vocal_direction or {})
+    explicit = dict(advanced_explicit or {})
+
+    resolved_genre = _clean_direction(genre) or _clean_direction(music.get("genre")) or _clean_direction(artist.get("genre")) or "Modern Pop"
+    resolved_mood = _clean_direction(mood) or _clean_direction(music.get("mood")) or _clean_direction(artist.get("mood")) or "Balanced"
+    resolved_vocal = _clean_direction(vocal) or _clean_direction(vocal_preset.get("vocal_style")) or _clean_direction(artist.get("vocal_feeling") or artist.get("vocal_style")) or "natural lead vocal"
+
+    artist_is_explicit = bool(explicit.get("artist_preset"))
+    music_is_explicit = bool(explicit.get("music_preset"))
+    vocal_is_explicit = bool(explicit.get("vocal_direction"))
+    style_is_explicit = bool(explicit.get("music_style_override") and _clean_direction(music_style_override))
+
+    provider_artist = dict(NEUTRAL_ARTIST_PRESET)
+    if artist_is_explicit and artist:
+        provider_artist.update(
+            {
+                "artist_id": artist.get("artist_id") or "custom",
+                "artist_name": artist.get("artist_name") or "Custom Artist Preset",
+                "category": artist.get("category") or "Custom",
+                "writing_rules": list(artist.get("writing_rules") or NEUTRAL_ARTIST_PRESET["writing_rules"]),
+                "hook_style": artist.get("hook_style") or (artist.get("marketing_identity") or {}).get("hook_style", ""),
+            }
+        )
+    provider_artist.update(
+        {
+            "genre": resolved_genre,
+            "mood": resolved_mood,
+            "vocal_style": resolved_vocal,
+            "vocal_feeling": resolved_vocal,
+            "brand_style": f"{resolved_mood}, {resolved_genre}",
+        }
+    )
+
+    style_parts = [f"{resolved_genre}. Mood: {resolved_mood}. Vocal: {resolved_vocal}."]
+    style_source = "explicit main controls"
+    if style_is_explicit:
+        cleaned_override = _sanitize_style_override(music_style_override, resolved_genre, resolved_mood, resolved_vocal)
+        if cleaned_override:
+            style_parts.append(cleaned_override)
+        style_source = "manual style override"
+    else:
+        supporting: list[str] = []
+        if music_is_explicit:
+            supporting.extend(_supporting_style_details(music))
+            style_source = "explicit music preset"
+        if artist_is_explicit:
+            supporting.extend(_supporting_style_details(artist))
+            if style_source == "explicit main controls":
+                style_source = "explicit artist preset"
+        if vocal_is_explicit:
+            delivery = _clean_direction(vocal_preset.get("delivery"))
+            emotional_tone = _clean_direction(vocal_preset.get("emotional_tone"))
+            supporting.extend(item for item in (delivery, emotional_tone) if item)
+            if style_source == "explicit main controls":
+                style_source = "explicit vocal direction"
+        if supporting:
+            style_parts.append("Supporting production direction: " + "; ".join(dict.fromkeys(supporting)) + ".")
+        else:
+            style_parts.append("Use a polished full-length arrangement appropriate for the selected genre and mood.")
+
+    provider_artist["default_music_style_prompt"] = " ".join(style_parts)
+    resolved_direction = build_music_direction(
+        genre=resolved_genre,
+        mood=resolved_mood,
+        vocal=resolved_vocal,
+        artist_preset=provider_artist,
+        style_preset=music if music_is_explicit else {},
+    )
+    provider_artist["section_instrument_tags"] = dict(resolved_direction.get("section_tags") or {})
+    provider_artist["main_instruments"] = list(resolved_direction.get("instrument_palette") or [])[:4]
+    provider_artist["supporting_instruments"] = list(resolved_direction.get("instrument_palette") or [])[4:]
+    resolved_artist_id = str(provider_artist.get("artist_id") or "neutral")
+    vela_moon_active = artist_is_explicit and resolved_artist_id.startswith("vela_moon")
+    return {
+        "idea": str(idea or "").strip(),
+        "resolved_genre": resolved_genre,
+        "resolved_mood": resolved_mood,
+        "resolved_vocal": resolved_vocal,
+        "resolved_hook_focus": _clean_direction(hook_focus) or "high",
+        "resolved_style_prompt": " ".join(style_parts).strip(),
+        "resolved_style_source": style_source,
+        "resolved_artist_preset": resolved_artist_id,
+        "resolved_music_preset": str(music.get("name") or "") if music_is_explicit else "",
+        "resolved_vocal_direction": str(vocal_preset.get("name") or "") if vocal_is_explicit else "",
+        "artist_preset_explicit": artist_is_explicit,
+        "music_preset_explicit": music_is_explicit,
+        "vocal_direction_explicit": vocal_is_explicit,
+        "style_override_explicit": style_is_explicit,
+        "vela_moon_active": vela_moon_active,
+        "provider_artist_preset": provider_artist,
+    }
+
+
+def song_project_widget_state(project: Dict[str, Any], song: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    """Return project-owned Song Studio values for safe widget hydration."""
+    current_song = dict(song or project.get("song") or {})
+    return {
+        "title": str(project.get("title") or ""),
+        "artist": str(project.get("artist") or ""),
+        "idea": str(current_song.get("idea") or ""),
+        "genre": str(current_song.get("genre") or ""),
+        "mood": str(current_song.get("mood") or ""),
+        "vocal": str(current_song.get("vocal") or ""),
+        "artist_preset": str(current_song.get("artist_preset") or ""),
+        "music_preset": str(current_song.get("music_preset") or ""),
+        "vocal_direction": str(current_song.get("vocal_direction") or ""),
+        "hook_focus": str(current_song.get("hook_focus") or ""),
+        "music_style_override": str(current_song.get("music_style_override") or ""),
+        "advanced_explicit": dict(current_song.get("advanced_explicit") or {}),
+    }
+
+
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -151,8 +341,19 @@ def generate_hook_candidates_with_provider(
     mood: str = "",
     artist_preset: Dict[str, Any] | None = None,
     seed: str | None = None,
+    generation_context: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    preset = artist_preset or get_artist_preset("vela_moon")
+    context = generation_context or resolve_song_generation_context(
+        idea=idea,
+        genre=genre,
+        mood=mood,
+        vocal="",
+        artist_preset=artist_preset,
+        advanced_explicit={"artist_preset": bool(artist_preset)},
+    )
+    preset = dict(context.get("provider_artist_preset") or NEUTRAL_ARTIST_PRESET)
+    genre = str(context.get("resolved_genre") or genre)
+    mood = str(context.get("resolved_mood") or mood)
     seed_value = seed or f"{datetime.now().isoformat()}-{random.randint(10000, 999999)}"
     if not api_key:
         return {"ok": True, "message": "Using offline fallback hooks", "data": {"hooks": generate_hook_candidates(idea, preset, seed_value), "offline": True, "seed": seed_value}, "error": ""}
@@ -171,13 +372,10 @@ Rules:
 User theme: {idea}
 Mood: {mood}
 Genre: {genre}
-Artist preset: {preset.get('artist_name', 'Vela Moon')}
+Artist preset: {preset.get('artist_name', 'Neutral')}
 Preset category: {preset.get('category', '')}
-Brand style: {preset.get('brand_style', '')}
-Mood: {preset.get('mood', '')}
-Vocal feeling: {preset.get('vocal_feeling') or preset.get('vocal_style', '')}
-Pacing: {preset.get('pacing', '')}
-Instrumentation style: {preset.get('instrumentation_style', '')}
+Resolved vocal: {context.get('resolved_vocal', '')}
+Style source: {context.get('resolved_style_source', 'explicit main controls')}
 Random seed / timestamp: {seed_value}
 """
     fallback_text = json.dumps(generate_hook_candidates(idea, preset, seed_value), ensure_ascii=False)

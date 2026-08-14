@@ -282,8 +282,10 @@ from core.song_workflow import (
     load_song_draft,
     normalize_hook_candidates,
     normalize_song_metadata,
+    resolve_song_generation_context,
     save_song_state,
     select_best_hook,
+    song_project_widget_state,
 )
 from core.song_structure_intelligence import (
     create_structure_plan,
@@ -314,8 +316,6 @@ from app.presets import (
     get_vocal_direction,
     list_music_preset_names,
     list_vocal_direction_names,
-    music_preset_prompt,
-    vocal_direction_prompt,
 )
 
 
@@ -4999,35 +4999,6 @@ def _structure_for_song_idea(base_idea: str, structure_plan: dict[str, Any], ena
     return f"{base_idea or ''}{structure_plan_prompt(structure_plan)}".strip()
 
 
-def _music_preset_for_song_idea(base_idea: str, music_preset: dict[str, str]) -> str:
-    return f"{base_idea or ''}{music_preset_prompt(music_preset)}".strip()
-
-
-def _song_idea_with_vocal_direction(base_idea: str, vocal_direction: dict[str, str]) -> str:
-    return f"{base_idea or ''}{vocal_direction_prompt(vocal_direction)}".strip()
-
-
-def _music_style_with_preset(style_prompt: str, music_preset: dict[str, str], vocal_direction: dict[str, str] | None = None) -> str:
-    parts = [style_prompt.strip()] if style_prompt.strip() else []
-    if music_preset:
-        parts.append(
-            "Music preset direction: "
-            f"{music_preset.get('genre', '')}; "
-            f"{music_preset.get('mood', '')}; "
-            f"{music_preset.get('vocal_style', '')}; "
-            f"{music_preset.get('arrangement', '')}. "
-            f"{music_preset.get('prompt_suffix', '')}"
-        )
-    if vocal_direction:
-        parts.append(
-            "Vocal direction: "
-            f"{vocal_direction.get('vocal_style', '')}; "
-            f"{vocal_direction.get('delivery', '')}; "
-            f"{vocal_direction.get('emotional_tone', '')}."
-        )
-    return "\n".join(parts).strip()
-
-
 def _settings_from_ai_controls(controls: dict[str, Any]) -> dict[str, Any]:
     return {
         "weirdness": int(controls.get("weirdness", 10)),
@@ -5423,12 +5394,45 @@ def _render_artist_preset_manager() -> None:
 
 
 def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], active_provider: str, active_api_key: str, active_model: str) -> None:
+    project_values = song_project_widget_state(project, song)
+    project_source_id = str(
+        st.session_state.get("current_project")
+        or project.get("created_at")
+        or f"unsaved:{project.get('workflow_type', 'song')}"
+    )
+    if st.session_state.get("simple_song_project_source_id") != project_source_id:
+        for key in (
+            "simple_song_title",
+            "simple_song_artist",
+            "simple_song_idea",
+            "simple_song_genre",
+            "simple_song_mood",
+            "simple_song_vocal",
+            "simple_song_music_preset",
+            "simple_song_vocal_direction",
+            "simple_song_viral",
+            "simple_song_style_override",
+            "simple_song_force_tags",
+            "simple_song_studio_artist_preset_category",
+            "simple_song_studio_artist_preset",
+            "simple_suggested_title",
+            "simple_suggested_title_index",
+        ):
+            st.session_state.pop(key, None)
+        st.session_state["simple_song_project_source_id"] = project_source_id
+        st.session_state["simple_song_advanced_explicit"] = dict(project_values.get("advanced_explicit") or {})
+        st.session_state["simple_song_advanced_baseline"] = {
+            "artist_preset": project_values.get("artist_preset") or PUBLIC_DEFAULT_ARTIST_ID,
+            "music_preset": project_values.get("music_preset") or DEFAULT_MUSIC_PRESET,
+            "vocal_direction": project_values.get("vocal_direction") or DEFAULT_VOCAL_DIRECTION,
+            "hook_focus": project_values.get("hook_focus") or "high",
+        }
     pending_title = str(st.session_state.pop("simple_song_pending_title", "") or "")
     if pending_title:
         st.session_state["simple_song_title"] = pending_title
-    st.session_state.setdefault("simple_song_title", str(project.get("title") or ""))
-    st.session_state.setdefault("simple_song_artist", str(project.get("artist") or DEFAULT_ARTIST))
-    st.session_state.setdefault("simple_song_idea", str(song.get("idea") or ""))
+    st.session_state.setdefault("simple_song_title", project_values.get("title") or "")
+    st.session_state.setdefault("simple_song_artist", project_values.get("artist") or DEFAULT_ARTIST)
+    st.session_state.setdefault("simple_song_idea", project_values.get("idea") or "")
 
     title_row = st.columns([3, 1])
     title_row[0].text_input("Project / Song Title", key="simple_song_title", help="Enter a title or let VelaFlow suggest one.")
@@ -5438,25 +5442,62 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
     genre_options = ["Pop Rock", "Heartbreak Ballad", "T-Pop", "Night Drive", "Isaan Indie"]
     mood_options = ["เศร้า", "คิดถึง", "เหงากลางคืน", "อบอุ่น", "ให้กำลังใจ"]
     vocal_options = ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"]
+    st.session_state.setdefault("simple_song_genre", song.get("genre") if song.get("genre") in genre_options else genre_options[0])
+    st.session_state.setdefault("simple_song_mood", song.get("mood") if song.get("mood") in mood_options else mood_options[1])
+    st.session_state.setdefault("simple_song_vocal", song.get("vocal") if song.get("vocal") in vocal_options else vocal_options[0])
     controls = st.columns(3)
-    genre = controls[0].selectbox("Genre", genre_options, index=genre_options.index(song.get("genre")) if song.get("genre") in genre_options else 0, key="simple_song_genre")
-    mood = controls[1].selectbox("Mood", mood_options, index=mood_options.index(song.get("mood")) if song.get("mood") in mood_options else 1, key="simple_song_mood")
-    vocal = controls[2].selectbox("Vocal", vocal_options, index=vocal_options.index(song.get("vocal")) if song.get("vocal") in vocal_options else 0, key="simple_song_vocal")
+    genre = controls[0].selectbox("Genre", genre_options, key="simple_song_genre")
+    mood = controls[1].selectbox("Mood", mood_options, key="simple_song_mood")
+    vocal = controls[2].selectbox("Vocal", vocal_options, key="simple_song_vocal")
 
     with st.expander("Advanced", expanded=False):
         current_artist_id = song.get("artist_preset") or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
         preset = _select_artist_preset("simple_song_studio", current_artist_id)
         music_preset_names = list_music_preset_names()
         current_music_preset = song.get("music_preset", DEFAULT_MUSIC_PRESET)
-        selected_music_preset_name = st.selectbox("Music Preset", music_preset_names, index=music_preset_names.index(current_music_preset) if current_music_preset in music_preset_names else 0, key="simple_song_music_preset")
+        st.session_state.setdefault("simple_song_music_preset", current_music_preset if current_music_preset in music_preset_names else DEFAULT_MUSIC_PRESET)
+        selected_music_preset_name = st.selectbox("Music Preset", music_preset_names, key="simple_song_music_preset")
         selected_music_preset = get_music_preset(selected_music_preset_name)
         vocal_direction_names = list_vocal_direction_names()
         current_vocal_direction = song.get("vocal_direction", DEFAULT_VOCAL_DIRECTION)
-        selected_vocal_direction_name = st.selectbox("Vocal Direction", vocal_direction_names, index=vocal_direction_names.index(current_vocal_direction) if current_vocal_direction in vocal_direction_names else 0, key="simple_song_vocal_direction")
+        st.session_state.setdefault("simple_song_vocal_direction", current_vocal_direction if current_vocal_direction in vocal_direction_names else DEFAULT_VOCAL_DIRECTION)
+        selected_vocal_direction_name = st.selectbox("Vocal Direction", vocal_direction_names, key="simple_song_vocal_direction")
         selected_vocal_direction = get_vocal_direction(selected_vocal_direction_name)
-        viral = st.selectbox("Hook Focus", ["balanced", "high", "ultra hook-focused"], index=1, key="simple_song_viral")
-        style_override = st.text_area("Music Style Prompt Override", value=str(song.get("music_style_prompt") or preset.get("default_music_style_prompt", "")), height=100, key="simple_song_style_override")
+        hook_focus_options = ["balanced", "high", "ultra hook-focused"]
+        st.session_state.setdefault("simple_song_viral", song.get("hook_focus") if song.get("hook_focus") in hook_focus_options else "high")
+        viral = st.selectbox("Hook Focus", hook_focus_options, key="simple_song_viral")
+        st.session_state.setdefault("simple_song_style_override", str(song.get("music_style_override") or ""))
+        style_override = st.text_area("Music Style Prompt Override", height=100, key="simple_song_style_override")
         force_tags = st.checkbox("Keep production tags in English", value=True, key="simple_song_force_tags")
+
+    baseline = dict(st.session_state.get("simple_song_advanced_baseline") or {})
+    advanced_explicit = dict(st.session_state.get("simple_song_advanced_explicit") or {})
+    if preset.get("artist_id") != baseline.get("artist_preset"):
+        advanced_explicit["artist_preset"] = True
+    if selected_music_preset_name != baseline.get("music_preset"):
+        advanced_explicit["music_preset"] = True
+    if selected_vocal_direction_name != baseline.get("vocal_direction"):
+        advanced_explicit["vocal_direction"] = True
+    if viral != baseline.get("hook_focus"):
+        advanced_explicit["hook_focus"] = True
+    if style_override.strip():
+        advanced_explicit["music_style_override"] = True
+    if preset.get("artist_id") != PUBLIC_DEFAULT_ARTIST_ID and not song.get("advanced_explicit"):
+        advanced_explicit["artist_preset"] = True
+    st.session_state["simple_song_advanced_explicit"] = advanced_explicit
+
+    generation_context = resolve_song_generation_context(
+        idea=idea,
+        genre=genre,
+        mood=mood,
+        vocal=vocal,
+        artist_preset=preset,
+        music_preset=selected_music_preset,
+        vocal_direction=selected_vocal_direction,
+        hook_focus=viral,
+        music_style_override=style_override,
+        advanced_explicit=advanced_explicit,
+    )
 
     current_hook = (song.get("selected_hook") or {}).get("hook_text") if isinstance(song.get("selected_hook"), dict) else song.get("selected_hook_text", "")
     title_candidates = generate_song_title_candidates(idea=idea, hook_text=str(current_hook or ""), lyrics=str(song.get("normalized_song_output") or song.get("complete_lyrics") or "")) if idea.strip() else []
@@ -5495,19 +5536,20 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 api_key=active_api_key,
                 model_name=active_model,
                 provider=active_provider,
-                idea=_song_idea_with_vocal_direction(_music_preset_for_song_idea(idea, selected_music_preset), selected_vocal_direction),
-                genre=genre,
-                mood=mood,
-                artist_preset=preset,
+                idea=idea,
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                artist_preset=generation_context["provider_artist_preset"],
+                generation_context=generation_context,
             )
             candidates = hook_result.get("data", {}).get("hooks", [])
             hook = select_best_hook(candidates)
             resolved_title = str(st.session_state.get("simple_song_title") or suggested_title or "").strip()
             if is_placeholder_song_title(resolved_title):
                 resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
-            style_prompt = _music_style_with_preset(style_override or preset.get("default_music_style_prompt", ""), selected_music_preset, selected_vocal_direction)
+            style_prompt = generation_context["resolved_style_prompt"]
             idea_with_hook = (
-                f"{_song_idea_with_vocal_direction(_music_preset_for_song_idea(idea, selected_music_preset), selected_vocal_direction)}\n\n"
+                f"{idea}\n\n"
                 f"Selected Hook: {hook.get('hook_text', '')}\nUse this hook in the chorus and final chorus. Keep Thai lyrics natural."
             )
             song_result = _safe(
@@ -5516,19 +5558,21 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 active_api_key,
                 active_model,
                 idea_with_hook,
-                genre,
-                mood,
-                vocal,
-                viral,
-                artist_preset=preset,
+                generation_context["resolved_genre"],
+                generation_context["resolved_mood"],
+                generation_context["resolved_vocal"],
+                generation_context["resolved_hook_focus"],
+                artist_preset=generation_context["provider_artist_preset"],
                 music_style_override=style_prompt,
                 force_english_instrument_tags=force_tags,
                 provider=active_provider,
+                generation_context=generation_context,
             )
             if song_result.get("ok") is False and "title" not in song_result:
                 return
             raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
-            completeness = ensure_full_song_structure(raw_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset, genre=genre, mood=mood, vocal=vocal, style_preset=selected_music_preset)
+            direction_style_preset = selected_music_preset if advanced_explicit.get("music_preset") else {}
+            completeness = ensure_full_song_structure(raw_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=generation_context["provider_artist_preset"], genre=generation_context["resolved_genre"], mood=generation_context["resolved_mood"], vocal=generation_context["resolved_vocal"], style_preset=direction_style_preset)
             if not completeness["before"].get("ok"):
                 retry_result = _safe(
                     "Regenerate complete song",
@@ -5542,21 +5586,22 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                         "- Include Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, and Outro.\n"
                         "- Minimum 24 lyric lines and no empty sections."
                     ),
-                    genre,
-                    mood,
-                    vocal,
-                    viral,
-                    artist_preset=preset,
+                    generation_context["resolved_genre"],
+                    generation_context["resolved_mood"],
+                    generation_context["resolved_vocal"],
+                    generation_context["resolved_hook_focus"],
+                    artist_preset=generation_context["provider_artist_preset"],
                     music_style_override=style_prompt,
                     force_english_instrument_tags=force_tags,
                     provider=active_provider,
+                    generation_context=generation_context,
                 )
                 retry_lyrics = str(retry_result.get("normalized_song_output") or retry_result.get("complete_lyrics") or retry_result.get("original_song_output") or "")
-                retry_completeness = ensure_full_song_structure(retry_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset, genre=genre, mood=mood, vocal=vocal, style_preset=selected_music_preset)
+                retry_completeness = ensure_full_song_structure(retry_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=generation_context["provider_artist_preset"], genre=generation_context["resolved_genre"], mood=generation_context["resolved_mood"], vocal=generation_context["resolved_vocal"], style_preset=direction_style_preset)
                 if retry_completeness["before"].get("score", 0) > completeness["before"].get("score", 0):
                     song_result = retry_result
                     completeness = retry_completeness
-            music_direction = completeness.get("music_direction") or build_music_direction(genre=genre, mood=mood, vocal=vocal, artist_preset=preset, style_preset=selected_music_preset)
+            music_direction = completeness.get("music_direction") or build_music_direction(genre=generation_context["resolved_genre"], mood=generation_context["resolved_mood"], vocal=generation_context["resolved_vocal"], artist_preset=generation_context["provider_artist_preset"], style_preset=direction_style_preset)
             advanced_settings = _settings_from_ai_controls(get_recommended_ai_controls(selected_music_preset_name))
             song_result.update({
                 "title": resolved_title,
@@ -5571,7 +5616,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "normalized_song_output": completeness["lyrics"],
                 "song_completeness": completeness["after"],
                 "music_direction": music_direction,
-                "music_style_prompt": music_direction.get("master_music_style_prompt") or style_prompt,
+                "music_style_prompt": style_prompt if generation_context.get("style_override_explicit") else (music_direction.get("master_music_style_prompt") or style_prompt),
                 "hook_candidates": candidates,
                 "candidate_hooks": candidates,
                 "selected_hook": hook,
@@ -5582,6 +5627,10 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "music_preset_data": selected_music_preset,
                 "vocal_direction": selected_vocal_direction_name,
                 "vocal_direction_data": selected_vocal_direction,
+                "hook_focus": viral,
+                "music_style_override": style_override,
+                "advanced_explicit": advanced_explicit,
+                "generation_resolution": {key: value for key, value in generation_context.items() if key != "provider_artist_preset"},
                 "advanced_settings": advanced_settings,
                 "weirdness": advanced_settings["weirdness"],
                 "style_influence": advanced_settings["style_influence"],
@@ -5640,12 +5689,12 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     active_provider, active_api_key, active_model = _active_text_credentials()
     creative_direction = project.get("creative_direction") or st.session_state.get("creative_direction", {}) or {}
     structure_plan = (project.get("song", {}) or {}).get("song_structure_plan") or project.get("song_structure_plan") or st.session_state.get("song_structure_plan", {}) or {}
-    default_artist_id = load_default_artist_id()
     raw_song = project.get("song", {}) or {}
     raw_artist_id = raw_song.get("artist_preset")
-    song = normalize_song_metadata(raw_song, get_artist_preset(raw_artist_id or default_artist_id))
+    initial_artist_id = raw_artist_id or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
+    song = normalize_song_metadata(raw_song, get_artist_preset(initial_artist_id))
     project["song"] = song
-    current_artist_id = raw_artist_id or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
+    current_artist_id = raw_artist_id or initial_artist_id
     creator_mode = not st.session_state.get("developer_mode", False)
     if creator_mode:
         _render_simple_song_studio(project, song, active_provider, active_api_key, active_model)
@@ -5763,7 +5812,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         st.caption(selected_vocal_direction.get("description", ""))
         recommended_ai_controls = get_recommended_ai_controls(selected_music_preset_name)
         st.caption(f"AI Controls: Auto by preset · Weirdness {recommended_ai_controls['weirdness']}% · Style Influence {recommended_ai_controls['style_influence']}%")
-        style_override = st.text_area("Music Style Prompt Override", value=preset.get("default_music_style_prompt", ""), height=120, help="แก้รายละเอียดดนตรีเพิ่มเติม ถ้าอยากระบุเครื่องดนตรีหรือโทนเพลงเอง")
+        style_override = st.text_area("Music Style Prompt Override", value=str(song.get("music_style_override") or ""), height=120, help="แก้รายละเอียดดนตรีเพิ่มเติม ถ้าอยากระบุเครื่องดนตรีหรือโทนเพลงเอง")
         with st.expander("Preset Summary", expanded=not creator_mode):
             st.write(f"Genre: {preset.get('genre', '')}")
             st.write(f"Vocal: {preset.get('vocal_style', '')}")
@@ -5773,6 +5822,31 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         if not creator_mode:
             with st.expander("Music Preset Details", expanded=False):
                 st.json(selected_music_preset, expanded=False)
+
+    advanced_explicit = {
+        "artist_preset": bool(use_preset),
+        "music_preset": selected_music_preset_name != DEFAULT_MUSIC_PRESET,
+        "vocal_direction": selected_vocal_direction_name != DEFAULT_VOCAL_DIRECTION,
+        "hook_focus": viral != "high",
+        "music_style_override": bool(style_override.strip()),
+    }
+    advanced_idea = _structure_for_song_idea(
+        _direction_for_song_idea(idea, creative_direction),
+        structure_plan,
+        use_structure_plan,
+    )
+    generation_context = resolve_song_generation_context(
+        idea=advanced_idea,
+        genre=genre,
+        mood=mood,
+        vocal=vocal,
+        artist_preset=preset,
+        music_preset=selected_music_preset,
+        vocal_direction=selected_vocal_direction,
+        hook_focus=viral,
+        music_style_override=style_override,
+        advanced_explicit=advanced_explicit,
+    )
 
     hook_candidates = normalize_hook_candidates(song.get("hook_candidates") or song.get("candidate_hooks") or st.session_state.get("hook_candidates", []))
     selected_hook = song.get("selected_hook") if isinstance(song.get("selected_hook"), dict) else st.session_state.get("selected_hook", {})
@@ -5820,15 +5894,16 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             api_key=active_api_key,
             model_name=active_model,
             provider=active_provider,
-            idea=_song_idea_with_vocal_direction(_music_preset_for_song_idea(_structure_for_song_idea(_direction_for_song_idea(idea, creative_direction), structure_plan, use_structure_plan), selected_music_preset), selected_vocal_direction),
-            genre=genre,
-            mood=mood,
-            artist_preset=preset if use_preset else get_artist_preset("vela_moon"),
+            idea=advanced_idea,
+            genre=generation_context["resolved_genre"],
+            mood=generation_context["resolved_mood"],
+            artist_preset=generation_context["provider_artist_preset"],
+            generation_context=generation_context,
         )
         candidates = hook_result.get("data", {}).get("hooks", [])
         if hook_result.get("data", {}).get("offline"):
             st.warning("Using offline fallback hooks")
-        hook_style_prompt = _music_style_with_preset(style_override if use_preset else preset.get("default_music_style_prompt", ""), selected_music_preset, selected_vocal_direction)
+        hook_style_prompt = generation_context["resolved_style_prompt"]
         ai_controls = get_recommended_ai_controls(selected_music_preset_name)
         advanced_settings = _settings_from_ai_controls(ai_controls)
         song.update({
@@ -5848,6 +5923,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             "hook_generation_seed": hook_result.get("data", {}).get("seed", ""),
             "hook_generation_offline": hook_result.get("data", {}).get("offline", False),
             "song_structure_plan": structure_plan,
+            "advanced_explicit": advanced_explicit,
+            "generation_resolution": {key: value for key, value in generation_context.items() if key != "provider_artist_preset"},
         })
         project["title"] = title
         project["artist"] = artist
@@ -5900,10 +5977,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 api_key=active_api_key,
                 model_name=active_model,
                 provider=active_provider,
-                idea=_song_idea_with_vocal_direction(_music_preset_for_song_idea(_structure_for_song_idea(_direction_for_song_idea(idea, creative_direction), structure_plan, use_structure_plan), selected_music_preset), selected_vocal_direction),
-                genre=genre,
-                mood=mood,
-                artist_preset=preset if use_preset else get_artist_preset("vela_moon"),
+                idea=advanced_idea,
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                artist_preset=generation_context["provider_artist_preset"],
+                generation_context=generation_context,
             )
             candidates = hook_result.get("data", {}).get("hooks", [])
             if hook_result.get("data", {}).get("offline"):
@@ -5920,11 +5998,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
             generated_title_used = True
         idea_with_hook = (
-            f"{_song_idea_with_vocal_direction(_music_preset_for_song_idea(_structure_for_song_idea(_direction_for_song_idea(idea, creative_direction), structure_plan, use_structure_plan), selected_music_preset), selected_vocal_direction)}\n\nSelected Hook: {hook.get('hook_text', '')}\n"
+            f"{advanced_idea}\n\nSelected Hook: {hook.get('hook_text', '')}\n"
             "Use this selected hook as the main chorus or strongest memorable line. "
             "Keep Thai lyrics natural. Keep all parentheses tags English only."
         )
-        final_style_prompt = _music_style_with_preset(style_override if use_preset else preset.get("default_music_style_prompt", ""), selected_music_preset, selected_vocal_direction)
+        final_style_prompt = generation_context["resolved_style_prompt"]
         ai_controls = get_recommended_ai_controls(selected_music_preset_name)
         advanced_settings = _settings_from_ai_controls(ai_controls)
         song_result = _safe(
@@ -5933,28 +6011,30 @@ def _render_song_studio(project: dict[str, Any]) -> None:
             active_api_key,
             active_model,
             idea_with_hook,
-            genre,
-            mood,
-            vocal,
-            viral,
-            artist_preset=preset if use_preset else get_artist_preset("vela_moon"),
+            generation_context["resolved_genre"],
+            generation_context["resolved_mood"],
+            generation_context["resolved_vocal"],
+            generation_context["resolved_hook_focus"],
+            artist_preset=generation_context["provider_artist_preset"],
             music_style_override=final_style_prompt,
             force_english_instrument_tags=force_tags,
             provider=active_provider,
+            generation_context=generation_context,
         )
         if song_result.get("ok") is False and "title" not in song_result:
             st.stop()
         raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
-        active_artist_preset = preset if use_preset else get_artist_preset("vela_moon")
+        active_artist_preset = generation_context["provider_artist_preset"]
+        direction_style_preset = selected_music_preset if advanced_explicit.get("music_preset") else {}
         completeness = ensure_full_song_structure(
             raw_lyrics,
             hook_text=str(hook.get("hook_text", "")),
             idea=idea,
             artist_preset=active_artist_preset,
-            genre=genre,
-            mood=mood,
-            vocal=vocal,
-            style_preset=selected_music_preset,
+            genre=generation_context["resolved_genre"],
+            mood=generation_context["resolved_mood"],
+            vocal=generation_context["resolved_vocal"],
+            style_preset=direction_style_preset,
         )
         if not completeness["before"].get("ok") and active_api_key:
             strict_idea = (
@@ -5971,14 +6051,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 active_api_key,
                 active_model,
                 strict_idea,
-                genre,
-                mood,
-                vocal,
-                viral,
-                artist_preset=preset if use_preset else get_artist_preset("vela_moon"),
+                generation_context["resolved_genre"],
+                generation_context["resolved_mood"],
+                generation_context["resolved_vocal"],
+                generation_context["resolved_hook_focus"],
+                artist_preset=generation_context["provider_artist_preset"],
                 music_style_override=final_style_prompt,
                 force_english_instrument_tags=force_tags,
                 provider=active_provider,
+                generation_context=generation_context,
             )
             retry_lyrics = str(retry_result.get("normalized_song_output") or retry_result.get("complete_lyrics") or retry_result.get("original_song_output") or "")
             retry_completeness = ensure_full_song_structure(
@@ -5986,10 +6067,10 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 hook_text=str(hook.get("hook_text", "")),
                 idea=idea,
                 artist_preset=active_artist_preset,
-                genre=genre,
-                mood=mood,
-                vocal=vocal,
-                style_preset=selected_music_preset,
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                vocal=generation_context["resolved_vocal"],
+                style_preset=direction_style_preset,
             )
             if retry_completeness["before"].get("score", 0) > completeness["before"].get("score", 0):
                 song_result = retry_result
@@ -6001,13 +6082,13 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["song_completeness"] = completeness["after"]
         song_result["song_completeness_before_expansion"] = completeness["before"]
         song_result["music_direction"] = completeness.get("music_direction") or build_music_direction(
-            genre=genre,
-            mood=mood,
-            vocal=vocal,
+            genre=generation_context["resolved_genre"],
+            mood=generation_context["resolved_mood"],
+            vocal=generation_context["resolved_vocal"],
             artist_preset=active_artist_preset,
-            style_preset=selected_music_preset,
+            style_preset=direction_style_preset,
         )
-        song_result["music_style_prompt"] = song_result["music_direction"].get("master_music_style_prompt") or final_style_prompt
+        song_result["music_style_prompt"] = final_style_prompt if generation_context.get("style_override_explicit") else (song_result["music_direction"].get("master_music_style_prompt") or final_style_prompt)
         song_result["bpm"] = song_result["music_direction"].get("bpm")
         song_result["hook_candidates"] = candidates
         song_result["candidate_hooks"] = candidates
@@ -6029,6 +6110,9 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["style_influence"] = advanced_settings["style_influence"]
         song_result["instrument_tags_language"] = "English only"
         song_result["song_structure_plan"] = structure_plan
+        song_result["music_style_override"] = style_override
+        song_result["advanced_explicit"] = advanced_explicit
+        song_result["generation_resolution"] = {key: value for key, value in generation_context.items() if key != "provider_artist_preset"}
         song_result = normalize_song_metadata(song_result, preset)
         project["title"] = resolved_title
         project["artist"] = artist

@@ -21,36 +21,47 @@ def _contains_any(text: str, words: list[str]) -> bool:
 
 
 def _pick_bpm(genre: str, mood: str, style_preset: dict[str, Any] | None = None) -> int:
-    source = " ".join([genre, mood, _text((style_preset or {}).get("genre")), _text((style_preset or {}).get("mood"))])
-    if _contains_any(source, ["ballad", "acoustic", "soft", "emotional", "sad", "lonely"]):
+    explicit = " ".join([genre, mood]).strip()
+    fallback = " ".join([_text((style_preset or {}).get("genre")), _text((style_preset or {}).get("mood"))])
+    source = explicit or fallback
+    if _contains_any(explicit, ["dance", "edm", "energetic", "viral", "tiktok", "fast"]):
+        return 112
+    if _contains_any(explicit, ["rock", "pop rock", "anthem"]):
+        return 92
+    if _contains_any(explicit, ["ballad", "acoustic", "soft", "emotional", "sad", "lonely"]):
         return 78
+    if _contains_any(explicit, ["r&b", "lofi", "chill"]):
+        return 84
+    if _contains_any(source, ["dance", "edm", "energetic", "viral", "tiktok", "fast"]):
+        return 112
     if _contains_any(source, ["rock", "pop rock", "anthem"]):
         return 92
-    if _contains_any(source, ["dance", "edm", "viral", "tiktok", "fast"]):
-        return 112
+    if _contains_any(source, ["ballad", "acoustic", "soft", "emotional", "sad", "lonely"]):
+        return 78
     if _contains_any(source, ["r&b", "lofi", "chill"]):
         return 84
     return 88
 
 
 def _instrument_palette(genre: str, mood: str, style_preset: dict[str, Any] | None = None) -> list[str]:
-    source = " ".join([genre, mood, _text((style_preset or {}).get("arrangement")), _text((style_preset or {}).get("prompt_suffix"))])
+    explicit = " ".join([genre, mood]).strip()
+    source = explicit or " ".join([_text((style_preset or {}).get("arrangement")), _text((style_preset or {}).get("prompt_suffix"))])
     palette = ["soft piano", "warm acoustic guitar", "ambient pad", "subtle bass", "cinematic drums"]
-    if _contains_any(source, ["rock", "pop rock", "band"]):
+    if _contains_any(source, ["dance", "edm", "viral", "tiktok"]):
+        palette = ["bright synth plucks", "punchy kick", "sidechain pad", "modern electronic bass", "clap/snare stack"]
+    elif _contains_any(source, ["acoustic", "folk"]):
+        palette = ["fingerpicked acoustic guitar", "soft piano", "brush snare", "upright bass warmth", "ambient reverb pad"]
+    elif _contains_any(source, ["rock", "pop rock", "band"]):
         palette = ["clean electric guitar", "warm acoustic guitar", "live bass", "tight pop rock drums", "cinematic strings"]
     elif _contains_any(source, ["r&b", "lofi", "chill"]):
         palette = ["soft rhodes piano", "lofi drum groove", "round sub bass", "warm guitar plucks", "vinyl texture pad"]
-    elif _contains_any(source, ["dance", "edm", "viral", "tiktok"]):
-        palette = ["bright synth plucks", "punchy kick", "sidechain pad", "modern pop bass", "clap/snare stack"]
-    elif _contains_any(source, ["acoustic", "folk"]):
-        palette = ["fingerpicked acoustic guitar", "soft piano", "brush snare", "upright bass warmth", "ambient reverb pad"]
     return palette
 
 
 def _vocal_tone(vocal: str, mood: str, artist_preset: dict[str, Any] | None = None, style_preset: dict[str, Any] | None = None) -> str:
     preset_vocal = _text((artist_preset or {}).get("vocal_feeling") or (artist_preset or {}).get("vocal_style"))
     style_vocal = _text((style_preset or {}).get("vocal_style"))
-    parts = [part for part in [vocal, style_vocal, preset_vocal] if part]
+    parts = [vocal] if _text(vocal) else [part for part in [style_vocal, preset_vocal] if part]
     base = ", ".join(parts) or "intimate emotional lead vocal"
     if _contains_any(mood, ["sad", "lonely", "heartbreak", "emotional"]):
         return f"{base}, close-mic delivery, fragile first verse, wider harmony release in chorus"
@@ -70,13 +81,8 @@ def build_music_direction(
     """Build Suno/Udio-ready arrangement guidance for a complete song."""
     preset = artist_preset or {}
     style = style_preset or {}
-    genre_fusion = " / ".join(
-        part for part in [
-            _text(genre, _text(preset.get("genre") or preset.get("category"), "modern Thai pop")),
-            _text(style.get("genre")),
-            _text(preset.get("brand_style")),
-        ] if part
-    )
+    explicit_genre = _text(genre)
+    genre_fusion = explicit_genre or _text(style.get("genre")) or _text(preset.get("genre") or preset.get("category"), "modern Thai pop")
     mood_text = _text(mood, _text(style.get("mood"), _text(preset.get("mood"), "emotional cinematic")))
     bpm = _pick_bpm(genre_fusion, mood_text, style)
     palette = _instrument_palette(genre_fusion, mood_text, style)

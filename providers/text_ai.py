@@ -3,9 +3,8 @@ import re
 from typing import Any, Dict
 import google.generativeai as genai
 
-from core.artist_presets import get_artist_preset
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
-from core.song_workflow import normalize_hook_candidates, select_best_hook
+from core.song_workflow import NEUTRAL_ARTIST_PRESET, normalize_hook_candidates, resolve_song_generation_context, select_best_hook
 from providers.provider_manager import generate_text
 
 
@@ -33,13 +32,13 @@ def _default_instrument_tags(artist_preset: Dict[str, Any] | None = None) -> Dic
         return dict(preset_tags)
     return {
         "Intro": "warm acoustic guitar fingerpicking, soft ambient pad, intimate atmosphere",
-        "Verse 1": "acoustic guitar strumming, warm bass, intimate male vocal",
+        "Verse 1": "genre-appropriate accompaniment, controlled rhythm section, intimate lead vocal",
         "Pre-Chorus": "building tom drums, emotional electric guitar swells",
-        "Chorus": "full pop rock arrangement, powerful drums, wide stereo guitars, emotional vocal delivery",
+        "Chorus": "full genre-appropriate arrangement, stronger rhythm, wide stereo image, emotional vocal delivery",
         "Post-Chorus": "wide synth pad, melodic guitar hook, airy backing vocals",
         "Verse 2": "steady groove, warm bass, subtle percussion, intimate vocal",
         "Bridge": "music drops down, intimate piano and bass, emotional tension",
-        "Final Chorus": "maximum emotional energy, layered backing vocals, soaring electric guitars",
+        "Final Chorus": "maximum emotional energy, layered backing vocals, expanded arrangement",
         "Outro": "soft piano tail, fading guitar ambience, warm room texture",
     }
 
@@ -59,7 +58,7 @@ def _default_energy_curve() -> Dict[str, int]:
 
 
 def _normalize_song(data: Dict[str, Any], artist_preset: Dict[str, Any] | None = None, force_english_instrument_tags: bool = True) -> Dict[str, Any]:
-    artist_preset = artist_preset or get_artist_preset("vela_moon")
+    artist_preset = artist_preset or dict(NEUTRAL_ARTIST_PRESET)
     data.setdefault("title", "")
     data.setdefault("target_analysis", "")
     hooks = normalize_hook_candidates(data.get("hook_candidates") or data.get("candidate_hooks"))
@@ -81,8 +80,8 @@ def _normalize_song(data: Dict[str, Any], artist_preset: Dict[str, Any] | None =
     data.setdefault("instrument_tags", _default_instrument_tags(artist_preset))
     data.setdefault("energy_curve", _default_energy_curve())
     data.setdefault("arrangement_preset", "")
-    data["artist_preset"] = artist_preset.get("artist_id", "vela_moon")
-    data["artist_preset_name"] = artist_preset.get("artist_name", "Vela Moon")
+    data["artist_preset"] = artist_preset.get("artist_id", "neutral")
+    data["artist_preset_name"] = artist_preset.get("artist_name", "Neutral")
     data["instrument_tags_language"] = "English only"
     data["original_song_output"] = data.get("original_song_output") or data.get("complete_lyrics", "")
     if force_english_instrument_tags:
@@ -127,7 +126,7 @@ def _normalize_mv(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _offline_song(idea: str, genre: str, mood: str, vocal: str, viral_level: str, artist_preset: Dict[str, Any] | None = None) -> str:
-    artist_preset = artist_preset or get_artist_preset("vela_moon")
+    artist_preset = artist_preset or dict(NEUTRAL_ARTIST_PRESET)
     tags = _default_instrument_tags(artist_preset)
     return json.dumps({
         "title": "Demo Song",
@@ -244,10 +243,41 @@ def generate_song_with_gemini(
     music_style_override: str = "",
     force_english_instrument_tags: bool = True,
     provider: str = "gemini",
+    generation_context: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    artist_preset = artist_preset or get_artist_preset("vela_moon")
-    style_prompt = music_style_override.strip() or artist_preset.get("default_music_style_prompt", "")
-    preset_json = json.dumps(artist_preset, ensure_ascii=False, indent=2)
+    context = generation_context or resolve_song_generation_context(
+        idea=idea,
+        genre=genre,
+        mood=mood,
+        vocal=vocal,
+        artist_preset=artist_preset,
+        hook_focus=viral_level,
+        music_style_override=music_style_override,
+        advanced_explicit={"artist_preset": bool(artist_preset), "music_style_override": bool(music_style_override.strip())},
+    )
+    genre = str(context.get("resolved_genre") or genre)
+    mood = str(context.get("resolved_mood") or mood)
+    vocal = str(context.get("resolved_vocal") or vocal)
+    viral_level = str(context.get("resolved_hook_focus") or viral_level)
+    style_prompt = str(context.get("resolved_style_prompt") or music_style_override).strip()
+    artist_preset = dict(context.get("provider_artist_preset") or NEUTRAL_ARTIST_PRESET)
+    preset_json = json.dumps(
+        {
+            "artist_id": context.get("resolved_artist_preset", "neutral"),
+            "artist_name": artist_preset.get("artist_name", "Neutral"),
+            "writing_rules": artist_preset.get("writing_rules", []),
+            "hook_style": artist_preset.get("hook_style", ""),
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+    vela_moon_rule = ""
+    if context.get("vela_moon_active"):
+        vela_moon_rule = """
+VELA MOON IDENTITY (explicitly selected):
+- Keep emotionally direct, conversational Thai songwriting, memorable hooks, and a complete commercial arrangement.
+- Genre, mood, and vocal values in RESOLVED INPUT remain authoritative; do not replace them with preset defaults.
+"""
     prompt = f"""
 คุณคือผู้เชี่ยวชาญด้านการแต่งเพลงและโปรดิวเซอร์ดนตรีสำหรับ Suno Custom Mode
 หน้าที่คือเปลี่ยนไอเดียให้เป็นเพลงไทยเต็ม 3-4 นาที ฟังติดหู มีฮุกจำง่าย พร้อม Music Style Prompt ภาษาอังกฤษ
@@ -259,8 +289,9 @@ INPUT:
 - Vocal: {vocal}
 - Viral level: {viral_level}
 - Language: {language}
-- Artist Preset: {artist_preset.get('artist_name', 'Vela Moon')}
-- Default Music Style Prompt: {style_prompt}
+- Artist Preset: {artist_preset.get('artist_name', 'Neutral')}
+- Music Style Prompt: {style_prompt}
+- Style Source: {context.get('resolved_style_source', 'explicit main controls')}
 
 ARTIST PRESET JSON:
 {preset_json}
@@ -292,18 +323,10 @@ IMPORTANT LANGUAGE RULE:
 - Do not write Thai inside parentheses.
 - Do not translate Thai lyrics into English.
 - Keep Thai lyrics natural and conversational.
-- Use the selected Artist Preset as the main style identity.
-
-Vela Moon style rule:
-- Use mid-tempo easy-listening Thai pop rock.
-- Smooth emotional male vocal.
-- Clean electric guitar and acoustic strumming.
-- Warm bass and soft drum kit.
-- Light rhodes piano or soft pad when needed.
-- Catchy melody, relaxed but emotional.
-- Full song structure, not short demo.
-- Hook should be memorable and caption-friendly.
-- Use section_instrument_tags from the artist preset for Suno arrangement parentheses unless you create better English-only tags.
+- Priority is Song Idea > explicit Genre/Mood/Vocal > manual Music Style Prompt > explicit Advanced choices > defaults.
+- Never contradict the resolved Genre, Mood, or Vocal with preset defaults.
+- Use only the compatible artist characteristics included in ARTIST PRESET JSON.
+{vela_moon_rule}
 
 ตอบเป็น JSON เท่านั้นตาม schema นี้:
 {{
@@ -345,6 +368,7 @@ Vela Moon style rule:
     )
     song = _extract_json(text)
     song["music_style_prompt"] = song.get("music_style_prompt") or style_prompt
+    song["generation_resolution"] = {key: value for key, value in context.items() if key != "provider_artist_preset"}
     return _normalize_song(song, artist_preset, force_english_instrument_tags)
 
 

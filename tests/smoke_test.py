@@ -161,7 +161,7 @@ from core.artist_presets import (
     validate_artist_preset,
 )
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
-from core.song_workflow import _extract_json, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, save_song_state, select_best_hook
+from core.song_workflow import _extract_json, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_song_generation_context, save_song_state, select_best_hook, song_project_widget_state
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -424,6 +424,88 @@ def main():
     direction_export = export_music_direction_files(out / "music_direction_exports", music_direction)
     for filename in ["music_style_prompt.txt", "arrangement_map.txt", "vocal_direction.txt", "instrument_palette.txt", "energy_curve.json"]:
         assert_true(Path(direction_export[filename]).exists(), f"music direction export missing {filename}")
+
+    default_artist = get_artist_preset("emotional_pop")
+    default_music = get_music_preset(DEFAULT_MUSIC_PRESET)
+    default_vocal_direction = get_vocal_direction(DEFAULT_VOCAL_DIRECTION)
+    untouched_advanced = {
+        "artist_preset": False,
+        "music_preset": False,
+        "vocal_direction": False,
+        "hook_focus": False,
+        "music_style_override": False,
+    }
+
+    def priority_context(genre: str, mood: str, vocal: str, **overrides):
+        return resolve_song_generation_context(
+            idea="priority matrix song",
+            genre=genre,
+            mood=mood,
+            vocal=vocal,
+            artist_preset=overrides.get("artist_preset", default_artist),
+            music_preset=default_music,
+            vocal_direction=default_vocal_direction,
+            hook_focus="high",
+            music_style_override=overrides.get("music_style_override", ""),
+            advanced_explicit=overrides.get("advanced_explicit", untouched_advanced),
+        )
+
+    priority_a = priority_context("Pop Rock", "\u0e04\u0e34\u0e14\u0e16\u0e36\u0e07", "smooth emotional male vocal")
+    assert_true(priority_a["resolved_genre"] == "Pop Rock" and priority_a["resolved_vocal"] == "smooth emotional male vocal", "case A main controls lost authority")
+    assert_true(priority_a["resolved_artist_preset"] == "neutral" and not priority_a["vela_moon_active"], "case A forced an untouched artist preset")
+
+    priority_b = priority_context("Acoustic", "Warm", "female vocal")
+    priority_b_text = json.dumps(priority_b, ensure_ascii=False).lower()
+    assert_true(priority_b["resolved_genre"] == "Acoustic" and priority_b["resolved_mood"] == "Warm" and priority_b["resolved_vocal"] == "female vocal", "case B main controls lost authority")
+    assert_true("pop rock" not in priority_b["resolved_style_prompt"].lower() and "smooth emotional male vocal" not in priority_b_text and "vela moon" not in priority_b_text, "case B leaked default Pop Rock, male vocal, or Vela Moon identity")
+
+    priority_c = priority_context("EDM", "Energetic", "powerful female vocal")
+    priority_c_direction = build_music_direction(
+        genre=priority_c["resolved_genre"],
+        mood=priority_c["resolved_mood"],
+        vocal=priority_c["resolved_vocal"],
+        artist_preset=priority_c["provider_artist_preset"],
+    )
+    assert_true(priority_c_direction["genre_fusion"] == "EDM" and priority_c_direction["bpm"] >= 108, "case C EDM tempo or genre priority failed")
+    assert_true("smooth emotional male vocal" not in priority_c_direction["vocal_tone"].lower() and "powerful female vocal" in priority_c_direction["vocal_tone"].lower(), "case C female vocal was contradicted")
+
+    vela_explicit = dict(untouched_advanced)
+    vela_explicit["artist_preset"] = True
+    priority_d = priority_context("Acoustic", "Warm", "female vocal", artist_preset=vela_moon, advanced_explicit=vela_explicit)
+    assert_true(priority_d["vela_moon_active"] and priority_d["resolved_artist_preset"] == "vela_moon", "case D explicit Vela Moon selection was not retained")
+    assert_true(priority_d["resolved_genre"] == "Acoustic" and priority_d["provider_artist_preset"]["vocal_style"] == "female vocal", "case D lower-priority artist defaults overrode main controls")
+
+    style_explicit = dict(untouched_advanced)
+    style_explicit["music_style_override"] = True
+    manual_style = "minimal nylon guitar, dry intimate room, restrained percussion"
+    priority_e = priority_context("Acoustic", "Warm", "female vocal", music_style_override=manual_style, advanced_explicit=style_explicit)
+    assert_true(priority_e["resolved_style_source"] == "manual style override" and manual_style in priority_e["resolved_style_prompt"], "case E manual style override was not authoritative")
+    assert_true(default_music["prompt_suffix"] not in priority_e["resolved_style_prompt"], "case E appended the default music preset to a manual override")
+    conflicting_style = priority_context("Acoustic", "Warm", "female vocal", music_style_override="smooth emotional male vocal, pop rock guitars, minimal nylon guitar", advanced_explicit=style_explicit)
+    assert_true("smooth emotional male vocal" not in conflicting_style["resolved_style_prompt"].lower() and "pop rock" not in conflicting_style["resolved_style_prompt"].lower() and "minimal nylon guitar" in conflicting_style["resolved_style_prompt"].lower(), "case E did not remove direct conflicts from the manual style layer")
+
+    project_a = {"title": "Project A", "artist": "Artist A", "song": {"idea": "A", "genre": "Pop Rock", "mood": "Warm", "vocal": "male vocal"}}
+    project_b = {"title": "Project B", "artist": "Artist B", "song": {"idea": "B", "genre": "EDM", "mood": "Energetic", "vocal": "female vocal"}}
+    state_a = song_project_widget_state(project_a)
+    state_b = song_project_widget_state(project_b)
+    state_a_again = song_project_widget_state(project_a)
+    assert_true(state_a["genre"] == "Pop Rock" and state_b["genre"] == "EDM" and state_b["vocal"] == "female vocal", "case F project switch retained stale Song Studio values")
+    assert_true(state_a_again == state_a, "case F switching back did not restore project-owned values")
+
+    import providers.text_ai as text_ai_provider
+
+    captured_prompts = []
+    original_generate_text = text_ai_provider.generate_text
+    text_ai_provider.generate_text = lambda **kwargs: captured_prompts.append(kwargs["prompt"]) or json.dumps({"title": "Test", "music_style_prompt": "", "complete_lyrics": "[Verse 1]\nline\n[Chorus]\nhook"}, ensure_ascii=False)
+    try:
+        text_ai_provider.generate_song_with_gemini("test-key", "test-model", "priority matrix song", "Acoustic", "Warm", "female vocal", "high", generation_context=priority_b)
+        case_b_prompt = captured_prompts[-1]
+        assert_true("VELA MOON IDENTITY" not in case_b_prompt and "smooth emotional male vocal" not in case_b_prompt and "mid-tempo pop rock" not in case_b_prompt, "provider prompt leaked Vela Moon into case B")
+        text_ai_provider.generate_song_with_gemini("test-key", "test-model", "priority matrix song", "Acoustic", "Warm", "female vocal", "high", generation_context=priority_d)
+        assert_true("VELA MOON IDENTITY" in captured_prompts[-1], "provider prompt omitted explicitly selected Vela Moon identity")
+    finally:
+        text_ai_provider.generate_text = original_generate_text
+
     project["song"]["artist_preset"] = "vela_moon"
     project["song"]["artist_preset_data"] = vela_moon
     project["song"]["complete_lyrics"] = thai_tag_lyrics
@@ -3103,6 +3185,7 @@ def main():
         visual_workspace_source = main_source[main_source.find("def _render_visual_studio_workspace"):main_source.find("def _render_release_pack_workspace")]
         release_workspace_source = main_source[main_source.find("def _render_release_pack_workspace"):main_source.find("def _render_ai_creative_pack_generator")]
         assert_true(all(label in simple_song_source for label in ["Project / Song Title", "Artist", "Song Idea / Story", "Genre", "Mood", "Vocal", "Generate Title", "Generate Lyrics", "Lyrics Check", "Export to Suno", 'st.expander("Advanced"']), "simplified Song Studio controls missing")
+        assert_true("simple_song_project_source_id" in simple_song_source and all(key in simple_song_source for key in ["simple_song_genre", "simple_song_mood", "simple_song_vocal", "simple_song_style_override"]), "Song Studio project state isolation wiring is incomplete")
         assert_true("Suggested Title" in simple_song_source and 'button("Use"' in simple_song_source and 'button("↻"' in simple_song_source and "Accept Title" not in simple_song_source and "Active AI provider" not in simple_song_source, "Song Studio title actions or provider-detail cleanup missing")
         assert_true("_render_simple_song_studio" in song_route_source and "if creator_mode:" in song_route_source and "return" in song_route_source, "normal Song Studio does not route to the simplified workspace")
         assert_true(all(label in visual_workspace_source for label in ["Cover Prompt", "MV Storyboard", 'st.expander("Short-form Visuals"']) and "Advanced / Diagnostics" in visual_workspace_source, "Visual Studio primary workflow or advanced diagnostics split missing")
