@@ -103,7 +103,7 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
-from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_remaster_quality_metrics, build_clipping_validation, build_remaster_project_id, build_remaster_quality_comparison, recommend_remaster_preset_from_metadata, remaster_song_audio, validate_remaster_input, validate_remaster_outputs
+from core.remaster_engine import CUSTOM_REMASTER_DEFAULTS, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_remaster_project_id, build_remaster_quality_comparison, default_custom_remaster_settings, recommend_remaster_preset_from_metadata, remaster_song_audio, sanitize_custom_remaster_settings, validate_remaster_input, validate_remaster_outputs
 from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
@@ -813,8 +813,19 @@ def main():
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
     assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
     assert_true("pcm_s24le" in wav_hook_cmd and "libmp3lame" in wav_to_mp3_cmd and "copy" not in wav_to_mp3_cmd, "Audio Editor WAV export commands failed")
-    assert_true(REMASTER_STYLES[0] == "Streaming Balanced" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern"}.issubset(set(REMASTER_STYLES)), "Remaster Studio V1 preset list failed")
+    assert_true(REMASTER_RECOMMENDATION_MODES == ["Auto Recommended", "Manual"] and REMASTER_STYLES[0] == "Streaming Balanced" and REMASTER_STYLES[-1] == "Custom" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern", "Custom"}.issubset(set(REMASTER_STYLES)), "simple Remaster preset modes or preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
+    streaming_snapshot = json.loads(json.dumps(STYLE_FILTERS["Streaming Balanced"]))
+    custom_defaults = default_custom_remaster_settings()
+    custom_defaults["bass_db"] = 3.0
+    fresh_custom_defaults = default_custom_remaster_settings()
+    clamped_custom = sanitize_custom_remaster_settings({"loudness_lufs": -30, "bass_db": 8, "compression_ratio": 9, "stereo_width": 4, "output_ceiling_db": 0})
+    custom_baseline_config = build_custom_remaster_config()
+    custom_config = build_custom_remaster_config({"bass_db": 1.5, "stereo_width": 1.1})
+    assert_true(fresh_custom_defaults == CUSTOM_REMASTER_DEFAULTS and fresh_custom_defaults["bass_db"] == 0.0 and STYLE_FILTERS["Streaming Balanced"] == streaming_snapshot, "Custom baseline mutated the built-in Streaming Balanced preset")
+    assert_true(custom_baseline_config["custom_settings"] == fresh_custom_defaults and "loudnorm=I=-14.0:TP=-1.0:LRA=10" in custom_baseline_config["filters"] and "alimiter=level_out=0.93:limit=0.93" in custom_baseline_config["filters"], "Custom preset did not start from the Streaming Balanced safety baseline")
+    assert_true(clamped_custom == {"loudness_lufs": -16.0, "bass_db": 3.0, "mid_db": 0.8, "high_db": 0.0, "compression_ratio": 2.5, "stereo_width": 1.2, "output_ceiling_db": -0.5}, "Custom Remaster settings were not clamped safely")
+    assert_true(custom_config["custom_settings"]["bass_db"] == 1.5 and "acompressor=" in custom_config["filters"] and "stereotools=" in custom_config["filters"] and "loudnorm=" in custom_config["filters"] and "alimiter=" in custom_config["filters"], "Custom Remaster filter resolution failed")
     assert_true(build_remaster_project_id("My Song.mp3").startswith("My_Song_"), "Remaster project id safe filename failed")
     review_ready_lyrics = """[Verse 1]
 แก้วน้ำของพ่อวางอยู่ข้างจาน
@@ -2533,6 +2544,22 @@ def main():
         external_remaster = remaster_song_audio(external_upload_source, project_name=external_upload_base, remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
         external_remaster_data = external_remaster.get("data", {})
         assert_true(external_remaster["ok"] and Path(external_remaster_data.get("mastered_wav", "")).name == "k-den พาฟิน_Master.wav" and Path(external_remaster_data.get("mastered_mp3", "")).name == "k-den พาฟิน_Master.mp3" and Path(external_remaster_data.get("report_path", "")).name == "k-den พาฟิน_Remaster_Report.json" and external_remaster_data.get("export_name") == "k-den พาฟิน", "external upload remaster export names should come from uploaded filename")
+        custom_values = default_custom_remaster_settings()
+        custom_values.update({"bass_db": 1.2, "mid_db": 0.4, "high_db": 0.6, "compression_ratio": 1.9, "stereo_width": 1.1})
+        custom_remaster = remaster_song_audio(
+            long_hook_source,
+            project_name="Smoke Custom Remaster",
+            remaster_style="Custom",
+            ffmpeg_path=find_ffmpeg(),
+            recommendation_data={"source": "manual", "recommended_preset": "Streaming Balanced"},
+            preset_mode="manual",
+            custom_settings=custom_values,
+        )
+        custom_report = (custom_remaster.get("data") or {}).get("report") or {}
+        custom_report_txt_path = Path((custom_remaster.get("data") or {}).get("report_txt_path", ""))
+        custom_report_text = custom_report_txt_path.read_text(encoding="utf-8") if custom_report_txt_path.is_file() else ""
+        assert_true(custom_remaster["ok"] and custom_report.get("preset_mode") == "manual" and custom_report.get("preset_name") == "custom" and custom_report.get("selected_preset") == "Custom" and custom_report.get("custom_settings") == sanitize_custom_remaster_settings(custom_values), "Custom Remaster processing/report settings failed")
+        assert_true("Preset mode: manual" in custom_report_text and "Preset name: custom" in custom_report_text and "Resolved Custom Settings:" in custom_report_text, "Custom Remaster TXT report missing resolved settings")
         manual_recommendation = dict(audio_recommend.get("data", {}))
         manual_recommendation["selected_preset"] = "Vocal Focus"
         remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation)
@@ -3101,6 +3128,7 @@ def main():
         assert_true("Included creator files" in main_source and "Scene Breakdown" in main_source and "Cinematic Scene Plan" in main_source, "mobile collapsible package sections missing")
         assert_true("filter_visible_projects(all_managed_projects" in main_source and "is_test_project_name" in main_source and "เพลงใหม่ของฉัน" in main_source, "sidebar project filtering/default project cleanup missing")
         assert_true("Remaster Studio" in main_source and "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export." in main_source and '"Source"' in main_source and '"Process Audio"' in main_source and "Download Mastered WAV" in main_source and "Download Mastered MP3" in main_source, "simplified Remaster Studio UI missing")
+        custom_remaster_ui_source = main_source[main_source.find("def _render_custom_remaster_controls"):main_source.find("def _render_remaster_studio")]
         remaster_ui_slice = main_source[main_source.find("def _render_remaster_studio"):main_source.find("def _project_master_audio")]
         remaster_engine_source = (ROOT / "core" / "remaster_engine.py").read_text(encoding="utf-8")
         assert_true("_resolve_safari_audio_preview_bytes" in main_source and "_validate_preview_audio_payload" in main_source and "_build_safari_preview_mp3" in main_source and "remaster_preview_bytes_cache" in main_source and "audio/mpeg" in main_source, "Safari-compatible remaster preview helpers missing")
@@ -3111,7 +3139,8 @@ def main():
         assert_true('st.audio(ab_preview["bytes"], format=ab_preview["format"])' in remaster_ui_slice and "quality_preview_original.mp3" in remaster_engine_source and "quality_preview_mastered.mp3" in remaster_engine_source and "st.audio(str(mastered_wav))" not in remaster_ui_slice and "st.audio(source_path)" not in remaster_ui_slice, "Remaster A/B should render one validated Safari-compatible preview range at a time")
         assert_true("remaster_play_original" not in remaster_ui_slice and "remaster_play_mastered" not in remaster_ui_slice and "Preview unavailable" in remaster_ui_slice and "preview_diagnostics" in remaster_ui_slice and "autoplay" not in remaster_ui_slice.lower(), "Remaster preview controls/diagnostics cleanup missing")
         assert_true('"libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2"' in remaster_engine_source, "Remaster MP3 preview/export should be explicit 320k 48k stereo libmp3lame")
-        assert_true("Preset Selection" in remaster_ui_slice and "Auto Recommended" in remaster_ui_slice and "Analyze Source" in remaster_ui_slice and "Recommended by VelaFlow" in remaster_ui_slice and "Use Recommended Preset" not in remaster_ui_slice and "Choose Manually" not in remaster_ui_slice and "Advanced Settings" not in remaster_ui_slice, "compact Remaster preset mode UI missing")
+        assert_true("Preset Selection" in remaster_ui_slice and "Auto Recommended" in remaster_ui_slice and "Analyze Source" in remaster_ui_slice and "Recommended by VelaFlow" in remaster_ui_slice and 'st.selectbox("Preset", REMASTER_STYLES' in remaster_ui_slice and "_render_custom_remaster_controls" in remaster_ui_slice and "Custom processing controls are reserved" not in remaster_ui_slice and "Use Recommended Preset" not in remaster_ui_slice and "Choose Manually" not in remaster_ui_slice and "Advanced Settings" not in remaster_ui_slice, "simple Auto/Manual Remaster preset UI missing")
+        assert_true(all(label in custom_remaster_ui_source for label in ["Custom Preset", "Reset Custom", "Loudness (LUFS)", "Bass", "Mid", "High", "Compression", "Stereo Width", "Output Ceiling"]) and 'remaster_state["custom_settings"]' in custom_remaster_ui_source and "_save_project()" in custom_remaster_ui_source, "Custom Remaster controls, reset, or project persistence wiring missing")
         assert_true("Before / After" in remaster_ui_slice and "Quality Summary" in remaster_ui_slice and "Advanced Analysis" in remaster_ui_slice and remaster_ui_slice.find("LUFS:") > remaster_ui_slice.find('st.expander("Advanced Analysis"') and "integrated_lufs" in remaster_engine_source and "crest_factor_db" in remaster_engine_source and "stereo_width_proxy" in remaster_engine_source, "Remaster quality comparison UI, advanced metrics, or engine metrics missing")
         waveform_component_source = (ROOT / "app" / "components" / "waveform_selector" / "index.html").read_text(encoding="utf-8")
         assert_true("Audio Editor" in main_source and "Upload External MP3/WAV" in main_source and "MP3 or WAV" in main_source and "WAV is analyzed directly" in main_source and "Lossless Quick Cut" in main_source and "Precise Cut" in main_source and "Waveform Cutter" in main_source and "✓ Find Smart Hook" in main_source and "Play Selection" in main_source and "Export Format" in main_source and "Download Hook MP3" in main_source and "Download Hook WAV" in main_source and "Export Name" in main_source and "export_name_manual" in main_source and "audio_source_export_name" in main_source, "Audio Editor backend compatibility missing")

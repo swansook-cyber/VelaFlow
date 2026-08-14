@@ -26,8 +26,9 @@ REMASTER_STYLES = [
     "Vocal Focus",
     "Cinematic",
     "Loud Modern",
+    "Custom",
 ]
-REMASTER_RECOMMENDATION_MODES = ["Auto Recommended", "Manual", "Custom / Advanced"]
+REMASTER_RECOMMENDATION_MODES = ["Auto Recommended", "Manual"]
 
 LEGACY_STYLE_ALIASES = {
     "Vela Moon Emotional Pop Rock": "Pop Rock",
@@ -97,6 +98,78 @@ STYLE_FILTERS: dict[str, dict[str, Any]] = {
     },
 }
 
+CUSTOM_REMASTER_DEFAULTS: dict[str, float] = {
+    "loudness_lufs": -14.0,
+    "bass_db": 0.0,
+    "mid_db": 0.8,
+    "high_db": 0.0,
+    "compression_ratio": 1.7,
+    "stereo_width": 1.0,
+    "output_ceiling_db": -1.0,
+}
+
+CUSTOM_REMASTER_LIMITS: dict[str, tuple[float, float]] = {
+    "loudness_lufs": (-16.0, -10.0),
+    "bass_db": (-3.0, 3.0),
+    "mid_db": (-3.0, 3.0),
+    "high_db": (-3.0, 3.0),
+    "compression_ratio": (1.2, 2.5),
+    "stereo_width": (0.8, 1.2),
+    "output_ceiling_db": (-1.5, -0.5),
+}
+
+
+def default_custom_remaster_settings() -> dict[str, float]:
+    """Return a fresh, project-safe custom baseline."""
+    return dict(CUSTOM_REMASTER_DEFAULTS)
+
+
+def sanitize_custom_remaster_settings(settings: dict[str, Any] | None = None) -> dict[str, float]:
+    source = settings if isinstance(settings, dict) else {}
+    resolved: dict[str, float] = {}
+    for key, default in CUSTOM_REMASTER_DEFAULTS.items():
+        try:
+            value = float(source.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        lower, upper = CUSTOM_REMASTER_LIMITS[key]
+        resolved[key] = round(max(lower, min(upper, value)), 2)
+    return resolved
+
+
+def build_custom_remaster_config(settings: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a bounded FFmpeg chain from practical mastering controls."""
+    resolved = sanitize_custom_remaster_settings(settings)
+    filters = ["adeclick", "highpass=f=28", "lowpass=f=18500"]
+    tone_bands = (
+        ("bass_db", 100, 0.9),
+        ("mid_db", 3200, 1.0),
+        ("high_db", 9000, 1.1),
+    )
+    for key, frequency, width in tone_bands:
+        gain = resolved[key]
+        if abs(gain) >= 0.05:
+            filters.append(f"equalizer=f={frequency}:t=q:w={width}:g={gain}")
+    filters.append(
+        "acompressor="
+        f"threshold=-18dB:ratio={resolved['compression_ratio']}:attack=12:release=160"
+    )
+    if abs(resolved["stereo_width"] - 1.0) >= 0.01:
+        filters.append(f"stereotools=mlev=1.0:slev={resolved['stereo_width']}")
+    filters.append(
+        f"loudnorm=I={resolved['loudness_lufs']}:"
+        f"TP={resolved['output_ceiling_db']}:LRA=10"
+    )
+    limiter_level = round(0.93 * (10 ** ((resolved["output_ceiling_db"] + 1.0) / 20.0)), 4)
+    filters.append(f"alimiter=level_out={limiter_level}:limit={limiter_level}")
+    return {
+        "filters": ",".join(filters),
+        "target_lufs": f"{resolved['loudness_lufs']:g} LUFS estimated",
+        "true_peak": f"{resolved['output_ceiling_db']:g} dBTP estimated",
+        "summary": "project-specific custom balance with bounded EQ, compression, width, loudness, and limiting",
+        "custom_settings": resolved,
+    }
+
 
 def _run(args: list[str], timeout: int = 180) -> dict[str, Any]:
     try:
@@ -121,6 +194,8 @@ def _max_volume_db(ffmpeg: str, path: Path) -> float | None:
 
 def _normalize_style(style: str) -> str:
     selected = LEGACY_STYLE_ALIASES.get(style, style)
+    if selected == "Custom":
+        return "Custom"
     return selected if selected in STYLE_FILTERS else "Streaming Balanced"
 
 
@@ -440,6 +515,8 @@ def _report_text(report: dict[str, Any]) -> str:
         f"Input sample rate: {report.get('input_sample_rate', 'unknown')}",
         f"Input duration: {report.get('input_duration', 0)}",
         f"Selected preset: {report.get('selected_preset', '')}",
+        f"Preset mode: {report.get('preset_mode', '')}",
+        f"Preset name: {report.get('preset_name', '')}",
         "",
         "Processing steps applied:",
         *[f"- {step}" for step in report.get("processing_steps_applied", [])],
@@ -452,6 +529,10 @@ def _report_text(report: dict[str, Any]) -> str:
         f"Processing date/time: {report.get('processing_date_time', '')}",
     ]
     recommendation = report.get("remaster_recommendation") or {}
+    custom_settings = report.get("custom_settings") or {}
+    if custom_settings:
+        lines += ["", "Resolved Custom Settings:"]
+        lines.extend(f"- {key}: {value}" for key, value in custom_settings.items())
     if recommendation:
         lines += [
             "",
@@ -564,6 +645,8 @@ def remaster_song_audio(
     ffmpeg_path: str = "",
     max_upload_mb: int = 200,
     recommendation_data: dict[str, Any] | None = None,
+    preset_mode: str = "",
+    custom_settings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -597,11 +680,20 @@ def remaster_song_audio(
     zip_path = ensure_unique_path(base_dir / build_asset_export_filename(project_name, source.name, "Remaster_Package", "zip"))
     converted_path = output_dir / "source_converted_48k_24bit.wav"
     style = _normalize_style(remaster_style)
-    style_config = STYLE_FILTERS[style]
+    resolved_custom_settings = sanitize_custom_remaster_settings(custom_settings) if style == "Custom" else {}
+    style_config = build_custom_remaster_config(resolved_custom_settings) if style == "Custom" else STYLE_FILTERS[style]
     recommendation = dict(recommendation_data or {})
+    resolved_preset_mode = str(preset_mode or recommendation.get("preset_mode") or ("manual" if style == "Custom" or recommendation.get("source") == "manual" else "auto")).strip().lower()
+    if resolved_preset_mode not in {"auto", "manual"}:
+        resolved_preset_mode = "manual" if style == "Custom" else "auto"
+    resolved_preset_name = "custom" if style == "Custom" else style
     if recommendation:
         recommendation["selected_preset"] = style
         recommendation["overridden"] = bool(recommendation.get("recommended_preset") and recommendation.get("recommended_preset") != style)
+        recommendation["preset_mode"] = resolved_preset_mode
+        recommendation["preset_name"] = resolved_preset_name
+        if resolved_custom_settings:
+            recommendation["custom_settings"] = resolved_custom_settings
     source_probe = probe_media(source, ffmpeg_path=ffmpeg)
     if not source_probe.get("ok") or not source_probe.get("has_audio", True):
         return {"ok": False, "status": "failed", "message": "Invalid or corrupt audio file", "data": {"overall_status": "failed", "source_probe": source_probe}, "error": "invalid_audio"}
@@ -623,6 +715,9 @@ def remaster_song_audio(
             "mp3_status": "not_attempted",
             "duration_status": "failed",
             "style": style,
+            "preset_mode": resolved_preset_mode,
+            "preset_name": resolved_preset_name,
+            "custom_settings": resolved_custom_settings,
             "export_name": project_name,
             "source_path": str(source_copy),
             "mastered_wav": str(wav_path),
@@ -683,6 +778,9 @@ def remaster_song_audio(
         "input_loudness": "estimated/unavailable",
         "input_peak_level": max_volume if max_volume is not None else "estimated/unavailable",
         "selected_preset": style,
+        "preset_mode": resolved_preset_mode,
+        "preset_name": resolved_preset_name,
+        "custom_settings": resolved_custom_settings,
         "remaster_recommendation": recommendation,
         "processing_steps_applied": [
             "Input validation",

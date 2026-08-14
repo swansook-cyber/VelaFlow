@@ -250,7 +250,7 @@ from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
-from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, recommend_remaster_preset_from_metadata, remaster_song_audio
+from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset_from_metadata, remaster_song_audio, sanitize_custom_remaster_settings
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -2260,6 +2260,53 @@ def _sync_audio_editor_selection(editor_state: dict[str, Any], start: float, end
     return selection
 
 
+def _render_custom_remaster_controls(project: dict[str, Any], remaster_state: dict[str, Any]) -> dict[str, float]:
+    saved = sanitize_custom_remaster_settings(remaster_state.get("custom_settings"))
+    project_identity = str(project.get("project_id") or project.get("path") or project.get("title") or "project")
+    key_suffix = hashlib.sha1(project_identity.encode("utf-8", errors="ignore")).hexdigest()[:10]
+    widget_keys = {
+        name: f"remaster_custom_{name}_{key_suffix}"
+        for name in default_custom_remaster_settings()
+    }
+    for name, widget_key in widget_keys.items():
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = saved[name]
+    st.markdown("**Custom Preset**")
+    if st.button("Reset Custom", key=f"remaster_custom_reset_{key_suffix}"):
+        saved = default_custom_remaster_settings()
+        remaster_state["custom_settings"] = saved
+        project["remaster_studio"] = remaster_state
+        for name, widget_key in widget_keys.items():
+            st.session_state[widget_key] = saved[name]
+        _save_project()
+
+    loudness = st.slider("Loudness (LUFS)", -16.0, -10.0, step=0.5, key=widget_keys["loudness_lufs"])
+    tone_cols = st.columns(3)
+    bass = tone_cols[0].slider("Bass", -3.0, 3.0, step=0.1, key=widget_keys["bass_db"])
+    mid = tone_cols[1].slider("Mid", -3.0, 3.0, step=0.1, key=widget_keys["mid_db"])
+    high = tone_cols[2].slider("High", -3.0, 3.0, step=0.1, key=widget_keys["high_db"])
+    dynamics_cols = st.columns(3)
+    compression = dynamics_cols[0].slider("Compression", 1.2, 2.5, step=0.1, key=widget_keys["compression_ratio"])
+    stereo_width = dynamics_cols[1].slider("Stereo Width", 0.8, 1.2, step=0.05, key=widget_keys["stereo_width"])
+    output_ceiling = dynamics_cols[2].slider("Output Ceiling", -1.5, -0.5, step=0.1, key=widget_keys["output_ceiling_db"])
+    resolved = sanitize_custom_remaster_settings(
+        {
+            "loudness_lufs": loudness,
+            "bass_db": bass,
+            "mid_db": mid,
+            "high_db": high,
+            "compression_ratio": compression,
+            "stereo_width": stereo_width,
+            "output_ceiling_db": output_ceiling,
+        }
+    )
+    if resolved != saved:
+        remaster_state["custom_settings"] = resolved
+        project["remaster_studio"] = remaster_state
+        _save_project()
+    return resolved
+
+
 def _render_remaster_studio(project: dict[str, Any]) -> None:
     _page_header("Remaster", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
     remaster_state = project.setdefault("remaster_studio", {})
@@ -2351,18 +2398,42 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         project["remaster_studio"] = remaster_state
         _save_project()
     st.markdown("### Preset")
-    selection_mode = st.radio("Preset Selection", REMASTER_RECOMMENDATION_MODES, index=0, horizontal=True, key="remaster_preset_selection_mode")
+    preset_state_before = (
+        str(remaster_state.get("preset_mode") or ""),
+        str(remaster_state.get("preset_name") or ""),
+        sanitize_custom_remaster_settings(remaster_state.get("custom_settings")),
+    )
+    legacy_mode = str(st.session_state.get("remaster_preset_selection_mode") or remaster_state.get("preset_mode") or "")
+    if legacy_mode == "Custom / Advanced":
+        st.session_state.pop("remaster_preset_selection_mode", None)
+        remaster_state["preset_mode"] = "manual"
+        remaster_state["preset_name"] = "Custom"
+    elif st.session_state.get("remaster_preset_selection_mode") not in {None, *REMASTER_RECOMMENDATION_MODES}:
+        st.session_state.pop("remaster_preset_selection_mode", None)
+    stored_mode = str(remaster_state.get("preset_mode") or "").lower()
+    default_mode = "Manual" if stored_mode == "manual" else "Auto Recommended"
+    selection_mode = st.radio(
+        "Preset Selection",
+        REMASTER_RECOMMENDATION_MODES,
+        index=REMASTER_RECOMMENDATION_MODES.index(default_mode),
+        horizontal=True,
+        key="remaster_preset_selection_mode",
+    )
     project_metadata = _project_song_metadata_for_remaster(project)
     if selection_mode == "Auto Recommended":
         remaster_state["manual_override_active"] = False
+        remaster_state["preset_mode"] = "auto"
         metadata_recommendation = recommend_remaster_preset_from_metadata(project_metadata)
-        if not remaster_state.get("remaster_recommendation") or (remaster_state.get("remaster_recommendation") or {}).get("source") == "project_metadata":
+        if not remaster_state.get("remaster_recommendation") or (remaster_state.get("remaster_recommendation") or {}).get("source") in {"project_metadata", "manual"}:
             remaster_state["remaster_recommendation"] = metadata_recommendation
     recommendation = remaster_state.get("remaster_recommendation") or {}
     style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
     if selection_mode == "Auto Recommended":
         recommendation = remaster_state.get("remaster_recommendation") or recommendation
-        style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
+        style = str(recommendation.get("recommended_preset") or recommendation.get("selected_preset") or "Streaming Balanced")
+        recommendation["selected_preset"] = style
+        recommendation["overridden"] = False
+        remaster_state["remaster_recommendation"] = recommendation
         if recommendation:
             st.markdown(f"**Recommended:** {recommendation.get('recommended_preset') or style}")
             with st.expander("Audio Analysis / Why this preset", expanded=False):
@@ -2380,19 +2451,42 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                         _save_project()
                         st.rerun()
                     st.warning(analyzed.get("message") or "Audio recommendation failed. Choose Manual to continue.")
-    elif selection_mode == "Manual":
-        manual_style = st.selectbox("Choose Mastering Preset", REMASTER_STYLES, index=REMASTER_STYLES.index(style) if style in REMASTER_STYLES else 0, key="remaster_style")
+        remaster_state["preset_name"] = style
+    else:
+        stored_style = str(remaster_state.get("preset_name") or style or "Streaming Balanced")
+        if stored_style.lower() == "custom":
+            stored_style = "Custom"
+        if stored_style not in REMASTER_STYLES:
+            stored_style = "Streaming Balanced"
+        if st.session_state.get("remaster_style") not in {None, *REMASTER_STYLES}:
+            st.session_state.pop("remaster_style", None)
+        manual_style = st.selectbox("Preset", REMASTER_STYLES, index=REMASTER_STYLES.index(stored_style), key="remaster_style")
         style = manual_style
         recommendation = dict(recommendation or {"source": "manual", "recommended_preset": manual_style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}})
         recommendation["source"] = "manual" if not recommendation.get("source") else recommendation.get("source")
         recommendation["selected_preset"] = manual_style
+        recommendation["preset_mode"] = "manual"
+        recommendation["preset_name"] = "custom" if manual_style == "Custom" else manual_style
         recommendation["overridden"] = bool(recommendation.get("recommended_preset") and recommendation.get("recommended_preset") != manual_style)
         remaster_state["remaster_recommendation"] = recommendation
         remaster_state["manual_override_active"] = True
+        remaster_state["preset_mode"] = "manual"
+        remaster_state["preset_name"] = manual_style
         st.caption("Selected Manually")
-    else:
-        st.caption("Custom processing controls are reserved for advanced workflows. Streaming Balanced remains active.")
-        style = "Streaming Balanced"
+    custom_settings = sanitize_custom_remaster_settings(remaster_state.get("custom_settings")) if style == "Custom" else {}
+    if selection_mode == "Manual" and style == "Custom":
+        custom_settings = _render_custom_remaster_controls(project, remaster_state)
+        remaster_state["custom_settings"] = custom_settings
+        recommendation["custom_settings"] = custom_settings
+        remaster_state["remaster_recommendation"] = recommendation
+    project["remaster_studio"] = remaster_state
+    preset_state_after = (
+        str(remaster_state.get("preset_mode") or ""),
+        str(remaster_state.get("preset_name") or ""),
+        sanitize_custom_remaster_settings(remaster_state.get("custom_settings")),
+    )
+    if preset_state_after != preset_state_before:
+        _save_project()
     if st.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
         remaster_export_title = str(remaster_state.get("export_name") or _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project))
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
@@ -2403,6 +2497,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 ffmpeg_path=settings.ffmpeg_path,
                 max_upload_mb=max_upload_mb,
                 recommendation_data=remaster_state.get("remaster_recommendation") or {"source": "manual", "recommended_preset": style, "selected_preset": style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}},
+                preset_mode="manual" if selection_mode == "Manual" else "auto",
+                custom_settings=custom_settings,
             )
         remaster_state["last_result"] = result.get("data", {})
         result_status = str(result.get("status") or (result.get("data") or {}).get("overall_status") or ("success" if result.get("ok") else "failed"))
@@ -2422,6 +2518,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 "created_at": datetime.now().isoformat(timespec="seconds"),
                 "remaster_recommendation": (data.get("report") or {}).get("remaster_recommendation") or remaster_state.get("remaster_recommendation") or {},
                 "selected_preset": style,
+                "preset_mode": "manual" if selection_mode == "Manual" else "auto",
+                "custom_settings": custom_settings,
                 "export_name": remaster_export_title,
             }
         else:
