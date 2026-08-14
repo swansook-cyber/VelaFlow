@@ -2,6 +2,7 @@ from __future__ import annotations
 
 
 PAGE_LABELS = {
+    "Home": "Home",
     "Creator Dashboard": "Creator Dashboard",
     "Quick Song": "Quick Song",
     "Idea": "Idea",
@@ -10,7 +11,7 @@ PAGE_LABELS = {
     "Export Release Pack": "Export Release Pack",
     "Song Studio": "Song Studio",
     "Audio Editor": "Audio Editor",
-    "Remaster Studio": "Remaster Studio",
+    "Remaster Studio": "Remaster",
     "Visual Studio": "Visual Studio",
     "Release Pack": "Release Pack",
     "VelaFlow Agent Studio": "🤖 VelaFlow Agent Studio",
@@ -19,7 +20,19 @@ PAGE_LABELS = {
     "Smart Clip Factory": "Clip Factory",
     "Production Audit": "Quality Audit",
     "Release Hardening Tools": "Recovery Tools",
+    "AI Settings": "Settings",
+    "Settings": "Settings",
 }
+
+SIMPLE_NAVIGATION_PAGES = [
+    "Home",
+    "Song Studio",
+    "Remaster Studio",
+    "Audio Editor",
+    "Visual Studio",
+    "Release Pack",
+    "Settings",
+]
 
 FULL_MENU_GROUPS = {
     "START": ["Creator Dashboard", "Quick Song", "Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack", "Dashboard", "One Click Creator Flow", "VelaFlow Agent Studio", "Creator Wizard"],

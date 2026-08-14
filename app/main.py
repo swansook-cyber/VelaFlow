@@ -149,6 +149,7 @@ from core.navigation_config import (
     HOOK_CLIP_ALLOWED_PAGES,
     SONG_ONLY_ALLOWED_PAGES,
     SONG_ONLY_MENU_GROUPS,
+    SIMPLE_NAVIGATION_PAGES,
     SELLER_STUDIO_ALLOWED_PAGES,
     VIRAL_CLIPS_ALLOWED_PAGES,
     flatten_pages,
@@ -2251,7 +2252,7 @@ def _sync_audio_editor_selection(editor_state: dict[str, Any], start: float, end
 
 
 def _render_remaster_studio(project: dict[str, Any]) -> None:
-    _page_header("Remaster Studio", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
+    _page_header("Remaster", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
     st.caption("Separate workspace for completed audio from Suno, Udio, or another source. Local FFmpeg only. Original audio stays unchanged.")
     remaster_state = project.setdefault("remaster_studio", {})
     max_upload_mb = int(os.getenv("VELAFLOW_REMASTER_MAX_UPLOAD_MB", "200") or 200)
@@ -2573,10 +2574,7 @@ def _render_music_pipeline_status(project: dict[str, Any], *, current_step: str 
         ("Visual Studio", "✓ Visual Ready" if visual_done else ("Current" if current_step == "Visual Studio" else "Waiting")),
         ("Release Pack", "Ready" if release_ready else "Waiting"),
     ]
-    cols = st.columns(len(statuses))
-    for col, (label, status) in zip(cols, statuses):
-        col.caption(label)
-        col.markdown(f"**{status}**")
+    st.caption("  ·  ".join(f"{label}: {status}" for label, status in statuses))
 
 
 def _render_audio_editor_legacy(project: dict[str, Any]) -> None:
@@ -3560,6 +3558,25 @@ def _read_creator_file(path: Path) -> str:
         return ""
 
 
+def _render_home(project: dict[str, Any]) -> None:
+    st.title("VelaFlow")
+    st.caption("AI Music Production")
+    actions = [
+        ("Song Studio", "Song Studio", ""),
+        ("Remaster", "Remaster Studio", ""),
+        ("Cut Audio", "Audio Editor", "Cut"),
+        ("Join Audio", "Audio Editor", "Join"),
+        ("Visual Studio", "Visual Studio", ""),
+        ("Release Pack", "Release Pack", ""),
+        ("Settings", "Settings", ""),
+    ]
+    for label, target_page, editor_mode in actions:
+        if st.button(label, use_container_width=True, type="primary" if label == "Song Studio" else "secondary", key=f"home_action_{safe_name(label)}"):
+            if editor_mode:
+                st.session_state["audio_editor_mode"] = editor_mode
+            go_to_page("NAVIGATION", target_page)
+
+
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
     _page_header("Creator Dashboard", "Single-path music creation for release-ready Suno/Udio packs.", project)
     state = project.setdefault("creator_dashboard", {})
@@ -3748,7 +3765,8 @@ def _thai_option_label(labels: dict[str, str]):
 
 
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
-    _page_header("AI Creative Pack Generator", "Advanced Song Studio for quality-first lyrics, hooks, producer prompts, and release packs. Render outside with your favorite tools.", project)
+    workspace_title = {"Generate Visual Pack": "Visual Studio", "Export Release Pack": "Release Pack"}.get(active_stage, "Song Studio")
+    _page_header(workspace_title, "Create a focused, copy-ready music release package.", project)
     state = project.setdefault("creative_pack_v1", {})
     stages = ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"]
     step_html = "".join(
@@ -4614,8 +4632,8 @@ def _ensure_state() -> None:
     defaults = {
         "project": new_project(_workflow_default_name(workflow_mode), DEFAULT_ARTIST, workflow_type_for_mode(workflow_mode)),
         "current_project": "",
-        "selected_section": "START",
-        "selected_page": "Dashboard",
+        "selected_section": "NAVIGATION",
+        "selected_page": "Home",
         "selected_artist_preset": initial_artist_preset,
         "render_profile": "Standard",
         "storyboard": [],
@@ -4768,12 +4786,9 @@ def _load_managed_project(path: str) -> dict[str, Any]:
 
 
 def _page_header(title: str, subtitle: str = "", project_context: dict[str, Any] | None = None) -> None:
-    st.markdown(f"### VelaFlow Beta {APP_VERSION}")
-    st.caption("AI Content Automation Pipeline by VelaLab")
+    st.title(title)
     if subtitle:
         st.caption(subtitle)
-    if project_context is not None:
-        st.caption(f"Current project: {project_context.get('title', 'project')}")
 
 
 def _continue_to_mv_director() -> None:
@@ -6434,12 +6449,8 @@ if not st.session_state.get("beta_runtime_prepared"):
     st.session_state.beta_runtime_prepared = True
 project = _project()
 
-st.title(f"🎬 {APP_TITLE}")
-st.caption(f"{PRODUCT_TAGLINE} by {BRAND_NAME} | {build_label()}")
-if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
-    st.caption("☁️ Internal Cloud Mode")
-
 PAGE_MODULES = {
+    "Home": "core",
     "Creator Dashboard": "creative_pack",
     "Quick Song": "creative_pack",
     "Idea": "creative_pack",
@@ -6472,53 +6483,60 @@ PAGE_MODULES = {
     "System Health": "core",
     "Release Hardening Tools": "core",
     "AI Settings": "providers",
+    "Settings": "providers",
     "Artist Preset Manager": "providers",
     "Seller Studio": "marketing",
     "Podcast Studio": "marketing",
     "Viral Clips Studio": "clips",
     "Hook Clip Studio": "clips",
 }
-MENU_GROUPS = menu_groups_for_mode(st.session_state.get("workflow_mode", "Full Pipeline"))
+MENU_GROUPS = {"NAVIGATION": list(SIMPLE_NAVIGATION_PAGES)}
 PAGES = flatten_pages(MENU_GROUPS)
 ALL_PAGES = flatten_pages(FULL_MENU_GROUPS)
 
+SIMPLE_PAGE_ALIASES = {
+    "Creator Dashboard": "Home",
+    "Dashboard": "Home",
+    "Quick Song": "Song Studio",
+    "Idea": "Song Studio",
+    "Generate Song": "Song Studio",
+    "Generate Visual Pack": "Visual Studio",
+    "MV Director": "Visual Studio",
+    "Video Prompt Studio": "Visual Studio",
+    "Export Release Pack": "Release Pack",
+    "AI Settings": "Settings",
+}
+
+
+def _simple_page_name(page_name: str | None) -> str:
+    resolved = SIMPLE_PAGE_ALIASES.get(str(page_name or ""), str(page_name or ""))
+    return resolved if resolved in PAGES else "Home"
+
 
 def _section_for_page(page_name: str) -> str:
-    return next((section for section, items in MENU_GROUPS.items() if page_name in items), "START")
+    return "NAVIGATION"
 
 
 def _sync_navigation_state() -> None:
     pending = st.session_state.pop("pending_navigation", None)
     if isinstance(pending, dict):
-        pending_page = pending.get("page")
-        pending_section = pending.get("section")
-        if pending_page in flatten_pages(MENU_GROUPS):
-            st.session_state.selected_page = pending_page
-            st.session_state.selected_section = pending_section if pending_section in MENU_GROUPS else _section_for_page(pending_page)
+        st.session_state.selected_page = _simple_page_name(pending.get("page"))
+        st.session_state.selected_section = "NAVIGATION"
     legacy_page = st.session_state.pop("nav_page", None)
-    if legacy_page and legacy_page in PAGES:
-        st.session_state.selected_page = legacy_page
-    page_name = st.session_state.get("selected_page", "Dashboard")
-    section_name = st.session_state.get("selected_section") or _section_for_page(page_name)
-    section_name, page_name = normalize_navigation_state(MENU_GROUPS, section_name, page_name)
-    st.session_state.selected_section = section_name
-    st.session_state.selected_page = page_name
+    if legacy_page:
+        st.session_state.selected_page = _simple_page_name(legacy_page)
+    st.session_state.selected_section = "NAVIGATION"
+    st.session_state.selected_page = _simple_page_name(st.session_state.get("selected_page", "Home"))
 
 
 def go_to_page(section_name: str, page_name: str) -> None:
-    target_section = section_name if section_name in MENU_GROUPS else _section_for_page(page_name)
-    if page_name not in MENU_GROUPS.get(target_section, []):
-        target_section = _section_for_page(page_name)
-    if page_name not in PAGES:
-        target_section = "START"
-        page_name = "Dashboard"
-    st.session_state["pending_navigation"] = {"section": target_section, "page": page_name}
+    st.session_state["pending_navigation"] = {"section": "NAVIGATION", "page": _simple_page_name(page_name)}
     st.rerun()
 
 
 _sync_navigation_state()
 
-with st.sidebar:
+def _legacy_sidebar_ui() -> None:
     st.markdown("### VelaFlow")
     st.caption("AI Music Production")
     if (st.session_state.get("velaflow_access_policy") or {}).get("authentication_required"):
@@ -6799,6 +6817,122 @@ with st.sidebar:
         st.caption(f"VelaFlow Key: {'Configured' if resolved.get('velaflow_key_present') else 'Not configured'}")
         if not active_api_key:
             st.warning("Selected provider will use offline fallback")
+
+
+with st.sidebar:
+    st.markdown("### VelaFlow")
+    st.caption("AI Music Production")
+    st.markdown("**Navigation**")
+    page = st.radio(
+        "Navigation",
+        PAGES,
+        key="selected_page",
+        format_func=page_label,
+        label_visibility="collapsed",
+    )
+    current_project_title = str((project or {}).get("title") or "").strip()
+    if current_project_title:
+        st.caption(f"Project: {current_project_title}")
+    if (st.session_state.get("velaflow_access_policy") or {}).get("authentication_required"):
+        if st.button("Sign Out", use_container_width=True, key="velaflow_sign_out"):
+            sign_out_access_session(st.session_state)
+            st.rerun()
+
+
+def _render_settings_system_controls(active_project: dict[str, Any]) -> None:
+    with st.expander("Project Management", expanded=False):
+        st.caption(f"Current project: {active_project.get('title', 'project')}")
+        managed_projects = list_managed_projects(workflow_mode=st.session_state.get("workflow_mode", "Full Pipeline"))
+        project_options = [item.get("path") for item in managed_projects if item.get("path")]
+        selected_path = st.selectbox(
+            "Saved Projects",
+            [""] + project_options,
+            format_func=lambda value: "Select a project" if not value else next((item.get("display_name") for item in managed_projects if item.get("path") == value), Path(value).name),
+            key="settings_project_selector",
+        )
+        if st.button("Load Project", use_container_width=True, disabled=not selected_path, key="settings_load_project"):
+            loaded_project = _safe("Load project", _load_managed_project, selected_path)
+            if isinstance(loaded_project, dict) and loaded_project.get("title"):
+                st.session_state.project = loaded_project
+                st.session_state.current_project = selected_path
+                st.rerun()
+        new_name = st.text_input("New Project Name", key="settings_new_project_name")
+        if st.button("Create Project", use_container_width=True, key="settings_create_project"):
+            result = create_managed_project(new_name or _workflow_default_name(), workflow_type=workflow_type_for_mode(st.session_state.get("workflow_mode")))
+            if result.get("ok"):
+                st.session_state.project = result["data"]["project"]
+                st.session_state.current_project = result["data"]["folder"]
+                st.rerun()
+            st.error(result.get("error") or result.get("message") or "Project could not be created")
+        if selected_path:
+            selected_name = Path(selected_path).name
+            rename_to = st.text_input("Rename Project", key="settings_rename_project_name")
+            project_actions = st.columns(2)
+            if project_actions[0].button("Rename", use_container_width=True, disabled=not rename_to, key="settings_rename_project"):
+                result = rename_project(selected_name, rename_to)
+                if result.get("ok"):
+                    st.session_state.current_project = result["data"]["folder"]
+                    st.rerun()
+                st.error(result.get("error") or result.get("message") or "Rename failed")
+            if project_actions[1].button("Duplicate", use_container_width=True, key="settings_duplicate_project"):
+                source_project = _safe("Load project", _load_managed_project, selected_path)
+                result = duplicate_project(source_project, f"{selected_name} Copy")
+                if result.get("ok"):
+                    st.rerun()
+                st.error(result.get("error") or result.get("message") or "Duplicate failed")
+            project_actions_2 = st.columns(2)
+            if project_actions_2[0].button("Archive", use_container_width=True, key="settings_archive_project"):
+                result = archive_project(selected_name)
+                if result.get("ok"):
+                    st.rerun()
+                st.error(result.get("error") or result.get("message") or "Archive failed")
+            confirm_delete = project_actions_2[1].checkbox("Confirm delete", key="settings_delete_confirm")
+            if st.button("Delete Project", use_container_width=True, disabled=not confirm_delete, key="settings_delete_project"):
+                result = delete_project(selected_name, confirm=True)
+                if result.get("ok"):
+                    if st.session_state.get("current_project") == selected_path:
+                        st.session_state.current_project = ""
+                        st.session_state.project = new_project(_workflow_default_name(), DEFAULT_ARTIST, workflow_type_for_mode(st.session_state.get("workflow_mode")))
+                    st.rerun()
+                st.error(result.get("error") or result.get("message") or "Delete failed")
+
+    with st.expander("App Preferences", expanded=False):
+        st.session_state.setdefault("developer_mode", False)
+        st.checkbox("Advanced / Developer Mode", key="developer_mode")
+        workflow_options = ["Song Studio Only", "Full Pipeline", "Seller Studio (Beta)", "Podcast Studio (Beta)", "Viral Clips Studio (Beta)", "Hook Clip Studio (Beta)"]
+        current_mode = st.session_state.get("workflow_mode", "Full Pipeline")
+        if current_mode not in workflow_options:
+            current_mode = "Song Studio Only"
+        selected_mode = st.selectbox("Workflow Mode", workflow_options, index=workflow_options.index(current_mode), key="settings_workflow_mode")
+        if selected_mode != st.session_state.get("workflow_mode"):
+            st.session_state.workflow_mode = selected_mode
+            save_user_preferences({"workflow_mode": selected_mode})
+            st.success("Workflow preference saved")
+        if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
+            st.caption("Internal Cloud Mode")
+
+    with st.expander("Closed Beta & Founding Member", expanded=False):
+        beta_profile = load_beta_access()
+        creator_name = st.text_input("Creator Name", value=str(beta_profile.get("creator_name") or "Founding Creator"), key="settings_beta_creator_name")
+        creator_id = st.text_input("Creator ID", value=str(beta_profile.get("creator_id") or ""), key="settings_beta_creator_id")
+        st.caption(f"Version {APP_VERSION} · Build {BUILD_VERSION} · Status: {str(beta_profile.get('beta_status', 'active')).title()}")
+        if st.button("Save Founding Member", use_container_width=True, key="settings_save_founding_member"):
+            save_beta_access({"creator_name": creator_name, "creator_id": creator_id or safe_name(creator_name)})
+            st.success("Founding member profile saved")
+
+    with st.expander("License & Build", expanded=False):
+        st.caption(f"Channel: {RELEASE_CHANNEL}")
+        st.caption(f"Package: {license_service.state.package}")
+        st.caption(f"Expiry: {license_service.state.expires_at}")
+        st.caption(f"Build: {build_label()} / {BUILD_VERSION}")
+
+    with st.expander("System & Provider Status", expanded=False):
+        active_provider, active_api_key, active_model = _active_text_credentials()
+        runtime = _provider_runtime_status(active_provider, active_api_key)
+        st.caption(f"Provider: {provider_display_name(active_provider)}")
+        st.caption(f"Model: {active_model}")
+        st.caption(f"Runtime: {runtime['status']} · {runtime['message']}")
+
 
 def _render_agent_workspace_panel(active_workspace_name: str, state: dict[str, Any]) -> None:
     with st.container(border=True):
@@ -7109,7 +7243,10 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
 
 
 
-if page == "Creator Dashboard":
+if page == "Home":
+    _render_home(project)
+
+elif page == "Creator Dashboard":
     _render_creator_dashboard(project)
 
 elif page == "Quick Song":
@@ -8781,8 +8918,10 @@ elif page == "Release Hardening Tools":
     if st.button("Duplicate Project / Save As"):
         st.json(duplicate_project(project, f"{project.get('title','project')} Copy"), expanded=False)
 
-elif page == "AI Settings":
-    st.subheader("AI Settings")
+elif page in {"Settings", "AI Settings"}:
+    _page_header("Settings", "API keys, projects, and advanced app preferences.", project)
+    _render_settings_system_controls(project)
+    st.markdown("### AI Settings")
     provider_options = {"Gemini": "gemini", "OpenAI GPT": "openai", "xAI Grok": "xai"}
     current_provider = _active_ai_provider()
     current_api_mode = api_mode_label(st.session_state.get("api_mode", API_MODE_OWN_KEY))
