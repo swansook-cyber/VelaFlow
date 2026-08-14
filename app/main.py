@@ -2262,7 +2262,6 @@ def _sync_audio_editor_selection(editor_state: dict[str, Any], start: float, end
 
 def _render_remaster_studio(project: dict[str, Any]) -> None:
     _page_header("Remaster", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
-    st.caption("Separate workspace for completed audio from Suno, Udio, or another source. Local FFmpeg only. Original audio stays unchanged.")
     remaster_state = project.setdefault("remaster_studio", {})
     max_upload_mb = int(os.getenv("VELAFLOW_REMASTER_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
@@ -2354,53 +2353,34 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     st.markdown("### Preset")
     selection_mode = st.radio("Preset Selection", REMASTER_RECOMMENDATION_MODES, index=0, horizontal=True, key="remaster_preset_selection_mode")
     project_metadata = _project_song_metadata_for_remaster(project)
-    if selection_mode == "Auto Recommended" and not remaster_state.get("manual_override_active"):
+    if selection_mode == "Auto Recommended":
+        remaster_state["manual_override_active"] = False
         metadata_recommendation = recommend_remaster_preset_from_metadata(project_metadata)
         if not remaster_state.get("remaster_recommendation") or (remaster_state.get("remaster_recommendation") or {}).get("source") == "project_metadata":
             remaster_state["remaster_recommendation"] = metadata_recommendation
     recommendation = remaster_state.get("remaster_recommendation") or {}
     style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
-    if selection_mode == "Auto Recommended" and not remaster_state.get("manual_override_active"):
-        if source_path and Path(source_path).is_file() and st.button("Analyze Audio & Recommend Preset", use_container_width=True, key="remaster_analyze_audio_recommendation"):
-            with st.spinner("Analyzing audio locally..."):
-                analyzed = analyze_audio_for_remaster_recommendation(source_path, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb)
-            if analyzed.get("ok"):
-                remaster_state["remaster_recommendation"] = analyzed["data"]
-                remaster_state["manual_override_active"] = False
-                project["remaster_studio"] = remaster_state
-                _save_project()
-                st.success("Preset recommendation ready")
-                st.rerun()
-            else:
-                st.warning(analyzed.get("message") or "Audio recommendation failed. You can still choose manually.")
+    if selection_mode == "Auto Recommended":
         recommendation = remaster_state.get("remaster_recommendation") or recommendation
         style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
         if recommendation:
-            st.markdown("**Recommended Preset**")
-            st.success(str(recommendation.get("recommended_preset") or style))
-            r1, r2 = st.columns(2)
-            r1.metric("Confidence", str(recommendation.get("confidence") or "Low"))
-            r2.metric("Status", "Recommended by VelaFlow")
+            st.markdown(f"**Recommended:** {recommendation.get('recommended_preset') or style}")
             with st.expander("Audio Analysis / Why this preset", expanded=False):
+                st.caption(f"Confidence: {recommendation.get('confidence') or 'Low'} · Recommended by VelaFlow")
                 for reason in recommendation.get("reasons", []):
                     st.write(f"- {reason}")
                 if recommendation.get("metrics"):
                     st.json(recommendation.get("metrics"), expanded=False)
-            col_use, col_manual = st.columns(2)
-            if col_use.button("Use Recommended Preset", use_container_width=True, key="remaster_use_recommended"):
-                recommendation["selected_preset"] = recommendation.get("recommended_preset") or style
-                recommendation["source"] = recommendation.get("source") or "project_metadata"
-                remaster_state["remaster_recommendation"] = recommendation
-                remaster_state["manual_override_active"] = False
-                project["remaster_studio"] = remaster_state
-                _save_project()
-                st.success("Recommended preset selected")
-            if col_manual.button("Choose Manually", use_container_width=True, key="remaster_choose_manually"):
-                remaster_state["manual_override_active"] = True
-                project["remaster_studio"] = remaster_state
-                _save_project()
-                st.rerun()
-    elif selection_mode == "Manual" or (selection_mode == "Auto Recommended" and remaster_state.get("manual_override_active")):
+                if source_path and Path(source_path).is_file() and st.button("Analyze Source", key="remaster_analyze_audio_recommendation"):
+                    with st.spinner("Analyzing audio locally..."):
+                        analyzed = analyze_audio_for_remaster_recommendation(source_path, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb)
+                    if analyzed.get("ok"):
+                        remaster_state["remaster_recommendation"] = analyzed["data"]
+                        project["remaster_studio"] = remaster_state
+                        _save_project()
+                        st.rerun()
+                    st.warning(analyzed.get("message") or "Audio recommendation failed. Choose Manual to continue.")
+    elif selection_mode == "Manual":
         manual_style = st.selectbox("Choose Mastering Preset", REMASTER_STYLES, index=REMASTER_STYLES.index(style) if style in REMASTER_STYLES else 0, key="remaster_style")
         style = manual_style
         recommendation = dict(recommendation or {"source": "manual", "recommended_preset": manual_style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}})
@@ -2411,10 +2391,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         remaster_state["manual_override_active"] = True
         st.caption("Selected Manually")
     else:
-        st.info("Custom / Advanced preset controls are coming later. Manual preset selection is available now.")
+        st.caption("Custom processing controls are reserved for advanced workflows. Streaming Balanced remains active.")
         style = "Streaming Balanced"
-    with st.expander("Advanced Settings", expanded=False):
-        st.caption("V1 uses safe preset values for high-pass filtering, EQ balance, compression, vocal presence, stereo width, limiting, and output loudness. Manual audio controls are intentionally hidden.")
     if st.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
         remaster_export_title = str(remaster_state.get("export_name") or _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project))
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
@@ -3220,7 +3198,6 @@ def _render_audio_editor_legacy(project: dict[str, Any]) -> None:
 def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upload_mb: int) -> None:
     join_state = project.setdefault("audio_joiner", {})
     tracks = [dict(track) for track in (join_state.get("tracks") or []) if Path(str(track.get("path") or "")).is_file()]
-    st.caption("Add Files → Arrange → Trim → Preview → Export")
     uploads = st.file_uploader(
         "Add Files",
         type=["mp3", "wav"],
@@ -3537,8 +3514,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
 
 
 def _render_audio_editor(project: dict[str, Any]) -> None:
-    _page_header("Audio Editor", "Cut or join MP3/WAV files with simple local tools.", project)
-    _render_music_pipeline_status(project, current_step="Audio Editor")
+    _page_header("Audio Editor", project_context=project)
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
     if not ffmpeg_probe.get("ok"):
@@ -5359,9 +5335,9 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
 
     title_row = st.columns([3, 1])
     title_row[0].text_input("Project / Song Title", key="simple_song_title", help="Enter a title or let VelaFlow suggest one.")
-    generate_title = title_row[1].button("Generate Title", use_container_width=True, key="simple_generate_title")
+    generate_title = title_row[1].button("Generate Title", key="simple_generate_title")
     artist = st.text_input("Artist", key="simple_song_artist")
-    idea = st.text_area("Song Idea / Story", key="simple_song_idea", height=140)
+    idea = st.text_area("Song Idea / Story", key="simple_song_idea", height=120)
     genre_options = ["Pop Rock", "Heartbreak Ballad", "T-Pop", "Night Drive", "Isaan Indie"]
     mood_options = ["เศร้า", "คิดถึง", "เหงากลางคืน", "อบอุ่น", "ให้กำลังใจ"]
     vocal_options = ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"]
@@ -7236,29 +7212,17 @@ def _render_settings_system_controls(active_project: dict[str, Any]) -> None:
         if str(getattr(settings, "velaflow_mode", "LOCAL")).upper() == "CLOUD":
             st.caption("Internal Cloud Mode")
 
-    with st.expander("Closed Beta & Founding Member", expanded=False):
+def _render_settings_about() -> None:
+    with st.expander("About VelaFlow", expanded=False):
         beta_profile = load_beta_access()
+        st.caption(f"VelaFlow {APP_VERSION} · {RELEASE_CHANNEL} · Build {BUILD_VERSION}")
+        st.caption(f"Package: {license_service.state.package} · Expiry: {license_service.state.expires_at}")
         creator_name = st.text_input("Creator Name", value=str(beta_profile.get("creator_name") or "Founding Creator"), key="settings_beta_creator_name")
         creator_id = st.text_input("Creator ID", value=str(beta_profile.get("creator_id") or ""), key="settings_beta_creator_id")
-        st.caption(f"Version {APP_VERSION} · Build {BUILD_VERSION} · Status: {str(beta_profile.get('beta_status', 'active')).title()}")
+        st.caption(f"Beta status: {str(beta_profile.get('beta_status', 'active')).title()}")
         if st.button("Save Founding Member", use_container_width=True, key="settings_save_founding_member"):
             save_beta_access({"creator_name": creator_name, "creator_id": creator_id or safe_name(creator_name)})
             st.success("Founding member profile saved")
-
-    with st.expander("License & Build", expanded=False):
-        st.caption(f"Channel: {RELEASE_CHANNEL}")
-        st.caption(f"Package: {license_service.state.package}")
-        st.caption(f"Expiry: {license_service.state.expires_at}")
-        st.caption(f"Build: {build_label()} / {BUILD_VERSION}")
-
-    with st.expander("System & Provider Status", expanded=False):
-        active_provider, active_api_key, active_model = _active_text_credentials()
-        runtime = _provider_runtime_status(active_provider, active_api_key)
-        st.caption(f"Provider: {provider_display_name(active_provider)}")
-        st.caption(f"Model: {active_model}")
-        st.caption(f"Runtime: {runtime['status']} · {runtime['message']}")
-        if st.session_state.get("settings_access_diagnostic"):
-            st.caption(str(st.session_state.get("settings_access_diagnostic")))
 
 
 def _render_agent_workspace_panel(active_workspace_name: str, state: dict[str, Any]) -> None:
@@ -9247,12 +9211,11 @@ elif page == "Release Hardening Tools":
 
 elif page in {"Settings", "AI Settings"}:
     _page_header("Settings", "API keys, projects, and advanced app preferences.", project)
-    _render_settings_system_controls(project)
-    st.markdown("### API Keys")
+    api_panel = st.expander("API Keys", expanded=False)
     provider_options = {"Gemini": "gemini", "OpenAI GPT": "openai", "xAI Grok": "xai"}
     current_provider = _active_ai_provider()
     current_api_mode = api_mode_label(st.session_state.get("api_mode", API_MODE_OWN_KEY))
-    api_mode = st.radio(
+    api_mode = api_panel.radio(
         "API Mode",
         API_MODES,
         index=API_MODES.index(current_api_mode),
@@ -9263,8 +9226,8 @@ elif page in {"Settings", "AI Settings"}:
         st.session_state.api_mode = api_mode
         _save_api_state_to_local_storage(st.session_state.get("default_ai_provider", "gemini"), api_mode)
         _sync_provider_runtime_state()
-        st.success(f"API Mode set to {api_mode}")
-    provider_label = st.selectbox(
+        api_panel.success(f"API Mode set to {api_mode}")
+    provider_label = api_panel.selectbox(
         "AI Provider",
         list(provider_options),
         index=list(provider_options.values()).index(current_provider) if current_provider in provider_options.values() else 0,
@@ -9275,15 +9238,13 @@ elif page in {"Settings", "AI Settings"}:
         st.session_state.default_ai_provider = selected_provider
         _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY))
         _sync_provider_runtime_state()
-        st.success(f"Active AI provider set to {provider_label}")
-    st.warning("Your API key is used only to call the selected AI provider. Do not share it with others.")
+        api_panel.success(f"Active AI provider set to {provider_label}")
+    api_panel.caption("Your key is used only with the selected AI provider and is never included in exports.")
     st.session_state.setdefault("remember_api_keys", False)
     previous_remember = bool(st.session_state.get("remember_api_keys_last", st.session_state.get("remember_api_keys", False)))
-    remember_api_keys = st.checkbox("Remember API keys on this device", key="remember_api_keys")
+    remember_api_keys = api_panel.checkbox("Remember on this device", key="remember_api_keys")
     if remember_api_keys:
-        st.warning("Stored in this browser. Do not enable on shared devices.")
-    else:
-        st.caption("Session only: API keys are cleared when this Streamlit session ends.")
+        api_panel.caption("Stored in this browser. Do not enable on shared devices.")
     if remember_api_keys != previous_remember:
         st.session_state.api_storage_nonce += 1
         current_key = str((st.session_state.get("user_api_keys", {}) or {}).get(selected_provider, "") or "")
@@ -9291,8 +9252,8 @@ elif page in {"Settings", "AI Settings"}:
     st.session_state.remember_api_keys_last = remember_api_keys
     pending_browser_keys = dict(st.session_state.get("pending_browser_api_keys", {}) or {})
     if pending_browser_keys:
-        st.info("Saved API keys were found on this device.")
-        saved_key_cols = st.columns(2)
+        api_panel.info("Saved API keys were found on this device.")
+        saved_key_cols = api_panel.columns(2)
         if saved_key_cols[0].button("Use saved keys this session", use_container_width=True, key="settings_use_saved_keys_session"):
             st.session_state.setdefault("user_api_keys", {}).update(pending_browser_keys)
             # Migrate into this session, then remove the legacy persistent copy
@@ -9308,24 +9269,24 @@ elif page in {"Settings", "AI Settings"}:
             _save_api_state_to_local_storage(selected_provider, st.session_state.get("api_mode", API_MODE_OWN_KEY), "", remember=False)
             st.session_state.pending_browser_api_keys = {}
             st.session_state.local_api_state_source = "localStorage_preferences_only"
-            st.success("Saved API keys removed from this device")
+            api_panel.success("Saved API keys removed from this device")
             st.rerun()
     if st.session_state.get("local_api_state_source") == "session_state_only":
-        st.caption("Browser persistence is unavailable in this environment. Keys remain in this Streamlit session only.")
+        api_panel.caption("Browser persistence is unavailable. Keys remain in this session only.")
     user_keys = st.session_state.setdefault("user_api_keys", {})
     gemini_status = resolve_gemini_api_key(settings=settings, session_state=st.session_state)
     existing_user_key = str(user_keys.get(selected_provider, "") or "")
     input_nonce_key = f"user_api_key_nonce_{selected_provider}"
     st.session_state.setdefault(input_nonce_key, 0)
-    entered_key = st.text_input(
+    entered_key = api_panel.text_input(
         f"{provider_label} API Key",
         value=existing_user_key,
         type="password",
         help="ใส่ API key ของคุณเอง ระบบจะเก็บไว้ใน session ของเบราว์เซอร์นี้เท่านั้น และจะไม่บันทึกลงไฟล์โปรเจกต์หรือ export",
         key=f"user_api_key_input_{selected_provider}_{st.session_state[input_nonce_key]}",
     )
-    k1, k2 = st.columns(2)
-    if k1.button("Save API Key", use_container_width=True):
+    k1, k2 = api_panel.columns(2)
+    if k1.button("Save API Key", type="primary", use_container_width=True):
         if entered_key.strip():
             st.session_state.user_api_keys[selected_provider] = entered_key.strip()
             st.session_state.api_mode = API_MODE_OWN_KEY
@@ -9333,17 +9294,17 @@ elif page in {"Settings", "AI Settings"}:
             st.session_state.api_storage_nonce += 1
             _save_api_state_to_local_storage(selected_provider, API_MODE_OWN_KEY, entered_key.strip(), remember=remember_api_keys)
             _sync_provider_runtime_state()
-            st.success("API key saved on this device" if remember_api_keys else "API key saved for this session")
+            api_panel.success("API key saved on this device" if remember_api_keys else "API key saved for this session")
         else:
-            st.warning("Paste an API key before saving.")
-    if k2.button("Forget API Key", use_container_width=True):
+            api_panel.warning("Paste an API key before saving.")
+    if k2.button("Forget API Key"):
         st.session_state.user_api_keys.pop(selected_provider, None)
         st.session_state[input_nonce_key] += 1
         st.session_state.api_mode = API_MODE_OWN_KEY
         st.session_state.api_storage_nonce += 1
         _forget_api_key_from_local_storage(selected_provider)
         _sync_provider_runtime_state()
-        st.success("API key forgotten from this browser/device")
+        api_panel.success("API key forgotten from this browser/device")
     resolved = resolve_provider_credentials(
         settings=settings,
         provider=selected_provider,
@@ -9367,7 +9328,8 @@ elif page in {"Settings", "AI Settings"}:
     _sync_provider_runtime_state()
     runtime = _provider_runtime_status(selected_provider, resolved.get("api_key", ""))
     runtime_details = st.session_state.get("provider_runtime", {}) or {}
-    diagnostics = st.expander("Advanced / Diagnostics", expanded=False)
+    _render_settings_system_controls(project)
+    diagnostics = st.expander("System / Diagnostics", expanded=False)
     diagnostics.write(f"Active provider: {provider_label}")
     diagnostics.write(f"API Mode: {resolved.get('api_mode')}")
     diagnostics.info(f"Runtime status: {runtime['status']} · {runtime['message']}", icon="ℹ️")
@@ -9414,6 +9376,9 @@ elif page in {"Settings", "AI Settings"}:
     diagnostics.write(f"xAI Grok configured: {bool((st.session_state.get('user_api_keys', {}) or {}).get('xai') or settings.xai_api_key)}")
     diagnostics.caption("Environment variables: GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, DEFAULT_AI_PROVIDER")
     diagnostics.caption("Production generation stops when API is unavailable. Offline/template output is only for Developer Mode or clearly labeled demo preview.")
+    if st.session_state.get("settings_access_diagnostic"):
+        diagnostics.caption(str(st.session_state.get("settings_access_diagnostic")))
+    _render_settings_about()
 
 elif page == "Artist Preset Manager":
     _render_artist_preset_manager()

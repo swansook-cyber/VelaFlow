@@ -34,9 +34,14 @@ html, body, [class*="css"] {
   color: var(--vf-text);
 }
 
+div[data-testid="stElementContainer"]:has(> iframe[data-testid="stIFrame"][height="0"]),
+div[data-testid="stElementContainer"].st-key-velaflow_local_api_read {
+  display: none !important;
+}
+
 .block-container {
-  padding-top: 1.7rem;
-  padding-bottom: 2.4rem;
+  padding-top: 1.15rem;
+  padding-bottom: 2rem;
   max-width: 1420px;
 }
 
@@ -56,7 +61,7 @@ h2, h3 {
 
 h3 {
   font-size: 1.38rem !important;
-  margin-top: 0.7rem !important;
+  margin-top: 0.5rem !important;
   margin-bottom: 0.18rem !important;
 }
 
@@ -327,10 +332,10 @@ code {
 
 @media (max-width: 768px) {
   .block-container {
-    padding-top: max(2.5rem, calc(env(safe-area-inset-top) + 1.5rem)) !important;
+    padding-top: max(4rem, calc(env(safe-area-inset-top) + 3.25rem)) !important;
     padding-left: 0.9rem;
     padding-right: 0.9rem;
-    padding-bottom: 1.55rem;
+    padding-bottom: 1.25rem;
   }
 
   h1,
@@ -338,13 +343,15 @@ code {
   .velaflow-header {
     font-size: 1.58rem !important;
     line-height: 1.15 !important;
-    margin-top: 0.75rem !important;
+    margin-top: 0.15rem !important;
     margin-bottom: 0.08rem !important;
   }
 
   h2 {
     font-size: 1.28rem !important;
     line-height: 1.24 !important;
+    margin-top: 0.4rem !important;
+    margin-bottom: 0.12rem !important;
   }
 
   h3 {
@@ -365,7 +372,11 @@ code {
   }
 
   div[data-testid="stVerticalBlock"] {
-    gap: 0.42rem !important;
+    gap: 0.3rem !important;
+  }
+
+  div[data-testid="stWidgetLabel"] {
+    margin-bottom: 0.08rem !important;
   }
 
   [data-testid="column"] {
@@ -388,20 +399,28 @@ code {
   }
 
   [data-testid="stExpander"] summary {
-    padding-top: 0.62rem !important;
-    padding-bottom: 0.62rem !important;
+    min-height: 2.75rem;
+    padding-top: 0.52rem !important;
+    padding-bottom: 0.52rem !important;
   }
 
   .stButton > button,
   .stDownloadButton > button {
-    min-height: 2.72rem;
-    width: 100%;
+    min-height: 2.75rem;
     padding-left: 0.8rem !important;
     padding-right: 0.8rem !important;
   }
 
   textarea {
-    min-height: 104px !important;
+    min-height: 92px !important;
+  }
+
+  div[data-testid="stRadio"] label,
+  div[data-testid="stCheckbox"] label,
+  div[data-testid="stToggle"] label {
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
   }
 
   .stAlert {
