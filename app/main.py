@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -456,10 +457,9 @@ def _runtime_api_keys_for_health() -> dict[str, str]:
 def _warn_missing_provider_key(provider: str, api_key: str) -> None:
     if api_key:
         return
-    resolved = _active_credential_status() if provider == _active_ai_provider() else {}
-    key_name = resolved.get("missing_key") or {"openai": "OPENAI_API_KEY", "xai": "XAI_API_KEY"}.get(provider, "GEMINI_API_KEY")
-    warning = resolved.get("warning") or f"{key_name}: {API_QUALITY_WARNING}"
-    st.warning(warning)
+    st.warning("AI settings are not configured.")
+    if st.button("Open Settings", use_container_width=True, key=f"open_settings_missing_{provider}"):
+        go_to_page("NAVIGATION", "Settings")
 
 
 def _provider_runtime_status(provider: str, api_key: str) -> dict[str, str]:
@@ -498,10 +498,13 @@ def _production_api_gate(provider: str | None = None, api_key: str | None = None
 
 
 def _show_api_quality_stop(gate: dict[str, Any]) -> None:
-    st.error(API_QUALITY_WARNING)
-    status = gate.get("status") or "Provider Error"
-    detail = gate.get("error") or gate.get("message") or ""
-    st.warning(f"{status}: {detail}")
+    st.error("AI generation is unavailable. Check your AI settings and try again.")
+    if st.button("Open Settings", use_container_width=True, key="open_settings_api_quality_stop"):
+        go_to_page("NAVIGATION", "Settings")
+    if st.session_state.get("developer_mode"):
+        with st.expander("Advanced / Diagnostics", expanded=False):
+            st.write(gate.get("status") or "Provider Error")
+            st.caption(str(gate.get("error") or gate.get("message") or API_QUALITY_WARNING))
 
 
 def _workflow_analytics_key(workflow_mode: str | None = None) -> str:
@@ -665,10 +668,16 @@ def _configured_access_password() -> str:
     environment_password = str(os.getenv("VELAFLOW_ACCESS_PASSWORD") or "")
     if environment_password:
         return environment_password
-    try:
-        return str(st.secrets.get("VELAFLOW_ACCESS_PASSWORD", "") or "")
-    except Exception:
-        return ""
+    secret_paths = [Path.home() / ".streamlit" / "secrets.toml", ROOT / ".streamlit" / "secrets.toml"]
+    for secret_path in secret_paths:
+        if not secret_path.is_file():
+            continue
+        try:
+            payload = tomllib.loads(secret_path.read_text(encoding="utf-8"))
+            return str(payload.get("VELAFLOW_ACCESS_PASSWORD", "") or "")
+        except Exception as exc:
+            st.session_state["settings_access_diagnostic"] = f"Could not read {secret_path.name}: {exc}"
+    return ""
 
 
 def _render_access_gate() -> bool:
@@ -2257,12 +2266,13 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     remaster_state = project.setdefault("remaster_studio", {})
     max_upload_mb = int(os.getenv("VELAFLOW_REMASTER_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
-    if ffmpeg_probe.get("ok"):
-        st.success(f"FFmpeg ready: {ffmpeg_probe.get('path', settings.ffmpeg_path)}")
-    else:
-        st.error("FFmpeg is required for Remaster Studio. Debian setup: sudo apt-get update && sudo apt-get install -y ffmpeg")
+    if not ffmpeg_probe.get("ok"):
+        st.error("Audio processing is unavailable on this device.")
+        with st.expander("Advanced / Diagnostics", expanded=False):
+            st.caption("FFmpeg is required for local remaster processing.")
+            st.code(str(ffmpeg_probe.get("error") or ffmpeg_probe.get("message") or "FFmpeg not found"))
     uploaded = st.file_uploader(
-        "1. Upload Audio",
+        "Source",
         type=["wav", "mp3"],
         key="remaster_audio_upload",
         help=f"MP3 or WAV only. Max upload size: {max_upload_mb} MB.",
@@ -2302,18 +2312,17 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
     source_info = remaster_state.get("source_audio") or {}
     source_identity = _audio_source_signature(source_info, source_path) if source_path else ""
-    st.markdown("### 2. Audio Information")
+    st.markdown("### Source")
     if source_path and Path(source_path).is_file():
         input_probe = _cached_audio_probe(source_path, source_identity=source_identity, ffmpeg_path=settings.ffmpeg_path)
-        cols = st.columns(3)
+        cols = st.columns(2)
         cols[0].metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
-        cols[1].metric("Format", str(source_info.get("format") or Path(source_path).suffix.lstrip(".")).upper())
-        cols[2].metric("Duration", f"{float(input_probe.get('duration') or 0):.1f}s" if input_probe.get("duration") else "Unknown")
-        cols = st.columns(3)
-        cols[0].metric("Sample Rate", f"{input_probe.get('sample_rate', 0)} Hz" if input_probe.get("sample_rate") else "Unknown")
-        cols[1].metric("Channels", str(input_probe.get("channels") or "Unknown"))
-        cols[2].metric("Peak", "Estimated after processing")
-        st.caption("Input loudness and true peak are estimated when exact LUFS/true-peak measurement is unavailable.")
+        cols[1].metric("Duration", f"{float(input_probe.get('duration') or 0):.1f}s" if input_probe.get("duration") else "Unknown")
+        with st.expander("Advanced / Source Details", expanded=False):
+            st.caption(f"Format: {str(source_info.get('format') or Path(source_path).suffix.lstrip('.')).upper()}")
+            st.caption(f"Sample Rate: {input_probe.get('sample_rate', 0) or 'Unknown'} Hz")
+            st.caption(f"Channels: {input_probe.get('channels') or 'Unknown'}")
+            st.caption("Input loudness and true peak are estimated when exact measurement is unavailable.")
         st.markdown("**Original Preview**")
         original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=source_identity)
         if original_preview.get("ok"):
@@ -2342,7 +2351,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.session_state["remaster_export_name_manual"] = remaster_state["export_name_manual"]
         project["remaster_studio"] = remaster_state
         _save_project()
-    st.markdown("### 3. Preset Selection")
+    st.markdown("### Preset")
     selection_mode = st.radio("Preset Selection", REMASTER_RECOMMENDATION_MODES, index=0, horizontal=True, key="remaster_preset_selection_mode")
     project_metadata = _project_song_metadata_for_remaster(project)
     if selection_mode == "Auto Recommended" and not remaster_state.get("manual_override_active"):
@@ -2406,8 +2415,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         style = "Streaming Balanced"
     with st.expander("Advanced Settings", expanded=False):
         st.caption("V1 uses safe preset values for high-pass filtering, EQ balance, compression, vocal presence, stereo width, limiting, and output loudness. Manual audio controls are intentionally hidden.")
-    st.caption("Workflow: Upload Audio -> Audio Analysis -> Choose Mastering Preset -> Process Audio -> Preview Result -> Export WAV + MP3")
-    if st.button("4. Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
+    if st.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
         remaster_export_title = str(remaster_state.get("export_name") or _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project))
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
             result = remaster_song_audio(
@@ -2456,7 +2464,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     zip_path = Path(str(result_data.get("zip_path") or ""))
     report = result_data.get("report") or {}
     if mastered_wav.is_file():
-        st.markdown("### 5. Before / After Quality")
+        st.markdown("### Before / After")
         comparison = result_data.get("quality_comparison") or report.get("quality_comparison") or {}
         summary = comparison.get("summary") or {}
         quality_cols = st.columns(3)
@@ -2467,12 +2475,6 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         mastered_metrics = comparison.get("mastered") or {}
         loudness_before = original_metrics.get("integrated_lufs")
         loudness_after = mastered_metrics.get("integrated_lufs")
-        st.caption(
-            "LUFS: "
-            f"{loudness_before if loudness_before is not None else 'Unknown'} → "
-            f"{loudness_after if loudness_after is not None else 'Unknown'} · "
-            f"Peak proxy: {original_metrics.get('peak_dbfs_proxy', 'Unknown')} → {mastered_metrics.get('peak_dbfs_proxy', 'Unknown')} dBFS"
-        )
         ab_data = result_data.get("ab_previews") or report.get("ab_previews") or {}
         original_ab_path = Path(str(ab_data.get("original_preview") or ""))
         mastered_ab_path = Path(str(ab_data.get("mastered_preview") or ""))
@@ -2491,13 +2493,21 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             st.caption(f"{ab_choice} · same {float(ab_data.get('duration') or 15):.0f}s range from {format_timecode(float(ab_data.get('start') or 0))}")
         else:
             st.warning(f"Preview unavailable: {ab_preview.get('reason', 'unknown')}")
+        st.markdown("### Quality Summary")
         c1, c2 = st.columns(2)
         c1.metric("Duration Match", "Yes" if report.get("duration_matches_original") else "Review")
         clipping_status = str((report.get("clipping_validation") or {}).get("status") or "unknown")
         c2.metric("Clipping", {"pass": "Protected", "fail": "Failed", "unknown": "Unknown"}.get(clipping_status, "Unknown"))
         with st.expander("Advanced Analysis", expanded=False):
+            st.caption(
+                "LUFS: "
+                f"{loudness_before if loudness_before is not None else 'Unknown'} → "
+                f"{loudness_after if loudness_after is not None else 'Unknown'} · "
+                f"Peak proxy: {original_metrics.get('peak_dbfs_proxy', 'Unknown')} → {mastered_metrics.get('peak_dbfs_proxy', 'Unknown')} dBFS"
+            )
             st.json({"comparison": comparison, "a_b_preview": ab_data}, expanded=False)
-        st.markdown("### 6. Export")
+            st.json({"validation": report.get("clipping_validation"), "preview": remaster_state.get("preview_diagnostics", {})}, expanded=False)
+        st.markdown("### Export")
         st.download_button(
             "Download Mastered WAV",
             data=mastered_wav.read_bytes(),
@@ -2516,14 +2526,16 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             key="download_mastered_mp3_preview",
         )
     if zip_path.is_file():
-        st.download_button(
-            "Download Remaster Package ZIP",
-            data=zip_path.read_bytes(),
-            file_name=zip_path.name,
-            mime="application/zip",
-            use_container_width=True,
-            key="download_remaster_package_zip",
-        )
+        with st.expander("Advanced / Reports", expanded=False):
+            st.download_button(
+                "Download Remaster Package ZIP",
+                data=zip_path.read_bytes(),
+                file_name=zip_path.name,
+                mime="application/zip",
+                use_container_width=True,
+                key="download_remaster_package_zip",
+            )
+            st.json(report, expanded=False)
     if result_data.get("report_path"):
         with st.expander("Remaster Report", expanded=bool(st.session_state.get("developer_mode"))):
             display_report = dict(report)
@@ -3764,9 +3776,114 @@ def _thai_option_label(labels: dict[str, str]):
     return lambda value: labels.get(str(value), str(value))
 
 
+def _render_visual_studio_workspace(project: dict[str, Any]) -> None:
+    state = project.get("creative_pack_v1", {}) or {}
+    result = state.get("release_pack") or {}
+    pack = result.get("pack") or {}
+    if not pack:
+        st.info("Create a song package first, then return here for visual prompts.")
+        if st.button("Open Song Studio", use_container_width=True, key="visual_open_song_studio"):
+            go_to_page("NAVIGATION", "Song Studio")
+        return
+    st.markdown("### Cover Prompt")
+    cover_prompt = str(pack.get("Cover prompt") or "")
+    st.text_area("Cover Prompt", value=cover_prompt, height=150, key="visual_primary_cover_prompt")
+    _copy_to_clipboard_button("Copy Cover Prompt", cover_prompt, key="visual_primary_copy_cover")
+    st.markdown("### MV Storyboard")
+    storyboard_prompt = str(pack.get("MV storyboard prompt") or "")
+    st.text_area("MV Storyboard Prompt", value=storyboard_prompt, height=220, key="visual_primary_storyboard")
+    _copy_to_clipboard_button("Copy Storyboard Prompt", storyboard_prompt, key="visual_primary_copy_storyboard")
+    with st.expander("Short-form Visuals", expanded=False):
+        shorts_prompt = str(pack.get("Shorts/TikTok ideas") or "")
+        st.text_area("Shorts / TikTok Ideas", value=shorts_prompt, height=160, key="visual_primary_shorts")
+        _copy_to_clipboard_button("Copy Short-form Ideas", shorts_prompt, key="visual_primary_copy_shorts")
+    if st.session_state.get("developer_mode"):
+        with st.expander("Advanced / Diagnostics", expanded=False):
+            st.caption("Rendering remains external. VelaFlow exports prompts and storyboard direction only.")
+            st.json({"preset": result.get("preset"), "export": state.get("export") or {}}, expanded=False)
+
+
+def _render_release_pack_workspace(project: dict[str, Any]) -> None:
+    state = project.setdefault("creative_pack_v1", {})
+    result = state.get("release_pack") or {}
+    pack = result.get("pack") or {}
+    export_data = state.get("export") or {}
+    if not pack:
+        st.info("No release package yet. Generate a song in Song Studio first.")
+        if st.button("Open Song Studio", use_container_width=True, key="release_open_song_studio"):
+            go_to_page("NAVIGATION", "Song Studio")
+        return
+    st.markdown("### Package Summary")
+    summary_cols = st.columns(2)
+    summary_cols[0].metric("Song", pack.get("Suggested title") or project.get("title") or "Untitled")
+    summary_cols[1].metric("Preset", result.get("preset") or state.get("preset") or "-")
+    included = [
+        label
+        for label, value in [
+            ("Lyrics", pack.get("SUNO LYRICS FIELD") or pack.get("Full lyrics")),
+            ("Suno Style", pack.get("SUNO STYLE OF MUSIC FIELD")),
+            ("Producer Notes", pack.get("PRODUCER NOTES") or pack.get("AI PRODUCER PROMPT")),
+            ("Cover Prompt", pack.get("Cover prompt")),
+            ("MV Storyboard", pack.get("MV storyboard prompt")),
+            ("Captions & Hashtags", pack.get("Caption") or pack.get("Hashtags")),
+        ]
+        if str(value or "").strip()
+    ]
+    st.markdown("### Included Items")
+    for item in included:
+        st.write(f"✓ {item}")
+    last_error = str(state.get("last_error") or "")
+    if last_error:
+        st.warning("Some optional package items need attention before export.")
+    else:
+        st.success("Release Pack is ready to export.")
+    if st.button("Export Release Pack", type="primary", use_container_width=True, key="release_workspace_export"):
+        audio_editor_state = project.get("audio_editor", {}) or {}
+        audio_edit_export_data = dict(audio_editor_state.get("last_result") or {})
+        batch_export_data = audio_editor_state.get("batch_result") or {}
+        if batch_export_data:
+            audio_edit_export_data["generated_files"] = batch_export_data.get("generated_files", [])
+            audio_edit_export_data["batch_report_path"] = batch_export_data.get("report_path", "")
+            audio_edit_export_data["batch_report_txt_path"] = batch_export_data.get("report_txt_path", "")
+            audio_edit_export_data["batch_zip_path"] = batch_export_data.get("zip_path", "")
+        export = export_creative_release_pack(
+            project.get("title") or pack.get("Suggested title") or "VelaFlow Release",
+            result,
+            state.get("artist_name") or project.get("artist") or DEFAULT_ARTIST,
+            remaster_data=(project.get("remaster_studio", {}) or {}).get("last_result") or {},
+            audio_edit_data=audio_edit_export_data,
+        )
+        state["export"] = export.get("data", {})
+        state["last_error"] = export.get("error", "")
+        project["creative_pack_v1"] = state
+        _save_project()
+        st.rerun()
+    txt_path_value = str(export_data.get("txt_path") or "")
+    zip_path_value = str(export_data.get("zip_path") or "")
+    txt_path = Path(txt_path_value) if txt_path_value else None
+    zip_path = Path(zip_path_value) if zip_path_value else None
+    downloads = st.columns(2)
+    if txt_path and txt_path.is_file():
+        downloads[0].download_button("Download TXT", data=txt_path.read_bytes(), file_name=txt_path.name, mime="text/plain", use_container_width=True, key="release_workspace_download_txt")
+    if zip_path and zip_path.is_file():
+        downloads[1].download_button("Download ZIP", data=zip_path.read_bytes(), file_name=zip_path.name, mime="application/zip", use_container_width=True, key="release_workspace_download_zip")
+    with st.expander("Advanced / Package Details", expanded=False):
+        st.caption(f"TXT: {txt_path_value or '-'}")
+        st.caption(f"ZIP: {zip_path_value or '-'}")
+        manifest_path = export_data.get("manifest_path") or export_data.get("manifest") or ""
+        if manifest_path:
+            st.caption(f"Manifest: {manifest_path}")
+
+
 def _render_ai_creative_pack_generator(project: dict[str, Any], active_stage: str = "Idea") -> None:
     workspace_title = {"Generate Visual Pack": "Visual Studio", "Export Release Pack": "Release Pack"}.get(active_stage, "Song Studio")
     _page_header(workspace_title, "Create a focused, copy-ready music release package.", project)
+    if active_stage == "Generate Visual Pack":
+        _render_visual_studio_workspace(project)
+        return
+    if active_stage == "Export Release Pack":
+        _render_release_pack_workspace(project)
+        return
     state = project.setdefault("creative_pack_v1", {})
     stages = ["Idea", "Generate Song", "Generate Visual Pack", "Export Release Pack"]
     step_html = "".join(
@@ -5232,19 +5349,222 @@ def _render_artist_preset_manager() -> None:
             st.error(result.get("message", "Delete failed"))
 
 
+def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], active_provider: str, active_api_key: str, active_model: str) -> None:
+    pending_title = str(st.session_state.pop("simple_song_pending_title", "") or "")
+    if pending_title:
+        st.session_state["simple_song_title"] = pending_title
+    st.session_state.setdefault("simple_song_title", str(project.get("title") or ""))
+    st.session_state.setdefault("simple_song_artist", str(project.get("artist") or DEFAULT_ARTIST))
+    st.session_state.setdefault("simple_song_idea", str(song.get("idea") or ""))
+
+    title_row = st.columns([3, 1])
+    title_row[0].text_input("Project / Song Title", key="simple_song_title", help="Enter a title or let VelaFlow suggest one.")
+    generate_title = title_row[1].button("Generate Title", use_container_width=True, key="simple_generate_title")
+    artist = st.text_input("Artist", key="simple_song_artist")
+    idea = st.text_area("Song Idea / Story", key="simple_song_idea", height=140)
+    genre_options = ["Pop Rock", "Heartbreak Ballad", "T-Pop", "Night Drive", "Isaan Indie"]
+    mood_options = ["เศร้า", "คิดถึง", "เหงากลางคืน", "อบอุ่น", "ให้กำลังใจ"]
+    vocal_options = ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"]
+    controls = st.columns(3)
+    genre = controls[0].selectbox("Genre", genre_options, index=genre_options.index(song.get("genre")) if song.get("genre") in genre_options else 0, key="simple_song_genre")
+    mood = controls[1].selectbox("Mood", mood_options, index=mood_options.index(song.get("mood")) if song.get("mood") in mood_options else 1, key="simple_song_mood")
+    vocal = controls[2].selectbox("Vocal", vocal_options, index=vocal_options.index(song.get("vocal")) if song.get("vocal") in vocal_options else 0, key="simple_song_vocal")
+
+    with st.expander("Advanced", expanded=False):
+        current_artist_id = song.get("artist_preset") or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
+        preset = _select_artist_preset("simple_song_studio", current_artist_id)
+        music_preset_names = list_music_preset_names()
+        current_music_preset = song.get("music_preset", DEFAULT_MUSIC_PRESET)
+        selected_music_preset_name = st.selectbox("Music Preset", music_preset_names, index=music_preset_names.index(current_music_preset) if current_music_preset in music_preset_names else 0, key="simple_song_music_preset")
+        selected_music_preset = get_music_preset(selected_music_preset_name)
+        vocal_direction_names = list_vocal_direction_names()
+        current_vocal_direction = song.get("vocal_direction", DEFAULT_VOCAL_DIRECTION)
+        selected_vocal_direction_name = st.selectbox("Vocal Direction", vocal_direction_names, index=vocal_direction_names.index(current_vocal_direction) if current_vocal_direction in vocal_direction_names else 0, key="simple_song_vocal_direction")
+        selected_vocal_direction = get_vocal_direction(selected_vocal_direction_name)
+        viral = st.selectbox("Hook Focus", ["balanced", "high", "ultra hook-focused"], index=1, key="simple_song_viral")
+        style_override = st.text_area("Music Style Prompt Override", value=str(song.get("music_style_prompt") or preset.get("default_music_style_prompt", "")), height=100, key="simple_song_style_override")
+        force_tags = st.checkbox("Keep production tags in English", value=True, key="simple_song_force_tags")
+
+    current_hook = (song.get("selected_hook") or {}).get("hook_text") if isinstance(song.get("selected_hook"), dict) else song.get("selected_hook_text", "")
+    title_candidates = generate_song_title_candidates(idea=idea, hook_text=str(current_hook or ""), lyrics=str(song.get("normalized_song_output") or song.get("complete_lyrics") or "")) if idea.strip() else []
+    if generate_title:
+        if not idea.strip():
+            st.warning("Add a song idea before generating a title.")
+        elif title_candidates:
+            st.session_state["simple_suggested_title_index"] = 0
+            st.session_state["simple_suggested_title"] = title_candidates[0]["title"]
+            st.rerun()
+    suggested_title = str(st.session_state.get("simple_suggested_title") or "")
+    if suggested_title:
+        suggested_row = st.columns([4, 1, 1])
+        suggested_row[0].text_input("Suggested Title", value=suggested_title, disabled=True, key="simple_suggested_title_display")
+        if suggested_row[1].button("Use", use_container_width=True, key="simple_use_title"):
+            st.session_state["simple_song_pending_title"] = suggested_title
+            st.rerun()
+        if suggested_row[2].button("↻", use_container_width=True, key="simple_regenerate_title", help="Try another suggested title"):
+            if title_candidates:
+                index = (int(st.session_state.get("simple_suggested_title_index", 0)) + 1) % len(title_candidates)
+                st.session_state["simple_suggested_title_index"] = index
+                st.session_state["simple_suggested_title"] = title_candidates[index]["title"]
+                st.rerun()
+
+    if not active_api_key:
+        _warn_missing_provider_key(active_provider, active_api_key)
+    if st.button("Generate Lyrics", type="primary", use_container_width=True, key="simple_generate_lyrics"):
+        if not idea.strip():
+            st.warning("Add a song idea before generating lyrics.")
+        else:
+            gate = _production_api_gate(active_provider, active_api_key)
+            if not gate.get("ok"):
+                _show_api_quality_stop(gate)
+                return
+            hook_result = generate_hook_candidates_with_provider(
+                api_key=active_api_key,
+                model_name=active_model,
+                provider=active_provider,
+                idea=_song_idea_with_vocal_direction(_music_preset_for_song_idea(idea, selected_music_preset), selected_vocal_direction),
+                genre=genre,
+                mood=mood,
+                artist_preset=preset,
+            )
+            candidates = hook_result.get("data", {}).get("hooks", [])
+            hook = select_best_hook(candidates)
+            resolved_title = str(st.session_state.get("simple_song_title") or suggested_title or "").strip()
+            if is_placeholder_song_title(resolved_title):
+                resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
+            style_prompt = _music_style_with_preset(style_override or preset.get("default_music_style_prompt", ""), selected_music_preset, selected_vocal_direction)
+            idea_with_hook = (
+                f"{_song_idea_with_vocal_direction(_music_preset_for_song_idea(idea, selected_music_preset), selected_vocal_direction)}\n\n"
+                f"Selected Hook: {hook.get('hook_text', '')}\nUse this hook in the chorus and final chorus. Keep Thai lyrics natural."
+            )
+            song_result = _safe(
+                "Generate song",
+                generate_song_with_gemini,
+                active_api_key,
+                active_model,
+                idea_with_hook,
+                genre,
+                mood,
+                vocal,
+                viral,
+                artist_preset=preset,
+                music_style_override=style_prompt,
+                force_english_instrument_tags=force_tags,
+                provider=active_provider,
+            )
+            if song_result.get("ok") is False and "title" not in song_result:
+                return
+            raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
+            completeness = ensure_full_song_structure(raw_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset, genre=genre, mood=mood, vocal=vocal, style_preset=selected_music_preset)
+            if not completeness["before"].get("ok"):
+                retry_result = _safe(
+                    "Regenerate complete song",
+                    generate_song_with_gemini,
+                    active_api_key,
+                    active_model,
+                    (
+                        f"{idea_with_hook}\n\n"
+                        "CRITICAL FULL SONG REQUIREMENTS:\n"
+                        "- Write a complete commercial-length Thai song, not a short demo.\n"
+                        "- Include Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, and Outro.\n"
+                        "- Minimum 24 lyric lines and no empty sections."
+                    ),
+                    genre,
+                    mood,
+                    vocal,
+                    viral,
+                    artist_preset=preset,
+                    music_style_override=style_prompt,
+                    force_english_instrument_tags=force_tags,
+                    provider=active_provider,
+                )
+                retry_lyrics = str(retry_result.get("normalized_song_output") or retry_result.get("complete_lyrics") or retry_result.get("original_song_output") or "")
+                retry_completeness = ensure_full_song_structure(retry_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=preset, genre=genre, mood=mood, vocal=vocal, style_preset=selected_music_preset)
+                if retry_completeness["before"].get("score", 0) > completeness["before"].get("score", 0):
+                    song_result = retry_result
+                    completeness = retry_completeness
+            music_direction = completeness.get("music_direction") or build_music_direction(genre=genre, mood=mood, vocal=vocal, artist_preset=preset, style_preset=selected_music_preset)
+            advanced_settings = _settings_from_ai_controls(get_recommended_ai_controls(selected_music_preset_name))
+            song_result.update({
+                "title": resolved_title,
+                "song_title": resolved_title,
+                "generated_title": resolved_title,
+                "artist_name": artist,
+                "idea": idea,
+                "genre": genre,
+                "mood": mood,
+                "vocal": vocal,
+                "complete_lyrics": completeness["lyrics"],
+                "normalized_song_output": completeness["lyrics"],
+                "song_completeness": completeness["after"],
+                "music_direction": music_direction,
+                "music_style_prompt": music_direction.get("master_music_style_prompt") or style_prompt,
+                "hook_candidates": candidates,
+                "candidate_hooks": candidates,
+                "selected_hook": hook,
+                "selected_hook_text": hook.get("hook_text", ""),
+                "artist_preset": preset.get("artist_id", "vela_moon"),
+                "artist_preset_data": preset,
+                "music_preset": selected_music_preset_name,
+                "music_preset_data": selected_music_preset,
+                "vocal_direction": selected_vocal_direction_name,
+                "vocal_direction_data": selected_vocal_direction,
+                "advanced_settings": advanced_settings,
+                "weirdness": advanced_settings["weirdness"],
+                "style_influence": advanced_settings["style_influence"],
+                "instrument_tags_language": "English only",
+            })
+            project["title"] = resolved_title
+            project["artist"] = artist
+            project["song"] = normalize_song_metadata(song_result, preset)
+            st.session_state["simple_song_pending_title"] = resolved_title
+            st.session_state.generated_song = project["song"]
+            st.session_state.normalized_song_output = completeness["lyrics"]
+            _save_project()
+            st.rerun()
+
+    song = normalize_song_metadata(project.get("song", {}) or {}, get_artist_preset((project.get("song", {}) or {}).get("artist_preset") or load_default_artist_id()))
+    lyrics = str(song.get("normalized_song_output") or song.get("complete_lyrics") or "")
+    if not lyrics:
+        return
+    lyrics_source_id = hashlib.sha1(lyrics.encode("utf-8")).hexdigest()
+    if st.session_state.get("simple_song_lyrics_source_id") != lyrics_source_id:
+        st.session_state["simple_song_lyrics"] = lyrics
+        st.session_state["simple_song_lyrics_source_id"] = lyrics_source_id
+    edited_lyrics = st.text_area("Lyrics", key="simple_song_lyrics", height=420)
+    check_cols = st.columns(2)
+    if check_cols[0].button("Lyrics Check", use_container_width=True, key="simple_song_check_lyrics"):
+        st.session_state["simple_song_quality_review"] = check_lyrics_quality(edited_lyrics)
+    if check_cols[1].button("Export to Suno", type="primary", use_container_width=True, key="simple_song_export_suno"):
+        export_song = {**song, "complete_lyrics": edited_lyrics, "normalized_song_output": edited_lyrics}
+        export_result = export_suno_files(project.get("title") or song.get("title") or "VelaFlow Song", export_song, workflow_mode=st.session_state.get("workflow_mode", "Song Studio Only"))
+        if export_result.get("ok"):
+            project["song"] = export_song
+            st.session_state["simple_song_suno_export"] = export_result.get("data", {})
+            _save_project()
+            st.success("Suno package ready")
+        else:
+            st.error("Suno export could not be created.")
+    review = st.session_state.get("simple_song_quality_review") or {}
+    if review:
+        if review.get("status") == "Good":
+            st.success("Lyrics Quality: Good")
+        else:
+            st.warning("Lyrics Quality: Needs Review")
+        for finding in (review.get("findings") or [])[:3]:
+            st.caption(f"• {finding}")
+        with st.expander("Advanced / Lyrics Diagnostics", expanded=False):
+            st.json(review.get("diagnostics") or {}, expanded=False)
+    export_data = st.session_state.get("simple_song_suno_export") or {}
+    if export_data:
+        export_cols = st.columns(2)
+        export_cols[0].download_button("Download Lyrics", data=export_data.get("lyrics_only_text") or edited_lyrics, file_name="lyrics_only.txt", mime="text/plain", use_container_width=True, key="simple_download_lyrics")
+        export_cols[1].download_button("Download Suno TXT", data=export_data.get("suno_full_text") or edited_lyrics, file_name=export_data.get("suno_full_filename") or "suno_export.txt", mime="text/plain", use_container_width=True, key="simple_download_suno")
+
+
 def _render_song_studio(project: dict[str, Any]) -> None:
     _page_header("Song Studio", "Generate hooks, lyrics, and Suno-ready Thai lyrics with English production tags.", project)
     active_provider, active_api_key, active_model = _active_text_credentials()
-    st.caption(f"Active AI provider: {provider_display_name(active_provider)} | Model: {active_model}")
-    _warn_missing_provider_key(active_provider, active_api_key)
-    with st.expander("Quick Start", expanded=False):
-        st.markdown("**Quick Start**")
-        st.markdown(
-            "1. เลือก Music Preset  \n"
-            "2. ใส่ไอเดียเพลงสั้น ๆ  \n"
-            "3. กด Generate Full Lyrics  \n"
-            "4. Copy หรือ Download Release Package"
-        )
     creative_direction = project.get("creative_direction") or st.session_state.get("creative_direction", {}) or {}
     structure_plan = (project.get("song", {}) or {}).get("song_structure_plan") or project.get("song_structure_plan") or st.session_state.get("song_structure_plan", {}) or {}
     default_artist_id = load_default_artist_id()
@@ -5254,6 +5574,11 @@ def _render_song_studio(project: dict[str, Any]) -> None:
     project["song"] = song
     current_artist_id = raw_artist_id or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
     creator_mode = not st.session_state.get("developer_mode", False)
+    if creator_mode:
+        _render_simple_song_studio(project, song, active_provider, active_api_key, active_model)
+        return
+    st.caption(f"Active AI provider: {provider_display_name(active_provider)} | Model: {active_model}")
+    _warn_missing_provider_key(active_provider, active_api_key)
     if creator_mode:
         st.info(
             "Creator Mode: สร้าง hook, เขียนเนื้อเพลง, export ไป Suno, อัปโหลดเพลงที่ทำเสร็จ แล้วสร้าง cinematic hook clip ได้ในหน้านี้",
@@ -6932,6 +7257,8 @@ def _render_settings_system_controls(active_project: dict[str, Any]) -> None:
         st.caption(f"Provider: {provider_display_name(active_provider)}")
         st.caption(f"Model: {active_model}")
         st.caption(f"Runtime: {runtime['status']} · {runtime['message']}")
+        if st.session_state.get("settings_access_diagnostic"):
+            st.caption(str(st.session_state.get("settings_access_diagnostic")))
 
 
 def _render_agent_workspace_panel(active_workspace_name: str, state: dict[str, Any]) -> None:
@@ -8921,7 +9248,7 @@ elif page == "Release Hardening Tools":
 elif page in {"Settings", "AI Settings"}:
     _page_header("Settings", "API keys, projects, and advanced app preferences.", project)
     _render_settings_system_controls(project)
-    st.markdown("### AI Settings")
+    st.markdown("### API Keys")
     provider_options = {"Gemini": "gemini", "OpenAI GPT": "openai", "xAI Grok": "xai"}
     current_provider = _active_ai_provider()
     current_api_mode = api_mode_label(st.session_state.get("api_mode", API_MODE_OWN_KEY))
@@ -8986,39 +9313,7 @@ elif page in {"Settings", "AI Settings"}:
     if st.session_state.get("local_api_state_source") == "session_state_only":
         st.caption("Browser persistence is unavailable in this environment. Keys remain in this Streamlit session only.")
     user_keys = st.session_state.setdefault("user_api_keys", {})
-    st.markdown("### Gemini API Key")
-    st.caption("Used by Podcast Studio, Agent Studio, and other Gemini-powered tools. The key is never written to logs or exports.")
-    quick_gemini_key = st.text_input(
-        "Gemini API Key",
-        value=str(user_keys.get("gemini", "") or ""),
-        type="password",
-        key="settings_quick_gemini_api_key",
-        help="Paste your Gemini key here if you do not want to use a .env file.",
-    )
-    gk1, gk2 = st.columns(2)
-    if gk1.button("Save Gemini Key", use_container_width=True, key="settings_save_gemini_key"):
-        if quick_gemini_key.strip():
-            st.session_state.user_api_keys["gemini"] = quick_gemini_key.strip()
-            st.session_state.api_mode = API_MODE_OWN_KEY
-            st.session_state.default_ai_provider = "gemini"
-            st.session_state.api_storage_nonce += 1
-            _save_api_state_to_local_storage("gemini", API_MODE_OWN_KEY, quick_gemini_key.strip(), remember=remember_api_keys)
-            _sync_provider_runtime_state()
-            st.success("Gemini key saved on this device" if remember_api_keys else "Gemini key saved for this session")
-        else:
-            st.warning("Paste a Gemini key before saving.")
-    if gk2.button("Forget Gemini Key", use_container_width=True, key="settings_forget_gemini_key"):
-        st.session_state.user_api_keys.pop("gemini", None)
-        st.session_state.api_storage_nonce += 1
-        _forget_api_key_from_local_storage("gemini")
-        _sync_provider_runtime_state()
-        st.success("Gemini key removed from this session/device")
     gemini_status = resolve_gemini_api_key(settings=settings, session_state=st.session_state)
-    st.write("Gemini status:", "enabled" if gemini_status.get("enabled") else "disabled")
-    st.write("Key source:", gemini_status.get("source", "none"))
-    if st.session_state.get("developer_mode") and not gemini_status.get("enabled"):
-        st.caption(f"Fallback reason: {gemini_status.get('fallback_reason')}")
-
     existing_user_key = str(user_keys.get(selected_provider, "") or "")
     input_nonce_key = f"user_api_key_nonce_{selected_provider}"
     st.session_state.setdefault(input_nonce_key, 0)
@@ -9072,20 +9367,23 @@ elif page in {"Settings", "AI Settings"}:
     _sync_provider_runtime_state()
     runtime = _provider_runtime_status(selected_provider, resolved.get("api_key", ""))
     runtime_details = st.session_state.get("provider_runtime", {}) or {}
-    st.write(f"Active provider: {provider_label}")
-    st.write(f"API Mode: {resolved.get('api_mode')}")
-    st.info(f"Runtime status: {runtime['status']} · {runtime['message']}", icon="ℹ️")
-    st.write("User Key:", mask_api_key(user_keys.get(selected_provider, "")))
-    st.write("VelaFlow Key:", "Configured" if resolved.get("velaflow_key_present") else "Not configured")
+    diagnostics = st.expander("Advanced / Diagnostics", expanded=False)
+    diagnostics.write(f"Active provider: {provider_label}")
+    diagnostics.write(f"API Mode: {resolved.get('api_mode')}")
+    diagnostics.info(f"Runtime status: {runtime['status']} · {runtime['message']}", icon="ℹ️")
+    diagnostics.write(f"User Key: {mask_api_key(user_keys.get(selected_provider, ''))}")
+    diagnostics.write(f"VelaFlow Key: {'Configured' if resolved.get('velaflow_key_present') else 'Not configured'}")
     if selected_provider == "gemini":
-        st.write("Gemini runtime ready:", bool(runtime_details.get("gemini_runtime_ready")))
-        st.write("Gemini client initialized:", bool(runtime_details.get("gemini_client_initialized")))
-        st.write("Gemini configure() result:", runtime_details.get("gemini_configure_result", "-"))
-        st.write("Gemini client initialization result:", runtime_details.get("gemini_client_initialization_result", "-"))
+        diagnostics.write(f"Gemini status: {'enabled' if gemini_status.get('enabled') else 'disabled'}")
+        diagnostics.write(f"Key source: {gemini_status.get('source', 'none')}")
+        diagnostics.write(f"Gemini runtime ready: {bool(runtime_details.get('gemini_runtime_ready'))}")
+        diagnostics.write(f"Gemini client initialized: {bool(runtime_details.get('gemini_client_initialized'))}")
+        diagnostics.write(f"Gemini configure() result: {runtime_details.get('gemini_configure_result', '-')}")
+        diagnostics.write(f"Gemini client initialization result: {runtime_details.get('gemini_client_initialization_result', '-')}")
         if runtime_details.get("gemini_exception_message"):
-            st.warning(f"Gemini exception: {runtime_details.get('gemini_exception_message')}")
-        st.write("Veo render capable:", bool(runtime_details.get("veo_render_capable")))
-        if st.button("Test Gemini Connection", use_container_width=True, key="settings_test_gemini_connection"):
+            diagnostics.warning(f"Gemini exception: {runtime_details.get('gemini_exception_message')}")
+        diagnostics.write(f"Veo render capable: {bool(runtime_details.get('veo_render_capable'))}")
+        if diagnostics.button("Test Gemini Connection", use_container_width=True, key="settings_test_gemini_connection"):
             from providers.gemini_provider import GeminiProvider
 
             test_provider = GeminiProvider(api_key=str(gemini_status.get("api_key") or ""), model=str(getattr(settings, "gemini_model", "") or "gemini-2.5-flash"))
@@ -9099,23 +9397,23 @@ elif page in {"Settings", "AI Settings"}:
         connection_test = st.session_state.get("gemini_connection_test", {}) or {}
         if connection_test:
             if connection_test.get("ok"):
-                st.success(f"Gemini connection OK: {connection_test.get('response')}")
+                diagnostics.success(f"Gemini connection OK: {connection_test.get('response')}")
             else:
                 diag = connection_test.get("diagnostics", {}) or {}
-                st.error("Gemini connection failed")
-                st.warning(str(diag.get("exception_message") or diag.get("client_initialization_error") or "Unknown Gemini error"))
+                diagnostics.error("Gemini connection failed")
+                diagnostics.warning(str(diag.get("exception_message") or diag.get("client_initialization_error") or "Unknown Gemini error"))
             if st.session_state.get("developer_mode"):
                 safe_diag = dict((connection_test.get("diagnostics") or {}))
                 safe_diag.pop("api_key", None)
-                st.json(safe_diag, expanded=False)
-    st.write(f"Gemini model: {settings.gemini_model}")
-    st.write("Gemini configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("gemini") or settings.gemini_api_key))
-    st.write(f"OpenAI GPT model: {settings.openai_text_model}")
-    st.write("OpenAI configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("openai") or settings.openai_api_key))
-    st.write(f"xAI Grok model: {settings.xai_text_model}")
-    st.write("xAI Grok configured:", bool((st.session_state.get("user_api_keys", {}) or {}).get("xai") or settings.xai_api_key))
-    st.caption("Environment variables: GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, DEFAULT_AI_PROVIDER")
-    st.caption("Production generation stops when API is unavailable. Offline/template output is only for Developer Mode or clearly labeled demo preview.")
+                diagnostics.json(safe_diag, expanded=False)
+    diagnostics.write(f"Gemini model: {settings.gemini_model}")
+    diagnostics.write(f"Gemini configured: {bool((st.session_state.get('user_api_keys', {}) or {}).get('gemini') or settings.gemini_api_key)}")
+    diagnostics.write(f"OpenAI GPT model: {settings.openai_text_model}")
+    diagnostics.write(f"OpenAI configured: {bool((st.session_state.get('user_api_keys', {}) or {}).get('openai') or settings.openai_api_key)}")
+    diagnostics.write(f"xAI Grok model: {settings.xai_text_model}")
+    diagnostics.write(f"xAI Grok configured: {bool((st.session_state.get('user_api_keys', {}) or {}).get('xai') or settings.xai_api_key)}")
+    diagnostics.caption("Environment variables: GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, DEFAULT_AI_PROVIDER")
+    diagnostics.caption("Production generation stops when API is unavailable. Offline/template output is only for Developer Mode or clearly labeled demo preview.")
 
 elif page == "Artist Preset Manager":
     _render_artist_preset_manager()
