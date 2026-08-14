@@ -332,7 +332,7 @@ code {
 
 @media (max-width: 768px) {
   .block-container {
-    padding-top: max(4rem, calc(env(safe-area-inset-top) + 3.25rem)) !important;
+    padding-top: max(4.5rem, calc(env(safe-area-inset-top) + 3.75rem)) !important;
     padding-left: 0.9rem;
     padding-right: 0.9rem;
     padding-bottom: 1.25rem;

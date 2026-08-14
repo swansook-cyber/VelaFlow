@@ -3426,7 +3426,6 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         source_info = editor_state.get("source_audio") or {}
         source_path = str(source_info.get("path") or "")
     if not source_path or not Path(source_path).is_file():
-        st.info("Select a Project Master or upload an MP3/WAV to begin.")
         return
     source_id = _audio_source_signature(source_info, source_path)
     probe = _cached_audio_probe(source_path, source_identity=source_id, ffmpeg_path=settings.ffmpeg_path)
@@ -7123,13 +7122,11 @@ def _legacy_sidebar_ui() -> None:
 with st.sidebar:
     st.markdown("### VelaFlow")
     st.caption("AI Music Production")
-    st.markdown("**Navigation**")
     page = st.radio(
         "Navigation",
         PAGES,
         key="selected_page",
         format_func=page_label,
-        label_visibility="collapsed",
     )
     current_project_title = str((project or {}).get("title") or "").strip()
     if current_project_title:
