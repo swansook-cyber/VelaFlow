@@ -34,6 +34,7 @@ from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, move_audio_selection_region, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, SCHEMA_VERSION as AUDIO_INTELLIGENCE_SCHEMA_VERSION, analyze_audio_source, parse_loudnorm_output
+from core.smart_cut import suggest_cut_regions
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_release_pack_export, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -395,6 +396,90 @@ def _write_segmented_audio_intelligence_wav(path: Path, segments: list[tuple[flo
         audio.writeframes(samples.tobytes())
 
 
+def _smart_cut_analysis(
+    energies: list[float],
+    *,
+    leading: float = 0.0,
+    trailing: float = 0.0,
+    internal: list[tuple[float, float]] | None = None,
+    codec: str = "wav",
+    source_id: str = "smart-cut-fixture",
+) -> dict[str, Any]:
+    duration = float(len(energies))
+    return {
+        "source": {"source_id": source_id, "kind": "test_fixture"},
+        "metadata": {"duration_sec": duration, "codec": codec},
+        "energy": {
+            "status": "ok",
+            "profile": [
+                {"start_sec": float(index), "end_sec": float(index + 1), "normalized": float(value)}
+                for index, value in enumerate(energies)
+            ],
+        },
+        "silence": {
+            "status": "ok",
+            "leading_sec": leading,
+            "trailing_sec": trailing,
+            "internal_regions": [
+                {"start_sec": start, "end_sec": end, "duration_sec": end - start}
+                for start, end in (internal or [])
+            ],
+        },
+        "cache": {"hit": True},
+        "performance": {"ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0},
+    }
+
+
+def run_smart_cut_smoke() -> dict[str, Any]:
+    sustained = _smart_cut_analysis([0.10] * 15 + [0.82] * 30 + [0.18] * 15)
+    sustained_suggestions = suggest_cut_regions(sustained)
+    strong = next((item for item in sustained_suggestions if item["kind"] == "strong_section"), None)
+    assert_true(strong is not None and strong["start_sec"] >= 14.0 and strong["end_sec"] <= 46.0, "sustained high-energy Smart Cut detection failed")
+
+    isolated_transient = _smart_cut_analysis([0.20] * 24 + [1.0] + [0.20] * 25)
+    transient_suggestions = suggest_cut_regions(isolated_transient)
+    assert_true(not any(item["kind"] == "strong_section" for item in transient_suggestions), "isolated transient was mislabeled as a strong section")
+
+    two_regions = _smart_cut_analysis([0.08] * 8 + [0.84] * 20 + [0.08] * 12 + [0.72] * 20 + [0.08] * 10)
+    two_suggestions = suggest_cut_regions(two_regions)
+    strong_regions = [item for item in two_suggestions if item["kind"] in {"strong_section", "high_energy"}]
+    assert_true(len(strong_regions) == 2 and strong_regions[0]["end_sec"] <= strong_regions[1]["start_sec"], "distinct energetic Smart Cut regions were not preserved")
+
+    bounded = _smart_cut_analysis([0.0] * 3 + [0.55] * 52 + [0.0] * 5, leading=3.0, trailing=5.0, internal=[(25.0, 28.0)])
+    bounded_suggestions = suggest_cut_regions(bounded)
+    intro = next((item for item in bounded_suggestions if item["kind"] == "clean_intro"), None)
+    outro = next((item for item in bounded_suggestions if item["kind"] == "clean_outro"), None)
+    assert_true(intro is not None and intro["start_sec"] >= 3.0 and intro["end_sec"] <= 25.0, "Clean Intro did not exclude leading silence or use an internal boundary")
+    assert_true(outro is not None and outro["end_sec"] <= 55.0, "Clean Outro did not exclude trailing silence")
+
+    full_silence = suggest_cut_regions(_smart_cut_analysis([0.0] * 40))
+    near_silence = suggest_cut_regions(_smart_cut_analysis([0.02] * 40))
+    short = suggest_cut_regions(_smart_cut_analysis([0.5]))
+    flat = suggest_cut_regions(_smart_cut_analysis([0.45] * 50))
+    assert_true(not full_silence and not near_silence and not short and len(flat) <= 1, "low-confidence Smart Cut handling manufactured suggestions")
+
+    limited = suggest_cut_regions(two_regions, max_suggestions=2)
+    assert_true(len(limited) <= 2, "Smart Cut max_suggestions ceiling failed")
+    for suggestions, duration in [(sustained_suggestions, 60.0), (two_suggestions, 70.0), (bounded_suggestions, 60.0), (limited, 70.0)]:
+        identities = set()
+        for item in suggestions:
+            assert_true(0.0 <= item["start_sec"] < item["end_sec"] <= duration, "Smart Cut suggestion escaped source bounds")
+            identity = (round(item["start_sec"], 2), round(item["end_sec"], 2))
+            assert_true(identity not in identities, "duplicate Smart Cut suggestion returned")
+            identities.add(identity)
+
+    wav_suggestions = suggest_cut_regions({**sustained, "metadata": {**sustained["metadata"], "codec": "wav"}})
+    mp3_suggestions = suggest_cut_regions({**sustained, "metadata": {**sustained["metadata"], "codec": "mp3"}})
+    project_master = {**sustained, "source": {"source_id": "project-master-source", "kind": "project_master"}}
+    assert_true(wav_suggestions == mp3_suggestions and suggest_cut_regions(project_master), "Smart Cut MP3/WAV or Project Master regression")
+
+    source_a = _smart_cut_analysis([0.1] * 10 + [0.8] * 20 + [0.1] * 10, source_id="source-a")
+    source_b = _smart_cut_analysis([0.1] * 10 + [0.1] * 10 + [0.8] * 20, source_id="source-b")
+    assert_true(source_a["source"]["source_id"] != source_b["source"]["source_id"] and suggest_cut_regions(source_a) != suggest_cut_regions(source_b), "source change did not produce source-specific Smart Cuts")
+    assert_true(sustained["performance"] == {"ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0}, "Smart Cut fixture unexpectedly required signal decoding")
+    return {"cases": 14, "suggestions": len(sustained_suggestions), "pure_in_memory": True}
+
+
 def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     fixture_root = out / "audio_intelligence"
     cache_root = fixture_root / "cache"
@@ -589,6 +674,7 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
 def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
+    smart_cut_performance = run_smart_cut_smoke()
     audio_intelligence_performance = run_audio_intelligence_smoke(out)
     local_policy = access_gate_policy({"VELAFLOW_MODE": "LOCAL"}, configured_password="")
     missing_network_policy = access_gate_policy({"VELAFLOW_MODE": "CLOUD"}, configured_password="")
@@ -3528,7 +3614,10 @@ def main():
         joiner_slice = main_source[main_source.find("def _render_audio_joiner"):main_source.find("def _render_audio_cutter")]
         assert_true('st.radio("Mode", ["Cut", "Join"]' in active_editor_slice and "_render_audio_joiner" in active_editor_slice and "_render_audio_cutter" in active_editor_slice, "Audio Editor Cut/Join mode switch missing")
         assert_true("_render_music_pipeline_status" not in active_editor_slice and "Cut or join MP3/WAV files with simple local tools." not in active_editor_slice and "Select a Project Master or upload an MP3/WAV to begin." not in cutter_slice, "Audio Editor default UI still contains pipeline or redundant instructional clutter")
-        assert_true("Find Smart Hook" not in cutter_slice and "Smart Hook candidates" not in cutter_slice and "phrase-completion" not in cutter_slice and "Select MP3 or WAV" in cutter_slice and "Play Selection" in waveform_component_source and "Fade In" in cutter_slice and "Fade Out" in cutter_slice, "Cut mode must remain simple and manual-only")
+        assert_true("Find Smart Hook" not in cutter_slice and "Smart Hook candidates" not in cutter_slice and "phrase-completion" not in cutter_slice and "Select MP3 or WAV" in cutter_slice and "Play Selection" in waveform_component_source and "Fade In" in cutter_slice and "Fade Out" in cutter_slice, "Cut mode must remain simple without the legacy Smart Hook UI")
+        assert_true("Suggested Cuts" in cutter_slice and "suggest_cut_regions" in cutter_slice and 'max_suggestions=4' in cutter_slice and 'analysis_source_id' in cutter_slice and 'suggestion_elapsed_ms' in cutter_slice, "Smart Cut suggestion UI/cache/performance wiring missing")
+        assert_true('audio_editor_smart_cut_cache' in cutter_slice and 'smart_cut_cache.get("source_id") != source_id' in cutter_slice and 'editor_state.pop("selected_smart_cut", None)' in cutter_slice, "Smart Cut source-aware invalidation missing")
+        assert_true('selection_origin"] = "suggested_cut"' in cutter_slice and '"manual_adjusted" if editor_state.get("selected_smart_cut") else "manual"' in cutter_slice and '"Smart Cut Suggestion" if selection_origin == "suggested_cut"' in cutter_slice, "Smart Cut selection commit/manual override/export wiring missing")
         assert_true("Add Selected Files" in joiner_slice and "Arrange" in joiner_slice and "Crossfade" in joiner_slice and "Preview Joined Audio" in joiner_slice and "Join & Export" in joiner_slice and "accept_multiple_files=True" in joiner_slice and "audio_joiner" in joiner_slice, "Audio Joiner simple workflow missing")
         assert_true("velaflow_waveform_selector" in main_source and "WAVEFORM_SELECTOR_COMPONENT" in main_source and "audio_editor_selection_start" in main_source and "audio_editor_selection_end" in main_source and "_sync_audio_editor_selection" in main_source and "desktop mouse + mobile touch supported" in main_source, "interactive waveform selector wiring missing")
         assert_true(wavesurfer_vendor.is_file() and regions_vendor.is_file() and wavesurfer_license.is_file() and "WAVE_SURFER_VERSION = \"7.12.11\"" in waveform_component_source and "wavesurfer-7.12.11.min.js" in waveform_component_source and "regions-7.12.11.min.js" in waveform_component_source, "pinned local WaveSurfer 7.12.11 vendor bundle missing")
@@ -4617,7 +4706,7 @@ def main():
     assert_true(job.get("status") == "DONE", "job queue lifecycle failed")
     assert_true((job.get("result") or {}).get("ok") is True, "job result failed")
 
-    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

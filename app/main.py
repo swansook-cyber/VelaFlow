@@ -70,6 +70,7 @@ from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES,
 from core.access_control import access_gate_policy, authenticate_access_password, sign_out_access_session
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
 from core.audio_intelligence import analyze_audio_source
+from core.smart_cut import suggest_cut_regions
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
@@ -3669,12 +3670,61 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         st.session_state["audio_editor_simple_selection_source"] = source_id
         st.session_state["audio_editor_simple_start"] = 0.0
         st.session_state["audio_editor_simple_end"] = min(duration, 30.0)
+        st.session_state.pop("audio_editor_smart_cut_cache", None)
+        editor_state.pop("selected_smart_cut", None)
+        editor_state["selection_origin"] = "manual"
     start = float(st.session_state.get("audio_editor_simple_start", 0.0))
     end = float(st.session_state.get("audio_editor_simple_end", min(duration, 30.0)))
     if waveform_result.get("ok"):
         waveform_data = waveform_result["data"]
         _remember_project_master_waveform_signature(source_info, source_id, waveform_data)
         browser_audio = _waveform_browser_audio_source(source_path, source_id=source_id, ffmpeg_path=settings.ffmpeg_path)
+        smart_cut_cache = st.session_state.get("audio_editor_smart_cut_cache") or {}
+        if smart_cut_cache.get("source_id") != source_id:
+            try:
+                intelligence = analyze_audio_source(
+                    source_path,
+                    _remaster_audio_intelligence_context(project, source_info, path_role="audio_editor_source"),
+                    depth="deep",
+                    ffmpeg_path=settings.ffmpeg_path,
+                )
+                suggestion_started = time.perf_counter()
+                suggestions = suggest_cut_regions(intelligence, max_suggestions=4)
+                smart_cut_cache = {
+                    "source_id": source_id,
+                    "analysis_source_id": str((intelligence.get("source") or {}).get("source_id") or ""),
+                    "analysis_cache_hit": bool((intelligence.get("cache") or {}).get("hit")),
+                    "analysis_performance": intelligence.get("performance") or {},
+                    "suggestion_elapsed_ms": round((time.perf_counter() - suggestion_started) * 1000.0, 3),
+                    "suggestions": suggestions,
+                }
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                smart_cut_cache = {
+                    "source_id": source_id,
+                    "analysis_source_id": "",
+                    "analysis_cache_hit": False,
+                    "analysis_performance": {},
+                    "suggestion_elapsed_ms": None,
+                    "suggestions": [],
+                    "error": str(exc),
+                }
+            st.session_state["audio_editor_smart_cut_cache"] = smart_cut_cache
+        suggestions = smart_cut_cache.get("suggestions") or []
+        if suggestions:
+            st.markdown("**Suggested Cuts**")
+            for index, suggestion in enumerate(suggestions):
+                label = f"{suggestion.get('label', 'Suggested Cut')} · {format_timecode(float(suggestion.get('start_sec') or 0.0))}–{format_timecode(float(suggestion.get('end_sec') or 0.0))}"
+                if st.button(label, use_container_width=True, key=f"audio_editor_smart_cut_{index}_{hashlib.sha1(source_id.encode()).hexdigest()[:10]}"):
+                    clamped = clamp_audio_selection(float(suggestion.get("start_sec") or 0.0), float(suggestion.get("end_sec") or duration), duration)
+                    st.session_state["audio_editor_simple_start"] = clamped["start"]
+                    st.session_state["audio_editor_simple_end"] = clamped["end"]
+                    editor_state["start_time"] = clamped["start"]
+                    editor_state["end_time"] = clamped["end"]
+                    editor_state["selection_origin"] = "suggested_cut"
+                    editor_state["selected_smart_cut"] = {**suggestion, "source_id": source_id}
+                    project["audio_editor"] = editor_state
+                    _save_project()
+                    st.rerun()
         selected = _render_interactive_waveform_selector(
             waveform_data,
             start=start,
@@ -3691,6 +3741,9 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             st.session_state["audio_editor_simple_end"] = clamped["end"]
             start, end = clamped["start"], clamped["end"]
             if selection_changed:
+                editor_state["start_time"] = start
+                editor_state["end_time"] = end
+                editor_state["selection_origin"] = "manual_adjusted" if editor_state.get("selected_smart_cut") else "manual"
                 st.rerun()
     selection = validate_audio_selection(start, end, duration)
     metrics = st.columns(3)
@@ -3727,6 +3780,8 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             for finding in (quality.get("findings") or [])[:3]:
                 st.caption(f"• {finding}")
     if st.button("Export", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_export"):
+        selection_origin = str(editor_state.get("selection_origin") or "manual")
+        selected_smart_cut = editor_state.get("selected_smart_cut") or {}
         result = export_audio_selection(
             source_path,
             start_time=start,
@@ -3739,7 +3794,12 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             ffmpeg_path=settings.ffmpeg_path,
             max_upload_mb=max_upload_mb,
             waveform_summary=waveform_result.get("data") or {},
-            smart_hook_data={"source": "Manual Waveform Selection", "user_override_status": "Manual Export"},
+            smart_hook_data={
+                "source": "Smart Cut Suggestion" if selection_origin == "suggested_cut" else "Manual Waveform Selection",
+                "user_override_status": "Suggested Cut" if selection_origin == "suggested_cut" else "Manual Adjustment" if selection_origin == "manual_adjusted" else "Manual Export",
+                "suggestion_kind": selected_smart_cut.get("kind", ""),
+                "suggestion_label": selected_smart_cut.get("label", ""),
+            },
             output_suffix="Hook",
             output_format=output_format_label.lower(),
         )
