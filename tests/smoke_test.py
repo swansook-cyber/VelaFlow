@@ -32,7 +32,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, move_audio_selection_region, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, build_source_signature, build_upload_identity, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_join_track_instance, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, join_pair_id, move_audio_selection_region, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, SCHEMA_VERSION as AUDIO_INTELLIGENCE_SCHEMA_VERSION, analyze_audio_source, parse_loudnorm_output
 from core.audio_bpm import BPM_METHOD, build_onset_envelope, estimate_bpm
 from core.smart_cut import suggest_cut_regions
@@ -1516,6 +1516,20 @@ def main():
     assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", -1)] == ["b", "a", "c"], "Audio Joiner move-up ordering failed")
     assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", 1)] == ["a", "c", "b"], "Audio Joiner move-down ordering failed")
     assert_true([track["track_id"] for track in remove_join_track(join_order_fixture, "b")] == ["a", "c"] and JOIN_CROSSFADE_DURATIONS == (1.0, 2.0, 3.0, 5.0), "Audio Joiner remove/crossfade options failed")
+    duplicate_source = {"upload_id": "shared-source", "source_id": "shared-source", "path": "same.mp3", "duration": 10.0, "start": 0.0, "end": 10.0}
+    duplicate_a = create_join_track_instance(duplicate_source, track_id="instance-a")
+    duplicate_b = create_join_track_instance(duplicate_source, track_id="instance-b")
+    assert_true(duplicate_a["source_id"] == duplicate_b["source_id"] and duplicate_a["track_id"] != duplicate_b["track_id"], "Join duplicate source instances must share source identity but keep unique track identity")
+    ordered = reorder_join_tracks([{**duplicate_a, "start": 1.0}, duplicate_b, {"track_id": "instance-c", "path": "c.mp3", "duration": 8.0, "start": 0.0, "end": 8.0}], ["instance-c", "instance-a", "instance-b"])
+    assert_true(ordered["ok"] and [track["track_id"] for track in ordered["tracks"]] == ["instance-c", "instance-a", "instance-b"] and ordered["tracks"][1]["start"] == 1.0, "Join reorder must preserve per-track trim state")
+    assert_true(not reorder_join_tracks([duplicate_a, duplicate_b], ["instance-a", "instance-a"])["ok"], "Join reorder must reject duplicate or incomplete track IDs")
+    old_pair = join_pair_id(duplicate_a, duplicate_b)
+    pair_state = reconcile_join_pair_settings([duplicate_a, duplicate_b], {old_pair: {"enabled": True, "duration": 3.0}, "stale|pair": {"enabled": True, "duration": 5.0}})
+    reordered_pair_state = reconcile_join_pair_settings([duplicate_b, duplicate_a], pair_state["pair_settings"])
+    assert_true(pair_state["pair_settings"][old_pair]["enabled"] and "stale|pair" not in pair_state["pair_settings"], "Join pair settings must retain active adjacency and prune stale pairs")
+    assert_true(reordered_pair_state["crossfades"] == [JOIN_DEFAULT_TRANSITION], "New Join adjacency must receive the default transition")
+    assert_true(calculate_join_total_duration([duplicate_a, duplicate_b], [{"enabled": True, "duration": 2.0}]) == 18.0 and JOIN_MAX_NEW_TRACKS == 8, "Join total-duration calculation or track limit failed")
+    assert_true(build_join_project_scope("Project A") != build_join_project_scope("Project B") and build_join_project_scope("Project A") == build_join_project_scope("Project A"), "Join project-scoped state identity failed")
     assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
     lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
     precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
@@ -3031,6 +3045,7 @@ def main():
         join_b_mp3 = join_root / "เพลงหลัก.mp3"
         join_a_wav = join_root / "Intro.wav"
         join_b_wav = join_root / "Outro.wav"
+        join_mono_wav = join_root / "Mono 44k.wav"
         for path, frequency, codec in [
             (join_a_mp3, 220, "libmp3lame"),
             (join_b_mp3, 440, "libmp3lame"),
@@ -3043,6 +3058,12 @@ def main():
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
+        subprocess.run(
+            [find_ffmpeg(), "-y", "-f", "lavfi", "-i", "sine=frequency=660:duration=3:sample_rate=44100", "-ac", "1", "-c:a", "pcm_s16le", str(join_mono_wav)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         mp3_tracks = [{"track_id": "intro", "path": str(join_a_mp3), "start": 0, "end": 3}, {"track_id": "main", "path": str(join_b_mp3), "start": 0, "end": 3}]
         wav_tracks = [{"track_id": "wav-a", "path": str(join_a_wav), "start": 0, "end": 3}, {"track_id": "wav-b", "path": str(join_b_wav), "start": 0, "end": 3}]
         no_crossfade = [{"enabled": False, "duration": 2.0}]
@@ -3054,12 +3075,28 @@ def main():
         trimmed_tracks = [{**mp3_tracks[0], "start": 1.0}, {**mp3_tracks[1], "end": 2.0}]
         joined_trimmed = join_audio_tracks(trimmed_tracks, crossfades=no_crossfade, export_name="Trimmed Join", output_format="wav", project_name="join_trim", output_dir=join_root / "trim", ffmpeg_path=find_ffmpeg())
         joined_fades = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, fade_in=True, fade_out=True, export_name="Fade Join", output_format="mp3", project_name="join_fades", output_dir=join_root / "fades", ffmpeg_path=find_ffmpeg())
+        mono_mixed_tracks = [mp3_tracks[0], {"track_id": "mono", "path": str(join_mono_wav), "start": 0, "end": 3}]
+        joined_mono_mixed = join_audio_tracks(mono_mixed_tracks, crossfades=no_crossfade, export_name="Mono Mixed", output_format="mp3", project_name="join_mono", output_dir=join_root / "mono", ffmpeg_path=find_ffmpeg())
+        duplicate_instances = [
+            create_join_track_instance({**mp3_tracks[0], "source_id": "shared-a", "upload_id": "shared-a"}, track_id="dup-a-1"),
+            create_join_track_instance({**mp3_tracks[0], "source_id": "shared-a", "upload_id": "shared-a"}, track_id="dup-a-2"),
+        ]
+        joined_duplicate = join_audio_tracks(duplicate_instances, crossfades=no_crossfade, export_name="Repeated Source", output_format="mp3", project_name="join_duplicate", output_dir=join_root / "duplicate", ffmpeg_path=find_ffmpeg())
+        four_tracks = [
+            {**mp3_tracks[0], "track_id": "four-a"},
+            {**mp3_tracks[1], "track_id": "four-b"},
+            {**mp3_tracks[0], "track_id": "four-c"},
+            {**mp3_tracks[1], "track_id": "four-d"},
+        ]
+        joined_three_transitions = join_audio_tracks(four_tracks, crossfades=[{"enabled": True, "duration": 1.0}] * 3, export_name="Four Track Join", output_format="mp3", project_name="join_four", output_dir=join_root / "four", ffmpeg_path=find_ffmpeg())
         assert_true(joined_mp3["ok"] and Path(joined_mp3["data"]["joined_mp3"]).name == "Vela Mix ไทย.mp3" and abs(float(joined_mp3["data"]["output_duration"]) - 6.0) < 0.25, "Audio Joiner MP3/order/Thai filename failed")
         assert_true(joined_wav["ok"] and Path(joined_wav["data"]["joined_wav"]).is_file() and str((joined_wav["data"]["report"] or {}).get("output_codec", "")).startswith("pcm"), "Audio Joiner WAV PCM output failed")
         assert_true(joined_mixed["ok"] and Path(joined_mixed["data"]["joined_mp3"]).is_file(), "Audio Joiner mixed MP3/WAV failed")
         assert_true(joined_crossfade["ok"] and abs(float(joined_crossfade["data"]["output_duration"]) - 4.0) < 0.25 and joined_crossfade["data"]["report"]["crossfades"][0]["duration"] == 2.0, "Audio Joiner 2-second crossfade duration failed")
         assert_true(joined_trimmed["ok"] and abs(float(joined_trimmed["data"]["output_duration"]) - 4.0) < 0.25 and joined_trimmed["data"]["report"]["tracks"][0]["start"] == 1.0 and joined_trimmed["data"]["report"]["tracks"][1]["end"] == 2.0, "Audio Joiner per-track trim failed")
         assert_true(joined_fades["ok"] and joined_fades["data"]["report"]["fade_in"] and joined_fades["data"]["report"]["fade_out"], "Audio Joiner sequence fades failed")
+        assert_true(joined_mono_mixed["ok"] and joined_duplicate["ok"] and abs(float(joined_duplicate["data"]["output_duration"]) - 6.0) < 0.25, "Audio Joiner mono/different-rate normalization or repeated source failed")
+        assert_true(joined_three_transitions["ok"] and len(joined_three_transitions["data"]["report"]["crossfades"]) == 3 and abs(float(joined_three_transitions["data"]["output_duration"]) - 9.0) < 0.3, "Audio Joiner three-transition output failed")
         joined_mp3_probe = probe_media(joined_mp3["data"]["joined_mp3"], ffmpeg_path=find_ffmpeg())
         assert_true(joined_mp3_probe.get("audio_codec") == "mp3" and int(joined_mp3_probe.get("audio_bit_rate") or 0) >= 315000 and int(joined_mp3_probe.get("sample_rate") or 0) == 48000 and int(joined_mp3_probe.get("channels") or 0) == 2, "Audio Joiner MP3 must be Safari-compatible 320 kbps stereo")
         preview_first = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, project_name="join_preview", output_dir=join_root / "preview", ffmpeg_path=find_ffmpeg(), preview=True)
@@ -3068,6 +3105,19 @@ def main():
         trimmed_fingerprint = build_join_arrangement_fingerprint(trimmed_tracks, crossfades=no_crossfade)
         assert_true(preview_first["ok"] and preview_first["data"]["cache_status"] == "miss" and preview_second["data"]["cache_status"] == "hit" and preview_first["data"]["output_audio"] == preview_second["data"]["output_audio"], "Audio Joiner preview cache reuse failed")
         assert_true(preview_changed["ok"] and preview_changed["data"]["arrangement_fingerprint"] != preview_first["data"]["arrangement_fingerprint"] and trimmed_fingerprint != preview_first["data"]["arrangement_fingerprint"], "Audio Joiner preview did not invalidate after order/trim change")
+        transition_preview_first = preview_join_transition(mp3_tracks[0], mp3_tracks[1], transition=two_second_crossfade[0], project_name="transition_preview", output_dir=join_root / "transition_preview", ffmpeg_path=find_ffmpeg())
+        transition_preview_second = preview_join_transition(mp3_tracks[0], mp3_tracks[1], transition=two_second_crossfade[0], project_name="transition_preview", output_dir=join_root / "transition_preview", ffmpeg_path=find_ffmpeg())
+        transition_preview_trimmed = preview_join_transition({**mp3_tracks[0], "start": 0.5}, mp3_tracks[1], transition=two_second_crossfade[0], project_name="transition_preview", output_dir=join_root / "transition_preview", ffmpeg_path=find_ffmpeg())
+        unrelated_before = build_join_arrangement_fingerprint(build_join_transition_preview_tracks(four_tracks[2], four_tracks[3]), crossfades=[{"enabled": True, "duration": 1.0}])
+        unrelated_after = build_join_arrangement_fingerprint(build_join_transition_preview_tracks(four_tracks[2], four_tracks[3]), crossfades=[{"enabled": True, "duration": 1.0}])
+        assert_true(transition_preview_first["ok"] and transition_preview_first["data"]["cache_status"] == "miss" and transition_preview_second["data"]["cache_status"] == "hit", "Join transition-only preview cache reuse failed")
+        assert_true(transition_preview_trimmed["ok"] and transition_preview_trimmed["data"]["arrangement_fingerprint"] != transition_preview_first["data"]["arrangement_fingerprint"] and unrelated_before == unrelated_after, "Join transition preview invalidation must remain pair-local")
+        too_long_crossfade = join_audio_tracks([{**mp3_tracks[0], "end": 1.0}, mp3_tracks[1]], crossfades=[{"enabled": True, "duration": 2.0}], output_dir=join_root / "too_long", ffmpeg_path=find_ffmpeg())
+        one_track_join = join_audio_tracks([mp3_tracks[0]], output_dir=join_root / "one", ffmpeg_path=find_ffmpeg())
+        corrupt_track = join_root / "corrupt.mp3"
+        corrupt_track.write_bytes(b"not audio")
+        corrupt_join = join_audio_tracks([{"track_id": "corrupt", "path": str(corrupt_track), "start": 0, "end": 3}, mp3_tracks[1]], output_dir=join_root / "corrupt", ffmpeg_path=find_ffmpeg())
+        assert_true(not too_long_crossfade["ok"] and too_long_crossfade["error"] == "crossfade_too_long" and not one_track_join["ok"] and not corrupt_join["ok"], "Join invalid crossfade, one-track, or corrupt-source validation failed")
         missing_join = join_audio_tracks([{**mp3_tracks[0], "path": str(join_root / "missing.mp3")}, mp3_tracks[1]], crossfades=no_crossfade, output_dir=join_root / "missing", ffmpeg_path=find_ffmpeg())
         bad_ffmpeg_join = join_audio_tracks(mp3_tracks, crossfades=no_crossfade, output_dir=join_root / "bad_ffmpeg", ffmpeg_path=str(join_root / "not_ffmpeg.exe"))
         assert_true(not missing_join["ok"] and not bad_ffmpeg_join["ok"], "Audio Joiner missing source/FFmpeg failure must not report success")
@@ -4016,7 +4066,16 @@ def main():
         assert_true("Suggested Cuts" in cutter_slice and "suggest_cut_regions" in cutter_slice and 'max_suggestions=4' in cutter_slice and 'analysis_source_id' in cutter_slice and 'suggestion_elapsed_ms' in cutter_slice, "Smart Cut suggestion UI/cache/performance wiring missing")
         assert_true('audio_editor_smart_cut_cache' in cutter_slice and 'smart_cut_cache.get("source_id") != source_id' in cutter_slice and 'editor_state.pop("selected_smart_cut", None)' in cutter_slice, "Smart Cut source-aware invalidation missing")
         assert_true('selection_origin"] = "suggested_cut"' in cutter_slice and '"manual_adjusted" if editor_state.get("selected_smart_cut") else "manual"' in cutter_slice and '"Smart Cut Suggestion" if selection_origin == "suggested_cut"' in cutter_slice, "Smart Cut selection commit/manual override/export wiring missing")
-        assert_true("Add Selected Files" in joiner_slice and "Arrange" in joiner_slice and "Crossfade" in joiner_slice and "Preview Joined Audio" in joiner_slice and "Join & Export" in joiner_slice and "accept_multiple_files=True" in joiner_slice and "audio_joiner" in joiner_slice, "Audio Joiner simple workflow missing")
+        join_reorder_source = (ROOT / "app" / "components" / "join_reorder" / "index.html").read_text(encoding="utf-8")
+        assert_true("+ Add Tracks" in joiner_slice and "### Tracks" in joiner_slice and "Crossfade" in joiner_slice and "Play Transition" in joiner_slice and "Join & Export" in joiner_slice and "accept_multiple_files=True" in joiner_slice and "audio_joiner" in joiner_slice, "Audio Joiner V2 workflow missing")
+        assert_true("build_join_project_scope" in joiner_slice and "audio_joiner_export_name_{scope}" in joiner_slice and "active_track_id" in joiner_slice and "transition_previews" in joiner_slice, "Join project-scoped widget or preview state missing")
+        assert_true(joiner_slice.count("_render_interactive_waveform_selector(") == 1 and 'mode="join_compact"' in joiner_slice and "audio_joiner_waveform_{scope}_{track_id}" in joiner_slice, "Join must instantiate at most one compact Waveform V2 editor")
+        assert_true("calculate_join_total_duration" in joiner_slice and 'st.metric("Total"' in joiner_slice and "Add at least one more track to join audio." in joiner_slice and "track source(s) are missing" in joiner_slice, "Join total duration, one-track, or missing-source UI missing")
+        assert_true("JOIN_MAX_NEW_TRACKS" in joiner_slice and "create_join_track_instance" in joiner_slice and "existing_ids" not in joiner_slice, "Join duplicate-source track instances or eight-track limit missing")
+        assert_true("preview_join_transition" in joiner_slice and "build_join_transition_preview_tracks" in joiner_slice and 'st.expander("Full Joined Preview"' in joiner_slice, "Join transition-only preview or secondary full-preview compatibility missing")
+        assert_true("Pointer Events" not in join_reorder_source and "pointerdown" in join_reorder_source and "pointermove" in join_reorder_source and "pointerup" in join_reorder_source and "ordered_track_ids" in join_reorder_source and "44px" in join_reorder_source and "touch-action: none" in join_reorder_source, "Join local mobile drag reorder contract missing")
+        pointer_move_slice = join_reorder_source[join_reorder_source.find("function moveDrag"):join_reorder_source.find("function render")]
+        assert_true("setValue" not in pointer_move_slice and 'event: "reordered"' in join_reorder_source and "https://" not in join_reorder_source and "http://" not in join_reorder_source, "Join reorder must emit only once on drop and remain offline-safe")
         assert_true("velaflow_waveform_selector" in main_source and "WAVEFORM_SELECTOR_COMPONENT" in main_source and "audio_editor_selection_start" in main_source and "audio_editor_selection_end" in main_source and "_sync_audio_editor_selection" in main_source and "desktop mouse + mobile touch supported" in main_source, "interactive waveform selector wiring missing")
         assert_true(wavesurfer_vendor.is_file() and regions_vendor.is_file() and wavesurfer_license.is_file() and "WAVE_SURFER_VERSION = \"7.12.11\"" in waveform_component_source and "wavesurfer-7.12.11.min.js" in waveform_component_source and "regions-7.12.11.min.js" in waveform_component_source, "pinned local WaveSurfer 7.12.11 vendor bundle missing")
         assert_true("WaveSurfer.Regions.create" in waveform_component_source and 'regionsPlugin.on("region-update"' in waveform_component_source and 'regionsPlugin.on("region-updated"' in waveform_component_source, "WaveSurfer Regions integration missing")
@@ -4026,6 +4085,7 @@ def main():
         assert_true('id="playButton"' in waveform_component_source and 'id="selectionButton"' in waveform_component_source and "selectionPlayback" in waveform_component_source and "wavesurfer.play(selectionRegion.start, selectionRegion.end)" in waveform_component_source and "export_audio_selection" not in waveform_component_source, "client-side Play/Play Selection behavior missing")
         assert_true("nextSourceId !== activeSourceId" in waveform_component_source and "destroyWaveSurfer()" in waveform_component_source and "syncCommittedSelection(nextArgs)" in waveform_component_source and "revokeObjectURL" not in waveform_component_source, "WaveSurfer source lifecycle or same-source preservation missing")
         assert_true("44px" in waveform_component_source and "touch-action: none" in waveform_component_source and "touch-action: pan-y" in waveform_component_source and "overflow: hidden" in waveform_component_source, "Waveform mobile touch targets or overflow controls missing")
+        assert_true("join-compact" in waveform_component_source and 'mode === "join_compact"' in waveform_component_source and "118" in waveform_component_source, "Waveform V2 compact Join mode missing")
         assert_true("https://" not in waveform_component_source and "http://" not in waveform_component_source and "cdn" not in waveform_component_source.lower(), "interactive waveform component must stay local-only")
         assert_true("_waveform_browser_audio_source" in main_source and "media_file_mgr.add" in main_source and "waveform_browser_audio_url_cache" in main_source and "audio_url=str(browser_audio.get" in cutter_slice, "stable session media URL delivery for Waveform V2 missing")
         assert_true('selected.get("event") == "selection_committed"' in cutter_slice and 'selected.get("source_id") == source_id' in cutter_slice and 'start_time=start' in cutter_slice and 'end_time=end' in cutter_slice, "Cut export is not gated by the committed Waveform V2 selection")

@@ -5,6 +5,7 @@ import hashlib
 import math
 import shutil
 import subprocess
+import uuid
 import zipfile
 from array import array
 from datetime import datetime
@@ -45,6 +46,83 @@ SMART_HOOK_TYPES = {
     "Full Chorus": {"soft_range": (25.0, 75.0), "suffix": "FullChorus"},
 }
 JOIN_CROSSFADE_DURATIONS = (1.0, 2.0, 3.0, 5.0)
+JOIN_MAX_NEW_TRACKS = 8
+JOIN_DEFAULT_TRANSITION = {"enabled": False, "duration": 2.0}
+
+
+def build_join_project_scope(project_identity: str) -> str:
+    identity = str(project_identity or "audio_joiner").strip() or "audio_joiner"
+    return hashlib.sha1(identity.encode("utf-8", errors="replace")).hexdigest()[:12]
+
+
+def create_join_track_instance(source: dict[str, Any], *, track_id: str = "") -> dict[str, Any]:
+    """Create an independently editable track while retaining shared source identity."""
+    resolved = dict(source or {})
+    source_id = str(resolved.get("source_id") or resolved.get("upload_id") or resolved.get("path") or "")
+    resolved["source_id"] = source_id
+    resolved["track_id"] = str(track_id or f"join-{uuid.uuid4().hex}")
+    return resolved
+
+
+def join_pair_id(left_track: dict[str, Any], right_track: dict[str, Any]) -> str:
+    left = str(left_track.get("track_id") or left_track.get("upload_id") or left_track.get("path") or "")
+    right = str(right_track.get("track_id") or right_track.get("upload_id") or right_track.get("path") or "")
+    return f"{left}|{right}"
+
+
+def reorder_join_tracks(tracks: list[dict[str, Any]], ordered_track_ids: list[str]) -> dict[str, Any]:
+    current = [str(track.get("track_id") or "") for track in tracks]
+    requested = [str(track_id or "") for track_id in ordered_track_ids]
+    if not current or len(requested) != len(current) or len(set(requested)) != len(requested) or set(requested) != set(current):
+        return {"ok": False, "tracks": [dict(track) for track in tracks], "error": "invalid_track_order"}
+    by_id = {str(track.get("track_id")): dict(track) for track in tracks}
+    return {"ok": True, "tracks": [by_id[track_id] for track_id in requested], "error": ""}
+
+
+def reconcile_join_pair_settings(
+    tracks: list[dict[str, Any]], pair_settings: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any]:
+    stored = pair_settings or {}
+    active: dict[str, dict[str, Any]] = {}
+    crossfades: list[dict[str, Any]] = []
+    for index in range(max(0, len(tracks) - 1)):
+        pair_id = join_pair_id(tracks[index], tracks[index + 1])
+        raw = dict(stored.get(pair_id) or JOIN_DEFAULT_TRANSITION)
+        duration = float(raw.get("duration") or 2.0)
+        if duration not in JOIN_CROSSFADE_DURATIONS:
+            duration = 2.0
+        resolved = {"enabled": bool(raw.get("enabled", False)), "duration": duration}
+        active[pair_id] = resolved
+        crossfades.append(dict(resolved))
+    return {"pair_settings": active, "crossfades": crossfades}
+
+
+def calculate_join_total_duration(tracks: list[dict[str, Any]], crossfades: list[dict[str, Any]] | None = None) -> float:
+    total = 0.0
+    for track in tracks:
+        source_duration = max(0.0, float(track.get("duration") or 0.0))
+        start = max(0.0, float(track.get("start") or 0.0))
+        end = min(source_duration, float(track.get("end") or source_duration))
+        total += max(0.0, end - start)
+    for transition in crossfades or []:
+        if transition.get("enabled"):
+            total -= max(0.0, float(transition.get("duration") or 0.0))
+    return round(max(0.0, total), 3)
+
+
+def build_join_transition_preview_tracks(
+    left_track: dict[str, Any], right_track: dict[str, Any], *, context_seconds: float = 5.0,
+) -> list[dict[str, Any]]:
+    context = max(1.0, min(8.0, float(context_seconds or 5.0)))
+    left = dict(left_track)
+    right = dict(right_track)
+    left_start = max(0.0, float(left.get("start") or 0.0))
+    left_end = min(float(left.get("duration") or 0.0), float(left.get("end") or left.get("duration") or 0.0))
+    right_start = max(0.0, float(right.get("start") or 0.0))
+    right_end = min(float(right.get("duration") or 0.0), float(right.get("end") or right.get("duration") or 0.0))
+    left.update({"start": round(max(left_start, left_end - context), 3), "end": round(left_end, 3)})
+    right.update({"start": round(right_start, 3), "end": round(min(right_end, right_start + context), 3)})
+    return [left, right]
 
 
 def build_upload_identity(original_filename: str, payload: bytes) -> dict[str, Any]:
@@ -1732,3 +1810,36 @@ def join_audio_tracks(
         },
         "error": "",
     }
+
+
+def preview_join_transition(
+    left_track: dict[str, Any],
+    right_track: dict[str, Any],
+    *,
+    transition: dict[str, Any] | None = None,
+    project_name: str = "audio_joiner",
+    output_dir: str | Path = "",
+    ffmpeg_path: str = "",
+    max_upload_mb: int = 200,
+    context_seconds: float = 5.0,
+) -> dict[str, Any]:
+    preview_tracks = build_join_transition_preview_tracks(left_track, right_track, context_seconds=context_seconds)
+    resolved_transition = dict(transition or JOIN_DEFAULT_TRANSITION)
+    result = join_audio_tracks(
+        preview_tracks,
+        crossfades=[resolved_transition],
+        fade_in=False,
+        fade_out=False,
+        project_name=project_name,
+        output_dir=output_dir,
+        ffmpeg_path=ffmpeg_path,
+        max_upload_mb=max_upload_mb,
+        preview=True,
+    )
+    if result.get("ok"):
+        result.setdefault("data", {})["transition_pair"] = [
+            str(left_track.get("track_id") or ""),
+            str(right_track.get("track_id") or ""),
+        ]
+        result["data"]["context_seconds"] = float(context_seconds)
+    return result

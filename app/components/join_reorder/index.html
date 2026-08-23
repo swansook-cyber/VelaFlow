@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: transparent; color: #e5eef8; font-family: Inter, system-ui, sans-serif; overflow: hidden; }
+    #list { display: grid; gap: 7px; width: 100%; }
+    .track {
+      display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center;
+      min-height: 54px; border: 1px solid #2d3d5f; border-radius: 7px; background: #111827;
+      overflow: hidden; transition: transform 100ms ease, border-color 100ms ease;
+    }
+    .track.dragging { opacity: 0.72; border-color: #38bdf8; }
+    .track.missing { border-color: #b45309; }
+    .handle {
+      width: 44px; height: 100%; min-height: 52px; border: 0; border-right: 1px solid #2d3d5f;
+      background: #162238; color: #cbd5e1; font-size: 21px; cursor: grab; touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .handle:active { cursor: grabbing; background: #1f3150; }
+    .details { min-width: 0; padding: 7px 9px; }
+    .name { display: block; color: #f8fafc; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { display: block; margin-top: 2px; color: #94a3b8; font-size: 12px; }
+    .edit {
+      min-width: 64px; min-height: 44px; margin-right: 5px; border: 1px solid #3b4c6b; border-radius: 6px;
+      background: #162238; color: #f8fafc; font-weight: 700; cursor: pointer;
+    }
+    .edit:active { background: #1f3150; }
+    @media (max-width: 430px) {
+      .track { grid-template-columns: 44px minmax(0, 1fr) 60px; }
+      .details { padding: 6px 7px; }
+      .name { font-size: 13px; }
+      .edit { min-width: 54px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="list" aria-label="Audio track order"></div>
+  <script>
+    const list = document.getElementById("list");
+    let activeItems = [];
+    let activeSignature = "";
+    let dragRow = null;
+    let pointerId = null;
+
+    function send(type, value) {
+      window.parent.postMessage({isStreamlitMessage: true, type, ...value}, "*");
+    }
+    function setValue(value) { send("streamlit:setComponentValue", {value}); }
+    function setHeight() { send("streamlit:setFrameHeight", {height: document.body.scrollHeight}); }
+    function eventId() { return `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+    function orderedIds() { return [...list.querySelectorAll(".track")].map((row) => row.dataset.trackId); }
+
+    function finishDrag() {
+      if (!dragRow) return;
+      const before = activeItems.map((item) => String(item.track_id));
+      const after = orderedIds();
+      dragRow.classList.remove("dragging");
+      dragRow = null;
+      pointerId = null;
+      if (before.join("|") !== after.join("|")) {
+        setValue({event: "reordered", ordered_track_ids: after, event_id: eventId()});
+      }
+    }
+
+    function startDrag(event) {
+      dragRow = event.currentTarget.closest(".track");
+      pointerId = event.pointerId;
+      dragRow.classList.add("dragging");
+      event.currentTarget.setPointerCapture(pointerId);
+      event.preventDefault();
+    }
+
+    function moveDrag(event) {
+      if (!dragRow || event.pointerId !== pointerId) return;
+      const siblings = [...list.querySelectorAll(".track:not(.dragging)")];
+      const next = siblings.find((row) => event.clientY < row.getBoundingClientRect().top + row.offsetHeight / 2);
+      if (next) list.insertBefore(dragRow, next);
+      else list.appendChild(dragRow);
+      event.preventDefault();
+    }
+
+    function render(items) {
+      activeItems = items;
+      list.replaceChildren();
+      items.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = `track${item.missing ? " missing" : ""}`;
+        row.dataset.trackId = String(item.track_id || "");
+
+        const handle = document.createElement("button");
+        handle.type = "button";
+        handle.className = "handle";
+        handle.setAttribute("aria-label", `Move track ${index + 1}`);
+        handle.textContent = "≡";
+        handle.addEventListener("pointerdown", startDrag);
+        handle.addEventListener("pointermove", moveDrag);
+        handle.addEventListener("pointerup", finishDrag);
+        handle.addEventListener("pointercancel", finishDrag);
+
+        const details = document.createElement("div");
+        details.className = "details";
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = `${index + 1}. ${item.filename || "Audio track"}`;
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        meta.textContent = item.missing ? "Source missing" : String(item.trimmed_duration || "00:00.000");
+        details.append(name, meta);
+
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "edit";
+        edit.textContent = "Edit";
+        edit.disabled = Boolean(item.missing);
+        edit.addEventListener("click", () => setValue({event: "edit", track_id: String(item.track_id || ""), event_id: eventId()}));
+        row.append(handle, details, edit);
+        list.appendChild(row);
+      });
+      setHeight();
+    }
+
+    window.addEventListener("message", (event) => {
+      if (!event.data || event.data.type !== "streamlit:render") return;
+      const items = Array.isArray(event.data.args?.items) ? event.data.args.items : [];
+      const signature = JSON.stringify(items);
+      if (signature !== activeSignature) {
+        activeSignature = signature;
+        render(items);
+      }
+      setHeight();
+    });
+    send("streamlit:componentReady", {apiVersion: 1});
+    setHeight();
+  </script>
+</body>
+</html>

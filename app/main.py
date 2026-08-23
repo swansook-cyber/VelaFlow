@@ -45,6 +45,10 @@ WAVEFORM_SELECTOR_COMPONENT = components.declare_component(
     "velaflow_waveform_selector",
     path=str(ROOT / "app" / "components" / "waveform_selector"),
 )
+JOIN_REORDER_COMPONENT = components.declare_component(
+    "velaflow_join_reorder",
+    path=str(ROOT / "app" / "components" / "join_reorder"),
+)
 
 from core.artist_presets import (
     DEFAULT_ARTIST_ID,
@@ -71,7 +75,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
 from core.audio_intelligence import analyze_audio_source
 from core.smart_cut import suggest_cut_regions
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_join_track_instance, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -2274,8 +2278,6 @@ def _waveform_browser_audio_source(source_path: str | Path, *, source_id: str, f
     cache = st.session_state.setdefault("waveform_browser_audio_url_cache", {})
     cache_id = f"{source_id}|{_audio_file_fingerprint(preview_source)}"
     cached = cache.get(cache_id)
-    if isinstance(cached, dict) and cached.get("url"):
-        return {**cached, "cache_status": "hit"}
     if not streamlit_runtime.exists():
         return {"ok": False, "reason": "streamlit_media_runtime_unavailable", "url": ""}
     try:
@@ -2288,7 +2290,7 @@ def _waveform_browser_audio_source(source_path: str | Path, *, source_id: str, f
         "url": str(url or ""),
         "path": str(preview_source),
         "source": source_note,
-        "cache_status": "miss",
+        "cache_status": "hit" if isinstance(cached, dict) and cached.get("url") else "miss",
     }
     while len(cache) >= 12:
         cache.pop(next(iter(cache)))
@@ -2333,6 +2335,7 @@ def _render_interactive_waveform_selector(
     key: str,
     source_id: str = "",
     audio_url: str = "",
+    mode: str = "cut",
 ) -> dict[str, Any]:
     selection = clamp_audio_selection(start, end, duration)
     component_value = WAVEFORM_SELECTOR_COMPONENT(
@@ -2342,6 +2345,7 @@ def _render_interactive_waveform_selector(
         end=selection["end"],
         source_id=str(source_id or ""),
         audio_url=str(audio_url or ""),
+        mode=str(mode or "cut"),
         key=key,
         default=selection | {"source_id": str(source_id or ""), "event": ""},
     )
@@ -3600,18 +3604,29 @@ def _render_audio_editor_legacy(project: dict[str, Any]) -> None:
 
 def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upload_mb: int) -> None:
     join_state = project.setdefault("audio_joiner", {})
-    tracks = [dict(track) for track in (join_state.get("tracks") or []) if Path(str(track.get("path") or "")).is_file()]
+    project_identity = str(st.session_state.get("current_project") or f"{project.get('workflow_type', 'song')}|{project.get('title', 'project')}")
+    scope = build_join_project_scope(project_identity)
+    tracks = [dict(track) for track in (join_state.get("tracks") or [])]
+    for track in tracks:
+        if not track.get("track_id"):
+            track.update(create_join_track_instance(track))
+    valid_track_ids = {str(track.get("track_id") or "") for track in tracks}
+    if str(join_state.get("active_track_id") or "") not in valid_track_ids:
+        join_state["active_track_id"] = str(tracks[0].get("track_id") or "") if tracks else ""
+
+    upload_key = f"audio_joiner_uploads_{scope}"
     uploads = st.file_uploader(
         "Add Files",
         type=["mp3", "wav"],
         accept_multiple_files=True,
-        key="audio_joiner_uploads",
+        key=upload_key,
         help=f"Add two or more MP3/WAV files. Maximum {max_upload_mb} MB per file.",
     )
-    if st.button("Add Selected Files", type="primary", use_container_width=True, disabled=not bool(uploads), key="audio_joiner_add_files"):
-        existing_ids = {str(track.get("upload_id") or "") for track in tracks}
+    add_disabled = not bool(uploads) or len(tracks) >= JOIN_MAX_NEW_TRACKS
+    if st.button("+ Add Tracks", type="primary", use_container_width=True, disabled=add_disabled, key=f"audio_joiner_add_files_{scope}"):
+        available_slots = max(0, JOIN_MAX_NEW_TRACKS - len(tracks))
         added = 0
-        for upload in uploads or []:
+        for upload in list(uploads or [])[:available_slots]:
             token_source = "|".join([str(getattr(upload, "file_id", "") or ""), str(upload.name), str(upload.size)])
             storage_token = hashlib.sha1(token_source.encode("utf-8")).hexdigest()[:16]
             previous = next((track for track in tracks if track.get("storage_token") == storage_token), {})
@@ -3628,16 +3643,14 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                 continue
             data = saved.get("data") or {}
             upload_id = str(data.get("upload_id") or "")
-            if upload_id in existing_ids:
-                continue
             probe = _cached_audio_probe(data["path"], source_identity=upload_id, ffmpeg_path=settings.ffmpeg_path)
             duration = float(probe.get("duration") or 0.0)
             if not probe.get("ok") or duration <= 0:
                 st.warning(f"Could not read {upload.name}")
                 continue
-            tracks.append(
+            tracks.append(create_join_track_instance(
                 {
-                    "track_id": upload_id,
+                    "source_id": upload_id,
                     "upload_id": upload_id,
                     "content_digest": data.get("content_digest", ""),
                     "size_bytes": data.get("size_bytes", 0),
@@ -3648,127 +3661,269 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                     "start": 0.0,
                     "end": round(duration, 3),
                 }
-            )
-            existing_ids.add(upload_id)
+            ))
             added += 1
         join_state["tracks"] = tracks
+        if not join_state.get("active_track_id") and tracks:
+            join_state["active_track_id"] = tracks[0]["track_id"]
         project["audio_joiner"] = join_state
         _save_project()
         if added:
             st.success(f"Added {added} file(s)")
+        if len(uploads or []) > available_slots:
+            st.warning(f"Join Audio supports up to {JOIN_MAX_NEW_TRACKS} new tracks.")
         st.rerun()
 
     if not tracks:
         st.info("Add at least two MP3 or WAV files to build a joined track.")
         return
 
-    st.markdown("### Arrange")
-    changed = False
-    pair_settings = dict(join_state.get("crossfade_by_pair") or {})
-    for index, track in enumerate(tracks):
-        track_id = str(track.get("track_id") or track.get("upload_id") or track.get("path"))
+    missing_tracks = [track for track in tracks if not Path(str(track.get("path") or "")).is_file()]
+    if missing_tracks:
+        st.warning(f"{len(missing_tracks)} track source(s) are missing. Restore or remove them before preview/export.")
+
+    st.markdown("### Tracks")
+    reorder_items = []
+    for track in tracks:
+        trimmed = max(0.0, float(track.get("end") or track.get("duration") or 0.0) - float(track.get("start") or 0.0))
+        reorder_items.append({
+            "track_id": str(track.get("track_id") or ""),
+            "filename": str(track.get("filename") or Path(str(track.get("path") or "Audio track")).name),
+            "trimmed_duration": format_timecode(trimmed),
+            "missing": not Path(str(track.get("path") or "")).is_file(),
+        })
+    reorder_value = JOIN_REORDER_COMPONENT(
+        items=reorder_items,
+        key=f"audio_joiner_reorder_{scope}",
+        default={"event": "", "ordered_track_ids": [item["track_id"] for item in reorder_items], "event_id": ""},
+    )
+    if isinstance(reorder_value, dict):
+        event_id = str(reorder_value.get("event_id") or "")
+        if event_id and event_id != str(join_state.get("last_reorder_event_id") or ""):
+            join_state["last_reorder_event_id"] = event_id
+            if reorder_value.get("event") == "reordered":
+                reordered = reorder_join_tracks(tracks, list(reorder_value.get("ordered_track_ids") or []))
+                if reordered.get("ok"):
+                    tracks = reordered["tracks"]
+                    join_state["tracks"] = tracks
+                    reconciled = reconcile_join_pair_settings(tracks, join_state.get("crossfade_by_pair") or {})
+                    join_state["crossfade_by_pair"] = reconciled["pair_settings"]
+                    join_state["crossfades"] = reconciled["crossfades"]
+                    project["audio_joiner"] = join_state
+                    _save_project()
+                    st.rerun()
+            elif reorder_value.get("event") == "edit":
+                selected_track_id = str(reorder_value.get("track_id") or "")
+                if selected_track_id in valid_track_ids and selected_track_id != join_state.get("active_track_id"):
+                    join_state["active_track_id"] = selected_track_id
+                    project["audio_joiner"] = join_state
+                    _save_project()
+                    st.rerun()
+
+    with st.expander("Reorder / Remove", expanded=False):
+        fallback_ids = [str(track.get("track_id") or "") for track in tracks]
+        fallback_key = f"audio_joiner_fallback_track_{scope}"
+        if st.session_state.get(fallback_key) not in fallback_ids:
+            st.session_state[fallback_key] = fallback_ids[0]
+        selected_fallback = st.selectbox(
+            "Track",
+            fallback_ids,
+            key=fallback_key,
+            format_func=lambda track_id: next((f"{index + 1}. {track.get('filename') or Path(str(track.get('path'))).name}" for index, track in enumerate(tracks) if str(track.get("track_id")) == track_id), track_id),
+        )
+        fallback_cols = st.columns(3)
+        selected_index = fallback_ids.index(selected_fallback)
+        move_direction = -1 if fallback_cols[0].button("Move Up", use_container_width=True, disabled=selected_index == 0, key=f"join_up_{scope}") else (1 if fallback_cols[1].button("Move Down", use_container_width=True, disabled=selected_index == len(tracks) - 1, key=f"join_down_{scope}") else 0)
+        if move_direction:
+            tracks = move_join_track(tracks, selected_fallback, move_direction)
+            reconciled = reconcile_join_pair_settings(tracks, join_state.get("crossfade_by_pair") or {})
+            join_state.update({"tracks": tracks, "crossfade_by_pair": reconciled["pair_settings"], "crossfades": reconciled["crossfades"]})
+            project["audio_joiner"] = join_state
+            _save_project()
+            st.rerun()
+        if fallback_cols[2].button("Remove", use_container_width=True, key=f"join_remove_{scope}"):
+            tracks = remove_join_track(tracks, selected_fallback)
+            reconciled = reconcile_join_pair_settings(tracks, join_state.get("crossfade_by_pair") or {})
+            join_state.update({"tracks": tracks, "crossfade_by_pair": reconciled["pair_settings"], "crossfades": reconciled["crossfades"]})
+            if join_state.get("active_track_id") == selected_fallback:
+                join_state["active_track_id"] = str(tracks[0].get("track_id") or "") if tracks else ""
+            project["audio_joiner"] = join_state
+            _save_project()
+            st.rerun()
+
+    active_track_id = str(join_state.get("active_track_id") or "")
+    active_track = next((track for track in tracks if str(track.get("track_id") or "") == active_track_id), None)
+    if active_track:
+        active_path = Path(str(active_track.get("path") or ""))
         with st.container(border=True):
-            st.markdown(f"**{index + 1}. {track.get('filename') or Path(str(track.get('path'))).name}**")
-            st.caption(f"Duration: {format_timecode(float(track.get('duration') or 0))}")
-            actions = st.columns(3)
-            if actions[0].button("↑ Up", use_container_width=True, disabled=index == 0, key=f"join_up_{track_id}"):
-                tracks = move_join_track(tracks, track_id, -1)
-                join_state["tracks"] = tracks
-                project["audio_joiner"] = join_state
-                _save_project()
-                st.rerun()
-            if actions[1].button("↓ Down", use_container_width=True, disabled=index == len(tracks) - 1, key=f"join_down_{track_id}"):
-                tracks = move_join_track(tracks, track_id, 1)
-                join_state["tracks"] = tracks
-                project["audio_joiner"] = join_state
-                _save_project()
-                st.rerun()
-            if actions[2].button("Remove", use_container_width=True, key=f"join_remove_{track_id}"):
-                tracks = remove_join_track(tracks, track_id)
-                join_state["tracks"] = tracks
-                project["audio_joiner"] = join_state
-                _save_project()
-                st.rerun()
-            trim_cols = st.columns(2)
-            duration = float(track.get("duration") or 0.0)
-            start = trim_cols[0].number_input("Start", min_value=0.0, max_value=max(0.0, duration - 0.25), value=min(float(track.get("start") or 0.0), max(0.0, duration - 0.25)), step=0.1, format="%.2f", key=f"join_start_{track_id}")
-            end = trim_cols[1].number_input("End", min_value=min(duration, float(start) + 0.25), max_value=duration, value=max(min(duration, float(track.get("end") or duration)), min(duration, float(start) + 0.25)), step=0.1, format="%.2f", key=f"join_end_{track_id}")
-            if abs(float(track.get("start") or 0.0) - float(start)) > 0.001 or abs(float(track.get("end") or duration) - float(end)) > 0.001:
-                track["start"] = round(float(start), 3)
-                track["end"] = round(float(end), 3)
-                changed = True
-        if index < len(tracks) - 1:
-            next_id = str(tracks[index + 1].get("track_id") or tracks[index + 1].get("upload_id") or tracks[index + 1].get("path"))
-            pair_id = f"{track_id}|{next_id}"
-            pair = dict(pair_settings.get(pair_id) or {})
+            st.markdown(f"**Edit: {active_track.get('filename') or active_path.name}**")
+            if not active_path.is_file():
+                st.warning("This track source is missing.")
+            else:
+                track_id = str(active_track.get("track_id") or "")
+                source_id = str(active_track.get("source_id") or active_track.get("upload_id") or track_id)
+                duration = float(active_track.get("duration") or 0.0)
+                start_key = f"join_start_{scope}_{track_id}"
+                end_key = f"join_end_{scope}_{track_id}"
+                st.session_state.setdefault(start_key, min(float(active_track.get("start") or 0.0), max(0.0, duration - 0.25)))
+                st.session_state.setdefault(end_key, max(min(duration, float(active_track.get("end") or duration)), min(duration, float(st.session_state[start_key]) + 0.25)))
+                waveform_dir = ROOT / "exports" / "audio_joiner" / "waveforms"
+                waveform_json = waveform_dir / f"join_{hashlib.sha1(source_id.encode('utf-8')).hexdigest()[:20]}.json"
+                waveform_result = generate_waveform_data(active_path, waveform_json, ffmpeg_path=settings.ffmpeg_path, source_signature=_trusted_audio_signature(active_track, active_path)) if ffmpeg_ready else {"ok": False}
+                if waveform_result.get("ok"):
+                    browser_audio = _waveform_browser_audio_source(active_path, source_id=source_id, ffmpeg_path=settings.ffmpeg_path)
+                    selected = _render_interactive_waveform_selector(
+                        waveform_result["data"],
+                        start=float(st.session_state[start_key]),
+                        end=float(st.session_state[end_key]),
+                        duration=duration,
+                        source_id=source_id,
+                        audio_url=str(browser_audio.get("url") or ""),
+                        mode="join_compact",
+                        key=f"audio_joiner_waveform_{scope}_{track_id}",
+                    )
+                    if selected.get("event") == "selection_committed" and selected.get("source_id") == source_id:
+                        clamped = clamp_audio_selection(float(selected.get("start", 0.0)), float(selected.get("end", duration)), duration, min_gap=0.25)
+                        if abs(clamped["start"] - float(active_track.get("start") or 0.0)) > 0.0005 or abs(clamped["end"] - float(active_track.get("end") or duration)) > 0.0005:
+                            active_track.update({"start": clamped["start"], "end": clamped["end"]})
+                            st.session_state[start_key] = clamped["start"]
+                            st.session_state[end_key] = clamped["end"]
+                            join_state["tracks"] = tracks
+                            project["audio_joiner"] = join_state
+                            _save_project()
+                            st.rerun()
+                else:
+                    st.caption("Waveform unavailable. Use the precision controls below.")
+                precision = st.columns(3)
+                start = precision[0].number_input("Start", min_value=0.0, max_value=max(0.0, duration - 0.25), step=0.1, format="%.2f", key=start_key)
+                if float(st.session_state[end_key]) < float(start) + 0.25:
+                    st.session_state[end_key] = min(duration, float(start) + 0.25)
+                end = precision[1].number_input("End", min_value=min(duration, float(start) + 0.25), max_value=duration, step=0.1, format="%.2f", key=end_key)
+                precision[2].metric("Length", format_timecode(max(0.0, float(end) - float(start))))
+                if abs(float(active_track.get("start") or 0.0) - float(start)) > 0.001 or abs(float(active_track.get("end") or duration) - float(end)) > 0.001:
+                    active_track.update({"start": round(float(start), 3), "end": round(float(end), 3)})
+                    join_state["tracks"] = tracks
+                    project["audio_joiner"] = join_state
+                    _save_project()
+
+    reconciled = reconcile_join_pair_settings(tracks, join_state.get("crossfade_by_pair") or {})
+    pair_settings = reconciled["pair_settings"]
+    transition_previews = dict(join_state.get("transition_previews") or {})
+    transitions_changed = False
+    for index in range(max(0, len(tracks) - 1)):
+        left_track, right_track = tracks[index], tracks[index + 1]
+        pair_id = join_pair_id(left_track, right_track)
+        pair = dict(pair_settings.get(pair_id) or JOIN_DEFAULT_TRANSITION)
+        pair_hash = hashlib.sha1(f"{scope}|{pair_id}".encode("utf-8")).hexdigest()[:12]
+        left_trimmed = max(0.0, float(left_track.get("end") or left_track.get("duration") or 0.0) - float(left_track.get("start") or 0.0))
+        right_trimmed = max(0.0, float(right_track.get("end") or right_track.get("duration") or 0.0) - float(right_track.get("start") or 0.0))
+        maximum = min(left_trimmed, right_trimmed) - 0.05
+        available_durations = [value for value in JOIN_CROSSFADE_DURATIONS if value <= maximum]
+        enabled_key = f"join_crossfade_{pair_hash}"
+        duration_key = f"join_crossfade_duration_{pair_hash}"
+        st.session_state.setdefault(enabled_key, bool(pair.get("enabled", False) and available_durations))
+        stored_duration = float(pair.get("duration") or 2.0)
+        if stored_duration not in available_durations:
+            stored_duration = 2.0 if 2.0 in available_durations else (available_durations[0] if available_durations else 1.0)
+        if st.session_state.get(duration_key) not in (available_durations or [1.0]):
+            st.session_state[duration_key] = stored_duration
+        if not available_durations:
+            st.session_state[enabled_key] = False
+        with st.container(border=True):
+            st.markdown(f"**Transition {index + 1} → {index + 2}**")
             transition_cols = st.columns(2)
-            enabled = transition_cols[0].toggle("Crossfade", value=bool(pair.get("enabled", False)), key=f"join_crossfade_{hashlib.sha1(pair_id.encode()).hexdigest()[:12]}")
-            duration_choice = transition_cols[1].selectbox("Duration", JOIN_CROSSFADE_DURATIONS, index=list(JOIN_CROSSFADE_DURATIONS).index(float(pair.get("duration") or 2.0)) if float(pair.get("duration") or 2.0) in JOIN_CROSSFADE_DURATIONS else 1, disabled=not enabled, format_func=lambda value: f"{int(value)} sec", key=f"join_crossfade_duration_{hashlib.sha1(pair_id.encode()).hexdigest()[:12]}")
-            next_pair = {"enabled": bool(enabled), "duration": float(duration_choice)}
+            enabled = transition_cols[0].toggle("Crossfade", key=enabled_key, disabled=not available_durations)
+            duration_choice = transition_cols[1].selectbox("Duration", available_durations or [1.0], disabled=not enabled or not available_durations, format_func=lambda value: f"{int(value)} sec", key=duration_key)
+            next_pair = {"enabled": bool(enabled and available_durations), "duration": float(duration_choice)}
             if pair != next_pair:
                 pair_settings[pair_id] = next_pair
-                changed = True
+                transitions_changed = True
+            sources_ready = Path(str(left_track.get("path") or "")).is_file() and Path(str(right_track.get("path") or "")).is_file()
+            preview_tracks = build_join_transition_preview_tracks(left_track, right_track)
+            transition_fingerprint = build_join_arrangement_fingerprint(preview_tracks, crossfades=[next_pair])
+            if st.button("Play Transition", use_container_width=True, disabled=not ffmpeg_ready or not sources_ready or (next_pair["enabled"] and next_pair["duration"] > maximum), key=f"join_transition_preview_{pair_hash}"):
+                with st.spinner("Building transition preview..."):
+                    transition_result = preview_join_transition(
+                        left_track,
+                        right_track,
+                        transition=next_pair,
+                        project_name=project.get("title") or "audio_joiner",
+                        ffmpeg_path=settings.ffmpeg_path,
+                        max_upload_mb=max_upload_mb,
+                    )
+                transition_previews[pair_id] = transition_result.get("data", {}) if transition_result.get("ok") else {"error": transition_result.get("message") or transition_result.get("error")}
+                join_state["active_transition_preview_pair"] = pair_id
+                join_state["transition_previews"] = transition_previews
+                project["audio_joiner"] = join_state
+                _save_project()
+                st.rerun()
+            preview_data = transition_previews.get(pair_id) or {}
+            if join_state.get("active_transition_preview_pair") == pair_id:
+                if preview_data.get("arrangement_fingerprint") == transition_fingerprint:
+                    preview_path = Path(str(preview_data.get("preview_mp3") or preview_data.get("output_audio") or ""))
+                    if preview_path.is_file():
+                        payload = _resolve_safari_audio_preview_bytes(preview_path, cache_key=f"join_transition_{pair_hash}", label=f"Transition {index + 1}", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=transition_fingerprint)
+                        if payload.get("ok"):
+                            st.audio(payload["bytes"], format=payload["format"])
+                            st.caption("Transition preview reused" if preview_data.get("cache_status") == "hit" else "Transition preview ready")
+                elif preview_data.get("error"):
+                    st.warning(f"Transition preview unavailable: {preview_data.get('error')}")
+                elif preview_data:
+                    st.caption("Transition changed. Play it again to refresh the preview.")
 
-    crossfades: list[dict[str, Any]] = []
-    active_pair_ids: set[str] = set()
-    for index in range(len(tracks) - 1):
-        left = str(tracks[index].get("track_id") or tracks[index].get("upload_id") or tracks[index].get("path"))
-        right = str(tracks[index + 1].get("track_id") or tracks[index + 1].get("upload_id") or tracks[index + 1].get("path"))
-        pair_id = f"{left}|{right}"
-        active_pair_ids.add(pair_id)
-        crossfades.append(dict(pair_settings.get(pair_id) or {"enabled": False, "duration": 2.0}))
-    pair_settings = {key: value for key, value in pair_settings.items() if key in active_pair_ids}
+    crossfades = [dict(pair_settings.get(join_pair_id(tracks[index], tracks[index + 1])) or JOIN_DEFAULT_TRANSITION) for index in range(max(0, len(tracks) - 1))]
+    fade_in_key = f"audio_joiner_fade_in_{scope}"
+    fade_out_key = f"audio_joiner_fade_out_{scope}"
+    st.session_state.setdefault(fade_in_key, bool(join_state.get("fade_in", False)))
+    st.session_state.setdefault(fade_out_key, bool(join_state.get("fade_out", False)))
     fade_cols = st.columns(2)
-    fade_in = fade_cols[0].toggle("Fade In", value=bool(join_state.get("fade_in", False)), key="audio_joiner_fade_in")
-    fade_out = fade_cols[1].toggle("Fade Out", value=bool(join_state.get("fade_out", False)), key="audio_joiner_fade_out")
-    if fade_in != bool(join_state.get("fade_in", False)) or fade_out != bool(join_state.get("fade_out", False)):
-        changed = True
-    join_state.update({"tracks": tracks, "crossfade_by_pair": pair_settings, "crossfades": crossfades, "fade_in": fade_in, "fade_out": fade_out})
-    if changed:
+    fade_in = fade_cols[0].toggle("Fade In", key=fade_in_key)
+    fade_out = fade_cols[1].toggle("Fade Out", key=fade_out_key)
+    if transitions_changed or fade_in != bool(join_state.get("fade_in", False)) or fade_out != bool(join_state.get("fade_out", False)):
+        join_state.update({"crossfade_by_pair": pair_settings, "crossfades": crossfades, "fade_in": fade_in, "fade_out": fade_out})
         project["audio_joiner"] = join_state
         _save_project()
+
+    total_duration = calculate_join_total_duration(tracks, crossfades)
+    st.metric("Total", format_timecode(total_duration))
+    if len(tracks) == 1:
+        st.info("Add at least one more track to join audio.")
 
     arrangement_id = build_join_arrangement_fingerprint(tracks, crossfades=crossfades, fade_in=fade_in, fade_out=fade_out)
-    if st.button("Preview Joined Audio", use_container_width=True, disabled=len(tracks) < 2 or not ffmpeg_ready, key="audio_joiner_preview"):
-        with st.spinner("Building joined preview locally..."):
-            preview_result = join_audio_tracks(
-                tracks,
-                crossfades=crossfades,
-                fade_in=fade_in,
-                fade_out=fade_out,
-                project_name=project.get("title") or "audio_joiner",
-                ffmpeg_path=settings.ffmpeg_path,
-                max_upload_mb=max_upload_mb,
-                preview=True,
-            )
-        join_state["preview_result"] = preview_result.get("data", {}) if preview_result.get("ok") else {}
-        join_state["last_error"] = "" if preview_result.get("ok") else preview_result.get("message") or preview_result.get("error")
-        project["audio_joiner"] = join_state
-        _save_project()
-        st.rerun()
-    preview_data = join_state.get("preview_result") or {}
-    if preview_data.get("arrangement_fingerprint") == arrangement_id:
-        preview_path = Path(str(preview_data.get("preview_mp3") or preview_data.get("output_audio") or ""))
-        if preview_path.is_file():
-            payload = _resolve_safari_audio_preview_bytes(preview_path, cache_key="audio_joiner_preview", label="Joined Audio", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=arrangement_id)
-            if payload.get("ok"):
-                st.audio(payload["bytes"], format=payload["format"])
-                st.caption("Preview reused" if preview_data.get("cache_status") == "hit" else "Preview ready")
-            else:
-                st.warning(f"Preview unavailable: {payload.get('reason', 'unknown')}")
-    elif preview_data:
-        st.info("Arrangement changed. Generate a new preview.")
-    if join_state.get("last_error"):
-        st.warning(str(join_state.get("last_error")))
+    with st.expander("Full Joined Preview", expanded=False):
+        if st.button("Build Full Preview", use_container_width=True, disabled=len(tracks) < 2 or bool(missing_tracks) or not ffmpeg_ready, key=f"audio_joiner_preview_{scope}"):
+            with st.spinner("Building joined preview locally..."):
+                preview_result = join_audio_tracks(tracks, crossfades=crossfades, fade_in=fade_in, fade_out=fade_out, project_name=project.get("title") or "audio_joiner", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+            join_state["preview_result"] = preview_result.get("data", {}) if preview_result.get("ok") else {}
+            join_state["last_error"] = "" if preview_result.get("ok") else preview_result.get("message") or preview_result.get("error")
+            project["audio_joiner"] = join_state
+            _save_project()
+            st.rerun()
+        preview_data = join_state.get("preview_result") or {}
+        if preview_data.get("arrangement_fingerprint") == arrangement_id:
+            preview_path = Path(str(preview_data.get("preview_mp3") or preview_data.get("output_audio") or ""))
+            if preview_path.is_file():
+                payload = _resolve_safari_audio_preview_bytes(preview_path, cache_key=f"audio_joiner_preview_{scope}", label="Joined Audio", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=arrangement_id)
+                if payload.get("ok"):
+                    st.audio(payload["bytes"], format=payload["format"])
+                    st.caption("Preview reused" if preview_data.get("cache_status") == "hit" else "Preview ready")
+        elif preview_data:
+            st.caption("Arrangement changed. Build a new full preview if needed.")
 
-    if "audio_joiner_export_name" not in st.session_state:
-        st.session_state["audio_joiner_export_name"] = str(join_state.get("export_name") or "Joined Audio")
-    st.text_input("Export Name", key="audio_joiner_export_name")
-    export_name = str(st.session_state.get("audio_joiner_export_name") or "Joined Audio")
-    output_format_label = st.radio("Export Format", ["MP3", "WAV"], horizontal=True, key="audio_joiner_export_format")
-    join_state["export_name"] = export_name
-    join_state["export_format"] = output_format_label.lower()
-    if st.button("Join & Export", type="primary", use_container_width=True, disabled=len(tracks) < 2 or not ffmpeg_ready, key="audio_joiner_export"):
+    export_name_key = f"audio_joiner_export_name_{scope}"
+    format_key = f"audio_joiner_export_format_{scope}"
+    st.session_state.setdefault(export_name_key, str(join_state.get("export_name") or "Joined Audio"))
+    st.session_state.setdefault(format_key, str(join_state.get("export_format") or "mp3").upper())
+    st.text_input("Export Name", key=export_name_key)
+    export_name = str(st.session_state.get(export_name_key) or "Joined Audio")
+    output_format_label = st.radio("Export Format", ["MP3", "WAV"], horizontal=True, key=format_key)
+    export_settings_changed = export_name != str(join_state.get("export_name") or "Joined Audio") or output_format_label.lower() != str(join_state.get("export_format") or "mp3")
+    join_state.update({"tracks": tracks, "crossfade_by_pair": pair_settings, "crossfades": crossfades, "fade_in": fade_in, "fade_out": fade_out, "export_name": export_name, "export_format": output_format_label.lower()})
+    project["audio_joiner"] = join_state
+    if export_settings_changed:
+        _save_project()
+    export_blocked = len(tracks) < 2 or bool(missing_tracks) or not ffmpeg_ready
+    if st.button("Join & Export", type="primary", use_container_width=True, disabled=export_blocked, key=f"audio_joiner_export_{scope}"):
         with st.spinner("Joining audio locally..."):
             export_result = join_audio_tracks(
                 tracks,
@@ -3797,8 +3952,10 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             file_name=output_path.name,
             mime="audio/wav" if output_path.suffix.lower() == ".wav" else "audio/mpeg",
             use_container_width=True,
-            key="audio_joiner_download",
+            key=f"audio_joiner_download_{scope}",
         )
+    elif join_state.get("last_error"):
+        st.warning(str(join_state.get("last_error")))
 
 
 def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upload_mb: int) -> None:

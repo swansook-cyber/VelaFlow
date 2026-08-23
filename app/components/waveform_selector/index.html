@@ -113,6 +113,10 @@
       .metric { padding: 6px; }
       .metric strong { font-size: 13px; }
     }
+    body.join-compact .shell { padding: 8px; }
+    body.join-compact #waveform { min-height: 118px; }
+    body.join-compact .metric { padding: 5px 6px; }
+    body.join-compact .controls { margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -199,6 +203,10 @@
       setFrameHeight();
     }
 
+    function applyMode(mode) {
+      document.body.classList.toggle("join-compact", mode === "join_compact");
+    }
+
     function updatePlaybackButtons() {
       const ready = Boolean(wavesurfer && activeArgs.audio_url);
       playButton.disabled = !ready;
@@ -257,6 +265,7 @@
       destroyWaveSurfer();
       activeArgs = nextArgs;
       activeSourceId = String(nextArgs.source_id || "");
+      applyMode(nextArgs.mode);
       showMessage("");
 
       if (!window.WaveSurfer?.create || !window.WaveSurfer?.Regions?.create) {
@@ -274,7 +283,7 @@
           url: nextArgs.audio_url || undefined,
           peaks: points.length ? [points] : undefined,
           duration: Number(nextArgs.duration) || undefined,
-          height: window.innerWidth <= 430 ? 158 : 180,
+          height: nextArgs.mode === "join_compact" ? 118 : (window.innerWidth <= 430 ? 158 : 180),
           waveColor: "#38bdf8",
           progressColor: "#0284c7",
           cursorColor: "#f8fafc",
@@ -334,6 +343,8 @@
 
     function syncCommittedSelection(nextArgs) {
       activeArgs = nextArgs;
+      applyMode(nextArgs.mode);
+      if (wavesurfer) wavesurfer.setOptions({height: nextArgs.mode === "join_compact" ? 118 : (window.innerWidth <= 430 ? 158 : 180)});
       if (!selectionRegion || interactionActive) return;
       const selection = normalizedSelection(nextArgs.start, nextArgs.end, nextArgs.duration);
       if (Math.abs(selectionRegion.start - selection.start) > 0.001 || Math.abs(selectionRegion.end - selection.end) > 0.001) {
@@ -372,7 +383,7 @@
     });
 
     window.addEventListener("resize", () => {
-      if (wavesurfer) wavesurfer.setOptions({height: window.innerWidth <= 430 ? 158 : 180});
+      if (wavesurfer) wavesurfer.setOptions({height: activeArgs.mode === "join_compact" ? 118 : (window.innerWidth <= 430 ? 158 : 180)});
       setFrameHeight();
     });
 
