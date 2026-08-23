@@ -26,9 +26,21 @@ REMASTER_STYLES = [
     "Vocal Focus",
     "Cinematic",
     "Loud Modern",
+    "Reference-Guided Master",
     "Custom",
 ]
 REMASTER_RECOMMENDATION_MODES = ["Auto Recommended", "Manual"]
+
+REFERENCE_GUIDED_PRESET = "Reference-Guided Master"
+REFERENCE_MIN_DURATION_SEC = 30.0
+REFERENCE_TARGET_LUFS_RANGE = (-16.0, -11.0)
+REFERENCE_TARGET_TRUE_PEAK_RANGE = (-1.5, -1.0)
+REFERENCE_UNSUPPORTED_MATCHES = [
+    "lra_target",
+    "spectral_balance",
+    "stereo_image",
+    "transients",
+]
 
 AUTO_REMASTER_PRESETS = [
     "Streaming Balanced",
@@ -49,6 +61,7 @@ PRESET_SAFETY_CLASSES = {
     "Loud Modern": "aggressive",
     "Cinematic": "artistic_special",
     "Custom": "manual_only",
+    REFERENCE_GUIDED_PRESET: "manual_only",
 }
 RECOMMENDATION_PRIORITY = {name: index for index, name in enumerate(AUTO_REMASTER_PRESETS)}
 
@@ -214,6 +227,206 @@ def build_custom_remaster_config(settings: dict[str, Any] | None = None) -> dict
     }
 
 
+def _reference_metrics(analysis: dict[str, Any] | None) -> dict[str, float | None]:
+    payload = analysis if isinstance(analysis, dict) else {}
+    loudness = payload.get("loudness") or {}
+    return {
+        "lufs": _finite_metric(loudness.get("integrated_lufs")),
+        "true_peak_dbtp": _finite_metric(loudness.get("true_peak_dbtp")),
+        "lra_lu": _finite_metric(loudness.get("lra_lu")),
+    }
+
+
+def validate_reference_master_analysis(
+    reference_analysis: dict[str, Any] | None,
+    *,
+    source_analysis: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate only reliable Reference-Guided V1 inputs."""
+    analysis = reference_analysis if isinstance(reference_analysis, dict) else {}
+    metadata = analysis.get("metadata") or {}
+    loudness = analysis.get("loudness") or {}
+    source = analysis.get("source") or {}
+    metrics = _reference_metrics(analysis)
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    duration = _finite_metric(metadata.get("duration_sec"))
+    if metadata.get("status") not in {"measured", "partial"} or not metadata.get("codec"):
+        errors.append("Reference has no readable audio stream.")
+    if duration is None or duration < REFERENCE_MIN_DURATION_SEC:
+        errors.append("Reference Track must be at least 30 seconds long.")
+    if loudness.get("status") != "measured" or any(value is None for value in metrics.values()):
+        errors.append("Reference loudness analysis is unavailable.")
+    if metrics["lufs"] is not None and metrics["lufs"] <= -70.0:
+        errors.append("Reference Track appears to be silent.")
+
+    channels = int(metadata.get("channels") or 0)
+    sample_rate = int(metadata.get("sample_rate_hz") or 0)
+    if channels == 1:
+        warnings.append("Reference is mono; stereo character was not matched.")
+    if sample_rate and sample_rate not in {44100, 48000}:
+        warnings.append("Reference uses an unusual sample rate; VelaFlow will preserve its safe output format.")
+    if metrics["lufs"] is not None and metrics["lufs"] > REFERENCE_TARGET_LUFS_RANGE[1]:
+        warnings.append("Reference is louder than VelaFlow's safe target; loudness was limited.")
+    elif metrics["lufs"] is not None and metrics["lufs"] < REFERENCE_TARGET_LUFS_RANGE[0]:
+        warnings.append("Reference is quieter than VelaFlow's supported target; loudness was limited.")
+    if metrics["true_peak_dbtp"] is not None and metrics["true_peak_dbtp"] > REFERENCE_TARGET_TRUE_PEAK_RANGE[1]:
+        warnings.append("Reference True Peak is too hot; VelaFlow safety ceiling was used.")
+    elif metrics["true_peak_dbtp"] is not None and metrics["true_peak_dbtp"] < REFERENCE_TARGET_TRUE_PEAK_RANGE[0]:
+        warnings.append("Reference True Peak has extra headroom; VelaFlow used its supported lower ceiling.")
+    if metrics["lra_lu"] is not None and metrics["lra_lu"] >= 15.0:
+        warnings.append("Reference has a high loudness range; LRA is shown for comparison only.")
+    else:
+        warnings.append("LRA is shown for comparison only and is not directly matched.")
+
+    if source_analysis:
+        source_facts = source_analysis.get("source") or {}
+        reference_digest = str(source.get("sha256") or "")
+        source_digest = str(source_facts.get("sha256") or "")
+        if reference_digest and source_digest and reference_digest == source_digest:
+            errors.append("Source and Reference Track are identical. Choose a different reference.")
+
+    return {
+        "ok": not errors,
+        "errors": list(dict.fromkeys(errors)),
+        "warnings": list(dict.fromkeys(warnings)),
+        "metrics": metrics,
+        "duration_sec": duration,
+        "source_id": str(source.get("source_id") or ""),
+    }
+
+
+def build_reference_master_plan(
+    source_analysis: dict[str, Any] | None,
+    reference_analysis: dict[str, Any] | None,
+    *,
+    reference_name: str = "",
+) -> dict[str, Any]:
+    """Build a deterministic, loudness-only Reference-Guided plan."""
+    source_payload = source_analysis if isinstance(source_analysis, dict) else {}
+    reference_payload = reference_analysis if isinstance(reference_analysis, dict) else {}
+    source_metrics = _reference_metrics(source_payload)
+    if (source_payload.get("loudness") or {}).get("status") != "measured" or any(value is None for value in source_metrics.values()):
+        return {"ok": False, "error": "source_analysis_unavailable", "message": "Source loudness analysis is unavailable."}
+    validation = validate_reference_master_analysis(reference_payload, source_analysis=source_payload)
+    if not validation["ok"]:
+        return {
+            "ok": False,
+            "error": "invalid_reference",
+            "message": validation["errors"][0],
+            "errors": validation["errors"],
+            "warnings": validation["warnings"],
+        }
+
+    reference_metrics = validation["metrics"]
+    target_lufs = round(max(REFERENCE_TARGET_LUFS_RANGE[0], min(REFERENCE_TARGET_LUFS_RANGE[1], float(reference_metrics["lufs"]))), 2)
+    target_true_peak = round(
+        min(REFERENCE_TARGET_TRUE_PEAK_RANGE[1], max(REFERENCE_TARGET_TRUE_PEAK_RANGE[0], float(reference_metrics["true_peak_dbtp"]))),
+        2,
+    )
+    resolved_settings = sanitize_custom_remaster_settings(
+        {
+            "loudness_lufs": target_lufs,
+            "bass_db": 0.0,
+            "mid_db": 0.0,
+            "high_db": 0.0,
+            "compression_ratio": CUSTOM_REMASTER_LIMITS["compression_ratio"][0],
+            "stereo_width": 1.0,
+            "output_ceiling_db": target_true_peak,
+        }
+    )
+    reference_source = reference_payload.get("source") or {}
+    return {
+        "ok": True,
+        "mode": "reference",
+        "source_source_id": str((source_payload.get("source") or {}).get("source_id") or ""),
+        "reference_source_id": validation["source_id"],
+        "reference": {
+            "source_id": validation["source_id"],
+            "filename": str(reference_name or Path(str(reference_source.get("path") or "")).name),
+            "metrics": reference_metrics,
+        },
+        "source_metrics": source_metrics,
+        "reference_metrics": reference_metrics,
+        "targets": {"lufs": target_lufs, "true_peak_dbtp": target_true_peak},
+        "resolved_custom_settings": resolved_settings,
+        "unsupported_matches": list(REFERENCE_UNSUPPORTED_MATCHES),
+        "warnings": validation["warnings"],
+        "analysis_provenance": AUDIO_INTELLIGENCE_ANALYZER_VERSION,
+    }
+
+
+def analyze_reference_guided_master(
+    source_audio_path: str | Path,
+    reference_audio_path: str | Path,
+    *,
+    ffmpeg_path: str = "",
+    max_upload_mb: int = 200,
+    source_context: dict[str, Any] | None = None,
+    reference_context: dict[str, Any] | None = None,
+    reference_name: str = "",
+) -> dict[str, Any]:
+    """Analyze source/reference through the shared Audio Intelligence cache."""
+    source = Path(source_audio_path)
+    reference = Path(reference_audio_path)
+    source_validation = validate_remaster_input(source, max_upload_mb=max_upload_mb)
+    if not source_validation.get("ok"):
+        return {"ok": False, "error": source_validation.get("error"), "message": source_validation.get("message")}
+    reference_validation = validate_remaster_input(reference, max_upload_mb=max_upload_mb)
+    if not reference_validation.get("ok"):
+        return {"ok": False, "error": reference_validation.get("error"), "message": reference_validation.get("message")}
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return {"ok": False, "error": "missing_ffmpeg", "message": "Audio processing is unavailable on this device."}
+
+    source_analysis = analyze_audio_source(source, source_context, depth="deep", ffmpeg_path=ffmpeg)
+    reference_analysis = analyze_audio_source(reference, reference_context, depth="deep", ffmpeg_path=ffmpeg)
+    plan = build_reference_master_plan(
+        source_analysis,
+        reference_analysis,
+        reference_name=reference_name or reference.name,
+    )
+    if not plan.get("ok"):
+        return {
+            "ok": False,
+            "error": plan.get("error", "invalid_reference"),
+            "message": plan.get("message", "Reference Track could not be analyzed."),
+            "data": {"source_analysis": source_analysis, "reference_analysis": reference_analysis},
+        }
+    return {
+        "ok": True,
+        "data": {
+            "plan": plan,
+            "source_analysis": source_analysis,
+            "reference_analysis": reference_analysis,
+            "performance": {
+                "source": dict(source_analysis.get("performance") or {}),
+                "reference": dict(reference_analysis.get("performance") or {}),
+                "plan_subprocess_runs": 0,
+            },
+        },
+        "error": "",
+    }
+
+
+def build_reference_result_comparison(plan: dict[str, Any] | None, result_analysis: dict[str, Any] | None) -> dict[str, Any]:
+    reference_plan = plan if isinstance(plan, dict) else {}
+    result_metrics = _reference_metrics(result_analysis)
+    target_lufs = _finite_metric((reference_plan.get("targets") or {}).get("lufs"))
+    result_lufs = result_metrics.get("lufs")
+    loudness_delta = round(result_lufs - target_lufs, 2) if result_lufs is not None and target_lufs is not None else None
+    return {
+        "source": dict(reference_plan.get("source_metrics") or {}),
+        "reference": dict(reference_plan.get("reference_metrics") or {}),
+        "result": result_metrics,
+        "targets": dict(reference_plan.get("targets") or {}),
+        "loudness_delta_lu": loudness_delta,
+        "loudness_guided": bool(loudness_delta is not None and abs(loudness_delta) <= 1.0),
+        "note": "LRA is comparison context only; no exact dynamics match was attempted.",
+    }
+
+
 def _run(args: list[str], timeout: int = 180) -> dict[str, Any]:
     try:
         proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=timeout)
@@ -237,8 +450,8 @@ def _max_volume_db(ffmpeg: str, path: Path) -> float | None:
 
 def _normalize_style(style: str) -> str:
     selected = LEGACY_STYLE_ALIASES.get(style, style)
-    if selected == "Custom":
-        return "Custom"
+    if selected in {"Custom", REFERENCE_GUIDED_PRESET}:
+        return selected
     return selected if selected in STYLE_FILTERS else "Streaming Balanced"
 
 
@@ -892,6 +1105,22 @@ def _report_text(report: dict[str, Any]) -> str:
     if custom_settings:
         lines += ["", "Resolved Custom Settings:"]
         lines.extend(f"- {key}: {value}" for key, value in custom_settings.items())
+    reference = report.get("reference") or {}
+    reference_comparison = report.get("reference_comparison") or {}
+    if reference:
+        lines += [
+            "",
+            "Reference-Guided Master:",
+            f"Reference: {reference.get('filename', '')}",
+            f"Reference source ID: {reference.get('source_id', '')}",
+            f"Reference metrics: {reference.get('metrics', {})}",
+            f"Targets: {report.get('targets', {})}",
+            f"Resolved settings: {report.get('resolved_settings', {})}",
+            f"Result metrics: {report.get('result_metrics', {})}",
+            f"Unsupported matches: {report.get('unsupported_matches', [])}",
+            f"Analysis provenance: {report.get('analysis_provenance', '')}",
+            f"Source / Reference / Result: {reference_comparison}",
+        ]
     if recommendation:
         lines += [
             "",
@@ -1010,6 +1239,7 @@ def remaster_song_audio(
     preset_mode: str = "",
     custom_settings: dict[str, Any] | None = None,
     source_context: dict[str, Any] | None = None,
+    reference_plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -1023,6 +1253,22 @@ def remaster_song_audio(
             "message": "FFmpeg not found. Install on Debian with: sudo apt-get update && sudo apt-get install -y ffmpeg",
             "data": {"overall_status": "failed", "setup_hint": "sudo apt-get update && sudo apt-get install -y ffmpeg"},
             "error": "missing_ffmpeg",
+        }
+
+    requested_style = _normalize_style(remaster_style)
+    requested_reference_plan = dict(reference_plan or {}) if requested_style == REFERENCE_GUIDED_PRESET else {}
+    if requested_style == REFERENCE_GUIDED_PRESET and (
+        requested_reference_plan.get("mode") != "reference"
+        or not requested_reference_plan.get("source_source_id")
+        or not requested_reference_plan.get("reference_source_id")
+        or not isinstance(requested_reference_plan.get("resolved_custom_settings"), dict)
+    ):
+        return {
+            "ok": False,
+            "status": "failed",
+            "message": "Reference Track is not ready. Analyze a valid reference before processing.",
+            "data": {"overall_status": "failed"},
+            "error": "invalid_reference_plan",
         }
 
     project_id = build_remaster_project_id(project_name or source.stem)
@@ -1042,14 +1288,47 @@ def remaster_song_audio(
     legacy_report_path = reports_dir / "mastering_report.json"
     zip_path = ensure_unique_path(base_dir / build_asset_export_filename(project_name, source.name, "Remaster_Package", "zip"))
     converted_path = output_dir / "source_converted_48k_24bit.wav"
-    style = _normalize_style(remaster_style)
-    resolved_custom_settings = sanitize_custom_remaster_settings(custom_settings) if style == "Custom" else {}
-    style_config = build_custom_remaster_config(resolved_custom_settings) if style == "Custom" else STYLE_FILTERS[style]
+    style = requested_style
+    reference_mode = style == REFERENCE_GUIDED_PRESET
+    resolved_reference_plan = requested_reference_plan
+    if reference_mode:
+        requested_targets = resolved_reference_plan.get("targets") or {}
+        requested_settings = resolved_reference_plan["resolved_custom_settings"]
+        requested_lufs = _finite_metric(requested_targets.get("lufs", requested_settings.get("loudness_lufs")))
+        requested_true_peak = _finite_metric(requested_targets.get("true_peak_dbtp", requested_settings.get("output_ceiling_db")))
+        target_lufs = max(
+            REFERENCE_TARGET_LUFS_RANGE[0],
+            min(REFERENCE_TARGET_LUFS_RANGE[1], requested_lufs if requested_lufs is not None else -14.0),
+        )
+        target_true_peak = min(
+            REFERENCE_TARGET_TRUE_PEAK_RANGE[1],
+            max(REFERENCE_TARGET_TRUE_PEAK_RANGE[0], requested_true_peak if requested_true_peak is not None else -1.0),
+        )
+        resolved_custom_settings = sanitize_custom_remaster_settings(
+            {
+                "loudness_lufs": target_lufs,
+                "bass_db": 0.0,
+                "mid_db": 0.0,
+                "high_db": 0.0,
+                "compression_ratio": CUSTOM_REMASTER_LIMITS["compression_ratio"][0],
+                "stereo_width": 1.0,
+                "output_ceiling_db": target_true_peak,
+            }
+        )
+        resolved_reference_plan["targets"] = {
+            "lufs": resolved_custom_settings["loudness_lufs"],
+            "true_peak_dbtp": resolved_custom_settings["output_ceiling_db"],
+        }
+        resolved_reference_plan["resolved_custom_settings"] = resolved_custom_settings
+        style_config = build_custom_remaster_config(resolved_custom_settings)
+    else:
+        resolved_custom_settings = sanitize_custom_remaster_settings(custom_settings) if style == "Custom" else {}
+        style_config = build_custom_remaster_config(resolved_custom_settings) if style == "Custom" else STYLE_FILTERS[style]
     recommendation = dict(recommendation_data or {})
-    resolved_preset_mode = str(preset_mode or recommendation.get("preset_mode") or ("manual" if style == "Custom" or recommendation.get("source") == "manual" else "auto")).strip().lower()
+    resolved_preset_mode = str(preset_mode or recommendation.get("preset_mode") or ("manual" if style in {"Custom", REFERENCE_GUIDED_PRESET} or recommendation.get("source") == "manual" else "auto")).strip().lower()
     if resolved_preset_mode not in {"auto", "manual"}:
-        resolved_preset_mode = "manual" if style == "Custom" else "auto"
-    resolved_preset_name = "custom" if style == "Custom" else style
+        resolved_preset_mode = "manual" if style in {"Custom", REFERENCE_GUIDED_PRESET} else "auto"
+    resolved_preset_name = "reference-guided" if reference_mode else "custom" if style == "Custom" else style
     if recommendation:
         recommendation["selected_preset"] = style
         recommendation["overridden"] = bool(recommendation.get("recommended_preset") and recommendation.get("recommended_preset") != style)
@@ -1057,11 +1336,22 @@ def remaster_song_audio(
         recommendation["preset_name"] = resolved_preset_name
         if resolved_custom_settings:
             recommendation["custom_settings"] = resolved_custom_settings
+        if reference_mode:
+            recommendation["source"] = "reference"
+            recommendation["reference_source_id"] = resolved_reference_plan.get("reference_source_id", "")
     resolved_source_context = dict(source_context or {})
     resolved_source_context.setdefault("kind", "file")
     resolved_source_context.setdefault("project_id", project_name)
     resolved_source_context.setdefault("path_role", "remaster_source")
     source_analysis = analyze_audio_source(source, resolved_source_context, depth="deep", ffmpeg_path=ffmpeg)
+    if reference_mode and str((source_analysis.get("source") or {}).get("source_id") or "") != str(resolved_reference_plan.get("source_source_id") or ""):
+        return {
+            "ok": False,
+            "status": "failed",
+            "message": "Source changed after Reference Track analysis. Analyze the reference again.",
+            "data": {"overall_status": "failed", "audio_intelligence": {"before": source_analysis}},
+            "error": "reference_source_changed",
+        }
     source_probe = _probe_from_audio_intelligence(source_analysis)
     source_probe_fallback_used = False
     if not source_probe.get("ok"):
@@ -1107,6 +1397,11 @@ def remaster_song_audio(
             "preset_mode": resolved_preset_mode,
             "preset_name": resolved_preset_name,
             "custom_settings": resolved_custom_settings,
+            "reference": dict(resolved_reference_plan.get("reference") or {}),
+            "targets": dict(resolved_reference_plan.get("targets") or {}),
+            "resolved_settings": resolved_custom_settings if reference_mode else {},
+            "unsupported_matches": list(resolved_reference_plan.get("unsupported_matches") or []),
+            "analysis_provenance": resolved_reference_plan.get("analysis_provenance", ""),
             "export_name": project_name,
             "source_path": str(source_copy),
             "mastered_wav": str(wav_path),
@@ -1138,7 +1433,7 @@ def remaster_song_audio(
     )
     overall_status = output_validation["overall_status"]
     duration_delta = output_validation["wav_validation"].get("duration_delta_seconds")
-    warnings: list[str] = []
+    warnings: list[str] = list(resolved_reference_plan.get("warnings") or [])
     if source_analysis.get("errors") or (source_analysis.get("loudness") or {}).get("status") != "measured":
         warnings.append(_analysis_warning(source_analysis, "Source"))
     if master_analysis.get("errors") or (master_analysis.get("loudness") or {}).get("status") != "measured":
@@ -1162,11 +1457,35 @@ def remaster_song_audio(
         original_analysis=source_analysis,
         mastered_analysis=master_analysis,
     )
+    reference_comparison = build_reference_result_comparison(resolved_reference_plan, master_analysis) if reference_mode else {}
     ab_previews = (
         build_remaster_ab_previews(source_copy, mp3_path, output_dir / "quality_previews", ffmpeg_path=ffmpeg)
         if output_validation["mp3_status"] == "pass"
         else {"ok": False, "error": "mastered_distribution_mp3_unavailable"}
     )
+    processing_steps = [
+        "Input validation",
+        "Source copy preserved in original/",
+        "48 kHz stereo PCM 24-bit conversion",
+        "DC click/pop cleanup where detectable",
+        "High-pass filtering",
+        "Light compression",
+        "Reference-guided loudness normalization",
+        "VelaFlow-safe output limiting",
+        "WAV + MP3 export",
+    ] if reference_mode else [
+        "Input validation",
+        "Source copy preserved in original/",
+        "48 kHz stereo PCM 24-bit conversion",
+        "DC click/pop cleanup where detectable",
+        "High-pass filtering",
+        "Corrective EQ",
+        "Gentle compression",
+        "Preset stereo/space enhancement where configured",
+        "Loudness normalization",
+        "True-peak style limiting",
+        "WAV + MP3 export",
+    ]
     report = {
         "ok": overall_status == "success",
         "overall_status": overall_status,
@@ -1191,20 +1510,15 @@ def remaster_song_audio(
         "preset_mode": resolved_preset_mode,
         "preset_name": resolved_preset_name,
         "custom_settings": resolved_custom_settings,
+        "reference": dict(resolved_reference_plan.get("reference") or {}),
+        "targets": dict(resolved_reference_plan.get("targets") or {}),
+        "resolved_settings": resolved_custom_settings if reference_mode else {},
+        "result_metrics": dict(reference_comparison.get("result") or {}),
+        "unsupported_matches": list(resolved_reference_plan.get("unsupported_matches") or []),
+        "reference_comparison": reference_comparison,
+        "analysis_provenance": resolved_reference_plan.get("analysis_provenance", AUDIO_INTELLIGENCE_ANALYZER_VERSION if reference_mode else ""),
         "remaster_recommendation": recommendation,
-        "processing_steps_applied": [
-            "Input validation",
-            "Source copy preserved in original/",
-            "48 kHz stereo PCM 24-bit conversion",
-            "DC click/pop cleanup where detectable",
-            "High-pass filtering",
-            "Corrective EQ",
-            "Gentle compression",
-            "Preset stereo/space enhancement where configured",
-            "Loudness normalization",
-            "True-peak style limiting",
-            "WAV + MP3 export",
-        ],
+        "processing_steps_applied": processing_steps,
         "output_wav_settings": {"format": "WAV", "codec": "pcm_s24le", "bit_depth": "24-bit", "sample_rate_hz": 48000, "channels": "stereo", "lossless": True},
         "output_mp3_settings": {"format": "MP3", "codec": "libmp3lame", "bitrate": "320 kbps", "mode": "CBR", "channels": "stereo"},
         "loudness_result": (master_analysis.get("loudness") or {}).get("integrated_lufs"),
@@ -1273,6 +1587,7 @@ def remaster_song_audio(
             "zip_path": str(zip_path) if zip_path.is_file() and overall_status in {"success", "partial"} else "",
             "report": report,
             "quality_comparison": quality_comparison,
+            "reference_comparison": reference_comparison,
             "ab_previews": ab_previews,
         },
         "error": error,

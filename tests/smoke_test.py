@@ -111,7 +111,7 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
-from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_remaster_input, validate_remaster_outputs
+from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_reference_master_plan, build_reference_result_comparison, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_reference_master_analysis, validate_remaster_input, validate_remaster_outputs
 from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
@@ -1524,7 +1524,7 @@ def main():
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
     assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
     assert_true("pcm_s24le" in wav_hook_cmd and "libmp3lame" in wav_to_mp3_cmd and "copy" not in wav_to_mp3_cmd, "Audio Editor WAV export commands failed")
-    assert_true(REMASTER_RECOMMENDATION_MODES == ["Auto Recommended", "Manual"] and REMASTER_STYLES[0] == "Streaming Balanced" and REMASTER_STYLES[-1] == "Custom" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern", "Custom"}.issubset(set(REMASTER_STYLES)), "simple Remaster preset modes or preset list failed")
+    assert_true(REMASTER_RECOMMENDATION_MODES == ["Auto Recommended", "Manual"] and REMASTER_STYLES[0] == "Streaming Balanced" and REMASTER_STYLES[-1] == "Custom" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern", REFERENCE_GUIDED_PRESET, "Custom"}.issubset(set(REMASTER_STYLES)), "simple Remaster preset modes or preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
     streaming_snapshot = json.loads(json.dumps(STYLE_FILTERS["Streaming Balanced"]))
     custom_defaults = default_custom_remaster_settings()
@@ -1537,6 +1537,32 @@ def main():
     assert_true(custom_baseline_config["custom_settings"] == fresh_custom_defaults and "loudnorm=I=-14.0:TP=-1.0:LRA=10" in custom_baseline_config["filters"] and "alimiter=level_out=0.93:limit=0.93" in custom_baseline_config["filters"], "Custom preset did not start from the Streaming Balanced safety baseline")
     assert_true(clamped_custom == {"loudness_lufs": -16.0, "bass_db": 3.0, "mid_db": 0.8, "high_db": 0.0, "compression_ratio": 2.5, "stereo_width": 1.2, "output_ceiling_db": -0.5}, "Custom Remaster settings were not clamped safely")
     assert_true(custom_config["custom_settings"]["bass_db"] == 1.5 and "acompressor=" in custom_config["filters"] and "stereotools=" in custom_config["filters"] and "loudnorm=" in custom_config["filters"] and "alimiter=" in custom_config["filters"], "Custom Remaster filter resolution failed")
+    def reference_analysis_fixture(lufs: float | None, true_peak: float | None, lra: float | None, *, digest: str, duration: float = 180.0, channels: int = 2, sample_rate: int = 48000, status: str = "measured") -> dict[str, Any]:
+        return {
+            "analysis_depth": "deep",
+            "source": {"source_id": digest[:16], "sha256": digest, "path": f"{digest[:8]}.wav"},
+            "metadata": {"duration_sec": duration, "codec": "pcm_s24le", "sample_rate_hz": sample_rate, "channels": channels, "status": "measured"},
+            "loudness": {"integrated_lufs": lufs, "true_peak_dbtp": true_peak, "lra_lu": lra, "status": status},
+        }
+
+    source_fixture = reference_analysis_fixture(-18.0, -3.0, 10.0, digest="a" * 64)
+    normal_reference = reference_analysis_fixture(-12.8, -0.6, 6.2, digest="b" * 64)
+    hot_reference = reference_analysis_fixture(-7.0, -0.2, 18.0, digest="c" * 64, channels=1)
+    quiet_reference = reference_analysis_fixture(-18.0, -2.0, 12.0, digest="d" * 64)
+    normal_plan = build_reference_master_plan(source_fixture, normal_reference, reference_name="Normal Reference.wav")
+    hot_plan = build_reference_master_plan(source_fixture, hot_reference)
+    quiet_plan = build_reference_master_plan(source_fixture, quiet_reference)
+    custom_snapshot = default_custom_remaster_settings()
+    assert_true(normal_plan.get("ok") and normal_plan["targets"] == {"lufs": -12.8, "true_peak_dbtp": -1.0}, "normal Reference-Guided targets failed")
+    assert_true(hot_plan.get("targets") == {"lufs": -11.0, "true_peak_dbtp": -1.0} and quiet_plan.get("targets") == {"lufs": -16.0, "true_peak_dbtp": -1.5}, "Reference-Guided LUFS/True Peak clamps failed")
+    assert_true(hot_plan["resolved_custom_settings"] == {"loudness_lufs": -11.0, "bass_db": 0.0, "mid_db": 0.0, "high_db": 0.0, "compression_ratio": 1.2, "stereo_width": 1.0, "output_ceiling_db": -1.0}, "Reference-Guided plan must keep EQ/width neutral and compression light")
+    assert_true("lra_target" in hot_plan["unsupported_matches"] and hot_plan["reference_metrics"]["lra_lu"] == 18.0 and any("mono" in warning.lower() for warning in hot_plan["warnings"]), "Reference LRA context/mono warning failed")
+    assert_true(default_custom_remaster_settings() == custom_snapshot and STYLE_FILTERS["Streaming Balanced"] == streaming_snapshot, "Reference plan mutated Custom or built-in preset settings")
+    assert_true(not validate_reference_master_analysis(reference_analysis_fixture(-12.0, -1.0, 7.0, digest="e" * 64, duration=12.0))["ok"], "short reference should be rejected")
+    assert_true(not validate_reference_master_analysis(reference_analysis_fixture(None, None, None, digest="f" * 64, status="unknown"))["ok"], "silent/unavailable reference should be rejected")
+    assert_true(not build_reference_master_plan(source_fixture, reference_analysis_fixture(-12.0, -1.0, 7.0, digest="a" * 64)).get("ok"), "identical source/reference should be rejected")
+    reference_result = build_reference_result_comparison(normal_plan, reference_analysis_fixture(-13.0, -1.0, 7.1, digest="9" * 64))
+    assert_true(reference_result["loudness_guided"] and reference_result["result"]["lra_lu"] == 7.1 and "comparison context" in reference_result["note"], "Reference Source/Reference/Result comparison failed")
     assert_true(build_remaster_project_id("My Song.mp3").startswith("My_Song_"), "Remaster project id safe filename failed")
     review_ready_lyrics = """[Verse 1]
 แก้วน้ำของพ่อวางอยู่ข้างจาน
@@ -3261,6 +3287,55 @@ def main():
         assert_true(wav_recommend.get("ok") and (wav_recommend.get("data", {}).get("audio_intelligence", {}).get("metadata") or {}).get("codec", "").startswith("pcm"), "Remaster Audio Intelligence WAV source regression failed")
         project_master_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context={"kind": "project_master", "project_id": "smoke-project-master", "path_role": "active_master"})
         assert_true(project_master_recommend.get("ok") and (project_master_recommend.get("data", {}).get("audio_intelligence", {}).get("source") or {}).get("kind") == "project_master", "Project Master source context was not preserved")
+        reference_root = out / "reference_guided_master"
+        reference_root.mkdir(parents=True, exist_ok=True)
+        reference_mp3 = reference_root / "reference_track.mp3"
+        reference_wav = reference_root / "reference_track.wav"
+        short_reference = reference_root / "short_reference.mp3"
+        silent_reference = reference_root / "silent_reference.mp3"
+        corrupt_reference = reference_root / "corrupt_reference.mp3"
+        subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "sine=frequency=330:duration=31:sample_rate=48000", "-af", "volume=0.25", "-ac", "2", "-c:a", "libmp3lame", str(reference_mp3)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([find_ffmpeg(), "-y", "-i", str(reference_mp3), "-c:a", "pcm_s24le", str(reference_wav)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "sine=frequency=330:duration=8:sample_rate=48000", "-ac", "2", "-c:a", "libmp3lame", str(short_reference)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=31", "-c:a", "libmp3lame", str(silent_reference)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        corrupt_reference.write_bytes(b"not audio")
+        reference_context = {"kind": "external_upload", "project_id": "smoke-reference", "path_role": "reference_track"}
+        reference_first = analyze_reference_guided_master(long_hook_source, reference_mp3, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context=reference_context)
+        reference_second = analyze_reference_guided_master(long_hook_source, reference_mp3, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context=reference_context)
+        reference_wav_result = analyze_reference_guided_master(long_hook_source, reference_wav, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context={**reference_context, "path_role": "reference_track_wav"})
+        reference_short_result = analyze_reference_guided_master(long_hook_source, short_reference, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context={**reference_context, "path_role": "reference_track_short"})
+        reference_silent_result = analyze_reference_guided_master(long_hook_source, silent_reference, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context={**reference_context, "path_role": "reference_track_silent"})
+        reference_corrupt_result = analyze_reference_guided_master(long_hook_source, corrupt_reference, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context={**reference_context, "path_role": "reference_track_corrupt"})
+        reference_missing_result = analyze_reference_guided_master(long_hook_source, reference_root / "missing.mp3", ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context=reference_context)
+        reference_identical_result = analyze_reference_guided_master(long_hook_source, long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context, reference_context={**reference_context, "path_role": "reference_track_identical"})
+        assert_true(reference_first.get("ok") and reference_second.get("ok") and reference_wav_result.get("ok"), "Reference-Guided MP3/WAV analysis failed")
+        warm_performance = (reference_second.get("data") or {}).get("performance") or {}
+        assert_true(all((warm_performance.get(label) or {}).get("ffprobe_runs") == 0 and (warm_performance.get(label) or {}).get("ffmpeg_runs") == 0 and (warm_performance.get(label) or {}).get("pcm_analysis_runs") == 0 for label in ["source", "reference"]) and warm_performance.get("plan_subprocess_runs") == 0, "Reference-Guided warm source/reference should perform zero analysis subprocess work")
+        assert_true(not reference_short_result.get("ok") and not reference_silent_result.get("ok") and not reference_corrupt_result.get("ok") and not reference_missing_result.get("ok") and not reference_identical_result.get("ok"), "Reference-Guided invalid-reference gates failed")
+        reference_plan = dict((reference_first.get("data") or {}).get("plan") or {})
+        reference_remaster = remaster_song_audio(
+            long_hook_source,
+            project_name="Smoke Reference Guided",
+            remaster_style=REFERENCE_GUIDED_PRESET,
+            ffmpeg_path=find_ffmpeg(),
+            recommendation_data={"source": "manual", "recommended_preset": REFERENCE_GUIDED_PRESET},
+            preset_mode="manual",
+            source_context=remaster_source_context,
+            reference_plan=reference_plan,
+        )
+        reference_remaster_data = reference_remaster.get("data") or {}
+        reference_report = reference_remaster_data.get("report") or {}
+        reference_report_text_path = Path(str(reference_remaster_data.get("report_txt_path") or ""))
+        reference_report_text = reference_report_text_path.read_text(encoding="utf-8") if reference_report_text_path.is_file() else ""
+        resolved_reference_settings = reference_report.get("resolved_settings") or {}
+        reference_comparison = reference_report.get("reference_comparison") or {}
+        assert_true(reference_remaster.get("ok") and reference_report.get("preset_mode") == "manual" and reference_report.get("preset_name") == "reference-guided" and reference_report.get("selected_preset") == REFERENCE_GUIDED_PRESET, "Reference-Guided processing/report mode failed")
+        reference_steps = reference_report.get("processing_steps_applied", [])
+        assert_true(all(resolved_reference_settings.get(key) == value for key, value in {"bass_db": 0.0, "mid_db": 0.0, "high_db": 0.0, "stereo_width": 1.0, "compression_ratio": 1.2}.items()) and reference_report.get("unsupported_matches") == ["lra_target", "spectral_balance", "stereo_image", "transients"] and "Corrective EQ" not in reference_steps and "Preset stereo/space enhancement where configured" not in reference_steps, "Reference-Guided neutral settings or unsupported dimensions failed")
+        assert_true(all(reference_comparison.get(label) for label in ["source", "reference", "result"]) and reference_report.get("result_metrics") == reference_comparison.get("result") and reference_report.get("analysis_provenance") == AUDIO_INTELLIGENCE_ANALYZER_VERSION, "Reference Source/Reference/Result report or provenance failed")
+        assert_true("Reference-Guided Master:" in reference_report_text and "Source / Reference / Result:" in reference_report_text and Path(reference_remaster_data.get("mastered_wav", "")).is_file() and Path(reference_remaster_data.get("mastered_mp3", "")).is_file() and (reference_remaster_data.get("ab_previews") or {}).get("ok"), "Reference-Guided TXT/WAV/MP3/A-B output failed")
+        reference_release = export_creative_release_pack("Smoke Reference Release", release_pack, "Vela Moon", base_dir=out / "reference_release_pack", remaster_data=reference_remaster_data)
+        assert_true(reference_release.get("ok") and Path((reference_release.get("data") or {}).get("zip_path", "")).is_file(), "Release Pack compatibility failed for Reference-Guided Master")
         null_loudness_analysis = {
             "metadata": {"duration_sec": 30.0, "codec": "mp3", "bitrate_bps": 320000, "sample_rate_hz": 48000, "channels": 2, "status": "measured"},
             "loudness": {"integrated_lufs": None, "true_peak_dbtp": None, "lra_lu": None, "status": "unknown"},
@@ -3920,6 +3995,9 @@ def main():
         assert_true('"libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2"' in remaster_engine_source, "Remaster MP3 preview/export should be explicit 320k 48k stereo libmp3lame")
         assert_true("Preset Selection" in remaster_ui_slice and "Auto Recommended" in remaster_ui_slice and "Analyze Source" in remaster_ui_slice and "Recommended by VelaFlow" in remaster_ui_slice and 'st.selectbox("Preset", REMASTER_STYLES' in remaster_ui_slice and "_render_custom_remaster_controls" in remaster_ui_slice and "Custom processing controls are reserved" not in remaster_ui_slice and "Use Recommended Preset" not in remaster_ui_slice and "Choose Manually" not in remaster_ui_slice and "Advanced Settings" not in remaster_ui_slice, "simple Auto/Manual Remaster preset UI missing")
         assert_true(all(label in custom_remaster_ui_source for label in ["Custom Preset", "Reset Custom", "Loudness (LUFS)", "Bass", "Mid", "High", "Compression", "Stereo Width", "Output Ceiling"]) and 'remaster_state["custom_settings"]' in custom_remaster_ui_source and "_save_project()" in custom_remaster_ui_source, "Custom Remaster controls, reset, or project persistence wiring missing")
+        reference_ui_source = main_source[main_source.find("def _render_reference_guided_controls"):main_source.find("def _render_remaster_studio")]
+        assert_true(REFERENCE_GUIDED_PRESET in REMASTER_STYLES and "Upload Reference Track" in reference_ui_source and "Use Project Master" in reference_ui_source and "analyze_reference_guided_master" in reference_ui_source and "remaster_reference_upload_id_{key_suffix}" in reference_ui_source and "reference_plan=reference_plan" in remaster_ui_slice, "Reference-Guided compact Manual UI or project-isolated source wiring missing")
+        assert_true("Reference LUFS" in reference_ui_source and "True Peak" in reference_ui_source and "LRA" in reference_ui_source and "Source / Reference / Result" in remaster_ui_slice and "spectral" not in reference_ui_source.lower() and "bpm" not in reference_ui_source.lower(), "Reference-Guided mobile summary must show only reliable dimensions")
         assert_true("Before / After" in remaster_ui_slice and "Quality Summary" in remaster_ui_slice and "Advanced Analysis" in remaster_ui_slice and remaster_ui_slice.find("LUFS:") > remaster_ui_slice.find('st.expander("Advanced Analysis"') and "integrated_lufs" in remaster_engine_source and "crest_factor_db" in remaster_engine_source and "stereo_width_proxy" in remaster_engine_source, "Remaster quality comparison UI, advanced metrics, or engine metrics missing")
         assert_true("analyze_audio_source" in remaster_engine_source and 'depth="deep"' in remaster_engine_source and '"true_peak_dbtp"' in remaster_engine_source and '"lra_lu"' in remaster_engine_source and "ebur128" not in remaster_engine_source, "Remaster must use Audio Intelligence without a duplicate legacy full loudness pass")
         assert_true("_remaster_audio_intelligence_context" in remaster_ui_slice and 'source_context=source_analysis_context' in remaster_ui_slice and all(label in remaster_ui_slice for label in ["Before", "After", "True Peak", "Loudness Range"]), "Remaster source context or trustworthy before/after UI wiring missing")

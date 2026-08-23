@@ -259,7 +259,7 @@ from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
-from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings
+from core.remaster_engine import REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -2412,6 +2412,135 @@ def _render_custom_remaster_controls(project: dict[str, Any], remaster_state: di
     return resolved
 
 
+def _render_reference_guided_controls(
+    project: dict[str, Any],
+    remaster_state: dict[str, Any],
+    *,
+    source_path: str,
+    source_context: dict[str, Any],
+    max_upload_mb: int,
+) -> dict[str, Any]:
+    reference_state = dict(remaster_state.get("reference_guided") or {})
+    project_identity = str(project.get("project_id") or project.get("path") or project.get("title") or "project")
+    key_suffix = hashlib.sha1(project_identity.encode("utf-8", errors="ignore")).hexdigest()[:10]
+    active_master = _project_master_audio(project)
+    stored_reference = dict(reference_state.get("reference_audio") or {})
+    stored_project_master_available = stored_reference.get("source_type") == "Project Master" and Path(str(stored_reference.get("path") or "")).is_file()
+    source_options = ["Upload Reference Track"]
+    if active_master.get("ok") or stored_project_master_available:
+        source_options.append("Use Project Master")
+    stored_mode = str(reference_state.get("source_mode") or source_options[0])
+    if stored_mode not in source_options:
+        stored_mode = source_options[0]
+    source_mode = st.selectbox(
+        "Reference Track",
+        source_options,
+        index=source_options.index(stored_mode),
+        key=f"remaster_reference_source_mode_{key_suffix}",
+    )
+    source_mode_changed = source_mode != reference_state.get("source_mode")
+    if source_mode_changed:
+        reference_state["source_mode"] = source_mode
+        reference_state.pop("plan", None)
+        reference_state.pop("last_error", None)
+        if source_mode == "Use Project Master" or stored_reference.get("source_type") != "Reference Upload":
+            reference_state.pop("reference_audio", None)
+
+    if source_mode == "Upload Reference Track":
+        uploaded_reference = st.file_uploader(
+            "Upload MP3 or WAV reference",
+            type=["mp3", "wav"],
+            key=f"remaster_reference_upload_{key_suffix}",
+            help="Use a complete reference track of at least 30 seconds.",
+        )
+        if uploaded_reference:
+            saved = _save_uploaded_audio(
+                project.get("title") or "remaster_project",
+                uploaded_reference,
+                "song",
+                upload_state_key=f"remaster_reference_upload_id_{key_suffix}",
+                previous_source=reference_state.get("reference_audio") or {},
+                storage_stem="remaster_reference_audio",
+            )
+            if saved.get("ok"):
+                reference_audio = dict(saved["data"])
+                reference_audio.update(
+                    {
+                        "original_filename": uploaded_reference.name,
+                        "format": Path(uploaded_reference.name).suffix.lower().lstrip(".").upper(),
+                        "size_bytes": uploaded_reference.size,
+                        "source_type": "Reference Upload",
+                    }
+                )
+                if reference_audio.get("source_changed"):
+                    reference_state.pop("plan", None)
+                    reference_state.pop("last_error", None)
+                reference_state["reference_audio"] = reference_audio
+            else:
+                reference_state["last_error"] = saved.get("message") or saved.get("error") or "Reference upload failed."
+    elif not stored_project_master_available or source_mode_changed:
+        if active_master.get("ok"):
+            project_master_path = str(active_master.get("mastered_mp3") or active_master.get("path") or active_master.get("mastered_wav") or "")
+            reference_state["reference_audio"] = {
+                "path": project_master_path,
+                "filename": Path(project_master_path).name,
+                "original_filename": Path(project_master_path).name,
+                "source_type": "Project Master",
+                "format": Path(project_master_path).suffix.lower().lstrip(".").upper(),
+                "size_bytes": Path(project_master_path).stat().st_size if Path(project_master_path).is_file() else 0,
+            }
+        else:
+            reference_state.pop("reference_audio", None)
+
+    reference_audio = dict(reference_state.get("reference_audio") or {})
+    reference_path = str(reference_audio.get("path") or "")
+    plan: dict[str, Any] = {}
+    if source_path and Path(source_path).is_file() and reference_path and Path(reference_path).is_file():
+        reference_context = _remaster_audio_intelligence_context(project, reference_audio, path_role="reference_track")
+        analyzed = analyze_reference_guided_master(
+            source_path,
+            reference_path,
+            ffmpeg_path=settings.ffmpeg_path,
+            max_upload_mb=max_upload_mb,
+            source_context=source_context,
+            reference_context=reference_context,
+            reference_name=str(reference_audio.get("original_filename") or Path(reference_path).name),
+        )
+        if analyzed.get("ok"):
+            data = analyzed.get("data") or {}
+            plan = dict(data.get("plan") or {})
+            reference_state["plan"] = plan
+            st.session_state[f"remaster_reference_performance_{key_suffix}"] = dict(data.get("performance") or {})
+            reference_state.pop("last_error", None)
+            metrics = plan.get("reference_metrics") or {}
+            targets = plan.get("targets") or {}
+            st.caption(str((plan.get("reference") or {}).get("filename") or Path(reference_path).name))
+            reference_cols = st.columns(3)
+            reference_cols[0].metric("Reference LUFS", f"{float(metrics.get('lufs')):.1f}")
+            reference_cols[1].metric("True Peak", f"{float(metrics.get('true_peak_dbtp')):.1f} dBTP")
+            reference_cols[2].metric("LRA", f"{float(metrics.get('lra_lu')):.1f} LU")
+            st.markdown(f"**Target:** {float(targets.get('lufs')):.1f} LUFS · {float(targets.get('true_peak_dbtp')):.1f} dBTP")
+            for warning in plan.get("warnings") or []:
+                st.warning(str(warning))
+        else:
+            reference_state.pop("plan", None)
+            reference_state["last_error"] = analyzed.get("message") or "Reference Track could not be analyzed."
+    elif reference_path:
+        reference_state.pop("plan", None)
+        reference_state["last_error"] = "Reference Track is missing. Choose another reference."
+
+    if reference_state.get("last_error"):
+        st.error(str(reference_state["last_error"]))
+    elif not reference_path:
+        st.info("Choose a Reference Track to continue.")
+
+    if reference_state != remaster_state.get("reference_guided"):
+        remaster_state["reference_guided"] = reference_state
+        project["remaster_studio"] = remaster_state
+        _save_project()
+    return plan
+
+
 def _render_remaster_studio(project: dict[str, Any]) -> None:
     _page_header("Remaster", "Polish finished AI songs for clearer vocal, better loudness, and streaming-ready WAV/MP3 export.", project)
     remaster_state = project.setdefault("remaster_studio", {})
@@ -2603,11 +2732,20 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         remaster_state["preset_name"] = manual_style
         st.caption("Selected Manually")
     custom_settings = sanitize_custom_remaster_settings(remaster_state.get("custom_settings")) if style == "Custom" else {}
+    reference_plan: dict[str, Any] = {}
     if selection_mode == "Manual" and style == "Custom":
         custom_settings = _render_custom_remaster_controls(project, remaster_state)
         remaster_state["custom_settings"] = custom_settings
         recommendation["custom_settings"] = custom_settings
         remaster_state["remaster_recommendation"] = recommendation
+    elif selection_mode == "Manual" and style == REFERENCE_GUIDED_PRESET:
+        reference_plan = _render_reference_guided_controls(
+            project,
+            remaster_state,
+            source_path=source_path,
+            source_context=source_analysis_context,
+            max_upload_mb=max_upload_mb,
+        )
     project["remaster_studio"] = remaster_state
     preset_state_after = (
         str(remaster_state.get("preset_mode") or ""),
@@ -2616,7 +2754,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     )
     if preset_state_after != preset_state_before:
         _save_project()
-    if st.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok"), key="generate_mastered_wav"):
+    reference_ready = style != REFERENCE_GUIDED_PRESET or bool(reference_plan.get("ok"))
+    if st.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok") or not reference_ready, key="generate_mastered_wav"):
         remaster_export_title = str(remaster_state.get("export_name") or _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project))
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
             result = remaster_song_audio(
@@ -2629,6 +2768,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 preset_mode="manual" if selection_mode == "Manual" else "auto",
                 custom_settings=custom_settings,
                 source_context=source_analysis_context,
+                reference_plan=reference_plan,
             )
         remaster_state["last_result"] = result.get("data", {})
         result_status = str(result.get("status") or (result.get("data") or {}).get("overall_status") or ("success" if result.get("ok") else "failed"))
@@ -2650,6 +2790,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 "selected_preset": style,
                 "preset_mode": "manual" if selection_mode == "Manual" else "auto",
                 "custom_settings": custom_settings,
+                "reference_guided": dict((data.get("report") or {}).get("reference") or {}),
                 "export_name": remaster_export_title,
             }
         else:
@@ -2671,6 +2812,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     report = result_data.get("report") or {}
     if mastered_wav.is_file():
         st.markdown("### Before / After")
+        reference_comparison = result_data.get("reference_comparison") or report.get("reference_comparison") or {}
         comparison = result_data.get("quality_comparison") or report.get("quality_comparison") or {}
         original_metrics = comparison.get("original") or {}
         mastered_metrics = comparison.get("mastered") or {}
@@ -2678,6 +2820,19 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         loudness_after = mastered_metrics.get("integrated_lufs")
         def _measured(value: Any, unit: str) -> str:
             return f"{float(value):.1f} {unit}" if isinstance(value, (int, float)) else "Unavailable"
+
+        if reference_comparison:
+            st.markdown("**Source / Reference / Result**")
+            labels = ["Source", "Reference", "Result"]
+            values = [reference_comparison.get("source") or {}, reference_comparison.get("reference") or {}, reference_comparison.get("result") or {}]
+            metric_rows = [
+                ("LUFS", "lufs", "LUFS"),
+                ("True Peak", "true_peak_dbtp", "dBTP"),
+                ("LRA", "lra_lu", "LU"),
+            ]
+            for label, key, unit in metric_rows:
+                st.caption(f"{label}: " + " · ".join(f"{name} {_measured(metrics.get(key), unit)}" for name, metrics in zip(labels, values)))
+            st.caption("LRA is comparison context only; no exact dynamics match was attempted.")
 
         before_col, after_col = st.columns(2)
         with before_col:
