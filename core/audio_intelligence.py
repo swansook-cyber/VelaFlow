@@ -10,14 +10,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from core.audio_bpm import BPM_METHOD, estimate_bpm
 from core.audio_editor import build_source_signature
 from core.paths import ROOT
 from core.project_io import atomic_write_json
 from core.real_clip_pipeline import find_ffmpeg, probe_media
 
 
-SCHEMA_VERSION = 2
-ANALYZER_VERSION = "audio-intelligence-v1-energy-silence"
+SCHEMA_VERSION = 3
+ANALYZER_VERSION = "audio-intelligence-v1-bpm-experimental"
 SUPPORTED_DEPTHS = {"fast", "deep"}
 DEFAULT_CACHE_ROOT = ROOT / "outputs" / "cache" / "audio_intelligence"
 PCM_ANALYSIS_SAMPLE_RATE = 8000
@@ -98,12 +99,18 @@ def _empty_result(path: Path, context: dict[str, str]) -> dict[str, Any]:
             "method": "pcm_window_activity",
             "status": "unknown",
         },
+        "musical": {
+            "bpm": None,
+            "bpm_confidence": None,
+            "bpm_method": None,
+            "bpm_status": "unknown",
+        },
         "cache": {
             "hit": False,
             "analyzer_version": ANALYZER_VERSION,
             "created_at": None,
         },
-        "performance": {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0},
+        "performance": {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0, "bpm_decode_runs": 0, "bpm_elapsed_ms": 0.0},
         "warnings": [],
         "errors": [],
     }
@@ -222,7 +229,7 @@ def _valid_cache(payload: dict[str, Any] | None, source_id: str, depth: str) -> 
     capabilities = set(payload.get("completed_capabilities") or [])
     if "metadata" not in capabilities:
         return False
-    return depth == "fast" or {"loudness", "energy", "silence"}.issubset(capabilities)
+    return depth == "fast" or {"loudness", "energy", "silence", "musical"}.issubset(capabilities)
 
 
 def _nullable_number(value: Any) -> float | None:
@@ -512,6 +519,33 @@ def _apply_signal_analysis(result: dict[str, Any], run: dict[str, Any]) -> bool:
     return True
 
 
+def _apply_bpm_analysis(result: dict[str, Any], run: dict[str, Any]) -> None:
+    musical = result["musical"]
+    musical.update({"bpm": None, "bpm_confidence": 0.0, "bpm_method": BPM_METHOD, "bpm_status": "unavailable"})
+    samples = run.get("samples")
+    if not run.get("ok") or samples is None or len(samples) == 0:
+        musical["bpm_reason"] = str(run.get("error") or "pcm_analysis_unavailable")
+        result["completed_capabilities"].append("musical")
+        return
+    measured = estimate_bpm(samples, int(run.get("sample_rate") or PCM_ANALYSIS_SAMPLE_RATE))
+    for key in (
+        "bpm",
+        "bpm_confidence",
+        "bpm_method",
+        "bpm_status",
+        "bpm_reason",
+        "onset_count",
+        "segment_consistency",
+        "half_double_ambiguity",
+    ):
+        if key in measured:
+            musical[key] = measured[key]
+    result["performance"]["bpm_elapsed_ms"] = float(measured.get("bpm_elapsed_ms") or 0.0)
+    if musical["bpm_status"] == "error":
+        result["warnings"].append(f"Experimental BPM analysis failed: {musical.get('bpm_reason') or 'unknown_error'}")
+    result["completed_capabilities"].append("musical")
+
+
 def _apply_probe(result: dict[str, Any], probe: dict[str, Any]) -> None:
     metadata = result["metadata"]
     if not probe.get("ok") or not probe.get("has_audio", True):
@@ -601,6 +635,8 @@ def analyze_audio_source(
             "ffmpeg_runs": 0,
             "ffmpeg_loudness_runs": 0,
             "pcm_analysis_runs": 0,
+            "bpm_decode_runs": 0,
+            "bpm_elapsed_ms": 0.0,
         }
         return cached
 
@@ -608,7 +644,7 @@ def analyze_audio_source(
         result = cached
         result["cache"]["hit"] = False
         result["analysis_depth"] = requested_depth
-        result["performance"] = {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0}
+        result["performance"] = {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0, "bpm_decode_runs": 0, "bpm_elapsed_ms": 0.0}
     else:
         probe_function = _probe_func or probe_media
         probe = probe_function(source, ffmpeg_path=ffmpeg_path)
@@ -625,8 +661,9 @@ def analyze_audio_source(
         pcm_run = pcm_runner(source, ffmpeg_path)
         result["performance"]["pcm_analysis_runs"] += 1
         _apply_signal_analysis(result, dict(pcm_run or {}))
+        _apply_bpm_analysis(result, dict(pcm_run or {}))
 
-    deep_capabilities = {"loudness", "energy", "silence"}
+    deep_capabilities = {"loudness", "energy", "silence", "musical"}
     result["analysis_depth"] = "deep" if deep_capabilities.issubset(set(result["completed_capabilities"])) else "fast"
     result["cache"].update({"hit": False, "analyzer_version": ANALYZER_VERSION, "created_at": _utc_now()})
     result["performance"]["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 3)

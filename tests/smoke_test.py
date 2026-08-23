@@ -34,6 +34,7 @@ from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, move_audio_selection_region, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, SCHEMA_VERSION as AUDIO_INTELLIGENCE_SCHEMA_VERSION, analyze_audio_source, parse_loudnorm_output
+from core.audio_bpm import BPM_METHOD, build_onset_envelope, estimate_bpm
 from core.smart_cut import suggest_cut_regions
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_release_pack_export, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
@@ -396,6 +397,79 @@ def _write_segmented_audio_intelligence_wav(path: Path, segments: list[tuple[flo
         audio.writeframes(samples.tobytes())
 
 
+def _bpm_pulse_samples(
+    bpm: float,
+    *,
+    duration: float = 18.0,
+    sample_rate: int = 8000,
+    amplitude: float = 0.8,
+    beat_times: list[float] | None = None,
+) -> array:
+    frame_count = max(1, int(round(duration * sample_rate)))
+    values = array("h", [0]) * frame_count
+    times = beat_times if beat_times is not None else [index * 60.0 / bpm for index in range(int(duration * bpm / 60.0) + 1)]
+    pulse_frames = max(8, int(round(sample_rate * 0.035)))
+    for beat_time in times:
+        start = int(round(beat_time * sample_rate))
+        for offset in range(pulse_frames):
+            index = start + offset
+            if index >= frame_count:
+                break
+            decay = 1.0 - offset / pulse_frames
+            values[index] = int(32767 * amplitude * decay * math.sin(2.0 * math.pi * 180.0 * offset / sample_rate))
+    return values
+
+
+def _write_bpm_pulse_wav(path: Path, bpm: float, *, duration: float = 18.0, channels: int = 2, amplitude: float = 0.8, sample_rate: int = 8000) -> None:
+    mono = _bpm_pulse_samples(bpm, duration=duration, sample_rate=sample_rate, amplitude=amplitude)
+    payload = mono if channels == 1 else array("h", (sample for value in mono for sample in (value, int(value * 0.82))))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(channels)
+        audio.setsampwidth(2)
+        audio.setframerate(sample_rate)
+        audio.writeframes(payload.tobytes())
+
+
+def run_bpm_detection_smoke() -> dict[str, Any]:
+    fixture_results: dict[int, dict[str, Any]] = {}
+    for bpm in (60, 80, 90, 100, 120, 140, 160):
+        result = estimate_bpm(_bpm_pulse_samples(float(bpm)), 8000)
+        assert_true(result["bpm_status"] == "ok" and result["bpm"] is not None and abs(float(result["bpm"]) - bpm) <= 2.0, f"synthetic {bpm} BPM detection failed")
+        assert_true(float(result["bpm_confidence"]) >= 0.55 and result["bpm_method"] == BPM_METHOD, f"synthetic {bpm} BPM confidence/provenance failed")
+        fixture_results[bpm] = result
+
+    half_double_probe = estimate_bpm(_bpm_pulse_samples(70.0), 8000)
+    assert_true(half_double_probe["bpm"] is not None and abs(float(half_double_probe["bpm"]) - 70.0) <= 2.0 and abs(float(half_double_probe["bpm"]) - 140.0) > 20.0, "70/140 BPM half-double resolution failed")
+
+    quiet = estimate_bpm(_bpm_pulse_samples(100.0, amplitude=0.05), 8000)
+    silence = estimate_bpm(array("h", [0]) * (8000 * 18), 8000)
+    sustained = estimate_bpm(array("h", (int(12000 * math.sin(2.0 * math.pi * 220.0 * index / 8000)) for index in range(8000 * 18))), 8000)
+    transient_values = array("h", [0]) * (8000 * 18)
+    for index in range(240):
+        transient_values[8000 * 5 + index] = int(22000 * (1.0 - index / 240.0))
+    isolated = estimate_bpm(transient_values, 8000)
+    irregular_times = [0.0, 0.52, 1.41, 2.05, 3.18, 3.61, 4.74, 5.39, 6.82, 7.20, 8.55, 9.12, 10.48, 11.02, 12.60, 13.08, 14.71, 15.30, 16.75, 17.20]
+    irregular = estimate_bpm(_bpm_pulse_samples(100.0, beat_times=irregular_times), 8000)
+    base_times = [index * 0.6 for index in range(30)]
+    jitter_pattern = [0.0, 0.07, -0.07, 0.035, -0.035]
+    moderately_irregular = estimate_bpm(_bpm_pulse_samples(100.0, beat_times=[value + jitter_pattern[index % len(jitter_pattern)] for index, value in enumerate(base_times)]), 8000)
+    short = estimate_bpm(_bpm_pulse_samples(120.0, duration=3.0), 8000)
+    assert_true(quiet["bpm"] is not None and abs(float(quiet["bpm"]) - 100.0) <= 2.0 and quiet["bpm_confidence"] >= 0.45, "quiet rhythmic BPM detection failed")
+    assert_true(silence["bpm"] is None and sustained["bpm"] is None and isolated["bpm"] is None, "silence, sustained tone, or isolated transient produced a misleading BPM")
+    assert_true(short["bpm"] is None and short["bpm_status"] == "unavailable", "very short audio must not invent BPM")
+    assert_true(irregular["bpm"] is None or irregular["bpm_confidence"] < fixture_results[100]["bpm_confidence"], "irregular rhythm confidence was not reduced")
+    assert_true(moderately_irregular["bpm_status"] == "low_confidence" and moderately_irregular["bpm_confidence"] < fixture_results[100]["bpm_confidence"], "ambiguous rhythmic evidence must remain explicitly low confidence")
+    onset = build_onset_envelope(_bpm_pulse_samples(120.0), 8000)
+    assert_true(onset["ok"] and abs(float(onset["frame_sec"]) - 0.04) < 0.002 and abs(float(onset["hop_sec"]) - 0.01) < 0.002, "BPM onset frame/hop configuration failed")
+    return {
+        "fixtures": {str(bpm): {"bpm": result["bpm"], "confidence": result["bpm_confidence"]} for bpm, result in fixture_results.items()},
+        "quiet_confidence": quiet["bpm_confidence"],
+        "irregular_status": irregular["bpm_status"],
+        "low_confidence_example": moderately_irregular["bpm_confidence"],
+    }
+
+
 def _smart_cut_analysis(
     energies: list[float],
     *,
@@ -497,6 +571,7 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
 
     cold_fast = analyze_audio_source(stereo, context, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
     assert_true(cold_fast["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION and cold_fast["analysis_depth"] == "fast", "Audio Intelligence fast schema/depth failed")
+    assert_true(AUDIO_INTELLIGENCE_SCHEMA_VERSION == 3 and cold_fast["musical"] == {"bpm": None, "bpm_confidence": None, "bpm_method": None, "bpm_status": "unknown"} and cold_fast["performance"]["bpm_elapsed_ms"] == 0.0, "fast Audio Intelligence must expose unknown BPM without computing it")
     assert_true(cold_fast["metadata"]["status"] == "measured" and cold_fast["metadata"]["channels"] == 2 and cold_fast["metadata"]["sample_rate_hz"] == 48000, "stereo WAV fast metadata failed")
     assert_true(not cold_fast["cache"]["hit"] and cold_fast["performance"]["ffmpeg_runs"] == 0 and cold_fast["performance"]["pcm_analysis_runs"] == 0, "cold fast analysis cache/subprocess behavior failed")
     warm_fast = analyze_audio_source(stereo, context, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
@@ -505,8 +580,8 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     deep_source = fixture_root / "deep.wav"
     shutil.copy2(stereo, deep_source)
     cold_deep = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(cold_deep["analysis_depth"] == "deep" and {"loudness", "energy", "silence"}.issubset(set(cold_deep["completed_capabilities"])), "stereo WAV deep analysis failed")
-    assert_true(cold_deep["performance"]["ffmpeg_runs"] == 1 and cold_deep["performance"]["ffmpeg_loudness_runs"] == 1 and cold_deep["performance"]["pcm_analysis_runs"] == 1 and cold_deep["loudness"]["method"] == "ffmpeg_loudnorm", "deep analysis must use one loudness run and one shared PCM decode")
+    assert_true(cold_deep["analysis_depth"] == "deep" and {"loudness", "energy", "silence", "musical"}.issubset(set(cold_deep["completed_capabilities"])), "stereo WAV deep analysis failed")
+    assert_true(cold_deep["performance"]["ffmpeg_runs"] == 1 and cold_deep["performance"]["ffmpeg_loudness_runs"] == 1 and cold_deep["performance"]["pcm_analysis_runs"] == 1 and cold_deep["performance"]["bpm_decode_runs"] == 0 and cold_deep["loudness"]["method"] == "ffmpeg_loudnorm", "deep analysis must use one loudness run and one shared PCM decode")
     assert_true(all(cold_deep["loudness"][key] is not None for key in ("integrated_lufs", "true_peak_dbtp", "lra_lu")), "deep loudness metrics missing")
     assert_true(cold_deep["energy"]["status"] == "ok" and cold_deep["energy"]["profile"] and cold_deep["silence"]["status"] == "ok", "deep energy/silence metrics missing")
     warm_deep = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
@@ -519,7 +594,7 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     short_deep = analyze_audio_source(short, {**context, "path_role": "short"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
     assert_true(short_deep["metadata"]["duration_sec"] is not None and len(short_deep["energy"]["profile"]) == 1 and isinstance(short_deep["warnings"], list), "short audio handling failed")
     silent_deep = analyze_audio_source(silent, {**context, "path_role": "silent"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(silent_deep["loudness"]["integrated_lufs"] is None and silent_deep["loudness"]["true_peak_dbtp"] is None, "silent audio unknown values must remain null")
+    assert_true(silent_deep["loudness"]["integrated_lufs"] is None and silent_deep["loudness"]["true_peak_dbtp"] is None and silent_deep["musical"]["bpm"] is None, "silent audio unknown values must remain null")
     assert_true(all(point["normalized"] == 0.0 for point in silent_deep["energy"]["profile"]) and silent_deep["silence"]["leading_sec"] >= 0.35 and silent_deep["silence"]["trailing_sec"] >= 0.35, "full-silence energy/boundary handling failed")
 
     ffmpeg = find_ffmpeg()
@@ -530,6 +605,21 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     assert_true(mp3_deep["metadata"]["codec"] == "mp3" and mp3_deep["loudness"]["status"] == "measured" and mp3_deep["energy"]["profile"] and mp3_deep["performance"]["pcm_analysis_runs"] == 1, "MP3 deep analysis failed")
 
     fake_loudness = lambda _path, _ffmpeg: {"ok": True, "output": '{"input_i":"-18.0","input_tp":"-1.2","input_lra":"7.0"}', "error": ""}
+
+    rhythmic_wav = fixture_root / "rhythmic_120_stereo.wav"
+    _write_bpm_pulse_wav(rhythmic_wav, 120.0, channels=2)
+    rhythmic_context = {**context, "path_role": "rhythmic_120_wav"}
+    rhythmic_deep = analyze_audio_source(rhythmic_wav, rhythmic_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
+    rhythmic_musical = rhythmic_deep["musical"]
+    assert_true(rhythmic_musical["bpm_status"] == "ok" and abs(float(rhythmic_musical["bpm"]) - 120.0) <= 2.0 and rhythmic_musical["bpm_method"] == BPM_METHOD, "Audio Intelligence stereo WAV measured BPM integration failed")
+    assert_true(rhythmic_deep["performance"]["pcm_analysis_runs"] == 1 and rhythmic_deep["performance"]["bpm_decode_runs"] == 0 and rhythmic_deep["performance"]["bpm_elapsed_ms"] > 0, "BPM must reuse the shared PCM analysis without another decode")
+    rhythmic_warm = analyze_audio_source(rhythmic_wav, rhythmic_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
+    assert_true(rhythmic_warm["cache"]["hit"] and rhythmic_warm["musical"]["bpm"] == rhythmic_musical["bpm"] and rhythmic_warm["performance"]["bpm_decode_runs"] == 0 and rhythmic_warm["performance"]["bpm_elapsed_ms"] == 0.0, "warm deep BPM cache reuse failed")
+    rhythmic_mp3 = fixture_root / "rhythmic_120.mp3"
+    rhythmic_mp3_process = subprocess.run([ffmpeg, "-y", "-i", str(rhythmic_wav), "-c:a", "libmp3lame", "-b:a", "192k", str(rhythmic_mp3)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert_true(rhythmic_mp3_process.returncode == 0 and rhythmic_mp3.is_file(), "rhythmic MP3 fixture generation failed")
+    rhythmic_mp3_deep = analyze_audio_source(rhythmic_mp3, {**context, "path_role": "rhythmic_120_mp3"}, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
+    assert_true(rhythmic_mp3_deep["metadata"]["codec"] == "mp3" and rhythmic_mp3_deep["musical"]["bpm"] is not None and abs(float(rhythmic_mp3_deep["musical"]["bpm"]) - 120.0) <= 2.0, "Audio Intelligence MP3 measured BPM integration failed")
 
     def analyze_signal_fixture(name: str, segments: list[tuple[float, float]], *, channels: int = 2) -> dict[str, Any]:
         fixture = fixture_root / f"{name}.wav"
@@ -628,7 +718,7 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     old_deep_payload.pop("silence", None)
     old_deep_cache.write_text(json.dumps(old_deep_payload), encoding="utf-8")
     old_deep_rebuilt = analyze_audio_source(old_deep_source, old_deep_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
-    assert_true(not old_deep_rebuilt["cache"]["hit"] and old_deep_rebuilt["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION and old_deep_rebuilt["performance"]["pcm_analysis_runs"] == 1 and {"energy", "silence"}.issubset(set(old_deep_rebuilt["completed_capabilities"])), "old deep analyzer cache did not rebuild Phase 2D capabilities")
+    assert_true(not old_deep_rebuilt["cache"]["hit"] and old_deep_rebuilt["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION and old_deep_rebuilt["performance"]["pcm_analysis_runs"] == 1 and {"energy", "silence", "musical"}.issubset(set(old_deep_rebuilt["completed_capabilities"])), "old deep analyzer cache did not rebuild current deep capabilities")
 
     parsed = parse_loudnorm_output('noise\n{"input_i":"-14.25","input_tp":"-0.82","input_lra":"6.40"}\n')
     assert_true(parsed["integrated_lufs"] == -14.25 and parsed["true_peak_dbtp"] == -0.82 and parsed["lra_lu"] == 6.4, "loudnorm LUFS/True Peak/LRA parsing failed")
@@ -658,7 +748,7 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
         _loudness_runner=fake_loudness,
         _pcm_runner=lambda _path, _ffmpeg: {"ok": False, "samples": array("h"), "sample_rate": 8000, "error": "simulated_pcm_failure"},
     )
-    assert_true(failed_signal["energy"]["status"] == "unknown" and failed_signal["silence"]["leading_sec"] is None and "simulated_pcm_failure" in failed_signal["errors"], "PCM analysis failure must preserve unknown energy/silence values")
+    assert_true(failed_signal["energy"]["status"] == "unknown" and failed_signal["silence"]["leading_sec"] is None and failed_signal["musical"]["bpm_status"] == "unavailable" and "simulated_pcm_failure" in failed_signal["errors"], "PCM analysis failure must preserve unknown energy/silence and unavailable BPM values")
 
     performance = {
         "cold_fast": dict(cold_fast["performance"]),
@@ -666,14 +756,15 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
         "warm_fast": dict(warm_fast["performance"]),
         "warm_deep": dict(warm_deep["performance"]),
     }
-    assert_true(performance["cold_deep"]["ffmpeg_loudness_runs"] == 1 and performance["cold_deep"]["pcm_analysis_runs"] == 1, "cold deep Phase 2D performance regression")
-    assert_true(performance["warm_deep"]["ffmpeg_loudness_runs"] == 0 and performance["warm_deep"]["pcm_analysis_runs"] == 0, "warm deep performance regression")
+    assert_true(performance["cold_deep"]["ffmpeg_loudness_runs"] == 1 and performance["cold_deep"]["pcm_analysis_runs"] == 1 and performance["cold_deep"]["bpm_decode_runs"] == 0, "cold deep Audio Intelligence performance regression")
+    assert_true(performance["warm_deep"]["ffmpeg_loudness_runs"] == 0 and performance["warm_deep"]["pcm_analysis_runs"] == 0 and performance["warm_deep"]["bpm_decode_runs"] == 0, "warm deep performance regression")
     return performance
 
 
 def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
+    bpm_detection_results = run_bpm_detection_smoke()
     smart_cut_performance = run_smart_cut_smoke()
     audio_intelligence_performance = run_audio_intelligence_smoke(out)
     local_policy = access_gate_policy({"VELAFLOW_MODE": "LOCAL"}, configured_password="")
@@ -4706,7 +4797,7 @@ def main():
     assert_true(job.get("status") == "DONE", "job queue lifecycle failed")
     assert_true((job.get("result") or {}).get("ok") is True, "job result failed")
 
-    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
