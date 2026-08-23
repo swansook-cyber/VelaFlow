@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from core.motion_engine import select_motion
 from core.audio_analysis import beats_in_range
+from core.beat_timing_engine import create_visual_rhythm_plan, resolve_visual_rhythm
 
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".webm", ".mkv"}
@@ -115,7 +116,14 @@ def _timeline_intelligence(scene: Dict[str, Any], duration: float, motion: str, 
     }
 
 
-def build_timeline(project: Dict[str, Any], render_dir: str | Path, motion_style: str = "auto", beat_map: Dict[str, Any] | None = None, beat_sync: bool = False) -> Dict[str, Any]:
+def build_timeline(
+    project: Dict[str, Any],
+    render_dir: str | Path,
+    motion_style: str = "auto",
+    beat_map: Dict[str, Any] | None = None,
+    beat_sync: bool = False,
+    audio_intelligence: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     render_path = Path(render_dir)
     storyboard = ((project.get("mv", {}) or {}).get("storyboard", []) or [])
     if not storyboard:
@@ -132,6 +140,8 @@ def build_timeline(project: Dict[str, Any], render_dir: str | Path, motion_style
             }
         ]
 
+    rhythm = resolve_visual_rhythm(audio_intelligence)
+    measured_rhythm_active = rhythm["rhythm_source"] == "measured_bpm"
     timeline: List[Dict[str, Any]] = []
     start_time = 0.0
     for index, scene in enumerate(storyboard):
@@ -142,7 +152,7 @@ def build_timeline(project: Dict[str, Any], render_dir: str | Path, motion_style
         motion = select_motion(scene, motion_style)
         intelligence = _timeline_intelligence(scene, duration, motion, scene.get("transition", ""), len(scene_beats))
         duration = intelligence["duration_seconds"]
-        if beat_sync and scene_beats:
+        if beat_sync and scene_beats and not measured_rhythm_active:
             last_beat = scene_beats[-1]["time"]
             duration = max(1.0, round(last_beat - start_time, 3))
             intelligence["edit_intelligence"] += "; duration snapped to beat"
@@ -168,11 +178,32 @@ def build_timeline(project: Dict[str, Any], render_dir: str | Path, motion_style
         timeline.append(item)
         start_time += duration
 
+    rhythm_plan = create_visual_rhythm_plan(
+        [item["duration_seconds"] for item in timeline],
+        total_duration=((audio_intelligence or {}).get("metadata") or {}).get("duration_sec"),
+        audio_intelligence=audio_intelligence,
+    )
+    if rhythm_plan["rhythm_source"] == "measured_bpm" and rhythm_plan.get("durations"):
+        for index, item in enumerate(timeline):
+            scene_start = float(rhythm_plan["boundaries"][index])
+            scene_end = float(rhythm_plan["boundaries"][index + 1])
+            scene_beats = beats_in_range(beat_map or {}, scene_start, scene_end)
+            item["start_time"] = round(scene_start, 3)
+            item["duration_seconds"] = round(float(rhythm_plan["durations"][index]), 3)
+            item["beat_count"] = len(scene_beats)
+            item["beat_times"] = [beat["time"] for beat in scene_beats[:12]]
+            item["audio_reactive_strength"] = round(max([beat.get("strength", 0) for beat in scene_beats] or [0]), 3)
+            item["rhythm_source"] = "measured_bpm"
+            item["rhythm_phrase_beats"] = (rhythm_plan.get("snaps") or [{}])[index].get("phrase_beats") if index < len(rhythm_plan.get("snaps") or []) else None
+            item["edit_intelligence"] += "; tempo-aware phrase duration"
+        start_time = float(rhythm_plan["boundaries"][-1])
+
     data = {
         "project": project.get("title", ""),
         "total_duration_seconds": round(start_time, 3),
         "scene_count": len(timeline),
         "items": timeline,
+        "rhythm": {key: value for key, value in rhythm_plan.items() if key != "energy_profile"},
     }
     output = render_path / "timeline.json"
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

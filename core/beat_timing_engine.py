@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,142 @@ MOTION_SYNC_SEQUENCE = [
     "bass_hit_shake",
     "cinematic_fade_timing",
 ]
+
+VISUAL_BPM_CONFIDENCE_THRESHOLD = 0.70
+VISUAL_RHYTHM_MIN_SCENE_SECONDS = 1.0
+VISUAL_RHYTHM_MAX_SNAP_SECONDS = 0.50
+VISUAL_RHYTHM_MAX_SNAP_RATIO = 0.15
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and number not in {float("inf"), float("-inf")} else None
+
+
+def resolve_visual_rhythm(
+    audio_intelligence: dict[str, Any] | None,
+    *,
+    confidence_threshold: float = VISUAL_BPM_CONFIDENCE_THRESHOLD,
+) -> dict[str, Any]:
+    """Resolve measured tempo without treating generated/design BPM as audio evidence."""
+    analysis = audio_intelligence if isinstance(audio_intelligence, dict) else {}
+    musical = analysis.get("musical") if isinstance(analysis.get("musical"), dict) else {}
+    energy = analysis.get("energy") if isinstance(analysis.get("energy"), dict) else {}
+    bpm = _finite_float(musical.get("bpm"))
+    confidence = _finite_float(musical.get("bpm_confidence")) or 0.0
+    status = str(musical.get("bpm_status") or "unavailable").strip().lower()
+    reliable = status == "ok" and bpm is not None and 40.0 <= bpm <= 240.0 and confidence >= confidence_threshold
+    profile = energy.get("profile") if energy.get("status") == "ok" and isinstance(energy.get("profile"), list) else []
+    return {
+        "rhythm_source": "measured_bpm" if reliable else "fallback",
+        "measured_bpm": round(bpm, 3) if bpm is not None else None,
+        "bpm_confidence": round(confidence, 4),
+        "bpm_status": status,
+        "confidence_threshold": confidence_threshold,
+        "beat_interval_seconds": round(60.0 / bpm, 6) if reliable and bpm else None,
+        "energy_profile": profile,
+        "tempo_phase_known": False,
+    }
+
+
+def _energy_at(profile: list[dict[str, Any]], time_seconds: float) -> float | None:
+    values: list[float] = []
+    for point in profile:
+        start = _finite_float(point.get("start_sec"))
+        end = _finite_float(point.get("end_sec"))
+        normalized = _finite_float(point.get("normalized"))
+        if start is None or end is None or normalized is None:
+            continue
+        if start <= time_seconds < end or (time_seconds == end and end == start):
+            values.append(max(0.0, min(1.0, normalized)))
+    return sum(values) / len(values) if values else None
+
+
+def _phrase_quantum_beats(energy: float | None) -> tuple[int, str]:
+    if energy is not None and energy >= 0.67:
+        return 2, "high"
+    if energy is not None and energy <= 0.33:
+        return 8, "low"
+    return 4, "medium"
+
+
+def create_visual_rhythm_plan(
+    target_durations: list[float | int],
+    *,
+    total_duration: float | int | None,
+    audio_intelligence: dict[str, Any] | None,
+    confidence_threshold: float = VISUAL_BPM_CONFIDENCE_THRESHOLD,
+) -> dict[str, Any]:
+    """Snap scene boundaries to tempo-sized phrases while conserving audio duration.
+
+    BPM supplies tempo only. Boundaries are duration-aligned from zero and are not
+    represented as detected beats or downbeats.
+    """
+    started = time.perf_counter()
+    rhythm = resolve_visual_rhythm(audio_intelligence, confidence_threshold=confidence_threshold)
+    targets = [max(VISUAL_RHYTHM_MIN_SCENE_SECONDS, float(value or 0.0)) for value in target_durations]
+    source_duration = _finite_float(total_duration)
+    if not targets:
+        return {**rhythm, "durations": [], "boundaries": [0.0], "snaps": [], "elapsed_ms": 0.0}
+    if rhythm["rhythm_source"] != "measured_bpm" or source_duration is None or source_duration <= 0:
+        return {
+            **rhythm,
+            "durations": [round(value, 3) for value in targets],
+            "boundaries": [],
+            "snaps": [],
+            "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 3),
+        }
+
+    minimum_scene_seconds = min(VISUAL_RHYTHM_MIN_SCENE_SECONDS, source_duration / len(targets))
+    target_total = sum(targets)
+    scaled = [value * source_duration / target_total for value in targets]
+    beat_interval = float(rhythm["beat_interval_seconds"])
+    profile = rhythm.get("energy_profile") or []
+    boundaries = [0.0]
+    snaps: list[dict[str, Any]] = []
+    cumulative_target = 0.0
+    for index, duration in enumerate(scaled[:-1]):
+        cumulative_target += duration
+        midpoint = boundaries[-1] + duration / 2.0
+        energy = _energy_at(profile, midpoint)
+        quantum_beats, energy_level = _phrase_quantum_beats(energy)
+        quantum_seconds = beat_interval * quantum_beats
+        snapped = round(cumulative_target / quantum_seconds) * quantum_seconds
+        tolerance = min(VISUAL_RHYTHM_MAX_SNAP_SECONDS, max(0.08, duration * VISUAL_RHYTHM_MAX_SNAP_RATIO))
+        remaining = len(scaled) - index - 1
+        minimum_boundary = boundaries[-1] + minimum_scene_seconds
+        maximum_boundary = source_duration - remaining * minimum_scene_seconds
+        use_snap = abs(snapped - cumulative_target) <= tolerance and minimum_boundary <= snapped <= maximum_boundary
+        boundary = snapped if use_snap else cumulative_target
+        boundary = max(minimum_boundary, min(maximum_boundary, boundary))
+        boundaries.append(boundary)
+        snaps.append(
+            {
+                "scene_index": index,
+                "target_boundary": round(cumulative_target, 6),
+                "resolved_boundary": round(boundary, 6),
+                "adjustment_seconds": round(boundary - cumulative_target, 6),
+                "max_adjustment_seconds": round(tolerance, 6),
+                "phrase_beats": quantum_beats,
+                "energy_level": energy_level,
+                "snapped": use_snap,
+            }
+        )
+    boundaries.append(source_duration)
+    durations = [boundaries[index + 1] - boundaries[index] for index in range(len(targets))]
+    return {
+        **rhythm,
+        "duration_source": "audio_intelligence",
+        "duration_seconds": round(source_duration, 6),
+        "durations": [round(value, 6) for value in durations],
+        "boundaries": [round(value, 6) for value in boundaries],
+        "snaps": snaps,
+        "max_snap_seconds": VISUAL_RHYTHM_MAX_SNAP_SECONDS,
+        "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 3),
+    }
 
 
 def _safe_duration(value: Any, fallback: float = 15.0) -> float:

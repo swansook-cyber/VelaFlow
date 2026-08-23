@@ -116,7 +116,7 @@ from core.production_quality_checks import build_lyrics_improvement_prompt, chec
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
-from core.beat_timing_engine import create_beat_timing_plan
+from core.beat_timing_engine import VISUAL_BPM_CONFIDENCE_THRESHOLD, create_beat_timing_plan, create_visual_rhythm_plan, resolve_visual_rhythm
 from core.beat_timing_engine import create_affiliate_retention_timing
 from core.scene_prompt_engine import build_scene_prompt
 from core.subtitle_engine import generate_styled_subtitles, get_viral_subtitle_preset, list_viral_subtitle_presets, mode_for_preset
@@ -470,6 +470,92 @@ def run_bpm_detection_smoke() -> dict[str, Any]:
     }
 
 
+def _visual_rhythm_analysis(
+    bpm: float | None,
+    confidence: float,
+    status: str,
+    *,
+    duration: float = 12.3,
+    energy: float | None = 0.5,
+) -> dict[str, Any]:
+    profile = [] if energy is None else [{"start_sec": 0.0, "end_sec": duration, "normalized": energy}]
+    return {
+        "metadata": {"duration_sec": duration},
+        "musical": {"bpm": bpm, "bpm_confidence": confidence, "bpm_status": status},
+        "energy": {"status": "ok" if profile else "unknown", "profile": profile},
+        "cache": {"hit": True},
+        "performance": {
+            "ffprobe_runs": 0,
+            "ffmpeg_runs": 0,
+            "ffmpeg_loudness_runs": 0,
+            "pcm_analysis_runs": 0,
+            "bpm_decode_runs": 0,
+        },
+    }
+
+
+def run_visual_rhythm_smoke(out: Path) -> dict[str, Any]:
+    targets = [4.1, 4.1, 4.1]
+    measured_120 = _visual_rhythm_analysis(120.0, 0.92, "ok")
+    measured_90 = _visual_rhythm_analysis(90.0, 0.88, "ok")
+    plan_120 = create_visual_rhythm_plan(targets, total_duration=12.3, audio_intelligence=measured_120)
+    plan_90 = create_visual_rhythm_plan(targets, total_duration=12.3, audio_intelligence=measured_90)
+    assert_true(plan_120["rhythm_source"] == "measured_bpm" and abs(plan_120["beat_interval_seconds"] - 0.5) < 0.0001, "120 BPM measured rhythm did not activate")
+    assert_true(plan_90["rhythm_source"] == "measured_bpm" and abs(plan_90["beat_interval_seconds"] - (2.0 / 3.0)) < 0.001, "90 BPM measured rhythm interval failed")
+    assert_true(plan_120["durations"] != plan_90["durations"], "measured BPM did not materially affect rhythm-aware durations")
+
+    fallback_targets = [3.2, 4.4, 5.1]
+    for analysis in [
+        _visual_rhythm_analysis(110.0, 0.69, "ok", duration=12.7),
+        _visual_rhythm_analysis(110.0, 0.55, "low_confidence", duration=12.7),
+        _visual_rhythm_analysis(None, 0.0, "unavailable", duration=12.7, energy=None),
+        _visual_rhythm_analysis(None, 0.0, "error", duration=12.7, energy=None),
+    ]:
+        fallback = create_visual_rhythm_plan(fallback_targets, total_duration=12.7, audio_intelligence=analysis)
+        assert_true(fallback["rhythm_source"] == "fallback" and fallback["durations"] == fallback_targets, "unreliable BPM changed fallback timing")
+    assert_true(VISUAL_BPM_CONFIDENCE_THRESHOLD == 0.70, "Visual BPM confidence gate changed unexpectedly")
+
+    high_bpm = create_visual_rhythm_plan([1.1, 1.1, 1.1], total_duration=3.3, audio_intelligence=_visual_rhythm_analysis(200.0, 0.95, "ok", duration=3.3, energy=0.9))
+    low_bpm = create_visual_rhythm_plan([2.0, 2.0, 2.0], total_duration=6.0, audio_intelligence=_visual_rhythm_analysis(55.0, 0.95, "ok", duration=6.0, energy=0.1))
+    assert_true(min(high_bpm["durations"]) >= 1.0 and max(low_bpm["durations"]) <= 3.0, "valid extreme BPM produced unusable scene durations")
+
+    high_energy = create_visual_rhythm_plan([2.2, 2.2, 3.6], total_duration=8.0, audio_intelligence=_visual_rhythm_analysis(120.0, 0.95, "ok", duration=8.0, energy=0.9))
+    low_energy = create_visual_rhythm_plan([2.2, 2.2, 3.6], total_duration=8.0, audio_intelligence=_visual_rhythm_analysis(120.0, 0.95, "ok", duration=8.0, energy=0.1))
+    assert_true(high_energy["snaps"][0]["phrase_beats"] == 2 and low_energy["snaps"][0]["phrase_beats"] == 8, "energy did not guide phrase density")
+    assert_true(high_energy["durations"][0] <= low_energy["durations"][0], "high-energy timing was not at least as dense as low-energy timing")
+
+    for plan in [plan_120, plan_90, high_bpm, low_bpm, high_energy, low_energy]:
+        boundaries = plan["boundaries"]
+        assert_true(all(boundaries[index] < boundaries[index + 1] for index in range(len(boundaries) - 1)), "rhythm boundaries are not monotonic")
+        assert_true(abs(boundaries[-1] - plan["duration_seconds"]) <= 0.000001, "final rhythm boundary does not equal source duration")
+        assert_true(abs(sum(plan["durations"]) - plan["duration_seconds"]) <= 0.00001, "rhythm timing accumulated duration drift")
+        assert_true(all(abs(item["adjustment_seconds"]) <= item["max_adjustment_seconds"] + 0.000001 for item in plan["snaps"] if item["snapped"]), "rhythm snap exceeded bounded tolerance")
+
+    visual_project = {
+        "title": "Visual Rhythm Smoke",
+        "song": {"bpm": 85},
+        "mv": {"storyboard": [
+            {"scene": 1, "duration_seconds": 4.1, "section": "verse", "transition": "fade"},
+            {"scene": 2, "duration_seconds": 4.1, "section": "chorus", "transition": "flash cut"},
+            {"scene": 3, "duration_seconds": 4.1, "section": "bridge", "transition": "blur dissolve"},
+        ]},
+        "assets": {},
+    }
+    timeline_dir = out / "visual_rhythm_timeline"
+    timeline_dir.mkdir(parents=True, exist_ok=True)
+    timeline = build_timeline(visual_project, timeline_dir, beat_sync=True, audio_intelligence=measured_120)
+    assert_true(timeline["rhythm"]["rhythm_source"] == "measured_bpm" and abs(timeline["total_duration_seconds"] - 12.3) <= 0.001, "Visual timeline did not consume measured rhythm or conserve duration")
+    items = timeline["items"]
+    for index in range(len(items) - 1):
+        end = items[index]["start_time"] + items[index]["duration_seconds"]
+        assert_true(abs(end - items[index + 1]["start_time"]) <= 0.001, "Visual timeline contains a gap or overlap")
+    assert_true(visual_project["song"]["bpm"] == 85, "measured Visual BPM modified Song Studio design BPM")
+    assert_true(measured_120["performance"] == {"ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0, "bpm_decode_runs": 0}, "warm rhythm planning added subprocess work")
+    synthetic = create_beat_timing_plan(total_duration=15, scene_count=3, pace="fast")
+    assert_true(synthetic["timing_profile"] and synthetic["beat_markers"], "synthetic Visual timing fallback was removed")
+    return {"cases": 20, "confidence_threshold": VISUAL_BPM_CONFIDENCE_THRESHOLD, "dual_tempo": [plan_120["durations"], plan_90["durations"]]}
+
+
 def _smart_cut_analysis(
     energies: list[float],
     *,
@@ -765,6 +851,7 @@ def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
     bpm_detection_results = run_bpm_detection_smoke()
+    visual_rhythm_results = run_visual_rhythm_smoke(out)
     smart_cut_performance = run_smart_cut_smoke()
     audio_intelligence_performance = run_audio_intelligence_smoke(out)
     local_policy = access_gate_policy({"VELAFLOW_MODE": "LOCAL"}, configured_password="")
@@ -4797,7 +4884,7 @@ def main():
     assert_true(job.get("status") == "DONE", "job queue lifecycle failed")
     assert_true((job.get("result") or {}).get("ok") is True, "job result failed")
 
-    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results, "visual_rhythm_results": visual_rhythm_results}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

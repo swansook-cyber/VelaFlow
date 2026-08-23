@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List
 
 from core.ffmpeg_utils import ASPECT_RATIOS, append_log, ffmpeg_available, normalize_scene_filter, run_ffmpeg, safe_concat_line
 from core.audio_analysis import analyze_audio
+from core.audio_intelligence import analyze_audio_source
 from core.color_pipeline import color_grade_filter
 from core.motion_engine import image_motion_filter
 from core.render_manifest import create_manifest, new_render_id, render_folder, save_manifest, update_manifest, write_assets_used
@@ -265,8 +266,20 @@ def run_render(
     save_manifest(manifest, render_dir)
     _progress(progress_callback, 3, "Building timeline")
     try:
+        audio_intelligence = options.get("audio_intelligence") if isinstance(options.get("audio_intelligence"), dict) else None
+        if audio_intelligence is None and audio_path:
+            source_context = options.get("audio_intelligence_context") or {
+                "kind": "visual_render",
+                "project_id": str(project.get("project_id") or project.get("path") or project.get("title") or ""),
+                "path_role": "active_visual_audio",
+            }
+            try:
+                audio_intelligence = analyze_audio_source(audio_path, source_context, depth="deep", ffmpeg_path=ffmpeg_path)
+            except Exception as error:
+                append_log(log_path, f"[WARN] Audio Intelligence unavailable; using visual fallback timing: {error}")
+                audio_intelligence = None
         beat_map = analyze_audio(audio_path, ffmpeg_path, render_dir) if audio_path else {"ok": False, "data": {"beats": []}, "error": "no audio"}
-        timeline_data = build_timeline(project, render_dir, motion_style, beat_map=beat_map, beat_sync=beat_sync)
+        timeline_data = build_timeline(project, render_dir, motion_style, beat_map=beat_map, beat_sync=beat_sync, audio_intelligence=audio_intelligence)
         timeline = timeline_data.get("items", [])
         write_assets_used(render_dir, timeline, project)
         subtitle_result = generate_subtitles(timeline, render_dir, subtitle_mode)
