@@ -3,82 +3,155 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- WaveSurfer.js 7.12.11, BSD-3-Clause, vendored locally for offline-safe use. -->
+  <script src="./vendor/wavesurfer-7.12.11.min.js"></script>
+  <script src="./vendor/regions-7.12.11.min.js"></script>
   <style>
     :root {
       color-scheme: dark;
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      background: #0b1220;
+      background: transparent;
       color: #e5eef8;
       overflow: hidden;
     }
-    .wrap {
+    .shell {
+      width: 100%;
+      min-width: 0;
+      padding: 10px;
       border: 1px solid #22314d;
       border-radius: 10px;
       background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
-      padding: 10px 10px 8px;
       user-select: none;
-      touch-action: pan-y;
+      overflow: hidden;
     }
-    canvas {
-      display: block;
+    #waveform {
       width: 100%;
-      height: 250px;
+      min-width: 0;
+      min-height: 180px;
       border-radius: 8px;
       background: #0b1220;
-      cursor: crosshair;
+      overflow: hidden;
+      touch-action: pan-y;
+    }
+    #waveform ::part(region) {
+      border: 2px solid rgba(74, 222, 128, 0.95);
+      border-radius: 4px;
+    }
+    #waveform ::part(region-handle) {
+      width: 44px !important;
+      min-width: 44px !important;
+      opacity: 1;
+      border-color: transparent !important;
       touch-action: none;
     }
-    .meta {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      padding-top: 8px;
-      font-size: 13px;
-      color: #cbd5e1;
-      flex-wrap: wrap;
+    #waveform ::part(region-handle-left) {
+      border-left: 4px solid #f8fafc !important;
     }
-    .pill {
+    #waveform ::part(region-handle-right) {
+      border-right: 4px solid #f8fafc !important;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 8px;
+    }
+    .metric {
+      min-width: 0;
+      padding: 7px 8px;
       border: 1px solid #2d3d5f;
-      border-radius: 999px;
-      padding: 4px 9px;
-      background: rgba(15, 23, 42, 0.8);
+      border-radius: 7px;
+      background: rgba(15, 23, 42, 0.82);
+    }
+    .metric span {
+      display: block;
+      color: #94a3b8;
+      font-size: 11px;
+      line-height: 1.1;
+    }
+    .metric strong {
+      display: block;
+      margin-top: 3px;
+      color: #f8fafc;
+      font-size: 14px;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    button {
+      min-height: 44px;
+      border: 1px solid #3b4c6b;
+      border-radius: 7px;
+      background: #162238;
+      color: #f8fafc;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:active { background: #1f3150; }
+    button:disabled { cursor: default; opacity: 0.48; }
+    .message {
+      display: none;
+      margin-top: 7px;
+      color: #fbbf24;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    @media (max-width: 430px) {
+      .shell { padding: 8px; }
+      #waveform { min-height: 158px; }
+      .metric { padding: 6px; }
+      .metric strong { font-size: 13px; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <canvas id="waveform"></canvas>
-    <div class="meta">
-      <span class="pill" id="startLabel">Start 0:00</span>
-      <span class="pill" id="endLabel">End 0:00</span>
-      <span class="pill" id="durationLabel">Duration 0:00</span>
+  <div class="shell">
+    <div id="waveform" aria-label="Audio waveform selection"></div>
+    <div class="meta" aria-live="polite">
+      <div class="metric"><span>Start</span><strong id="startLabel">00:00.0</strong></div>
+      <div class="metric"><span>End</span><strong id="endLabel">00:01.0</strong></div>
+      <div class="metric"><span>Length</span><strong id="durationLabel">00:01.0</strong></div>
     </div>
+    <div class="controls">
+      <button id="playButton" type="button">Play</button>
+      <button id="selectionButton" type="button">Play Selection</button>
+    </div>
+    <div class="message" id="message" role="status"></div>
   </div>
+
   <script>
-    const canvas = document.getElementById("waveform");
-    const ctx = canvas.getContext("2d");
+    const WAVE_SURFER_VERSION = "7.12.11";
+    const waveformHost = document.getElementById("waveform");
     const startLabel = document.getElementById("startLabel");
     const endLabel = document.getElementById("endLabel");
     const durationLabel = document.getElementById("durationLabel");
+    const playButton = document.getElementById("playButton");
+    const selectionButton = document.getElementById("selectionButton");
+    const message = document.getElementById("message");
 
-    let args = {points: [], duration: 0, start: 0, end: 1};
-    let start = 0;
-    let end = 1;
-    let dragging = null;
-    let dragOffset = 0;
-    let regionDuration = 1;
-    let pointerDownX = 0;
+    let wavesurfer = null;
+    let regionsPlugin = null;
+    let selectionRegion = null;
+    let activeSourceId = "";
+    let activeArgs = {};
+    let interactionActive = false;
+    let selectionPlayback = false;
+    let subscriptions = [];
     const minGap = 0.1;
 
     function send(type, value) {
-      window.parent.postMessage({
-        isStreamlitMessage: true,
-        type,
-        ...value
-      }, "*");
+      window.parent.postMessage({isStreamlitMessage: true, type, ...value}, "*");
     }
 
     function setComponentValue(value) {
@@ -94,209 +167,226 @@
       setFrameHeight();
     }
 
-    function fmt(seconds) {
-      seconds = Math.max(0, Number(seconds) || 0);
-      const m = Math.floor(seconds / 60);
-      const s = seconds - m * 60;
-      return `${m}:${s.toFixed(1).padStart(4, "0")}`;
+    function clamp(value, minimum, maximum) {
+      return Math.max(minimum, Math.min(maximum, Number(value) || 0));
     }
 
-    function clamp(v, lo, hi) {
-      return Math.max(lo, Math.min(hi, v));
+    function normalizedSelection(startValue, endValue, durationValue) {
+      const duration = Math.max(minGap, Number(durationValue) || minGap);
+      const start = clamp(startValue, 0, Math.max(0, duration - minGap));
+      const end = clamp(endValue, start + minGap, duration);
+      return {start, end};
     }
 
-    function xToTime(x) {
-      const rect = canvas.getBoundingClientRect();
-      return clamp(((x - rect.left) / Math.max(1, rect.width)) * args.duration, 0, args.duration);
+    function formatTime(seconds) {
+      const value = Math.max(0, Number(seconds) || 0);
+      const minutes = Math.floor(value / 60);
+      const remainder = value - minutes * 60;
+      return `${String(minutes).padStart(2, "0")}:${remainder.toFixed(1).padStart(4, "0")}`;
     }
 
-    function timeToX(t) {
-      return (clamp(t, 0, args.duration) / Math.max(0.001, args.duration)) * canvas.width;
+    function updateLabels(region = selectionRegion) {
+      const start = Number(region?.start ?? activeArgs.start ?? 0);
+      const end = Number(region?.end ?? activeArgs.end ?? Math.min(1, activeArgs.duration || 1));
+      startLabel.textContent = formatTime(start);
+      endLabel.textContent = formatTime(end);
+      durationLabel.textContent = formatTime(Math.max(0, end - start));
     }
 
-    function syncLabels() {
-      startLabel.textContent = `Start ${fmt(start)}`;
-      endLabel.textContent = `End ${fmt(end)}`;
-      durationLabel.textContent = `Duration ${fmt(end - start)}`;
+    function showMessage(text) {
+      message.textContent = text || "";
+      message.style.display = text ? "block" : "none";
+      setFrameHeight();
     }
 
-    function draw() {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      const width = Math.max(320, Math.floor(rect.width * dpr));
-      const height = Math.max(220, Math.floor(250 * dpr));
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = "#0b1220";
-      ctx.fillRect(0, 0, width, height);
-
-      const rulerH = 34 * dpr;
-      const waveTop = 12 * dpr;
-      const waveBottom = height - rulerH - 8 * dpr;
-      const baseY = (waveTop + waveBottom) / 2;
-      const usableH = (waveBottom - waveTop) * 0.46;
-      const points = Array.isArray(args.points) ? args.points : [];
-      const barW = Math.max(1, width / Math.max(1, points.length));
-
-      ctx.fillStyle = "#38bdf8";
-      for (let i = 0; i < points.length; i++) {
-        const amp = clamp(Number(points[i]) || 0, 0, 1);
-        const h = Math.max(1 * dpr, amp * usableH);
-        ctx.globalAlpha = 0.75;
-        ctx.fillRect(i * barW, baseY - h, Math.max(1, barW * 0.82), h * 2);
-      }
-      ctx.globalAlpha = 1;
-
-      const sx = timeToX(start);
-      const ex = timeToX(end);
-      ctx.fillStyle = "rgba(34, 197, 94, 0.26)";
-      ctx.fillRect(sx, waveTop, Math.max(0, ex - sx), waveBottom - waveTop);
-      ctx.strokeStyle = "rgba(34, 197, 94, 0.9)";
-      ctx.lineWidth = 2 * dpr;
-      ctx.strokeRect(sx, waveTop, Math.max(0, ex - sx), waveBottom - waveTop);
-
-      drawHandle(sx, "#f8fafc", dpr, waveTop, waveBottom);
-      drawHandle(ex, "#f8fafc", dpr, waveTop, waveBottom);
-
-      ctx.strokeStyle = "#334155";
-      ctx.fillStyle = "#b7c5d5";
-      ctx.lineWidth = 1 * dpr;
-      ctx.font = `${12 * dpr}px Arial`;
-      const step = args.duration <= 180 ? 15 : 30;
-      for (let t = 0; t <= args.duration + 0.01; t += step) {
-        const x = timeToX(t);
-        ctx.beginPath();
-        ctx.moveTo(x, height - rulerH + 4 * dpr);
-        ctx.lineTo(x, height - rulerH + 14 * dpr);
-        ctx.stroke();
-        ctx.fillText(fmt(t).slice(0, 5), x + 3 * dpr, height - 8 * dpr);
-      }
-      syncLabels();
+    function updatePlaybackButtons() {
+      const ready = Boolean(wavesurfer && activeArgs.audio_url);
+      playButton.disabled = !ready;
+      selectionButton.disabled = !ready || !selectionRegion;
+      playButton.textContent = wavesurfer?.isPlaying() ? "Pause" : "Play";
     }
 
-    function drawHandle(x, color, dpr, top, bottom) {
-      ctx.strokeStyle = color;
-      ctx.fillStyle = color;
-      ctx.lineWidth = 3 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(x, top);
-      ctx.lineTo(x, bottom);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.roundRect(x - 10 * dpr, top + 8 * dpr, 20 * dpr, 42 * dpr, 8 * dpr);
-      ctx.fill();
-      ctx.fillStyle = "#0f172a";
-      ctx.fillRect(x - 3 * dpr, top + 18 * dpr, 2 * dpr, 22 * dpr);
-      ctx.fillRect(x + 3 * dpr, top + 18 * dpr, 2 * dpr, 22 * dpr);
-    }
-
-    function emit(status) {
+    function commitSelection(region) {
+      if (!region || !activeSourceId) return;
       setComponentValue({
-        start: Number(start.toFixed(3)),
-        end: Number(end.toFixed(3)),
-        duration: Number((end - start).toFixed(3)),
-        status
+        start: Number(region.start.toFixed(3)),
+        end: Number(region.end.toFixed(3)),
+        source_id: activeSourceId,
+        event: "selection_committed"
       });
     }
 
-    function chooseDragMode(x) {
-      const sx = timeToX(start) / (window.devicePixelRatio || 1);
-      const ex = timeToX(end) / (window.devicePixelRatio || 1);
-      const threshold = 22;
-      if (Math.abs(x - sx) <= threshold) return "start";
-      if (Math.abs(x - ex) <= threshold) return "end";
-      if (x > sx && x < ex) return "region";
-      return "new";
+    function clearSubscriptions() {
+      subscriptions.forEach((unsubscribe) => {
+        try { unsubscribe(); } catch (_) {}
+      });
+      subscriptions = [];
     }
 
-    function onPointerDown(event) {
-      if (!args.duration) return;
-      canvas.setPointerCapture(event.pointerId);
-      event.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const t = xToTime(event.clientX);
-      pointerDownX = x;
-      dragging = chooseDragMode(x);
-      regionDuration = end - start;
-      if (dragging === "start") {
-        dragOffset = t - start;
-      } else if (dragging === "end") {
-        dragOffset = t - end;
-      } else if (dragging === "region") {
-        dragOffset = t - start;
-      } else {
-        start = t;
-        end = clamp(t + minGap, 0, args.duration);
-        dragging = "new";
+    function destroyWaveSurfer() {
+      clearSubscriptions();
+      selectionRegion = null;
+      regionsPlugin = null;
+      selectionPlayback = false;
+      if (wavesurfer) {
+        try { wavesurfer.pause(); } catch (_) {}
+        try { wavesurfer.destroy(); } catch (_) {}
       }
-      draw();
-      emit("Dragging");
+      wavesurfer = null;
+      waveformHost.replaceChildren();
+      updatePlaybackButtons();
     }
 
-    function onPointerMove(event) {
-      if (!dragging) return;
-      event.preventDefault();
-      const t = xToTime(event.clientX);
-      if (dragging === "start") {
-        start = clamp(t - dragOffset, 0, end - minGap);
-      } else if (dragging === "end") {
-        end = clamp(t - dragOffset, start + minGap, args.duration);
-      } else if (dragging === "region") {
-        const nextStart = clamp(t - dragOffset, 0, Math.max(0, args.duration - regionDuration));
-        start = nextStart;
-        end = clamp(nextStart + regionDuration, minGap, args.duration);
-      } else if (dragging === "new") {
-        const anchor = xToTime(pointerDownX + canvas.getBoundingClientRect().left);
-        start = Math.min(anchor, t);
-        end = Math.max(anchor + minGap, t);
-        start = clamp(start, 0, args.duration - minGap);
-        end = clamp(end, start + minGap, args.duration);
+    function addSelectionRegion() {
+      if (!regionsPlugin || selectionRegion) return;
+      if (!wavesurfer || wavesurfer.getDuration() <= 0) return;
+      const selection = normalizedSelection(activeArgs.start, activeArgs.end, activeArgs.duration);
+      selectionRegion = regionsPlugin.addRegion({
+        id: "velaflow-selection",
+        start: selection.start,
+        end: selection.end,
+        drag: true,
+        resize: true,
+        color: "rgba(34, 197, 94, 0.28)"
+      });
+      updateLabels();
+      updatePlaybackButtons();
+    }
+
+    function initializeWaveSurfer(nextArgs) {
+      destroyWaveSurfer();
+      activeArgs = nextArgs;
+      activeSourceId = String(nextArgs.source_id || "");
+      showMessage("");
+
+      if (!window.WaveSurfer?.create || !window.WaveSurfer?.Regions?.create) {
+        showMessage("Waveform playback is unavailable. Start, end, and export still work.");
+        updateLabels();
+        return;
       }
-      draw();
-      emit("Dragging");
+
+      const points = Array.isArray(nextArgs.points)
+        ? nextArgs.points.map((value) => clamp(Math.abs(Number(value) || 0), 0, 1))
+        : [];
+      try {
+        wavesurfer = window.WaveSurfer.create({
+          container: waveformHost,
+          url: nextArgs.audio_url || undefined,
+          peaks: points.length ? [points] : undefined,
+          duration: Number(nextArgs.duration) || undefined,
+          height: window.innerWidth <= 430 ? 158 : 180,
+          waveColor: "#38bdf8",
+          progressColor: "#0284c7",
+          cursorColor: "#f8fafc",
+          cursorWidth: 2,
+          barWidth: 2,
+          barGap: 1,
+          barRadius: 2,
+          normalize: false,
+          interact: true,
+          dragToSeek: false,
+          hideScrollbar: true,
+          autoScroll: false,
+          autoCenter: false
+        });
+        regionsPlugin = wavesurfer.registerPlugin(window.WaveSurfer.Regions.create());
+
+        subscriptions.push(regionsPlugin.on("region-update", (region) => {
+          interactionActive = true;
+          selectionRegion = region;
+          updateLabels(region);
+          // Active dragging stays browser-side; only the final region event is committed.
+        }));
+        subscriptions.push(regionsPlugin.on("region-updated", (region) => {
+          interactionActive = false;
+          selectionRegion = region;
+          updateLabels(region);
+          commitSelection(region);
+        }));
+        subscriptions.push(wavesurfer.on("ready", () => {
+          addSelectionRegion();
+          updatePlaybackButtons();
+        }));
+        subscriptions.push(wavesurfer.on("decode", () => addSelectionRegion()));
+        subscriptions.push(wavesurfer.on("play", updatePlaybackButtons));
+        subscriptions.push(wavesurfer.on("pause", () => {
+          selectionPlayback = false;
+          updatePlaybackButtons();
+        }));
+        subscriptions.push(wavesurfer.on("finish", () => {
+          selectionPlayback = false;
+          updatePlaybackButtons();
+        }));
+        subscriptions.push(wavesurfer.on("error", () => {
+          showMessage("Playback is unavailable for this file. Selection and export still work.");
+          updatePlaybackButtons();
+        }));
+
+        addSelectionRegion();
+        updateLabels();
+        updatePlaybackButtons();
+      } catch (_) {
+        showMessage("Waveform playback is unavailable. Start, end, and export still work.");
+        updateLabels();
+      }
+      setFrameHeight();
     }
 
-    function onPointerUp(event) {
-      if (!dragging) return;
-      event.preventDefault();
-      dragging = null;
-      draw();
-      emit("Manually Adjusted");
+    function syncCommittedSelection(nextArgs) {
+      activeArgs = nextArgs;
+      if (!selectionRegion || interactionActive) return;
+      const selection = normalizedSelection(nextArgs.start, nextArgs.end, nextArgs.duration);
+      if (Math.abs(selectionRegion.start - selection.start) > 0.001 || Math.abs(selectionRegion.end - selection.end) > 0.001) {
+        selectionRegion.setOptions({start: selection.start, end: selection.end});
+        updateLabels(selectionRegion);
+      }
     }
 
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", onPointerUp);
-    canvas.addEventListener("pointercancel", onPointerUp);
-    window.addEventListener("resize", () => { draw(); setFrameHeight(); });
+    playButton.addEventListener("click", async () => {
+      if (!wavesurfer || !activeArgs.audio_url) return;
+      selectionPlayback = false;
+      try {
+        if (!wavesurfer.isPlaying() && wavesurfer.getCurrentTime() >= wavesurfer.getDuration() - 0.05) {
+          wavesurfer.setTime(0);
+        }
+        await wavesurfer.playPause();
+        showMessage("");
+      } catch (_) {
+        showMessage("Tap Play again if Safari has paused audio access.");
+      }
+      updatePlaybackButtons();
+    });
 
-    window.addEventListener("message", (event) => {
-      if (!event.data || event.data.type !== "streamlit:render") return;
-      args = event.data.args || {};
-      start = clamp(Number(args.start) || 0, 0, Number(args.duration) || 0);
-      end = clamp(Number(args.end) || Math.min((Number(args.duration) || 0), start + 1), start + minGap, Number(args.duration) || start + minGap);
-      draw();
+    selectionButton.addEventListener("click", async () => {
+      if (!wavesurfer || !selectionRegion || !activeArgs.audio_url) return;
+      try {
+        wavesurfer.pause();
+        selectionPlayback = true;
+        await wavesurfer.play(selectionRegion.start, selectionRegion.end);
+        showMessage("");
+      } catch (_) {
+        selectionPlayback = false;
+        showMessage("Tap Play Selection again if Safari has paused audio access.");
+      }
+      updatePlaybackButtons();
+    });
+
+    window.addEventListener("resize", () => {
+      if (wavesurfer) wavesurfer.setOptions({height: window.innerWidth <= 430 ? 158 : 180});
       setFrameHeight();
     });
 
-    if (!CanvasRenderingContext2D.prototype.roundRect) {
-      CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
-        this.beginPath();
-        this.moveTo(x + r, y);
-        this.lineTo(x + w - r, y);
-        this.quadraticCurveTo(x + w, y, x + w, y + r);
-        this.lineTo(x + w, y + h - r);
-        this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-        this.lineTo(x + r, y + h);
-        this.quadraticCurveTo(x, y + h, x, y + h - r);
-        this.lineTo(x, y + r);
-        this.quadraticCurveTo(x, y, x + r, y);
-      };
-    }
+    window.addEventListener("message", (event) => {
+      if (!event.data || event.data.type !== "streamlit:render") return;
+      const nextArgs = event.data.args || {};
+      const nextSourceId = String(nextArgs.source_id || "");
+      if (!wavesurfer || nextSourceId !== activeSourceId) {
+        initializeWaveSurfer(nextArgs);
+      } else {
+        syncCommittedSelection(nextArgs);
+      }
+      setFrameHeight();
+    });
 
     componentReady();
   </script>

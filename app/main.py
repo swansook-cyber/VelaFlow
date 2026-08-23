@@ -17,6 +17,7 @@ from typing import Any, Callable
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
+from streamlit import runtime as streamlit_runtime
 
 try:
     from streamlit.web.server import app_static_file_handler
@@ -2242,24 +2243,104 @@ def _resolve_safari_audio_preview_bytes(source_path: str | Path, *, cache_key: s
     return resolved
 
 
-def _render_interactive_waveform_selector(waveform_data: dict[str, Any], *, start: float, end: float, duration: float, key: str) -> dict[str, Any]:
+def _waveform_browser_audio_source(source_path: str | Path, *, source_id: str, ffmpeg_path: str = "") -> dict[str, Any]:
+    """Register one browser-safe MP3 with Streamlit's session media server."""
+    source = Path(source_path)
+    if not source.is_file():
+        return {"ok": False, "reason": "missing_source", "url": ""}
+    preview_source = source
+    source_note = "source_mp3"
+    if source.suffix.lower() != ".mp3":
+        built = _build_safari_preview_mp3(source, cache_stem=f"Audio_Editor_{source.stem}", ffmpeg_path=ffmpeg_path)
+        if not built.get("ok"):
+            return {"ok": False, "reason": built.get("reason", "preview_mp3_unavailable"), "url": ""}
+        preview_source = Path(str(built.get("path") or ""))
+        source_note = str(built.get("source") or "generated_safari_mp3_preview")
+    if not preview_source.is_file() or preview_source.stat().st_size <= 0:
+        return {"ok": False, "reason": "empty_preview", "url": ""}
+    cache = st.session_state.setdefault("waveform_browser_audio_url_cache", {})
+    cache_id = f"{source_id}|{_audio_file_fingerprint(preview_source)}"
+    cached = cache.get(cache_id)
+    if isinstance(cached, dict) and cached.get("url"):
+        return {**cached, "cache_status": "hit"}
+    if not streamlit_runtime.exists():
+        return {"ok": False, "reason": "streamlit_media_runtime_unavailable", "url": ""}
+    try:
+        coordinates = f"waveform-v2.{hashlib.sha1(cache_id.encode('utf-8')).hexdigest()[:20]}"
+        url = streamlit_runtime.get_instance().media_file_mgr.add(str(preview_source), "audio/mpeg", coordinates)
+    except Exception:
+        return {"ok": False, "reason": "browser_audio_registration_failed", "url": ""}
+    resolved = {
+        "ok": bool(url),
+        "url": str(url or ""),
+        "path": str(preview_source),
+        "source": source_note,
+        "cache_status": "miss",
+    }
+    while len(cache) >= 12:
+        cache.pop(next(iter(cache)))
+    cache[cache_id] = dict(resolved)
+    return resolved
+
+
+def _waveform_source_signature(source_info: dict[str, Any], source_path: str | Path, source_id: str) -> dict[str, Any] | None:
+    trusted = _trusted_audio_signature(source_info, source_path)
+    if trusted:
+        return trusted
+    if str(source_info.get("source_type") or "").lower() != "project master":
+        return None
+    cached = st.session_state.setdefault("project_master_waveform_signatures", {}).get(source_id)
+    return dict(cached) if isinstance(cached, dict) else None
+
+
+def _remember_project_master_waveform_signature(source_info: dict[str, Any], source_id: str, waveform_data: dict[str, Any]) -> None:
+    if str(source_info.get("source_type") or "").lower() != "project master":
+        return
+    signature = waveform_data.get("source_signature") or {}
+    digest = str(signature.get("sha256") or "")
+    size = int(signature.get("size") or 0)
+    if not digest or size <= 0:
+        return
+    cache = st.session_state.setdefault("project_master_waveform_signatures", {})
+    while len(cache) >= 24 and source_id not in cache:
+        cache.pop(next(iter(cache)))
+    cache[source_id] = {
+        "upload_id": f"project-master:{hashlib.sha1(source_id.encode('utf-8')).hexdigest()}",
+        "content_digest": digest,
+        "size_bytes": size,
+    }
+
+
+def _render_interactive_waveform_selector(
+    waveform_data: dict[str, Any],
+    *,
+    start: float,
+    end: float,
+    duration: float,
+    key: str,
+    source_id: str = "",
+    audio_url: str = "",
+) -> dict[str, Any]:
     selection = clamp_audio_selection(start, end, duration)
     component_value = WAVEFORM_SELECTOR_COMPONENT(
         points=waveform_data.get("points", []),
         duration=float(duration or waveform_data.get("duration") or 0),
         start=selection["start"],
         end=selection["end"],
+        source_id=str(source_id or ""),
+        audio_url=str(audio_url or ""),
         key=key,
-        default=selection,
+        default=selection | {"source_id": str(source_id or ""), "event": ""},
     )
     if isinstance(component_value, dict):
         return {
             "start": float(component_value.get("start", selection["start"])),
             "end": float(component_value.get("end", selection["end"])),
             "duration": float(component_value.get("duration", selection["duration"])),
-            "status": str(component_value.get("status") or ""),
+            "source_id": str(component_value.get("source_id") or ""),
+            "event": str(component_value.get("event") or ""),
         }
-    return selection | {"status": ""}
+    return selection | {"source_id": str(source_id or ""), "event": ""}
 
 
 def _sync_audio_editor_selection(editor_state: dict[str, Any], start: float, end: float, duration: float) -> dict[str, float]:
@@ -2828,27 +2909,38 @@ def _render_audio_editor_legacy(project: dict[str, Any]) -> None:
     st.caption("Drag the start handle, end handle, selected region, or empty waveform area to set the hook.")
     waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
     waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
+    waveform_signature = _waveform_source_signature(source_info, source_path, selection_source_id)
     waveform_result = generate_waveform_data(
         source_path,
         waveform_json,
         ffmpeg_path=settings.ffmpeg_path,
-        source_signature=_trusted_audio_signature(source_info, source_path),
+        source_signature=waveform_signature,
     ) if ffmpeg_probe.get("ok") else {"ok": False, "message": "FFmpeg unavailable"}
     if waveform_result.get("ok"):
         waveform_data = waveform_result.get("data", {})
+        _remember_project_master_waveform_signature(source_info, selection_source_id, waveform_data)
+        browser_audio = _waveform_browser_audio_source(source_path, source_id=selection_source_id, ffmpeg_path=settings.ffmpeg_path)
         interactive_value = _render_interactive_waveform_selector(
             waveform_data,
             start=float(st.session_state.get("audio_editor_selection_start", 0.0)),
             end=float(st.session_state.get("audio_editor_selection_end", min(duration, 30.0))),
             duration=duration,
+            source_id=selection_source_id,
+            audio_url=str(browser_audio.get("url") or ""),
             key=f"audio_editor_interactive_waveform_{hashlib.sha1(selection_source_id.encode('utf-8')).hexdigest()[:12]}",
         )
-        if interactive_value.get("status"):
+        if interactive_value.get("event") == "selection_committed" and interactive_value.get("source_id") == selection_source_id:
+            previous_start = float(st.session_state.get("audio_editor_selection_start", 0.0))
+            previous_end = float(st.session_state.get("audio_editor_selection_end", min(duration, 30.0)))
             _sync_audio_editor_selection(editor_state, float(interactive_value.get("start", 0.0)), float(interactive_value.get("end", 0.0)), duration)
-            if interactive_value.get("status") == "Manually Adjusted":
-                editor_state["smart_override_status"] = "Manually Adjusted"
+            editor_state["smart_override_status"] = "Manually Adjusted"
             project["audio_editor"] = editor_state
             _save_project()
+            if (
+                abs(previous_start - float(st.session_state.get("audio_editor_selection_start", previous_start))) > 0.0005
+                or abs(previous_end - float(st.session_state.get("audio_editor_selection_end", previous_end))) > 0.0005
+            ):
+                st.rerun()
         editor_state["waveform"] = {
             "waveform_json": str(waveform_json),
             "point_count": waveform_data.get("point_count", 0),
@@ -3542,7 +3634,8 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     st.caption(f"{source_info.get('original_filename') or Path(source_path).name} · {format_timecode(duration)}")
     waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
     waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
-    waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path, source_signature=_trusted_audio_signature(source_info, source_path)) if ffmpeg_ready else {"ok": False}
+    waveform_signature = _waveform_source_signature(source_info, source_path, source_id)
+    waveform_result = generate_waveform_data(source_path, waveform_json, ffmpeg_path=settings.ffmpeg_path, source_signature=waveform_signature) if ffmpeg_ready else {"ok": False}
     if st.session_state.get("audio_editor_simple_selection_source") != source_id:
         st.session_state["audio_editor_simple_selection_source"] = source_id
         st.session_state["audio_editor_simple_start"] = 0.0
@@ -3550,29 +3643,31 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     start = float(st.session_state.get("audio_editor_simple_start", 0.0))
     end = float(st.session_state.get("audio_editor_simple_end", min(duration, 30.0)))
     if waveform_result.get("ok"):
-        selected = _render_interactive_waveform_selector(waveform_result["data"], start=start, end=end, duration=duration, key=f"audio_editor_simple_waveform_{hashlib.sha1(source_id.encode()).hexdigest()[:12]}")
-        if selected.get("status"):
+        waveform_data = waveform_result["data"]
+        _remember_project_master_waveform_signature(source_info, source_id, waveform_data)
+        browser_audio = _waveform_browser_audio_source(source_path, source_id=source_id, ffmpeg_path=settings.ffmpeg_path)
+        selected = _render_interactive_waveform_selector(
+            waveform_data,
+            start=start,
+            end=end,
+            duration=duration,
+            source_id=source_id,
+            audio_url=str(browser_audio.get("url") or ""),
+            key=f"audio_editor_simple_waveform_{hashlib.sha1(source_id.encode()).hexdigest()[:12]}",
+        )
+        if selected.get("event") == "selection_committed" and selected.get("source_id") == source_id:
             clamped = clamp_audio_selection(float(selected.get("start", start)), float(selected.get("end", end)), duration)
+            selection_changed = abs(clamped["start"] - start) > 0.0005 or abs(clamped["end"] - end) > 0.0005
             st.session_state["audio_editor_simple_start"] = clamped["start"]
             st.session_state["audio_editor_simple_end"] = clamped["end"]
             start, end = clamped["start"], clamped["end"]
+            if selection_changed:
+                st.rerun()
     selection = validate_audio_selection(start, end, duration)
     metrics = st.columns(3)
     metrics[0].metric("Start", format_timecode(start))
     metrics[1].metric("End", format_timecode(end))
     metrics[2].metric("Selected", format_timecode(max(0.0, end - start)))
-    if st.button("Play Selection", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_preview"):
-        preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
-        editor_state["simple_preview"] = preview.get("data", {}) if preview.get("ok") else {}
-        editor_state["last_error"] = "" if preview.get("ok") else preview.get("message") or preview.get("error")
-        project["audio_editor"] = editor_state
-        _save_project()
-        st.rerun()
-    preview_path = Path(str((editor_state.get("simple_preview") or {}).get("output_audio") or ""))
-    if preview_path.is_file():
-        payload = _resolve_safari_audio_preview_bytes(preview_path, cache_key="audio_editor_simple_preview", label="Cut Selection", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
-        if payload.get("ok"):
-            st.audio(payload["bytes"], format=payload["format"])
     fade_cols = st.columns(2)
     fade_in = fade_cols[0].toggle("Fade In", value=bool(editor_state.get("fade_in_enabled", False)), key="audio_editor_simple_fade_in")
     fade_out = fade_cols[1].toggle("Fade Out", value=bool(editor_state.get("fade_out_enabled", False)), key="audio_editor_simple_fade_out")
@@ -3582,6 +3677,17 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     export_name = str(st.session_state.get("audio_editor_export_name") or default_name)
     output_format_label = st.radio("Export Format", ["MP3", "WAV"], horizontal=True, key="audio_editor_simple_format")
     with st.expander("Advanced", expanded=False):
+        if st.button("Generate playback fallback", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_preview"):
+            preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+            editor_state["simple_preview"] = preview.get("data", {}) if preview.get("ok") else {}
+            editor_state["last_error"] = "" if preview.get("ok") else preview.get("message") or preview.get("error")
+            project["audio_editor"] = editor_state
+            _save_project()
+        preview_path = Path(str((editor_state.get("simple_preview") or {}).get("output_audio") or ""))
+        if preview_path.is_file():
+            payload = _resolve_safari_audio_preview_bytes(preview_path, cache_key="audio_editor_simple_preview", label="Cut Selection", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True)
+            if payload.get("ok"):
+                st.audio(payload["bytes"], format=payload["format"])
         if st.button("Check Cut Quality", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_quality"):
             editor_state["hook_quality"] = evaluate_hook_selection_quality(source_path, start_time=start, end_time=end, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb)
             project["audio_editor"] = editor_state
