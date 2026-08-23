@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import shutil
 import subprocess
 import zipfile
@@ -11,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, analyze_audio_source
 from core.file_naming import build_asset_export_filename, ensure_unique_path, sanitize_filename
 from core.paths import ROOT
 from core.project_io import safe_name
@@ -255,24 +255,47 @@ def _decode_analysis_pcm(path: Path, ffmpeg: str, *, sample_rate: int = 8000, ma
     return {"ok": bool(samples), "samples": samples, "sample_rate": sample_rate, "command": args}
 
 
-def _integrated_lufs(ffmpeg: str, path: Path) -> float | None:
-    result = _run([ffmpeg, "-hide_banner", "-nostats", "-i", str(path), "-filter_complex", "ebur128=peak=true", "-f", "null", "-"], timeout=180)
-    matches = re.findall(r"^\s*I:\s*(-?(?:\d+(?:\.\d+)?|inf))\s+LUFS", str(result.get("output") or ""), flags=re.MULTILINE)
-    if not matches or matches[-1].lower() == "-inf":
-        return None
-    try:
-        return round(float(matches[-1]), 2)
-    except (TypeError, ValueError):
-        return None
+def _probe_from_audio_intelligence(analysis: dict[str, Any]) -> dict[str, Any]:
+    """Adapt authoritative Audio Intelligence facts to legacy output validation."""
+    metadata = analysis.get("metadata") or {}
+    codec = str(metadata.get("codec") or "")
+    duration = metadata.get("duration_sec")
+    sample_rate = metadata.get("sample_rate_hz")
+    channels = metadata.get("channels")
+    metadata_ok = metadata.get("status") in {"measured", "partial"} and bool(codec and duration and sample_rate and channels)
+    return {
+        "ok": bool(metadata_ok),
+        "has_audio": bool(metadata_ok),
+        "duration": duration,
+        "audio_codec": codec,
+        "audio_bit_rate": metadata.get("bitrate_bps"),
+        "sample_rate": sample_rate,
+        "channels": channels,
+        "analysis_method": AUDIO_INTELLIGENCE_ANALYZER_VERSION,
+    }
 
 
-def analyze_remaster_quality_metrics(source_audio_path: str | Path, *, ffmpeg_path: str = "", max_duration: float = 360.0) -> dict[str, Any]:
+def _analysis_warning(analysis: dict[str, Any], label: str) -> str:
+    details = [str(item) for item in [*(analysis.get("errors") or []), *(analysis.get("warnings") or [])] if item]
+    return f"{label} Audio Intelligence analysis incomplete: {'; '.join(details) or 'measurement unavailable'}"
+
+
+def analyze_remaster_quality_metrics(
+    source_audio_path: str | Path,
+    *,
+    ffmpeg_path: str = "",
+    max_duration: float = 360.0,
+    source_context: dict[str, Any] | None = None,
+    audio_intelligence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Measure transparent before/after proxies without changing the mastering chain."""
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
     if not source.is_file() or not ffmpeg:
         return {"ok": False, "error": "missing_source_or_ffmpeg", "metrics": {}}
-    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    analysis = audio_intelligence or analyze_audio_source(source, source_context, depth="deep", ffmpeg_path=ffmpeg)
+    metadata = analysis.get("metadata") or {}
+    loudness = analysis.get("loudness") or {}
     args = [ffmpeg, "-v", "error", "-i", str(source), "-map", "0:a:0", "-t", f"{max_duration:.3f}", "-ac", "2", "-ar", "8000", "-f", "s16le", "-"]
     try:
         proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=150)
@@ -300,16 +323,27 @@ def analyze_remaster_quality_metrics(source_audio_path: str | Path, *, ffmpeg_pa
     crest = peak / max(rms, 0.000001)
     stereo_width = math.sqrt(sum_side_sq / frame_count) / max(math.sqrt(sum_mid_sq / frame_count), 0.000001)
     metrics = {
-        "integrated_lufs": _integrated_lufs(ffmpeg, source),
+        "integrated_lufs": loudness.get("integrated_lufs"),
+        "true_peak_dbtp": loudness.get("true_peak_dbtp"),
+        "lra_lu": loudness.get("lra_lu"),
         "peak_dbfs_proxy": round(20.0 * math.log10(max(peak, 0.000001)), 2),
         "rms_dbfs": round(20.0 * math.log10(max(rms, 0.000001)), 2),
         "crest_factor_db": round(20.0 * math.log10(max(crest, 0.000001)), 2),
         "stereo_width_proxy": round(min(4.0, stereo_width), 3),
-        "duration": round(float(probe.get("duration") or frame_count / 8000.0), 3),
-        "sample_rate": probe.get("sample_rate"),
-        "channels": probe.get("channels"),
+        "duration": round(float(metadata.get("duration_sec") or frame_count / 8000.0), 3),
+        "codec": metadata.get("codec"),
+        "bitrate_bps": metadata.get("bitrate_bps"),
+        "sample_rate": metadata.get("sample_rate_hz"),
+        "channels": metadata.get("channels"),
     }
-    return {"ok": True, "metrics": metrics, "method": "FFmpeg ebur128 plus stereo PCM peak/RMS/crest/width proxies", "error": ""}
+    return {
+        "ok": True,
+        "metrics": metrics,
+        "method": f"{AUDIO_INTELLIGENCE_ANALYZER_VERSION} plus stereo PCM RMS/crest/width proxies",
+        "audio_intelligence": analysis,
+        "warnings": list(analysis.get("warnings") or []),
+        "error": "; ".join(str(item) for item in analysis.get("errors") or []),
+    }
 
 
 def select_remaster_preview_range(source_audio_path: str | Path, *, ffmpeg_path: str = "", preview_duration: float = 15.0) -> dict[str, Any]:
@@ -351,9 +385,28 @@ def _comparison_direction(before: float | None, after: float | None, *, toleranc
     return "Higher" if delta > 0 else "Lower"
 
 
-def build_remaster_quality_comparison(original_path: str | Path, mastered_path: str | Path, *, ffmpeg_path: str = "") -> dict[str, Any]:
-    before = analyze_remaster_quality_metrics(original_path, ffmpeg_path=ffmpeg_path)
-    after = analyze_remaster_quality_metrics(mastered_path, ffmpeg_path=ffmpeg_path)
+def build_remaster_quality_comparison(
+    original_path: str | Path,
+    mastered_path: str | Path,
+    *,
+    ffmpeg_path: str = "",
+    original_context: dict[str, Any] | None = None,
+    mastered_context: dict[str, Any] | None = None,
+    original_analysis: dict[str, Any] | None = None,
+    mastered_analysis: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    before = analyze_remaster_quality_metrics(
+        original_path,
+        ffmpeg_path=ffmpeg_path,
+        source_context=original_context,
+        audio_intelligence=original_analysis,
+    )
+    after = analyze_remaster_quality_metrics(
+        mastered_path,
+        ffmpeg_path=ffmpeg_path,
+        source_context=mastered_context,
+        audio_intelligence=mastered_analysis,
+    )
     before_metrics = before.get("metrics", {})
     after_metrics = after.get("metrics", {})
     return {
@@ -362,12 +415,15 @@ def build_remaster_quality_comparison(original_path: str | Path, mastered_path: 
         "mastered": after_metrics,
         "summary": {
             "loudness": _comparison_direction(before_metrics.get("integrated_lufs"), after_metrics.get("integrated_lufs")),
+            "true_peak": _comparison_direction(before_metrics.get("true_peak_dbtp"), after_metrics.get("true_peak_dbtp")),
+            "lra": _comparison_direction(before_metrics.get("lra_lu"), after_metrics.get("lra_lu")),
             "peak": _comparison_direction(before_metrics.get("peak_dbfs_proxy"), after_metrics.get("peak_dbfs_proxy")),
             "rms": _comparison_direction(before_metrics.get("rms_dbfs"), after_metrics.get("rms_dbfs")),
             "dynamics": _comparison_direction(before_metrics.get("crest_factor_db"), after_metrics.get("crest_factor_db")),
             "stereo_width": _comparison_direction(before_metrics.get("stereo_width_proxy"), after_metrics.get("stereo_width_proxy"), tolerance=0.04),
         },
-        "method": "Measured locally; peak, dynamics, and width are PCM proxies. Missing LUFS remains unknown.",
+        "method": f"{AUDIO_INTELLIGENCE_ANALYZER_VERSION}; RMS, crest, and width remain PCM proxies.",
+        "analysis": {"before": before.get("audio_intelligence") or {}, "after": after.get("audio_intelligence") or {}},
         "errors": [item for item in [before.get("error"), after.get("error")] if item],
     }
 
@@ -397,7 +453,14 @@ def build_remaster_ab_previews(original_path: str | Path, mastered_path: str | P
     }
 
 
-def analyze_audio_for_remaster_recommendation(source_audio_path: str | Path, *, ffmpeg_path: str = "", max_upload_mb: int = 200) -> dict[str, Any]:
+def analyze_audio_for_remaster_recommendation(
+    source_audio_path: str | Path,
+    *,
+    ffmpeg_path: str = "",
+    max_upload_mb: int = 200,
+    source_context: dict[str, Any] | None = None,
+    audio_intelligence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     source = Path(source_audio_path)
     validation = validate_remaster_input(source, max_upload_mb=max_upload_mb)
     if not validation.get("ok"):
@@ -405,7 +468,8 @@ def analyze_audio_for_remaster_recommendation(source_audio_path: str | Path, *, 
     ffmpeg = ffmpeg_path or find_ffmpeg()
     if not ffmpeg:
         return {"ok": False, "message": "FFmpeg not found", "error": "missing_ffmpeg"}
-    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    analysis = audio_intelligence or analyze_audio_source(source, source_context, depth="deep", ffmpeg_path=ffmpeg)
+    probe = _probe_from_audio_intelligence(analysis)
     if not probe.get("ok") or not probe.get("has_audio", True):
         return {"ok": False, "message": "Invalid or corrupt audio file", "error": "invalid_audio", "data": {"probe": probe}}
     decoded = _decode_analysis_pcm(source, ffmpeg)
@@ -428,7 +492,9 @@ def analyze_audio_for_remaster_recommendation(source_audio_path: str | Path, *, 
     clipping_risk = peak > 0.985
     metrics = {
         "duration": round(duration, 3),
-        "integrated_loudness": "estimated/unavailable",
+        "integrated_loudness": (analysis.get("loudness") or {}).get("integrated_lufs"),
+        "true_peak_dbtp": (analysis.get("loudness") or {}).get("true_peak_dbtp"),
+        "lra_lu": (analysis.get("loudness") or {}).get("lra_lu"),
         "peak": round(peak, 4),
         "dynamic_range": round(dynamic_range, 4),
         "rms_energy": round(rms, 4),
@@ -473,6 +539,7 @@ def analyze_audio_for_remaster_recommendation(source_audio_path: str | Path, *, 
         "confidence_score": score,
         "reasons": reasons,
         "metrics": metrics,
+        "audio_intelligence": analysis,
         "analyzed_at": datetime.now().isoformat(timespec="seconds"),
     }
     return {"ok": True, "data": recommendation, "error": ""}
@@ -502,6 +569,9 @@ def build_remaster_project_id(original_name: str) -> str:
 
 
 def _report_text(report: dict[str, Any]) -> str:
+    def measured(value: Any, unit: str) -> str:
+        return f"{value} {unit}" if isinstance(value, (int, float)) else "unavailable"
+
     lines = [
         "VELAFLOW REMASTER REPORT",
         "",
@@ -523,8 +593,13 @@ def _report_text(report: dict[str, Any]) -> str:
         "",
         f"Output WAV settings: {report.get('output_wav_settings', {})}",
         f"Output MP3 settings: {report.get('output_mp3_settings', {})}",
-        f"Loudness result: {report.get('loudness_result', '')}",
-        f"Peak result: {report.get('peak_result', '')}",
+        f"Analysis method: {report.get('analysis_method', 'unknown')}",
+        f"Loudness method: {report.get('loudness_method', 'unknown')}",
+        f"Measured loudness result: {measured(report.get('loudness_result'), 'LUFS')}",
+        f"Measured true peak result: {measured(report.get('peak_result'), 'dBTP')}",
+        f"Measured loudness range: {measured(report.get('lra_result'), 'LU')}",
+        f"Target loudness: {report.get('target_loudness', '')}",
+        f"Target true peak: {report.get('target_true_peak', '')}",
         "Warnings: " + (", ".join(report.get("warnings", [])) if report.get("warnings") else "None"),
         f"Processing date/time: {report.get('processing_date_time', '')}",
     ]
@@ -551,8 +626,11 @@ def _report_text(report: dict[str, Any]) -> str:
         lines += [
             "",
             "Before / After Quality Summary:",
+            f"Before measured values: {comparison.get('original', {})}",
+            f"After measured values: {comparison.get('mastered', {})}",
             f"Loudness: {(comparison.get('summary') or {}).get('loudness', 'Unknown')}",
-            f"Peak proxy: {(comparison.get('summary') or {}).get('peak', 'Unknown')}",
+            f"True peak: {(comparison.get('summary') or {}).get('true_peak', 'Unknown')}",
+            f"Loudness range: {(comparison.get('summary') or {}).get('lra', 'Unknown')}",
             f"RMS: {(comparison.get('summary') or {}).get('rms', 'Unknown')}",
             f"Dynamics / crest proxy: {(comparison.get('summary') or {}).get('dynamics', 'Unknown')}",
             f"Stereo width proxy: {(comparison.get('summary') or {}).get('stereo_width', 'Unknown')}",
@@ -647,6 +725,7 @@ def remaster_song_audio(
     recommendation_data: dict[str, Any] | None = None,
     preset_mode: str = "",
     custom_settings: dict[str, Any] | None = None,
+    source_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -694,16 +773,42 @@ def remaster_song_audio(
         recommendation["preset_name"] = resolved_preset_name
         if resolved_custom_settings:
             recommendation["custom_settings"] = resolved_custom_settings
-    source_probe = probe_media(source, ffmpeg_path=ffmpeg)
+    resolved_source_context = dict(source_context or {})
+    resolved_source_context.setdefault("kind", "file")
+    resolved_source_context.setdefault("project_id", project_name)
+    resolved_source_context.setdefault("path_role", "remaster_source")
+    source_analysis = analyze_audio_source(source, resolved_source_context, depth="deep", ffmpeg_path=ffmpeg)
+    source_probe = _probe_from_audio_intelligence(source_analysis)
+    source_probe_fallback_used = False
+    if not source_probe.get("ok"):
+        # Operational validation may fall back, but report measurements stay null.
+        source_probe = probe_media(source, ffmpeg_path=ffmpeg)
+        source_probe_fallback_used = True
     if not source_probe.get("ok") or not source_probe.get("has_audio", True):
-        return {"ok": False, "status": "failed", "message": "Invalid or corrupt audio file", "data": {"overall_status": "failed", "source_probe": source_probe}, "error": "invalid_audio"}
+        return {
+            "ok": False,
+            "status": "failed",
+            "message": "Invalid or corrupt audio file",
+            "data": {"overall_status": "failed", "source_probe": source_probe, "audio_intelligence": {"before": source_analysis}},
+            "error": "invalid_audio",
+        }
     convert = _run([ffmpeg, "-y", "-i", str(source), "-vn", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(converted_path)])
     if not convert.get("ok"):
         return {"ok": False, "status": "failed", "message": "Audio conversion failed", "data": {"overall_status": "failed", "command": convert.get("command", [])}, "error": "audio_convert_failed"}
 
     filters = style_config["filters"]
     wav = _run([ffmpeg, "-y", "-i", str(converted_path), "-vn", "-af", filters, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(wav_path)])
-    wav_probe = probe_media(wav_path, ffmpeg_path=ffmpeg)
+    master_context = {
+        "kind": "remaster_master",
+        "project_id": str(resolved_source_context.get("project_id") or project_name),
+        "path_role": "final_master_wav",
+    }
+    master_analysis = analyze_audio_source(wav_path, master_context, depth="deep", ffmpeg_path=ffmpeg)
+    wav_probe = _probe_from_audio_intelligence(master_analysis)
+    wav_probe_fallback_used = False
+    if wav_path.is_file() and not wav_probe.get("ok"):
+        wav_probe = probe_media(wav_path, ffmpeg_path=ffmpeg)
+        wav_probe_fallback_used = True
     max_volume = _max_volume_db(ffmpeg, wav_path) if wav_path.is_file() else None
     clipping_validation = build_clipping_validation(max_volume)
     no_clipping = clipping_validation["no_clipping_above_0db"]
@@ -723,6 +828,7 @@ def remaster_song_audio(
             "mastered_wav": str(wav_path),
             "source_probe": source_probe,
             "wav_probe": wav_probe,
+            "audio_intelligence": {"before": source_analysis, "after": master_analysis},
             "max_volume_db": max_volume,
             "no_clipping_above_0db": no_clipping,
             "clipping_validation": clipping_validation,
@@ -749,14 +855,29 @@ def remaster_song_audio(
     overall_status = output_validation["overall_status"]
     duration_delta = output_validation["wav_validation"].get("duration_delta_seconds")
     warnings: list[str] = []
+    if source_analysis.get("errors") or (source_analysis.get("loudness") or {}).get("status") != "measured":
+        warnings.append(_analysis_warning(source_analysis, "Source"))
+    if master_analysis.get("errors") or (master_analysis.get("loudness") or {}).get("status") != "measured":
+        warnings.append(_analysis_warning(master_analysis, "Master"))
+    if source_probe_fallback_used:
+        warnings.append("Source metadata used operational FFprobe fallback; authoritative Audio Intelligence values remain unchanged.")
+    if wav_probe_fallback_used:
+        warnings.append("Master metadata used operational FFprobe fallback; authoritative Audio Intelligence values remain unchanged.")
     if max_volume is None:
-        warnings.append("Peak level is estimated because exact true-peak measurement is unavailable.")
+        warnings.append("Legacy clipping validation is unavailable; Audio Intelligence true peak is reported separately.")
     if not mp3.get("ok"):
         warnings.append("MP3 export failed.")
     elif output_validation["mp3_status"] != "pass":
         warnings.append("MP3 export failed codec, file, or duration validation.")
-    comparison_target = mp3_path if output_validation["mp3_status"] == "pass" else wav_path
-    quality_comparison = build_remaster_quality_comparison(source_copy, comparison_target, ffmpeg_path=ffmpeg)
+    quality_comparison = build_remaster_quality_comparison(
+        source,
+        wav_path,
+        ffmpeg_path=ffmpeg,
+        original_context=resolved_source_context,
+        mastered_context=master_context,
+        original_analysis=source_analysis,
+        mastered_analysis=master_analysis,
+    )
     ab_previews = (
         build_remaster_ab_previews(source_copy, mp3_path, output_dir / "quality_previews", ffmpeg_path=ffmpeg)
         if output_validation["mp3_status"] == "pass"
@@ -769,14 +890,19 @@ def remaster_song_audio(
         "mp3_status": output_validation["mp3_status"],
         "duration_status": output_validation["duration_status"],
         "project_id": project_id,
+        "source_context": resolved_source_context,
         "original_filename": source.name,
         "export_name": project_name,
         "input_format": input_validation.get("format"),
-        "input_sample_rate": source_probe.get("sample_rate", "unknown"),
-        "input_duration": source_probe.get("duration", 0),
-        "input_channels": source_probe.get("channels", "unknown"),
-        "input_loudness": "estimated/unavailable",
-        "input_peak_level": max_volume if max_volume is not None else "estimated/unavailable",
+        "input_codec": (source_analysis.get("metadata") or {}).get("codec"),
+        "input_bitrate_bps": (source_analysis.get("metadata") or {}).get("bitrate_bps"),
+        "input_sample_rate": (source_analysis.get("metadata") or {}).get("sample_rate_hz"),
+        "input_duration": (source_analysis.get("metadata") or {}).get("duration_sec"),
+        "input_channels": (source_analysis.get("metadata") or {}).get("channels"),
+        "input_loudness": (source_analysis.get("loudness") or {}).get("integrated_lufs"),
+        "input_true_peak_dbtp": (source_analysis.get("loudness") or {}).get("true_peak_dbtp"),
+        "input_lra_lu": (source_analysis.get("loudness") or {}).get("lra_lu"),
+        "input_peak_level": (source_analysis.get("loudness") or {}).get("true_peak_dbtp"),
         "selected_preset": style,
         "preset_mode": resolved_preset_mode,
         "preset_name": resolved_preset_name,
@@ -797,8 +923,11 @@ def remaster_song_audio(
         ],
         "output_wav_settings": {"format": "WAV", "codec": "pcm_s24le", "bit_depth": "24-bit", "sample_rate_hz": 48000, "channels": "stereo", "lossless": True},
         "output_mp3_settings": {"format": "MP3", "codec": "libmp3lame", "bitrate": "320 kbps", "mode": "CBR", "channels": "stereo"},
-        "loudness_result": style_config.get("target_lufs", "estimated/unavailable"),
-        "peak_result": style_config.get("true_peak", "estimated/unavailable") if max_volume is None else f"{max_volume} dB max_volume (true peak estimated)",
+        "loudness_result": (master_analysis.get("loudness") or {}).get("integrated_lufs"),
+        "peak_result": (master_analysis.get("loudness") or {}).get("true_peak_dbtp"),
+        "lra_result": (master_analysis.get("loudness") or {}).get("lra_lu"),
+        "target_loudness": style_config.get("target_lufs", ""),
+        "target_true_peak": style_config.get("true_peak", ""),
         "warnings": warnings,
         "processing_date_time": datetime.now().isoformat(timespec="seconds"),
         "style": style,
@@ -810,6 +939,9 @@ def remaster_song_audio(
         "source_probe": source_probe,
         "wav_probe": wav_probe,
         "mp3_probe": mp3_probe,
+        "audio_intelligence": {"before": source_analysis, "after": master_analysis},
+        "analysis_method": AUDIO_INTELLIGENCE_ANALYZER_VERSION,
+        "loudness_method": "ffmpeg_loudnorm",
         "duration_matches_original": output_validation["duration_status"] == "pass",
         "duration_delta_seconds": duration_delta,
         "max_volume_db": max_volume,

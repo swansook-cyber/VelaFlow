@@ -22,6 +22,7 @@ from core.asset_manager import attach_asset_to_project, clear_rejected_images, g
 import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
 import core.project_io as project_io_module
+import core.remaster_engine as remaster_engine_module
 from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, resolve_agent_provider, select_best_workflow, think
 from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
@@ -2755,14 +2756,51 @@ def main():
             smart_release_names = set(archive.namelist())
         assert_true(smart_audio_release["ok"] and f"audio_editor/{build_asset_export_filename(smart_export_data.get('export_name'), None, 'BestHook', 'mp3')}" in smart_release_names, "Release Pack did not include Smart Musical Hook BestHook output")
         original_hash = long_hook_source.read_bytes()
-        audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
+        remaster_source_context = {"kind": "external_upload", "project_id": "smoke-remaster", "path_role": "remaster_source"}
+        audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context)
         assert_true(audio_recommend["ok"] and audio_recommend.get("data", {}).get("recommended_preset") in REMASTER_STYLES and audio_recommend.get("data", {}).get("source") == "audio_analysis", "external audio remaster recommendation failed")
-        audio_recommend_again = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg())
+        audio_recommend_again = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context)
         assert_true(audio_recommend_again["ok"] and audio_recommend_again.get("data", {}).get("recommended_preset") == audio_recommend.get("data", {}).get("recommended_preset") and audio_recommend_again.get("data", {}).get("confidence_score") == audio_recommend.get("data", {}).get("confidence_score"), "external audio remaster recommendation should be deterministic")
+        recommendation_analysis = audio_recommend_again.get("data", {}).get("audio_intelligence") or {}
+        assert_true((recommendation_analysis.get("cache") or {}).get("hit") is True and (recommendation_analysis.get("performance") or {}).get("ffmpeg_runs") == 0, "Remaster recommendation rerun should reuse deep Audio Intelligence cache")
+        wav_recommend = analyze_audio_for_remaster_recommendation(smart_hook_wav_source, ffmpeg_path=find_ffmpeg(), source_context={"kind": "external_upload", "project_id": "smoke-remaster-wav", "path_role": "remaster_source"})
+        assert_true(wav_recommend.get("ok") and (wav_recommend.get("data", {}).get("audio_intelligence", {}).get("metadata") or {}).get("codec", "").startswith("pcm"), "Remaster Audio Intelligence WAV source regression failed")
+        project_master_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context={"kind": "project_master", "project_id": "smoke-project-master", "path_role": "active_master"})
+        assert_true(project_master_recommend.get("ok") and (project_master_recommend.get("data", {}).get("audio_intelligence", {}).get("source") or {}).get("kind") == "project_master", "Project Master source context was not preserved")
+        null_loudness_analysis = {
+            "metadata": {"duration_sec": 30.0, "codec": "mp3", "bitrate_bps": 320000, "sample_rate_hz": 48000, "channels": 2, "status": "measured"},
+            "loudness": {"integrated_lufs": None, "true_peak_dbtp": None, "lra_lu": None, "status": "unknown"},
+            "warnings": ["measurement unavailable"],
+            "errors": [],
+        }
+        null_quality = analyze_remaster_quality_metrics(long_hook_source, ffmpeg_path=find_ffmpeg(), audio_intelligence=null_loudness_analysis)
+        assert_true(null_quality.get("ok") and all((null_quality.get("metrics") or {}).get(key) is None for key in ["integrated_lufs", "true_peak_dbtp", "lra_lu"]), "Unknown Audio Intelligence measurements must remain null instead of becoming zero")
         silent_source = out / "hook_clip_projects" / "silent_remaster_source.mp3"
         subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo:d=12", "-c:a", "libmp3lame", str(silent_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         quiet_recommend = analyze_audio_for_remaster_recommendation(silent_source, ffmpeg_path=find_ffmpeg())
         assert_true(quiet_recommend["ok"] and quiet_recommend.get("data", {}).get("recommended_preset") == "Streaming Balanced" and quiet_recommend.get("data", {}).get("confidence") == "Low", "low-confidence remaster recommendation failed")
+        original_remaster_analyzer = remaster_engine_module.analyze_audio_source
+        try:
+            def unavailable_audio_intelligence(path, source_context=None, depth="fast", **kwargs):
+                return {
+                    "analysis_depth": depth,
+                    "completed_capabilities": [],
+                    "source": {"kind": str((source_context or {}).get("kind") or "file"), "path_role": str((source_context or {}).get("path_role") or "source")},
+                    "metadata": {"duration_sec": None, "codec": None, "bitrate_bps": None, "sample_rate_hz": None, "channels": None, "status": "unknown"},
+                    "loudness": {"integrated_lufs": None, "true_peak_dbtp": None, "lra_lu": None, "status": "unknown"},
+                    "cache": {"hit": False},
+                    "performance": {"ffprobe_runs": 0, "ffmpeg_runs": 0},
+                    "warnings": ["simulated analysis unavailable"],
+                    "errors": ["simulated_audio_intelligence_failure"],
+                }
+
+            remaster_engine_module.analyze_audio_source = unavailable_audio_intelligence
+            degraded_analysis_remaster = remaster_song_audio(silent_source, project_name="Smoke Analysis Failure", remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
+        finally:
+            remaster_engine_module.analyze_audio_source = original_remaster_analyzer
+        degraded_report = (degraded_analysis_remaster.get("data") or {}).get("report") or {}
+        degraded_before = ((degraded_report.get("quality_comparison") or {}).get("original") or {})
+        assert_true(degraded_analysis_remaster.get("ok") and degraded_before.get("integrated_lufs") is None and any("Audio Intelligence analysis incomplete" in item for item in degraded_report.get("warnings", [])), "Audio Intelligence failure should preserve safe Remaster processing with null metrics and a warning")
         external_upload_source = out / "hook_clip_projects" / "k-den พาฟิน.mp3"
         shutil.copy2(long_hook_source, external_upload_source)
         external_upload_base = audio_source_export_name(source_type="External Upload", original_filename=external_upload_source.name, song_title="พอได้แล้วใจ")
@@ -2787,7 +2825,7 @@ def main():
         assert_true("Preset mode: manual" in custom_report_text and "Preset name: custom" in custom_report_text and "Resolved Custom Settings:" in custom_report_text, "Custom Remaster TXT report missing resolved settings")
         manual_recommendation = dict(audio_recommend.get("data", {}))
         manual_recommendation["selected_preset"] = "Vocal Focus"
-        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation)
+        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation, source_context=remaster_source_context)
         remaster_data = remaster.get("data", {})
         mastered_wav = Path(remaster_data.get("mastered_wav", ""))
         mastered_mp3 = Path(remaster_data.get("mastered_mp3", "") or remaster_data.get("mp3_preview", ""))
@@ -2805,7 +2843,16 @@ def main():
         original_quality = quality_comparison.get("original") or {}
         mastered_quality = quality_comparison.get("mastered") or {}
         ab_previews = remaster_data.get("ab_previews") or remaster_report.get("ab_previews") or {}
-        assert_true(quality_comparison.get("ok") and all(key in original_quality and key in mastered_quality for key in ["integrated_lufs", "peak_dbfs_proxy", "rms_dbfs", "crest_factor_db", "stereo_width_proxy"]), "Remaster before/after quality metrics missing")
+        assert_true(quality_comparison.get("ok") and all(key in original_quality and key in mastered_quality for key in ["integrated_lufs", "true_peak_dbtp", "lra_lu", "peak_dbfs_proxy", "rms_dbfs", "crest_factor_db", "stereo_width_proxy"]), "Remaster before/after quality metrics missing")
+        report_intelligence = remaster_report.get("audio_intelligence") or {}
+        before_intelligence = report_intelligence.get("before") or {}
+        after_intelligence = report_intelligence.get("after") or {}
+        assert_true(remaster_report.get("analysis_method") == AUDIO_INTELLIGENCE_ANALYZER_VERSION and remaster_report.get("loudness_method") == "ffmpeg_loudnorm", "Remaster report Audio Intelligence provenance missing")
+        assert_true((before_intelligence.get("source") or {}).get("kind") == "external_upload" and (after_intelligence.get("source") or {}).get("path_role") == "final_master_wav", "Remaster before/after source context propagation failed")
+        assert_true((before_intelligence.get("cache") or {}).get("hit") is True and (before_intelligence.get("performance") or {}).get("ffmpeg_runs") == 0 and (after_intelligence.get("performance") or {}).get("ffmpeg_runs") in {0, 1}, "Remaster processing repeated source loudness analysis or returned invalid master analysis count")
+        assert_true(all(original_quality.get(key) is not None and mastered_quality.get(key) is not None for key in ["integrated_lufs", "true_peak_dbtp", "lra_lu"]), "Measured Remaster LUFS/true peak/LRA should propagate into before/after report")
+        master_cache_repeat = analyze_audio_source(mastered_wav, {"kind": "remaster_master", "project_id": "smoke-remaster", "path_role": "final_master_wav"}, depth="deep", ffmpeg_path=find_ffmpeg())
+        assert_true((master_cache_repeat.get("cache") or {}).get("hit") is True and (master_cache_repeat.get("performance") or {}).get("ffmpeg_runs") == 0, "Unchanged mastered source should reuse Audio Intelligence cache")
         assert_true(ab_previews.get("ok") and 10 <= float(ab_previews.get("duration") or 0) <= 20 and Path(ab_previews.get("original_preview", "")).is_file() and Path(ab_previews.get("mastered_preview", "")).is_file(), "Remaster representative A/B previews missing")
         original_ab_probe = probe_media(ab_previews["original_preview"], ffmpeg_path=find_ffmpeg())
         mastered_ab_probe = probe_media(ab_previews["mastered_preview"], ffmpeg_path=find_ffmpeg())
@@ -3380,6 +3427,8 @@ def main():
         assert_true("Preset Selection" in remaster_ui_slice and "Auto Recommended" in remaster_ui_slice and "Analyze Source" in remaster_ui_slice and "Recommended by VelaFlow" in remaster_ui_slice and 'st.selectbox("Preset", REMASTER_STYLES' in remaster_ui_slice and "_render_custom_remaster_controls" in remaster_ui_slice and "Custom processing controls are reserved" not in remaster_ui_slice and "Use Recommended Preset" not in remaster_ui_slice and "Choose Manually" not in remaster_ui_slice and "Advanced Settings" not in remaster_ui_slice, "simple Auto/Manual Remaster preset UI missing")
         assert_true(all(label in custom_remaster_ui_source for label in ["Custom Preset", "Reset Custom", "Loudness (LUFS)", "Bass", "Mid", "High", "Compression", "Stereo Width", "Output Ceiling"]) and 'remaster_state["custom_settings"]' in custom_remaster_ui_source and "_save_project()" in custom_remaster_ui_source, "Custom Remaster controls, reset, or project persistence wiring missing")
         assert_true("Before / After" in remaster_ui_slice and "Quality Summary" in remaster_ui_slice and "Advanced Analysis" in remaster_ui_slice and remaster_ui_slice.find("LUFS:") > remaster_ui_slice.find('st.expander("Advanced Analysis"') and "integrated_lufs" in remaster_engine_source and "crest_factor_db" in remaster_engine_source and "stereo_width_proxy" in remaster_engine_source, "Remaster quality comparison UI, advanced metrics, or engine metrics missing")
+        assert_true("analyze_audio_source" in remaster_engine_source and 'depth="deep"' in remaster_engine_source and '"true_peak_dbtp"' in remaster_engine_source and '"lra_lu"' in remaster_engine_source and "ebur128" not in remaster_engine_source, "Remaster must use Audio Intelligence without a duplicate legacy full loudness pass")
+        assert_true("_remaster_audio_intelligence_context" in remaster_ui_slice and 'source_context=source_analysis_context' in remaster_ui_slice and all(label in remaster_ui_slice for label in ["Before", "After", "True Peak", "Loudness Range"]), "Remaster source context or trustworthy before/after UI wiring missing")
         waveform_component_source = (ROOT / "app" / "components" / "waveform_selector" / "index.html").read_text(encoding="utf-8")
         waveform_vendor_dir = ROOT / "app" / "components" / "waveform_selector" / "vendor"
         wavesurfer_vendor = waveform_vendor_dir / "wavesurfer-7.12.11.min.js"

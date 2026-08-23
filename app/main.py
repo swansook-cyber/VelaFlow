@@ -69,6 +69,7 @@ from core.agent_brain import AGENT_AI_PROVIDERS
 from core.agent_studio import AGENT_LANGUAGES, AGENT_PROJECT_TYPES, AGENT_TONES, AGENT_WORKFLOW_MODES, agent_package_to_text, generate_agent_package
 from core.access_control import access_gate_policy, authenticate_access_password, sign_out_access_session
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
+from core.audio_intelligence import analyze_audio_source
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
@@ -2095,6 +2096,17 @@ def _audio_source_signature(source_info: dict[str, Any], source_path: str | Path
     )
 
 
+def _remaster_audio_intelligence_context(project: dict[str, Any], source_info: dict[str, Any], *, path_role: str = "remaster_source") -> dict[str, Any]:
+    source_type = str(source_info.get("source_type") or "file").strip().lower().replace(" ", "_")
+    return {
+        "kind": source_type or "file",
+        "project_id": str(project.get("project_id") or project.get("path") or project.get("title") or "").strip(),
+        "path_role": path_role,
+        "upload_id": str(source_info.get("upload_id") or "").strip(),
+        "content_digest": str(source_info.get("content_digest") or "").strip(),
+    }
+
+
 def _trusted_audio_signature(source_info: dict[str, Any], source_path: str | Path) -> dict[str, Any] | None:
     if source_info.get("upload_id") and source_info.get("content_digest"):
         return {
@@ -2450,17 +2462,19 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
     source_info = remaster_state.get("source_audio") or {}
     source_identity = _audio_source_signature(source_info, source_path) if source_path else ""
+    source_analysis_context = _remaster_audio_intelligence_context(project, source_info)
     st.markdown("### Source")
     if source_path and Path(source_path).is_file():
-        input_probe = _cached_audio_probe(source_path, source_identity=source_identity, ffmpeg_path=settings.ffmpeg_path)
+        input_analysis = analyze_audio_source(source_path, source_analysis_context, depth="fast", ffmpeg_path=settings.ffmpeg_path)
+        input_metadata = input_analysis.get("metadata") or {}
         cols = st.columns(2)
         cols[0].metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
-        cols[1].metric("Duration", f"{float(input_probe.get('duration') or 0):.1f}s" if input_probe.get("duration") else "Unknown")
+        cols[1].metric("Duration", f"{float(input_metadata.get('duration_sec') or 0):.1f}s" if input_metadata.get("duration_sec") else "Unknown")
         with st.expander("Advanced / Source Details", expanded=False):
             st.caption(f"Format: {str(source_info.get('format') or Path(source_path).suffix.lstrip('.')).upper()}")
-            st.caption(f"Sample Rate: {input_probe.get('sample_rate', 0) or 'Unknown'} Hz")
-            st.caption(f"Channels: {input_probe.get('channels') or 'Unknown'}")
-            st.caption("Input loudness and true peak are estimated when exact measurement is unavailable.")
+            st.caption(f"Sample Rate: {input_metadata.get('sample_rate_hz') or 'Unknown'} Hz")
+            st.caption(f"Channels: {input_metadata.get('channels') or 'Unknown'}")
+            st.caption("Loudness, true peak, and LRA are measured during source analysis or processing.")
         st.markdown("**Original Preview**")
         original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=source_identity)
         if original_preview.get("ok"):
@@ -2536,7 +2550,12 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                     st.json(recommendation.get("metrics"), expanded=False)
                 if source_path and Path(source_path).is_file() and st.button("Analyze Source", key="remaster_analyze_audio_recommendation"):
                     with st.spinner("Analyzing audio locally..."):
-                        analyzed = analyze_audio_for_remaster_recommendation(source_path, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb)
+                        analyzed = analyze_audio_for_remaster_recommendation(
+                            source_path,
+                            ffmpeg_path=settings.ffmpeg_path,
+                            max_upload_mb=max_upload_mb,
+                            source_context=source_analysis_context,
+                        )
                     if analyzed.get("ok"):
                         remaster_state["remaster_recommendation"] = analyzed["data"]
                         project["remaster_studio"] = remaster_state
@@ -2591,6 +2610,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 recommendation_data=remaster_state.get("remaster_recommendation") or {"source": "manual", "recommended_preset": style, "selected_preset": style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}},
                 preset_mode="manual" if selection_mode == "Manual" else "auto",
                 custom_settings=custom_settings,
+                source_context=source_analysis_context,
             )
         remaster_state["last_result"] = result.get("data", {})
         result_status = str(result.get("status") or (result.get("data") or {}).get("overall_status") or ("success" if result.get("ok") else "failed"))
@@ -2634,15 +2654,24 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     if mastered_wav.is_file():
         st.markdown("### Before / After")
         comparison = result_data.get("quality_comparison") or report.get("quality_comparison") or {}
-        summary = comparison.get("summary") or {}
-        quality_cols = st.columns(3)
-        quality_cols[0].metric("Loudness", str(summary.get("loudness") or "Unknown"))
-        quality_cols[1].metric("Dynamics", str(summary.get("dynamics") or "Unknown"))
-        quality_cols[2].metric("Stereo Width", str(summary.get("stereo_width") or "Unknown"))
         original_metrics = comparison.get("original") or {}
         mastered_metrics = comparison.get("mastered") or {}
         loudness_before = original_metrics.get("integrated_lufs")
         loudness_after = mastered_metrics.get("integrated_lufs")
+        def _measured(value: Any, unit: str) -> str:
+            return f"{float(value):.1f} {unit}" if isinstance(value, (int, float)) else "Unavailable"
+
+        before_col, after_col = st.columns(2)
+        with before_col:
+            st.markdown("**Before**")
+            st.metric("Loudness", _measured(loudness_before, "LUFS"))
+            st.metric("True Peak", _measured(original_metrics.get("true_peak_dbtp"), "dBTP"))
+            st.metric("Loudness Range", _measured(original_metrics.get("lra_lu"), "LU"))
+        with after_col:
+            st.markdown("**After**")
+            st.metric("Loudness", _measured(loudness_after, "LUFS"))
+            st.metric("True Peak", _measured(mastered_metrics.get("true_peak_dbtp"), "dBTP"))
+            st.metric("Loudness Range", _measured(mastered_metrics.get("lra_lu"), "LU"))
         ab_data = result_data.get("ab_previews") or report.get("ab_previews") or {}
         original_ab_path = Path(str(ab_data.get("original_preview") or ""))
         mastered_ab_path = Path(str(ab_data.get("mastered_preview") or ""))
@@ -2671,7 +2700,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 "LUFS: "
                 f"{loudness_before if loudness_before is not None else 'Unknown'} → "
                 f"{loudness_after if loudness_after is not None else 'Unknown'} · "
-                f"Peak proxy: {original_metrics.get('peak_dbfs_proxy', 'Unknown')} → {mastered_metrics.get('peak_dbfs_proxy', 'Unknown')} dBFS"
+                f"Method: {comparison.get('method') or 'Unknown'}"
             )
             st.json({"comparison": comparison, "a_b_preview": ab_data}, expanded=False)
             st.json({"validation": report.get("clipping_validation"), "preview": remaster_state.get("preview_diagnostics", {})}, expanded=False)
