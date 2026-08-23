@@ -30,6 +30,52 @@ REMASTER_STYLES = [
 ]
 REMASTER_RECOMMENDATION_MODES = ["Auto Recommended", "Manual"]
 
+AUTO_REMASTER_PRESETS = [
+    "Streaming Balanced",
+    "Emotional Ballad",
+    "Warm Acoustic",
+    "Vocal Focus",
+    "Pop Rock",
+    "Modern Pop",
+    "Loud Modern",
+]
+PRESET_SAFETY_CLASSES = {
+    "Streaming Balanced": "conservative",
+    "Emotional Ballad": "conservative",
+    "Warm Acoustic": "conservative",
+    "Vocal Focus": "moderate",
+    "Pop Rock": "moderate",
+    "Modern Pop": "moderate",
+    "Loud Modern": "aggressive",
+    "Cinematic": "artistic_special",
+    "Custom": "manual_only",
+}
+RECOMMENDATION_PRIORITY = {name: index for index, name in enumerate(AUTO_REMASTER_PRESETS)}
+
+RECOMMENDATION_REASON_LABELS = {
+    "already_near_streaming_target": "Source is already near a normal streaming target.",
+    "low_true_peak_headroom": "Measured true-peak headroom is low, so conservative processing is safer.",
+    "already_very_loud": "Source is already loud and should not receive aggressive loudness treatment.",
+    "high_dynamic_range": "Measured loudness range favors preserving musical dynamics.",
+    "low_dynamic_range": "Source is already compressed, so additional aggressive compression is avoided.",
+    "quiet_dynamic_source": "Quieter dynamic material supports a gentler mastering approach.",
+    "dense_sustained_energy": "Sustained energy supports a denser modern character.",
+    "lower_energy_material": "Lower energy supports a lighter, more open treatment.",
+    "mono_source": "Mono source keeps the recommendation conservative.",
+    "silent_or_unreliable_source": "Source has no reliable audible program level; balanced fallback is safest.",
+    "metadata_ballad": "Project metadata indicates an emotional or ballad direction.",
+    "metadata_acoustic": "Project metadata indicates an acoustic or warm direction.",
+    "metadata_pop_rock": "Project metadata indicates a pop-rock direction.",
+    "metadata_modern_pop": "Project metadata indicates a modern pop or electronic direction.",
+    "metadata_vocal": "Project metadata indicates spoken or vocal-forward content.",
+    "mid_forward_low_transient": "Legacy proxy evidence is mid-forward with restrained transients.",
+    "dense_bass_forward": "Legacy proxy evidence is dense and bass-forward.",
+    "transient_mid_forward": "Legacy proxy evidence is transient and mid-forward.",
+    "high_energy_low_silence": "Legacy proxy evidence indicates consistently high energy.",
+    "warm_dynamic_proxy": "Legacy proxy evidence supports a warm dynamic treatment.",
+    "conservative_fallback": "Evidence is limited or mixed; balanced processing is safest.",
+}
+
 LEGACY_STYLE_ALIASES = {
     "Vela Moon Emotional Pop Rock": "Pop Rock",
     "Spotify Pop Loud": "Modern Pop",
@@ -205,6 +251,296 @@ def _confidence_label(score: int) -> str:
     if score >= 55:
         return "Medium"
     return "Low"
+
+
+def _finite_metric(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _metadata_text(metadata: dict[str, Any] | str | None) -> str:
+    if isinstance(metadata, dict):
+        values = [value for value in metadata.values() if isinstance(value, (str, int, float, list, tuple, dict))]
+        return " ".join(str(value) for value in values).lower()
+    return str(metadata or "").lower()
+
+
+def _energy_summary(audio_intelligence: dict[str, Any]) -> dict[str, float | None]:
+    energy = audio_intelligence.get("energy") or {}
+    profile = energy.get("profile") if energy.get("status") == "ok" else []
+    values = sorted(
+        value
+        for value in (_finite_metric((point or {}).get("normalized")) for point in (profile or []))
+        if value is not None
+    )
+    if not values:
+        return {"median": None, "high_ratio": None, "low_ratio": None, "variance": None}
+    middle = len(values) // 2
+    median = values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2.0
+    mean = sum(values) / len(values)
+    return {
+        "median": round(median, 4),
+        "high_ratio": round(sum(value >= 0.67 for value in values) / len(values), 4),
+        "low_ratio": round(sum(value <= 0.33 for value in values) / len(values), 4),
+        "variance": round(sum((value - mean) ** 2 for value in values) / len(values), 4),
+    }
+
+
+def recommend_remaster_preset(
+    audio_intelligence: dict[str, Any] | None,
+    proxy_metrics: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | str | None = None,
+) -> dict[str, Any]:
+    """Return a deterministic reliable-first preset recommendation.
+
+    Reliable measurements define safety and context. Metadata and legacy PCM
+    proxies may distinguish character only after those gates are applied.
+    """
+    analysis = audio_intelligence if isinstance(audio_intelligence, dict) else {}
+    proxies = proxy_metrics if isinstance(proxy_metrics, dict) else {}
+    loudness = analysis.get("loudness") or {}
+    source_metadata = analysis.get("metadata") or {}
+    silence = analysis.get("silence") or {}
+    source = analysis.get("source") or {}
+    integrated_lufs = _finite_metric(loudness.get("integrated_lufs"))
+    true_peak = _finite_metric(loudness.get("true_peak_dbtp"))
+    lra = _finite_metric(loudness.get("lra_lu"))
+    channels = _finite_metric(source_metadata.get("channels"))
+    duration = _finite_metric(source_metadata.get("duration_sec"))
+    leading_silence = _finite_metric(silence.get("leading_sec"))
+    trailing_silence = _finite_metric(silence.get("trailing_sec"))
+    energy = _energy_summary(analysis)
+    text = _metadata_text(metadata)
+
+    scores = {name: 20.0 for name in AUTO_REMASTER_PRESETS}
+    scores["Streaming Balanced"] = 35.0
+    scores["Loud Modern"] = 8.0
+    reasons: dict[str, list[str]] = {name: [] for name in AUTO_REMASTER_PRESETS}
+    metrics_used: list[str] = []
+    excluded: dict[str, str] = {}
+    safety = {
+        "aggressive_allowed": True,
+        "true_peak_headroom_low": False,
+        "already_very_loud": False,
+        "high_lra": False,
+        "low_lra": False,
+        "already_near_streaming_target": False,
+        "silent_or_unreliable_source": False,
+    }
+
+    reliable_count = 0
+    if integrated_lufs is not None:
+        reliable_count += 1
+        metrics_used.append("integrated_lufs")
+    if true_peak is not None:
+        reliable_count += 1
+        metrics_used.append("true_peak_dbtp")
+    if lra is not None:
+        reliable_count += 1
+        metrics_used.append("lra_lu")
+
+    if (
+        integrated_lufs is not None
+        and true_peak is not None
+        and lra is not None
+        and -15.0 <= integrated_lufs <= -13.0
+        and true_peak <= -0.8
+        and 4.0 <= lra <= 11.0
+    ):
+        safety["already_near_streaming_target"] = True
+        scores["Streaming Balanced"] += 50
+        reasons["Streaming Balanced"].append("already_near_streaming_target")
+
+    if true_peak is not None and true_peak > -0.5:
+        safety["true_peak_headroom_low"] = True
+        safety["aggressive_allowed"] = False
+        excluded["Loud Modern"] = "low_true_peak_headroom"
+        scores["Streaming Balanced"] += 42
+        reasons["Streaming Balanced"].append("low_true_peak_headroom")
+        for name in ("Modern Pop", "Pop Rock", "Vocal Focus"):
+            scores[name] -= 8
+
+    if integrated_lufs is not None and integrated_lufs > -10.5:
+        safety["already_very_loud"] = True
+        safety["aggressive_allowed"] = False
+        excluded["Loud Modern"] = "already_very_loud"
+        scores["Streaming Balanced"] += 38
+        reasons["Streaming Balanced"].append("already_very_loud")
+        scores["Modern Pop"] -= 8
+
+    if lra is not None and lra >= 11.0:
+        safety["high_lra"] = True
+        safety["aggressive_allowed"] = False
+        excluded["Loud Modern"] = "high_dynamic_range"
+        scores["Emotional Ballad"] += 30
+        scores["Warm Acoustic"] += 26
+        scores["Modern Pop"] -= 12
+        reasons["Emotional Ballad"].append("high_dynamic_range")
+        reasons["Warm Acoustic"].append("high_dynamic_range")
+    elif lra is not None and lra <= 3.5:
+        safety["low_lra"] = True
+        safety["aggressive_allowed"] = False
+        excluded["Loud Modern"] = "low_dynamic_range"
+        scores["Streaming Balanced"] += 24
+        reasons["Streaming Balanced"].append("low_dynamic_range")
+
+    if integrated_lufs is not None and integrated_lufs <= -18.0:
+        scores["Warm Acoustic"] += 14
+        scores["Emotional Ballad"] += 14
+        reasons["Warm Acoustic"].append("quiet_dynamic_source")
+        reasons["Emotional Ballad"].append("quiet_dynamic_source")
+
+    if channels is not None:
+        metrics_used.append("channels")
+        if channels <= 1:
+            scores["Streaming Balanced"] += 7
+            scores["Vocal Focus"] += 5
+            reasons["Streaming Balanced"].append("mono_source")
+
+    if energy["median"] is not None:
+        metrics_used.extend(["energy_median", "energy_high_ratio", "energy_low_ratio", "energy_variance"])
+        if float(energy["high_ratio"] or 0.0) >= 0.55:
+            scores["Modern Pop"] += 12
+            scores["Pop Rock"] += 10
+            reasons["Modern Pop"].append("dense_sustained_energy")
+        if float(energy["low_ratio"] or 0.0) >= 0.55:
+            scores["Warm Acoustic"] += 10
+            scores["Emotional Ballad"] += 9
+            reasons["Warm Acoustic"].append("lower_energy_material")
+
+    if duration and duration > 0 and leading_silence is not None and trailing_silence is not None:
+        metrics_used.extend(["leading_silence", "trailing_silence"])
+        if (leading_silence + trailing_silence) / duration >= 0.15:
+            scores["Vocal Focus"] += 4
+
+    metadata_rules = [
+        ("metadata_ballad", "Emotional Ballad", ("ballad", "emotional", "slow song", "บัลลาด", "เพลงช้า"), 34),
+        ("metadata_acoustic", "Warm Acoustic", ("acoustic", "warm", "piano", "อะคูสติก", "อบอุ่น"), 30),
+        ("metadata_pop_rock", "Pop Rock", ("pop rock", "rock", "guitar", "drum kit", "ป๊อปร็อก", "กีตาร์"), 31),
+        ("metadata_modern_pop", "Modern Pop", ("modern pop", "electronic", "edm", "trap", "dance", "808", "อิเล็กทรอนิก"), 31),
+        ("metadata_vocal", "Vocal Focus", ("podcast", "narration", "spoken", "speech", "voice", "พอดแคสต์", "บรรยาย"), 34),
+    ]
+    for reason, preset, keywords, weight in metadata_rules:
+        matches = sorted({keyword for keyword in keywords if keyword in text})
+        if matches:
+            scores[preset] += weight + min(10, (len(matches) - 1) * 3)
+            reasons[preset].append(reason)
+            metrics_used.append(reason)
+
+    rms = _finite_metric(proxies.get("rms_energy"))
+    bass = _finite_metric(proxies.get("bass_energy"))
+    mid = _finite_metric(proxies.get("mid_energy"))
+    high = _finite_metric(proxies.get("high_energy"))
+    transient = _finite_metric(proxies.get("transient_density"))
+    silence_ratio = _finite_metric(proxies.get("silence_ratio"))
+    dynamic_range = _finite_metric(proxies.get("dynamic_range"))
+    proxy_values = [rms, bass, mid, high, transient, silence_ratio, dynamic_range]
+    if any(value is not None for value in proxy_values):
+        metrics_used.append("legacy_pcm_proxies")
+    if None not in (mid, bass, transient, silence_ratio) and mid > bass * 1.25 and transient < 0.28 and silence_ratio > 0.18:
+        scores["Vocal Focus"] += 36
+        reasons["Vocal Focus"].append("mid_forward_low_transient")
+    if None not in (bass, mid, rms, high) and bass > mid * 1.18 and rms > 0.12 and high > 0.08:
+        scores["Modern Pop"] += 34
+        reasons["Modern Pop"].append("dense_bass_forward")
+    if None not in (transient, mid, bass) and transient > 0.32 and mid >= bass * 0.85:
+        scores["Pop Rock"] += 35
+        reasons["Pop Rock"].append("transient_mid_forward")
+    if None not in (rms, transient, silence_ratio) and rms > 0.16 and transient > 0.2 and silence_ratio < 0.18 and safety["aggressive_allowed"]:
+        scores["Loud Modern"] += 46
+        reasons["Loud Modern"].append("high_energy_low_silence")
+    if None not in (mid, bass, dynamic_range) and mid > bass and dynamic_range > 0.45:
+        scores["Warm Acoustic"] += 30
+        reasons["Warm Acoustic"].append("warm_dynamic_proxy")
+
+    source_effectively_silent = (
+        integrated_lufs is None
+        and true_peak is None
+        and energy["median"] == 0.0
+        and float(energy["high_ratio"] or 0.0) == 0.0
+        and (rms is None or rms == 0.0)
+    )
+    if source_effectively_silent:
+        safety["silent_or_unreliable_source"] = True
+        safety["aggressive_allowed"] = False
+        excluded["Loud Modern"] = "silent_or_unreliable_source"
+        for name in scores:
+            scores[name] = 0.0
+            reasons[name] = []
+        scores["Streaming Balanced"] = 100.0
+        reasons["Streaming Balanced"] = ["silent_or_unreliable_source"]
+
+    available_scores = {name: score for name, score in scores.items() if name not in excluded}
+    ranked = sorted(available_scores, key=lambda name: (-available_scores[name], RECOMMENDATION_PRIORITY[name]))
+    winner = ranked[0] if ranked else "Streaming Balanced"
+    if available_scores.get(winner, 0.0) <= 35.0 and not reasons[winner]:
+        winner = "Streaming Balanced"
+        reasons[winner].append("conservative_fallback")
+    runner_up_score = max((available_scores[name] for name in available_scores if name != winner), default=0.0)
+    winner_score = available_scores.get(winner, scores["Streaming Balanced"])
+    separation = max(0.0, winner_score - runner_up_score)
+    evidence_count = len(set(reasons[winner]))
+    if source_effectively_silent:
+        confidence = 0.30
+    elif reliable_count == 0 and evidence_count <= 1:
+        confidence = 0.35 if evidence_count else 0.25
+    else:
+        confidence = min(0.92, 0.40 + reliable_count * 0.10 + min(0.25, separation / 100.0) + min(0.08, evidence_count * 0.02))
+    reason_codes = list(dict.fromkeys(reasons[winner])) or ["conservative_fallback"]
+    if set(reason_codes).issubset({"mono_source", "conservative_fallback"}):
+        confidence = min(confidence, 0.64 if reliable_count else 0.35)
+    return {
+        "preset": winner,
+        "confidence": round(confidence, 2),
+        "reasons": reason_codes,
+        "reason_labels": [RECOMMENDATION_REASON_LABELS.get(reason, reason.replace("_", " ")) for reason in reason_codes],
+        "metrics_used": list(dict.fromkeys(metrics_used)),
+        "source_id": str(source.get("source_id") or ""),
+        "safety": safety | {"excluded_presets": excluded},
+        "candidate_scores": {name: round(scores[name], 2) for name in AUTO_REMASTER_PRESETS},
+        "energy_summary": energy,
+        "reliable_metric_count": reliable_count,
+    }
+
+
+def build_remaster_recommendation(decision: dict[str, Any], analysis: dict[str, Any], metrics: dict[str, Any] | None = None, *, source: str = "audio_analysis") -> dict[str, Any]:
+    confidence_value = max(0.0, min(1.0, float(decision.get("confidence") or 0.0)))
+    score = int(round(confidence_value * 100))
+    preset = str(decision.get("preset") or "Streaming Balanced")
+    return {
+        "source": source,
+        "recommended_preset": preset,
+        "selected_preset": preset,
+        "confidence": _confidence_label(score),
+        "confidence_score": score,
+        "reasons": list(decision.get("reason_labels") or []),
+        "metrics": dict(metrics or {}),
+        "audio_intelligence": analysis,
+        "recommendation_confidence": confidence_value,
+        "recommendation_reasons": list(decision.get("reasons") or []),
+        "recommendation_metrics_used": list(decision.get("metrics_used") or []),
+        "recommendation_source_id": str(decision.get("source_id") or ""),
+        "recommendation_safety": dict(decision.get("safety") or {}),
+        "candidate_scores": dict(decision.get("candidate_scores") or {}),
+        "analyzed_at": datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def remaster_recommendation_matches_source(recommendation: dict[str, Any] | None, audio_intelligence: dict[str, Any] | None) -> bool:
+    stored = recommendation if isinstance(recommendation, dict) else {}
+    if stored.get("source") != "audio_analysis":
+        return True
+    active = audio_intelligence if isinstance(audio_intelligence, dict) else {}
+    active_source_id = str((active.get("source") or {}).get("source_id") or "")
+    stored_source_id = str(
+        stored.get("recommendation_source_id")
+        or (((stored.get("audio_intelligence") or {}).get("source") or {}).get("source_id"))
+        or ""
+    )
+    return bool(active_source_id and stored_source_id == active_source_id)
 
 
 def recommend_remaster_preset_from_metadata(metadata: dict[str, Any] | str | None) -> dict[str, Any]:
@@ -460,6 +796,7 @@ def analyze_audio_for_remaster_recommendation(
     max_upload_mb: int = 200,
     source_context: dict[str, Any] | None = None,
     audio_intelligence: dict[str, Any] | None = None,
+    metadata: dict[str, Any] | str | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     validation = validate_remaster_input(source, max_upload_mb=max_upload_mb)
@@ -470,6 +807,8 @@ def analyze_audio_for_remaster_recommendation(
         return {"ok": False, "message": "FFmpeg not found", "error": "missing_ffmpeg"}
     analysis = audio_intelligence or analyze_audio_source(source, source_context, depth="deep", ffmpeg_path=ffmpeg)
     probe = _probe_from_audio_intelligence(analysis)
+    if not probe.get("ok") or not probe.get("has_audio", True):
+        probe = probe_media(source, ffmpeg_path=ffmpeg)
     if not probe.get("ok") or not probe.get("has_audio", True):
         return {"ok": False, "message": "Invalid or corrupt audio file", "error": "invalid_audio", "data": {"probe": probe}}
     decoded = _decode_analysis_pcm(source, ffmpeg)
@@ -508,40 +847,8 @@ def analyze_audio_for_remaster_recommendation(
         "crest_factor": round(crest_factor, 3),
         "clipping_risk": bool(clipping_risk),
     }
-    reasons: list[str] = []
-    preset = "Streaming Balanced"
-    score = 48
-    if rms < 0.03 or silent > 0.65:
-        preset, score = "Streaming Balanced", 42
-        reasons.append("Low-confidence input: quiet or silence-heavy audio; balanced preset is safest.")
-    elif mid_energy > bass_energy * 1.25 and transient_density < 0.28 and silent > 0.18:
-        preset, score = "Vocal Focus", 70
-        reasons += ["Dominant speech/vocal range", "Moderate pauses", "Lower sub-bass content"]
-    elif bass_energy > mid_energy * 1.18 and rms > 0.12 and high_energy > 0.08:
-        preset, score = "Modern Pop", 78
-        reasons += ["Dense low-frequency content", "Consistent loudness", "Bright modern profile"]
-    elif transient_density > 0.32 and mid_energy >= bass_energy * 0.85:
-        preset, score = "Pop Rock", 73
-        reasons += ["Strong transient density", "Midrange energy suggests guitars/drums", "Wider dynamics than dense EDM"]
-    elif rms > 0.16 and transient_density > 0.2 and silent < 0.18:
-        preset, score = "Loud Modern", 80
-        reasons += ["High overall energy", "Low silence ratio", "Suitable for loud social playback"]
-    elif mid_energy > bass_energy and dynamic_range > 0.45:
-        preset, score = "Warm Acoustic", 68
-        reasons += ["Moderate loudness", "Vocal/acoustic-friendly midrange", "Softer dynamic profile"]
-    else:
-        reasons.append("Audio characteristics are mixed; balanced preset is safest.")
-    recommendation = {
-        "source": "audio_analysis",
-        "recommended_preset": preset,
-        "selected_preset": preset,
-        "confidence": _confidence_label(score),
-        "confidence_score": score,
-        "reasons": reasons,
-        "metrics": metrics,
-        "audio_intelligence": analysis,
-        "analyzed_at": datetime.now().isoformat(timespec="seconds"),
-    }
+    decision = recommend_remaster_preset(analysis, metrics, metadata)
+    recommendation = build_remaster_recommendation(decision, analysis, metrics)
     return {"ok": True, "data": recommendation, "error": ""}
 
 

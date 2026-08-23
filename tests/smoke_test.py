@@ -111,7 +111,7 @@ from core.hook_clip_engine import build_hook_render_package, export_hook_clip_pa
 from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
-from core.remaster_engine import CUSTOM_REMASTER_DEFAULTS, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_remaster_project_id, build_remaster_quality_comparison, default_custom_remaster_settings, recommend_remaster_preset_from_metadata, remaster_song_audio, sanitize_custom_remaster_settings, validate_remaster_input, validate_remaster_outputs
+from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_remaster_input, validate_remaster_outputs
 from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
@@ -556,6 +556,90 @@ def run_visual_rhythm_smoke(out: Path) -> dict[str, Any]:
     return {"cases": 20, "confidence_threshold": VISUAL_BPM_CONFIDENCE_THRESHOLD, "dual_tempo": [plan_120["durations"], plan_90["durations"]]}
 
 
+def _remaster_recommendation_analysis(
+    lufs: float | None,
+    true_peak: float | None,
+    lra: float | None,
+    *,
+    energy: float | None = 0.5,
+    channels: int = 2,
+    source_id: str = "remaster-recommendation-fixture",
+) -> dict[str, Any]:
+    profile = [] if energy is None else [{"start_sec": float(index), "end_sec": float(index + 1), "normalized": energy} for index in range(10)]
+    return {
+        "source": {"source_id": source_id},
+        "metadata": {"duration_sec": 180.0, "channels": channels, "codec": "wav", "status": "measured"},
+        "loudness": {"integrated_lufs": lufs, "true_peak_dbtp": true_peak, "lra_lu": lra, "status": "measured" if lufs is not None else "unknown"},
+        "energy": {"status": "ok" if profile else "unknown", "profile": profile},
+        "silence": {"status": "ok", "leading_sec": 0.0, "trailing_sec": 0.0},
+    }
+
+
+def run_remaster_recommendation_smoke() -> dict[str, Any]:
+    profiles = {
+        "A": (_remaster_recommendation_analysis(-21, -4, 12, energy=0.3), {"rms_energy": 0.05, "silence_ratio": 0.08, "mid_energy": 0.07, "bass_energy": 0.04, "transient_density": 0.20, "high_energy": 0.03, "dynamic_range": 0.65}, {"genre": "acoustic"}),
+        "B": (_remaster_recommendation_analysis(-9, -0.1, 3, energy=0.9), {"rms_energy": 0.25, "silence_ratio": 0.02, "mid_energy": 0.18, "bass_energy": 0.25, "transient_density": 0.18, "high_energy": 0.12, "dynamic_range": 0.25}, {"genre": "modern pop"}),
+        "C": (_remaster_recommendation_analysis(-15, -1.5, 7, energy=0.7), {"rms_energy": 0.14, "silence_ratio": 0.05, "mid_energy": 0.13, "bass_energy": 0.12, "transient_density": 0.45, "high_energy": 0.08, "dynamic_range": 0.50}, {"genre": "pop rock"}),
+        "D": (_remaster_recommendation_analysis(-18, -2.5, 14, energy=0.3), {"rms_energy": 0.07, "silence_ratio": 0.08, "mid_energy": 0.08, "bass_energy": 0.05, "transient_density": 0.15, "high_energy": 0.03, "dynamic_range": 0.80}, {"genre": "emotional ballad"}),
+        "E": (_remaster_recommendation_analysis(-11, -0.5, 4, energy=0.9), {"rms_energy": 0.22, "silence_ratio": 0.02, "mid_energy": 0.15, "bass_energy": 0.25, "transient_density": 0.35, "high_energy": 0.13, "dynamic_range": 0.30}, {"genre": "EDM electronic"}),
+        "F": (_remaster_recommendation_analysis(-24, -6, 6, energy=0.2), {"rms_energy": 0.025, "silence_ratio": 0.22, "mid_energy": 0.04, "bass_energy": 0.015, "transient_density": 0.08, "high_energy": 0.01, "dynamic_range": 0.55}, {"song_type": "spoken voice"}),
+        "G": (_remaster_recommendation_analysis(-16, -2, 8, channels=1), {}, {}),
+        "H": (_remaster_recommendation_analysis(None, None, None, energy=None), {}, {}),
+        "I": (_remaster_recommendation_analysis(-13, 0.6, 5, energy=0.7), {"rms_energy": 0.18, "silence_ratio": 0.02, "mid_energy": 0.12, "bass_energy": 0.11, "transient_density": 0.25, "high_energy": 0.08, "dynamic_range": 0.35}, {}),
+        "J": (_remaster_recommendation_analysis(-14, -1, 8), {"rms_energy": 0.12, "silence_ratio": 0.03, "mid_energy": 0.10, "bass_energy": 0.09, "transient_density": 0.18, "high_energy": 0.05, "dynamic_range": 0.40}, {}),
+    }
+    results = {name: recommend_remaster_preset(*inputs) for name, inputs in profiles.items()}
+    assert_true(results["A"]["preset"] in {"Warm Acoustic", "Emotional Ballad"} and results["A"]["preset"] != "Loud Modern", "quiet dynamic acoustic recommendation is unsafe")
+    assert_true(results["B"]["preset"] != "Loud Modern" and not results["B"]["safety"]["aggressive_allowed"], "already-loud compressed pop received aggressive treatment")
+    assert_true(results["C"]["preset"] == "Pop Rock", "moderate pop-rock evidence did not select Pop Rock")
+    assert_true(results["D"]["preset"] == "Emotional Ballad", "Emotional Ballad is still unreachable")
+    assert_true(results["E"]["preset"] == "Modern Pop", "safe dense electronic profile did not select Modern Pop")
+    assert_true(results["F"]["preset"] in {"Vocal Focus", "Warm Acoustic", "Streaming Balanced"} and results["F"]["preset"] != "Loud Modern", "soft spoken source received an incompatible preset")
+    assert_true(results["G"]["preset"] not in {"Cinematic", "Custom", "Loud Modern"}, "mono source recommendation is unsafe")
+    assert_true(results["H"]["preset"] == "Streaming Balanced" and results["H"]["confidence"] < 0.5, "invalid reliable metrics did not use low-confidence fallback")
+    assert_true(results["I"]["preset"] == "Streaming Balanced" and "low_true_peak_headroom" in results["I"]["reasons"], "near-clipped source was not protected")
+    assert_true(results["J"]["preset"] == "Streaming Balanced" and "already_near_streaming_target" in results["J"]["reasons"], "streaming-ready source did not receive light-touch recommendation")
+
+    collision_pop_loud = recommend_remaster_preset(
+        _remaster_recommendation_analysis(-12, -1.2, 7, energy=0.8),
+        {"rms_energy": 0.20, "silence_ratio": 0.02, "mid_energy": 0.14, "bass_energy": 0.14, "transient_density": 0.42, "high_energy": 0.10, "dynamic_range": 0.45},
+        {"genre": "pop rock"},
+    )
+    collision_modern_pop = recommend_remaster_preset(
+        _remaster_recommendation_analysis(-12, -1.2, 6, energy=0.9),
+        {"rms_energy": 0.20, "silence_ratio": 0.02, "mid_energy": 0.14, "bass_energy": 0.20, "transient_density": 0.25, "high_energy": 0.12, "dynamic_range": 0.35},
+        {"genre": "electronic pop rock"},
+    )
+    collision_vocal = recommend_remaster_preset(
+        _remaster_recommendation_analysis(-16, -2, 8, energy=0.6),
+        {"rms_energy": 0.13, "silence_ratio": 0.25, "mid_energy": 0.18, "bass_energy": 0.10, "transient_density": 0.20, "high_energy": 0.08, "dynamic_range": 0.45},
+        {"song_type": "spoken voice modern pop"},
+    )
+    collision_warm = recommend_remaster_preset(
+        _remaster_recommendation_analysis(-19, -3, 13, energy=0.3),
+        {"rms_energy": 0.13, "silence_ratio": 0.04, "mid_energy": 0.11, "bass_energy": 0.14, "transient_density": 0.18, "high_energy": 0.09, "dynamic_range": 0.70},
+        {"genre": "warm acoustic"},
+    )
+    assert_true(collision_pop_loud["preset"] == "Pop Rock" and collision_pop_loud["candidate_scores"]["Pop Rock"] > collision_pop_loud["candidate_scores"]["Loud Modern"], "Pop Rock/Loud Modern collision still depends on rule order")
+    assert_true(collision_modern_pop["preset"] == "Modern Pop" and collision_vocal["preset"] == "Vocal Focus" and collision_warm["preset"] in {"Warm Acoustic", "Emotional Ballad"}, "Modern/Vocal/Warm collision scoring failed")
+    reversed_metadata = recommend_remaster_preset(profiles["C"][0], profiles["C"][1], {"style": "guitar", "genre": "pop rock"})
+    assert_true(reversed_metadata["preset"] == results["C"]["preset"], "metadata dictionary order changed recommendation")
+
+    for result in [*results.values(), collision_pop_loud, collision_modern_pop, collision_vocal, collision_warm]:
+        assert_true(result["preset"] in AUTO_REMASTER_PRESETS and result["preset"] not in {"Cinematic", "Custom"} and 0.0 <= result["confidence"] <= 1.0, "Auto returned an invalid or manual-only preset")
+        assert_true(result["preset"] in STYLE_FILTERS and PRESET_SAFETY_CLASSES[result["preset"]] != "manual_only", "Auto/Manual built-in DSP identity failed")
+    custom_isolation = recommend_remaster_preset(profiles["J"][0], metadata={"preset": "Custom", "custom_settings": {"loudness_lufs": -10}})
+    assert_true(custom_isolation["preset"] == "Streaming Balanced" and "Custom" not in custom_isolation["candidate_scores"], "Custom settings leaked into Auto recommendation")
+
+    payload = build_remaster_recommendation(results["C"], profiles["C"][0], profiles["C"][1])
+    assert_true(all(key in payload for key in ["recommended_preset", "selected_preset", "confidence", "confidence_score", "reasons", "metrics", "recommendation_confidence", "recommendation_reasons", "recommendation_metrics_used", "recommendation_source_id"]), "recommendation report compatibility fields missing")
+    same_source = {**profiles["C"][0], "source": {"source_id": payload["recommendation_source_id"]}}
+    different_source = {**profiles["C"][0], "source": {"source_id": "different-source"}}
+    assert_true(remaster_recommendation_matches_source(payload, same_source) and not remaster_recommendation_matches_source(payload, different_source), "stale recommendation source-id protection failed")
+    assert_true(remaster_recommendation_matches_source(recommend_remaster_preset_from_metadata({"genre": "pop rock"}), different_source), "metadata fallback should not require Audio Intelligence source id")
+    return {"matrix": {name: result["preset"] for name, result in results.items()}, "collisions": 4, "cinematic_auto": False, "custom_auto": False}
+
+
 def _smart_cut_analysis(
     energies: list[float],
     *,
@@ -852,6 +936,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     bpm_detection_results = run_bpm_detection_smoke()
     visual_rhythm_results = run_visual_rhythm_smoke(out)
+    remaster_recommendation_results = run_remaster_recommendation_smoke()
     smart_cut_performance = run_smart_cut_smoke()
     audio_intelligence_performance = run_audio_intelligence_smoke(out)
     local_policy = access_gate_policy({"VELAFLOW_MODE": "LOCAL"}, configured_password="")
@@ -4884,7 +4969,7 @@ def main():
     assert_true(job.get("status") == "DONE", "job queue lifecycle failed")
     assert_true((job.get("result") or {}).get("ok") is True, "job result failed")
 
-    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results, "visual_rhythm_results": visual_rhythm_results}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results, "visual_rhythm_results": visual_rhythm_results, "remaster_recommendation_results": remaster_recommendation_results}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

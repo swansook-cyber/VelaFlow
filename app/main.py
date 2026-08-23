@@ -259,7 +259,7 @@ from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
-from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset_from_metadata, remaster_song_audio, sanitize_custom_remaster_settings
+from core.remaster_engine import REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -2464,6 +2464,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     source_info = remaster_state.get("source_audio") or {}
     source_identity = _audio_source_signature(source_info, source_path) if source_path else ""
     source_analysis_context = _remaster_audio_intelligence_context(project, source_info)
+    input_analysis: dict[str, Any] = {}
     st.markdown("### Source")
     if source_path and Path(source_path).is_file():
         input_analysis = analyze_audio_source(source_path, source_analysis_context, depth="fast", ffmpeg_path=settings.ffmpeg_path)
@@ -2530,9 +2531,24 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     if selection_mode == "Auto Recommended":
         remaster_state["manual_override_active"] = False
         remaster_state["preset_mode"] = "auto"
-        metadata_recommendation = recommend_remaster_preset_from_metadata(project_metadata)
-        if not remaster_state.get("remaster_recommendation") or (remaster_state.get("remaster_recommendation") or {}).get("source") in {"project_metadata", "manual"}:
-            remaster_state["remaster_recommendation"] = metadata_recommendation
+        active_intelligence_source_id = str((input_analysis.get("source") or {}).get("source_id") or "")
+        stored_recommendation = dict(remaster_state.get("remaster_recommendation") or {})
+        if stored_recommendation.get("source") == "audio_analysis" and not remaster_recommendation_matches_source(stored_recommendation, input_analysis):
+            stored_recommendation = {}
+            remaster_state.pop("remaster_recommendation", None)
+        deep_cache_ready = input_analysis.get("analysis_depth") == "deep" and active_intelligence_source_id
+        if deep_cache_ready and (
+            not stored_recommendation
+            or stored_recommendation.get("source") in {"project_metadata", "manual"}
+        ):
+            cached_decision = recommend_remaster_preset(input_analysis, metadata=project_metadata)
+            remaster_state["remaster_recommendation"] = build_remaster_recommendation(
+                cached_decision,
+                input_analysis,
+                source="audio_analysis",
+            )
+        elif not stored_recommendation or stored_recommendation.get("source") in {"project_metadata", "manual"}:
+            remaster_state["remaster_recommendation"] = recommend_remaster_preset_from_metadata(project_metadata)
     recommendation = remaster_state.get("remaster_recommendation") or {}
     style = str(recommendation.get("selected_preset") or recommendation.get("recommended_preset") or "Streaming Balanced")
     if selection_mode == "Auto Recommended":
@@ -2556,6 +2572,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                             ffmpeg_path=settings.ffmpeg_path,
                             max_upload_mb=max_upload_mb,
                             source_context=source_analysis_context,
+                            metadata=project_metadata,
                         )
                     if analyzed.get("ok"):
                         remaster_state["remaster_recommendation"] = analyzed["data"]
