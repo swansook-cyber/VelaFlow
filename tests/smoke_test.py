@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 import shutil
@@ -7,8 +8,11 @@ import subprocess
 import sys
 import threading
 import time
+import wave
 import zipfile
+from array import array
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +32,7 @@ from core.agent_tools import build_multi_agent_creator_exports, build_release_pa
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
 from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_source_signature, build_upload_identity, cached_probe_media, clamp_audio_selection, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, move_audio_selection_region, move_join_track, parse_time_input, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, SCHEMA_VERSION as AUDIO_INTELLIGENCE_SCHEMA_VERSION, analyze_audio_source, parse_loudnorm_output
 from core.creative_pack_generator import CREATIVE_PACK_PRESETS, RELEASE_PACK_FILES, _ai_phrase_count, _apply_thai_natural_speech_engine, _compact_line, _enforce_situation_locked_title_hook, _relatability_report, _score_hook_candidate, _story_blueprint_v2, build_diversity_report, creative_release_pack_to_text, export_creative_release_pack, generate_creative_release_pack, generate_hook_candidates_v2, generate_music_seed_candidates_v2, generate_situation_first_seed, generate_story_candidates_v2, generate_title_candidates_v2, validate_release_pack_export, validate_selected_seed_relevance, load_diversity_memory, parse_lyric_sections, save_diversity_memory, score_hook_novelty, score_phrase_novelty, score_title_novelty
 from core.agents import DirectorAgent, MusicAgent, MVAgent, PodcastAgent, ReleaseAgent, TikTokAgent
 from core.workspace_manager import append_generation_run, append_history, archive_project as archive_workspace_project, create_project as create_workspace_project, export_project_zip as export_workspace_project_zip, list_projects as list_workspace_projects, load_project as load_workspace_project, save_project as save_workspace_project, workspace_summary
@@ -355,9 +360,147 @@ def synthetic_hook_frames(segments, frame_seconds: float = 0.25):
     return frames
 
 
+def _write_audio_intelligence_wav(path: Path, *, channels: int = 2, duration: float = 1.0, silent: bool = False) -> None:
+    sample_rate = 48000
+    frame_count = max(1, int(sample_rate * duration))
+    samples = array("h")
+    for index in range(frame_count):
+        value = 0 if silent else int(9000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+        for channel in range(channels):
+            samples.append(value if channel == 0 else int(value * 0.82))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(channels)
+        audio.setsampwidth(2)
+        audio.setframerate(sample_rate)
+        audio.writeframes(samples.tobytes())
+
+
+def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
+    fixture_root = out / "audio_intelligence"
+    cache_root = fixture_root / "cache"
+    shutil.rmtree(fixture_root, ignore_errors=True)
+    fixture_root.mkdir(parents=True, exist_ok=True)
+    stereo = fixture_root / "stereo.wav"
+    mono = fixture_root / "mono.wav"
+    short = fixture_root / "short.wav"
+    silent = fixture_root / "silent.wav"
+    _write_audio_intelligence_wav(stereo, channels=2, duration=1.2)
+    _write_audio_intelligence_wav(mono, channels=1, duration=0.8)
+    _write_audio_intelligence_wav(short, channels=2, duration=0.04)
+    _write_audio_intelligence_wav(silent, channels=2, duration=0.4, silent=True)
+    context = {"kind": "test_fixture", "project_id": "audio-intelligence-smoke", "path_role": "source"}
+
+    cold_fast = analyze_audio_source(stereo, context, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(cold_fast["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION and cold_fast["analysis_depth"] == "fast", "Audio Intelligence fast schema/depth failed")
+    assert_true(cold_fast["metadata"]["status"] == "measured" and cold_fast["metadata"]["channels"] == 2 and cold_fast["metadata"]["sample_rate_hz"] == 48000, "stereo WAV fast metadata failed")
+    assert_true(not cold_fast["cache"]["hit"] and cold_fast["performance"]["ffmpeg_runs"] == 0, "cold fast analysis cache/subprocess behavior failed")
+    warm_fast = analyze_audio_source(stereo, context, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(warm_fast["cache"]["hit"] and warm_fast["performance"]["ffprobe_runs"] == 0 and warm_fast["performance"]["ffmpeg_runs"] == 0, "warm fast cache failed")
+
+    deep_source = fixture_root / "deep.wav"
+    shutil.copy2(stereo, deep_source)
+    cold_deep = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(cold_deep["analysis_depth"] == "deep" and "loudness" in cold_deep["completed_capabilities"], "stereo WAV deep analysis failed")
+    assert_true(cold_deep["performance"]["ffmpeg_runs"] == 1 and cold_deep["loudness"]["method"] == "ffmpeg_loudnorm", "deep analysis must use one loudnorm run")
+    assert_true(all(cold_deep["loudness"][key] is not None for key in ("integrated_lufs", "true_peak_dbtp", "lra_lu")), "deep loudness metrics missing")
+    warm_deep = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(warm_deep["cache"]["hit"] and warm_deep["performance"]["ffmpeg_runs"] == 0, "warm deep must run zero loudness subprocesses")
+    deep_as_fast = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(deep_as_fast["cache"]["hit"] and deep_as_fast["analysis_depth"] == "deep" and deep_as_fast["loudness"]["integrated_lufs"] == cold_deep["loudness"]["integrated_lufs"], "deep cache was not reused by fast request")
+
+    mono_fast = analyze_audio_source(mono, {**context, "path_role": "mono"}, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(mono_fast["metadata"]["channels"] == 1, "mono audio analysis failed")
+    short_deep = analyze_audio_source(short, {**context, "path_role": "short"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(short_deep["metadata"]["duration_sec"] is not None and isinstance(short_deep["warnings"], list), "short audio handling failed")
+    silent_deep = analyze_audio_source(silent, {**context, "path_role": "silent"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(silent_deep["loudness"]["integrated_lufs"] is None and silent_deep["loudness"]["true_peak_dbtp"] is None, "silent audio unknown values must remain null")
+
+    ffmpeg = find_ffmpeg()
+    mp3 = fixture_root / "stereo.mp3"
+    mp3_process = subprocess.run([ffmpeg, "-y", "-i", str(stereo), "-c:a", "libmp3lame", "-b:a", "192k", str(mp3)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert_true(mp3_process.returncode == 0 and mp3.is_file(), "Audio Intelligence MP3 fixture generation failed")
+    mp3_deep = analyze_audio_source(mp3, {**context, "path_role": "mp3"}, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(mp3_deep["metadata"]["codec"] == "mp3" and mp3_deep["loudness"]["status"] == "measured", "MP3 deep analysis failed")
+
+    corrupt = fixture_root / "corrupt.wav"
+    corrupt.write_bytes(b"not audio")
+    corrupt_result = analyze_audio_source(corrupt, {**context, "path_role": "corrupt"}, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(corrupt_result["metadata"]["duration_sec"] is None and corrupt_result["errors"], "corrupt audio did not fail safely")
+    missing_result = analyze_audio_source(fixture_root / "missing.wav", context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(missing_result["source"]["source_id"] == "" and missing_result["errors"] == ["missing_source"], "missing source handling failed")
+
+    upgrade_source = fixture_root / "upgrade.wav"
+    shutil.copy2(mono, upgrade_source)
+    upgrade_context = {**context, "path_role": "upgrade"}
+    upgrade_fast = analyze_audio_source(upgrade_source, upgrade_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    upgrade_deep = analyze_audio_source(upgrade_source, upgrade_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(upgrade_fast["analysis_depth"] == "fast" and upgrade_deep["analysis_depth"] == "deep" and upgrade_deep["performance"]["ffprobe_runs"] == 0 and upgrade_deep["performance"]["ffmpeg_runs"] == 1, "fast cache deep upgrade failed")
+
+    mutation_source = fixture_root / "mutation.wav"
+    shutil.copy2(stereo, mutation_source)
+    mutation_context = {**context, "path_role": "mutation"}
+    mutation_first = analyze_audio_source(mutation_source, mutation_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    time.sleep(0.002)
+    with mutation_source.open("ab") as handle:
+        handle.write(b"mutation")
+    os.utime(mutation_source, None)
+    mutation_second = analyze_audio_source(mutation_source, mutation_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(mutation_first["source"]["source_id"] != mutation_second["source"]["source_id"] and not mutation_second["cache"]["hit"], "source mutation did not invalidate cache")
+
+    version_source = fixture_root / "version.wav"
+    shutil.copy2(stereo, version_source)
+    version_context = {**context, "path_role": "version"}
+    version_first = analyze_audio_source(version_source, version_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    version_cache_path = cache_root / f"{version_first['source']['source_id']}.json"
+    version_payload = json.loads(version_cache_path.read_text(encoding="utf-8"))
+    version_payload["cache"]["analyzer_version"] = "obsolete-analyzer"
+    version_cache_path.write_text(json.dumps(version_payload), encoding="utf-8")
+    version_second = analyze_audio_source(version_source, version_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(not version_second["cache"]["hit"] and version_second["cache"]["analyzer_version"] == AUDIO_INTELLIGENCE_ANALYZER_VERSION, "analyzer version mismatch did not invalidate cache")
+    version_payload = json.loads(version_cache_path.read_text(encoding="utf-8"))
+    version_payload["schema_version"] = AUDIO_INTELLIGENCE_SCHEMA_VERSION + 1
+    version_cache_path.write_text(json.dumps(version_payload), encoding="utf-8")
+    schema_recovery = analyze_audio_source(version_source, version_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(not schema_recovery["cache"]["hit"] and schema_recovery["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION, "schema version mismatch did not invalidate cache")
+    version_cache_path.write_text("{malformed", encoding="utf-8")
+    malformed_recovery = analyze_audio_source(version_source, version_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    assert_true(not malformed_recovery["cache"]["hit"] and malformed_recovery["metadata"]["status"] == "measured", "malformed cache did not recover")
+
+    parsed = parse_loudnorm_output('noise\n{"input_i":"-14.25","input_tp":"-0.82","input_lra":"6.40"}\n')
+    assert_true(parsed["integrated_lufs"] == -14.25 and parsed["true_peak_dbtp"] == -0.82 and parsed["lra_lu"] == 6.4, "loudnorm LUFS/True Peak/LRA parsing failed")
+    unknown = parse_loudnorm_output('{"input_i":"-inf","input_tp":"nan","input_lra":"invalid"}')
+    assert_true(unknown["integrated_lufs"] is None and unknown["true_peak_dbtp"] is None and unknown["lra_lu"] is None, "malformed or infinite loudness values must remain null")
+    failed_loudness = analyze_audio_source(
+        stereo,
+        {**context, "path_role": "failed_loudness"},
+        "deep",
+        cache_root=cache_root,
+        ffmpeg_path=ffmpeg,
+        _loudness_runner=lambda _path, _ffmpeg: {"ok": False, "output": "", "error": "simulated_ffmpeg_failure"},
+    )
+    assert_true(
+        failed_loudness["loudness"]["integrated_lufs"] is None
+        and failed_loudness["loudness"]["true_peak_dbtp"] is None
+        and failed_loudness["loudness"]["lra_lu"] is None
+        and "simulated_ffmpeg_failure" in failed_loudness["errors"],
+        "FFmpeg loudness failure must preserve null values and report the real error",
+    )
+
+    performance = {
+        "cold_fast": dict(cold_fast["performance"]),
+        "cold_deep": dict(cold_deep["performance"]),
+        "warm_fast": dict(warm_fast["performance"]),
+        "warm_deep": dict(warm_deep["performance"]),
+    }
+    assert_true(performance["warm_deep"]["ffmpeg_runs"] == 0, "warm deep performance regression")
+    return performance
+
+
 def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
+    audio_intelligence_performance = run_audio_intelligence_smoke(out)
     local_policy = access_gate_policy({"VELAFLOW_MODE": "LOCAL"}, configured_password="")
     missing_network_policy = access_gate_policy({"VELAFLOW_MODE": "CLOUD"}, configured_password="")
     protected_network_policy = access_gate_policy({"RAILWAY_ENVIRONMENT": "production"}, configured_password="correct horse battery staple")
@@ -4337,7 +4480,7 @@ def main():
     assert_true(job.get("status") == "DONE", "job queue lifecycle failed")
     assert_true((job.get("result") or {}).get("ok") is True, "job result failed")
 
-    print(json.dumps({"ok": True, "message": "smoke tests passed"}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
