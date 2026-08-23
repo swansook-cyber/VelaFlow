@@ -112,11 +112,25 @@ def generate_text(
     retries: int | None = None,
     timeout: int | None = None,
     offline_factory: Callable[[], str] | None = None,
-) -> str:
+    return_metadata: bool = False,
+) -> str | dict[str, Any]:
     provider = normalize_provider(provider)
     if not str(api_key or "").strip():
         if offline_factory:
-            return offline_factory()
+            text = offline_factory()
+            if return_metadata:
+                return {
+                    "text": text,
+                    "provenance": {
+                        "status": "offline_synthetic",
+                        "provider": provider,
+                        "model": "",
+                        "model_fallback": False,
+                        "synthetic": True,
+                        "cache_hit": False,
+                    },
+                }
+            return text
         raise ProviderError("Missing runtime API key")
 
     retries = max(1, int(retries or os.getenv("AI_RETRY_COUNT", "3")))
@@ -124,9 +138,22 @@ def generate_text(
     backoff_base = float(os.getenv("AI_BACKOFF_BASE_SECONDS", "2"))
     last_error: Exception | None = None
 
-    for model_name in _model_candidates(provider, primary_model, fallback_model):
+    candidates = _model_candidates(provider, primary_model, fallback_model)
+    for model_index, model_name in enumerate(candidates):
         cached = _read_cache(provider, model_name, prompt)
         if cached:
+            if return_metadata:
+                return {
+                    "text": cached,
+                    "provenance": {
+                        "status": "model_fallback_success" if model_index else "provider_success",
+                        "provider": provider,
+                        "model": model_name,
+                        "model_fallback": bool(model_index),
+                        "synthetic": False,
+                        "cache_hit": True,
+                    },
+                }
             return cached
 
         for attempt in range(retries):
@@ -141,6 +168,18 @@ def generate_text(
                     timeout=timeout,
                 )
                 _write_cache(provider, model_name, prompt, text)
+                if return_metadata:
+                    return {
+                        "text": text,
+                        "provenance": {
+                            "status": "model_fallback_success" if model_index else "provider_success",
+                            "provider": provider,
+                            "model": model_name,
+                            "model_fallback": bool(model_index),
+                            "synthetic": False,
+                            "cache_hit": False,
+                        },
+                    }
                 return text
             except Exception as error:
                 last_error = error
@@ -151,7 +190,20 @@ def generate_text(
                 time.sleep(backoff_base * (2**attempt))
 
     if offline_factory:
-        return offline_factory()
+        text = offline_factory()
+        if return_metadata:
+            return {
+                "text": text,
+                "provenance": {
+                    "status": "offline_synthetic",
+                    "provider": provider,
+                    "model": "",
+                    "model_fallback": False,
+                    "synthetic": True,
+                    "cache_hit": False,
+                },
+            }
+        return text
     raise ProviderError(f"All text providers failed: {last_error}")
 
 

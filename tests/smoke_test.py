@@ -69,7 +69,7 @@ from core.final_package import build_final_release_package, inspect_final_packag
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
 from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, initialize_export_name_state, make_safe_filename, sanitize_filename
-from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, validate_song_structure
+from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, prepare_validated_song_lyrics, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
@@ -112,7 +112,8 @@ from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
 from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_reference_master_plan, build_reference_result_comparison, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_reference_master_analysis, validate_remaster_input, validate_remaster_outputs
-from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
+from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, check_song_production_quality, clean_lyrics_improvement_preview
+from core.song_quality_core import build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, parse_ordered_song_sections, snapshot_song_lyrics
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
@@ -299,7 +300,8 @@ from scripts.create_source_package import create_source_package
 from scripts.build_beta_package import build_beta_package
 from app.presets import DEFAULT_MUSIC_PRESET, DEFAULT_VOCAL_DIRECTION, get_music_preset, get_recommended_ai_controls, get_vocal_direction, list_music_preset_names, list_vocal_direction_names, music_preset_prompt, vocal_direction_prompt
 from providers.ai_provider import normalize_provider, provider_display_name
-from providers.provider_manager import generate_text as provider_generate_text
+import providers.provider_manager as provider_manager_module
+from providers.provider_manager import ProviderError, generate_text as provider_generate_text
 
 
 def assert_true(value, message):
@@ -979,9 +981,217 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     return performance
 
 
+def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
+    hook = "กลับบ้านแล้วแต่ใจยังอยู่ที่เดิม"
+    blueprint = build_song_blueprint(
+        idea="เลิกงานดึกแล้วพบว่าความเหนื่อยตามกลับบ้าน",
+        genre="Pop Rock",
+        mood="คิดถึง",
+        vocal="smooth emotional male vocal",
+        selected_hook=hook,
+        title="ใจยังอยู่ที่เดิม",
+        explicit_advanced={},
+        artist_preset={"artist_id": "neutral"},
+    )
+    strong_song = f"""[Intro]
+ไฟชั้นสิบยังสว่างก่อนฉันปิดประตู
+เสียงลิฟต์พาลมหายใจลงมาช้า ๆ
+
+[Verse 1]
+บัตรพนักงานยังคล้องอยู่ตรงคอ
+รองเท้าคู่เดิมพาฉันผ่านโถงเงียบ
+ข้อความสุดท้ายค้างอยู่บนหน้าจอ
+ฉันกดปิดไฟแล้วเดินออกมาคนเดียว
+รถเมล์เที่ยวดึกจอดรออยู่หน้าตึก
+
+[Pre-Chorus]
+เมืองข้างนอกเริ่มเบาลงทุกนาที
+แต่เรื่องในหัวยังไม่ยอมเงียบตาม
+ยิ่งใกล้บ้านเท่าไรยิ่งได้ยินตัวเอง
+
+[Chorus]
+{hook}
+นาฬิกาหยุดงานแต่ความคิดยังเดินต่อ
+ฉันวางรอยยิ้มไว้บนโต๊ะตั้งแต่เย็น
+คืนนี้ขอเป็นคนธรรมดาที่อ่อนแรง
+ไม่ต้องเก่งให้ใครเห็นอีกสักคืน
+
+[Verse 2]
+แม่เปิดประตูถามว่ากินอะไรมาหรือยัง
+ฉันตอบว่าสบายดีทั้งที่เสียงเบา
+จานข้าวอุ่นวางรออยู่ข้างแก้วน้ำ
+โทรศัพท์สั่นอีกครั้งจากกลุ่มงานเดิม
+ครั้งนี้ฉันวางมันคว่ำไว้แล้วนั่งลง
+
+[Pre-Chorus 2]
+คำถามง่าย ๆ ทำให้ฉันหยุดฝืน
+บ้านหลังเดิมรับฟังโดยไม่ต้องตอบ
+ฉันเพิ่งรู้ว่าตัวเองเหนื่อยมานาน
+
+[Chorus 2]
+{hook}
+นาฬิกาหยุดงานแต่ความคิดยังเดินต่อ
+ฉันวางรอยยิ้มไว้บนโต๊ะตั้งแต่เย็น
+คืนนี้ขอเป็นคนธรรมดาที่อ่อนแรง
+ไม่ต้องเก่งให้ใครเห็นอีกสักคืน
+
+[Bridge]
+ฉันไม่ได้อยากทิ้งสิ่งที่สร้างมา
+แค่อยากยอมรับว่าคนเรามีวันล้า
+การหยุดพักไม่ใช่การเดินถอยหลัง
+พรุ่งนี้ยังเริ่มใหม่ได้เมื่อพร้อมจริง ๆ
+
+[Final Chorus]
+{hook}
+แต่คืนนี้ฉันยอมให้ความคิดหยุดพัก
+รอยยิ้มที่วางไว้จะเก็บกลับมาเอง
+ฉันไม่ต้องชนะทุกคืนที่อ่อนแรง
+แค่กลับถึงบ้านและฟังใจตัวเอง
+พรุ่งนี้ค่อยเริ่มด้วยแรงที่เหลือจริง
+
+[Outro]
+ไฟในห้องดับลงพร้อมเสียงแจ้งเตือน
+คืนนี้ฉันกลับมาอยู่กับตัวเอง"""
+
+    matrix: dict[str, str] = {}
+    strong = check_song_production_quality(strong_song, blueprint, provenance={"status": "provider_success", "synthetic": False})
+    assert_true(strong["passed"] and not strong["repairable_sections"], "Phase 5B A strong song should pass without repair")
+    assert_true(len(parse_ordered_song_sections(strong_song)["blocks"]) == 10, "canonical parser collapsed intentional repeated sections")
+    matrix["A"] = "PASS / 0 repair calls"
+
+    parsed_strong = parse_ordered_song_sections(strong_song)
+    verse_1_lines = next(block["lines"] for block in parsed_strong["blocks"] if block["key"] == "verse_1")
+    verse_1_text = "\n".join(verse_1_lines)
+    near_lines = [line.replace("ฉัน", "เรา") for line in verse_1_lines]
+    near_duplicate = merge_repaired_sections(strong_song, "[Verse 2]\n" + "\n".join(near_lines), ["Verse 2"])
+    near_review = check_song_production_quality(near_duplicate, blueprint)
+    assert_true(any(item["code"] in {"verse_2_exact_duplicate", "verse_2_too_similar"} for item in near_review["blocking"]), "Phase 5B B near-duplicate Verse 2 was not blocked")
+    matrix["B"] = "BLOCK / targeted Verse 2 repair"
+
+    hook_missing = strong_song.replace(hook, "คืนนี้ฉันเดินกลับบ้านช้ากว่าเดิม", 1)
+    hook_review = check_song_production_quality(hook_missing, blueprint)
+    assert_true(any(item["code"] == "selected_hook_missing_from_chorus" for item in hook_review["blocking"]), "Phase 5B C missing selected hook was not blocked")
+    matrix["C"] = "BLOCK / targeted Chorus repair"
+
+    assert_true(check_song_production_quality(strong_song, blueprint)["passed"], "Phase 5B D intentional Chorus repeat was rejected")
+    matrix["D"] = "PASS / intentional repeat allowed"
+
+    chorus_lines = next(block["lines"] for block in parsed_strong["blocks"] if block["key"] == "chorus")
+    exact_final = merge_repaired_sections(strong_song, "[Final Chorus]\n" + "\n".join(chorus_lines), ["Final Chorus"])
+    final_review = check_song_production_quality(exact_final, blueprint)
+    assert_true(any(item["code"] == "final_chorus_missing_payoff" for item in final_review["blocking"]), "Phase 5B E exact Final Chorus copy was not blocked")
+    matrix["E"] = "BLOCK / Final Chorus payoff required"
+
+    missing_bridge = re.sub(r"\n\[Bridge\].*?(?=\n\[Final Chorus\])", "", strong_song, flags=re.DOTALL)
+    bridge_review = check_song_production_quality(missing_bridge, blueprint)
+    assert_true(any(item["code"] == "missing_required_section" and item.get("section") == "Bridge" for item in bridge_review["blocking"]), "Phase 5B F missing Bridge was not blocked")
+    matrix["F"] = "BLOCK / targeted Bridge repair"
+
+    short_song = f"[Verse 1]\nคืนนี้กลับดึก\n[Chorus]\n{hook}"
+    short_review = check_song_production_quality(short_song, blueprint)
+    assert_true(any(item["code"] == "song_below_minimum_structure" for item in short_review["blocking"]), "Phase 5B G very short song was not blocked")
+    matrix["G"] = "BLOCK / minimum structure"
+
+    synthetic_review = check_song_production_quality(strong_song, blueprint, provenance={"status": "offline_synthetic", "synthetic": True})
+    assert_true(any(item["code"] == "synthetic_production_result" for item in synthetic_review["blocking"]), "Phase 5B H synthetic production result was not blocked")
+    matrix["H"] = "FAIL / no offline fake lyrics"
+
+    repaired_verse = "[Verse 2]\nฝนเริ่มตกตอนรถเมล์เลี้ยวพ้นตึก\nฉันเห็นเงาตัวเองในกระจกหน้าต่าง\nสายจากแม่ดังขึ้นก่อนถึงป้ายสุดท้าย\nฉันรับสายแทนการอ่านข้อความจากงาน\nและบอกตรง ๆ ว่าวันนี้เหนื่อยจริง"
+    merged = merge_repaired_sections(near_duplicate, repaired_verse, ["Verse 2"])
+    assert_true(verse_1_text in merged and repaired_verse.split("\n", 1)[1] in merged, "targeted repair did not preserve passing sections verbatim")
+    assert_true(check_song_production_quality(merged, blueprint)["passed"], "targeted Verse 2 repair did not pass validation")
+
+    multi_bad = merge_repaired_sections(missing_bridge, "[Final Chorus]\n" + "\n".join(chorus_lines), ["Final Chorus"])
+    multi_review = check_song_production_quality(multi_bad, blueprint)
+    multi_repair = f"""[Bridge]
+ฉันไม่ได้แพ้เพราะยอมรับว่าเหนื่อย
+แค่เพิ่งฟังเสียงตัวเองอย่างจริงจัง
+บ้านไม่เคยขอให้ฉันต้องเก่งตลอด
+
+[Final Chorus]
+{hook}
+แต่คืนนี้ฉันวางทุกเรื่องลงข้างตัว
+ความเงียบในบ้านไม่ได้น่ากลัวเหมือนก่อน
+ฉันจะพักโดยไม่ขอโทษใครอีกแล้ว
+พรุ่งนี้ค่อยเริ่มเมื่อหัวใจพร้อมเดิน
+และกลับไปทำงานโดยไม่ทิ้งตัวเอง"""
+    multi_merged = merge_repaired_sections(multi_bad, multi_repair, multi_review["repairable_sections"])
+    assert_true(check_song_production_quality(multi_merged, blueprint)["passed"], "one repair response could not repair multiple failing sections")
+    repair_prompt = build_targeted_repair_prompt(idea=blueprint["core_message"], title="ใจยังอยู่ที่เดิม", selected_hook=hook, blueprint=blueprint, genre="Pop Rock", mood="คิดถึง", vocal="male vocal", current_lyrics=multi_bad, validation=multi_review)
+    assert_true("SECTIONS TO REPAIR" in repair_prompt and "CURRENT COMPLETE SONG" in repair_prompt and "Music Style Prompt" not in repair_prompt, "targeted repair prompt contract failed")
+
+    prepared = prepare_validated_song_lyrics(strong_song, genre="Pop Rock", mood="คิดถึง", vocal="male vocal")
+    assert_true(not prepared["manufactured_content"] and hook in prepared["lyrics"], "production normalizer manufactured or removed lyric content")
+    malformed_review = check_song_production_quality(strong_song.replace("[Verse 2]", "[Verse Two]"), blueprint)
+    assert_true(any(item["code"] == "missing_required_section" for item in malformed_review["blocking"]), "malformed section tag was not blocked")
+
+    snapshot_project = {"song": {"complete_lyrics": strong_song}}
+    assert_true(snapshot_song_lyrics(snapshot_project, reason="regenerate"), "manual lyric snapshot was not created")
+    assert_true(not snapshot_song_lyrics(snapshot_project, reason="regenerate"), "identical snapshot was duplicated")
+    for index in range(4):
+        snapshot_song_lyrics(snapshot_project, reason="targeted_repair", lyrics=strong_song + f"\nบรรทัดใหม่ {index}")
+    assert_true(len(snapshot_project["song_lyric_snapshots"]) == 3 and snapshot_project["song_lyric_snapshots"][-1]["reason"] == "targeted_repair", "snapshot retention or reason failed")
+    isolated_project = {"song": {"complete_lyrics": strong_song.replace("งาน", "บ้าน")}}
+    snapshot_song_lyrics(isolated_project, reason="regenerate")
+    assert_true(isolated_project["song_lyric_snapshots"] != snapshot_project["song_lyric_snapshots"], "project snapshots leaked")
+
+    original_candidates = provider_manager_module._model_candidates
+    original_provider_call = provider_manager_module.provider_generate_text
+    original_cache = os.environ.get("AI_CACHE_ENABLED")
+    os.environ["AI_CACHE_ENABLED"] = "false"
+    try:
+        provider_manager_module._model_candidates = lambda *_args, **_kwargs: ["primary-model", "fallback-model"]
+
+        def fallback_provider(_prompt, **kwargs):
+            if kwargs["model_name"] == "primary-model":
+                raise RuntimeError("404 model not found")
+            return "real provider response"
+
+        provider_manager_module.provider_generate_text = fallback_provider
+        provenance_result = provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt="phase5b-model-fallback", retries=1, return_metadata=True)
+        assert_true(provenance_result["text"] == "real provider response" and provenance_result["provenance"]["status"] == "model_fallback_success" and not provenance_result["provenance"]["synthetic"], "model fallback provenance failed")
+
+        provider_manager_module.provider_generate_text = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("provider unavailable"))
+        failed_without_fixture = False
+        try:
+            provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt="phase5b-total-failure", retries=1, return_metadata=True)
+        except ProviderError:
+            failed_without_fixture = True
+        assert_true(failed_without_fixture, "production provider failure silently used offline lyrics")
+        explicit_fixture = provider_manager_module.generate_text(provider="gemini", api_key="", prompt="phase5b-explicit-fixture", offline_factory=lambda: "offline test fixture", return_metadata=True)
+        assert_true(explicit_fixture["text"] == "offline test fixture" and explicit_fixture["provenance"]["synthetic"], "explicit offline fixture compatibility failed")
+    finally:
+        provider_manager_module._model_candidates = original_candidates
+        provider_manager_module.provider_generate_text = original_provider_call
+        if original_cache is None:
+            os.environ.pop("AI_CACHE_ENABLED", None)
+        else:
+            os.environ["AI_CACHE_ENABLED"] = original_cache
+
+    import providers.text_ai as text_ai_provider
+
+    offline_song = text_ai_provider.generate_song_with_gemini("", "test-model", "offline fixture idea", "Pop Rock", "Warm", "male vocal", "high", song_blueprint=blueprint, allow_offline_fixture=True)
+    assert_true(offline_song["generation_provenance"]["synthetic"], "explicit Song Studio offline fixture lost provenance")
+    assert_true(blueprint["hook_contract"]["selected_hook"] == hook and blueprint["resolved_intent"]["genre"] == "Pop Rock", "blueprint intent authority failed")
+    ai_title_blueprint = json.loads(json.dumps(blueprint, ensure_ascii=False))
+    ai_title_blueprint["hook_contract"].update({"title": "คืนที่วางงาน", "title_is_manual": False})
+    assert_true(any(item["code"] == "ai_title_missing_from_chorus" for item in check_song_production_quality(strong_song, ai_title_blueprint)["blocking"]), "AI title/hook integration was not enforced")
+    ai_title_blueprint["hook_contract"]["title_is_manual"] = True
+    assert_true(check_song_production_quality(strong_song, ai_title_blueprint)["passed"], "manual title authority was not preserved")
+    assert_true(strong["metrics"]["similarity_method"] == "normalized exact + word/Thai character trigram Jaccard" and strong["metrics"]["similarity_threshold"] == 0.72, "similarity method or threshold changed")
+    return {
+        "matrix": matrix,
+        "normal_provider_calls": 2,
+        "repaired_provider_calls": 3,
+        "validation_ms": strong["metrics"]["validation_ms"],
+        "duplicate_check_ms": strong["metrics"]["duplicate_check_ms"],
+    }
+
+
 def main():
     out = ROOT / "outputs" / "smoke_tests"
     out.mkdir(parents=True, exist_ok=True)
+    song_quality_phase_5b = run_song_quality_phase_5b_smoke()
     bpm_detection_results = run_bpm_detection_smoke()
     visual_rhythm_results = run_visual_rhythm_smoke(out)
     remaster_recommendation_results = run_remaster_recommendation_smoke()
@@ -5164,7 +5374,7 @@ def main():
     assert_true(job.get("status") == "DONE", "job queue lifecycle failed")
     assert_true((job.get("result") or {}).get("ok") is True, "job result failed")
 
-    print(json.dumps({"ok": True, "message": "smoke tests passed", "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results, "visual_rhythm_results": visual_rhythm_results, "remaster_recommendation_results": remaster_recommendation_results}, ensure_ascii=False))
+    print(json.dumps({"ok": True, "message": "smoke tests passed", "song_quality_phase_5b": song_quality_phase_5b, "audio_intelligence_performance": audio_intelligence_performance, "smart_cut_performance": smart_cut_performance, "bpm_detection_results": bpm_detection_results, "visual_rhythm_results": visual_rhythm_results, "remaster_recommendation_results": remaster_recommendation_results}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -149,9 +149,9 @@ from core.hook_package_generator import build_final_creator_zip, extract_full_ho
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
 from core.job_queue import cancel_job, clear_finished_jobs, list_jobs, submit_job
 from core.prompt_director import CREATOR_EXPORT_MODES, PROMPT_STYLES
-from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, clean_lyrics_improvement_preview
+from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, check_song_production_quality, clean_lyrics_improvement_preview
 from core.licensing import get_license_service
-from core.lyrics_expander import analyze_song_completeness, apply_music_direction_tags, ensure_full_song_structure
+from core.lyrics_expander import analyze_song_completeness, apply_music_direction_tags, ensure_full_song_structure, prepare_validated_song_lyrics
 from core.music_direction_engine import build_music_direction
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.clip_studio_v2 import generate_clip_studio_v2
@@ -310,6 +310,7 @@ from core.song_structure_intelligence import (
     validate_structure_plan,
 )
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
+from core.song_quality_core import build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, snapshot_song_lyrics
 from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
@@ -318,7 +319,7 @@ from core.version import APP_VERSION, BUILD_VERSION, RELEASE_CHANNEL, build_labe
 from core.versioning import list_clip_versions
 from providers.image_ai import generate_image
 from providers.ai_provider import normalize_provider, provider_display_name
-from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini
+from providers.text_ai import analyze_song_with_gemini, generate_song_with_gemini, repair_song_sections_with_provider
 from providers.veo_video_provider import run_live_veo_provider_test
 from providers.veo_provider import build_veo_payload, list_available_veo_models, submit_render_job as submit_veo_render_job, test_veo_connection
 from app.presets import (
@@ -523,6 +524,14 @@ def _show_api_quality_stop(gate: dict[str, Any]) -> None:
         with st.expander("Advanced / Diagnostics", expanded=False):
             st.write(gate.get("status") or "Provider Error")
             st.caption(str(gate.get("error") or gate.get("message") or API_QUALITY_WARNING))
+
+
+def _show_song_generation_failure(stage: str, detail: Any = "") -> None:
+    st.error("VelaFlow stopped this generation to protect song quality. Your previous lyrics are unchanged. Please try again.")
+    if st.session_state.get("developer_mode"):
+        with st.expander("Advanced / Diagnostics", expanded=False):
+            st.write(stage)
+            st.caption(_safe_provider_error_text(detail) or "No provider details available")
 
 
 def _workflow_analytics_key(workflow_mode: str | None = None) -> str:
@@ -6067,6 +6076,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             if not gate.get("ok"):
                 _show_api_quality_stop(gate)
                 return
+            if snapshot_song_lyrics(project, reason="regenerate"):
+                _save_project()
             hook_result = generate_hook_candidates_with_provider(
                 api_key=active_api_key,
                 model_name=active_model,
@@ -6076,7 +6087,11 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 mood=generation_context["resolved_mood"],
                 artist_preset=generation_context["provider_artist_preset"],
                 generation_context=generation_context,
+                allow_offline_fixture=False,
             )
+            if not hook_result.get("ok"):
+                _show_song_generation_failure("Hook generation", hook_result.get("error") or hook_result.get("message"))
+                return
             candidates = hook_result.get("data", {}).get("hooks", [])
             hook = select_best_hook(candidates)
             resolved_title = str(st.session_state.get("simple_song_title") or suggested_title or "").strip()
@@ -6087,40 +6102,24 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 f"{idea}\n\n"
                 f"Selected Hook: {hook.get('hook_text', '')}\nUse this hook in the chorus and final chorus. Keep Thai lyrics natural."
             )
-            song_result = _safe(
-                "Generate song",
-                generate_song_with_gemini,
-                active_api_key,
-                active_model,
-                idea_with_hook,
-                generation_context["resolved_genre"],
-                generation_context["resolved_mood"],
-                generation_context["resolved_vocal"],
-                generation_context["resolved_hook_focus"],
-                artist_preset=generation_context["provider_artist_preset"],
+            title_was_manual = bool(str(st.session_state.get("simple_song_title") or "").strip()) and resolved_title != suggested_title
+            blueprint = build_song_blueprint(
+                idea=idea,
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                vocal=generation_context["resolved_vocal"],
+                selected_hook=str(hook.get("hook_text", "")),
+                title=resolved_title,
                 music_style_override=style_prompt,
-                force_english_instrument_tags=force_tags,
-                provider=active_provider,
-                generation_context=generation_context,
+                explicit_advanced=advanced_explicit,
+                artist_preset=generation_context["provider_artist_preset"],
+                manual_title=title_was_manual,
             )
-            if song_result.get("ok") is False and "title" not in song_result:
-                return
-            raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
-            direction_style_preset = selected_music_preset if advanced_explicit.get("music_preset") else {}
-            completeness = ensure_full_song_structure(raw_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=generation_context["provider_artist_preset"], genre=generation_context["resolved_genre"], mood=generation_context["resolved_mood"], vocal=generation_context["resolved_vocal"], style_preset=direction_style_preset)
-            if not completeness["before"].get("ok"):
-                retry_result = _safe(
-                    "Regenerate complete song",
-                    generate_song_with_gemini,
+            try:
+                song_result = generate_song_with_gemini(
                     active_api_key,
                     active_model,
-                    (
-                        f"{idea_with_hook}\n\n"
-                        "CRITICAL FULL SONG REQUIREMENTS:\n"
-                        "- Write a complete commercial-length Thai song, not a short demo.\n"
-                        "- Include Intro, Verse 1, Pre-Chorus, Chorus, Verse 2, Bridge, Final Chorus, and Outro.\n"
-                        "- Minimum 24 lyric lines and no empty sections."
-                    ),
+                    idea_with_hook,
                     generation_context["resolved_genre"],
                     generation_context["resolved_mood"],
                     generation_context["resolved_vocal"],
@@ -6130,13 +6129,63 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                     force_english_instrument_tags=force_tags,
                     provider=active_provider,
                     generation_context=generation_context,
+                    song_blueprint=blueprint,
+                    title=resolved_title,
+                    manual_title=title_was_manual,
+                    allow_offline_fixture=False,
                 )
-                retry_lyrics = str(retry_result.get("normalized_song_output") or retry_result.get("complete_lyrics") or retry_result.get("original_song_output") or "")
-                retry_completeness = ensure_full_song_structure(retry_lyrics, hook_text=str(hook.get("hook_text", "")), idea=idea, artist_preset=generation_context["provider_artist_preset"], genre=generation_context["resolved_genre"], mood=generation_context["resolved_mood"], vocal=generation_context["resolved_vocal"], style_preset=direction_style_preset)
-                if retry_completeness["before"].get("score", 0) > completeness["before"].get("score", 0):
-                    song_result = retry_result
-                    completeness = retry_completeness
-            music_direction = completeness.get("music_direction") or build_music_direction(genre=generation_context["resolved_genre"], mood=generation_context["resolved_mood"], vocal=generation_context["resolved_vocal"], artist_preset=generation_context["provider_artist_preset"], style_preset=direction_style_preset)
+            except Exception as exc:
+                _show_song_generation_failure("Song generation", exc)
+                return
+            raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
+            direction_style_preset = selected_music_preset if advanced_explicit.get("music_preset") else {}
+            provenance = dict(song_result.get("generation_provenance") or {})
+            validation = check_song_production_quality(raw_lyrics, blueprint, provenance=provenance)
+            repair_calls = 0
+            if not validation.get("passed"):
+                if not raw_lyrics.strip() or not validation.get("repairable_sections") or any(item.get("code") == "synthetic_production_result" for item in validation.get("blocking", [])):
+                    _show_song_generation_failure("Song quality validation", validation.get("blocking"))
+                    return
+                repair_prompt = build_targeted_repair_prompt(
+                    idea=idea,
+                    title=resolved_title,
+                    selected_hook=str(hook.get("hook_text", "")),
+                    blueprint=blueprint,
+                    genre=generation_context["resolved_genre"],
+                    mood=generation_context["resolved_mood"],
+                    vocal=generation_context["resolved_vocal"],
+                    current_lyrics=raw_lyrics,
+                    validation=validation,
+                )
+                repair_snapshot = {"song": {"complete_lyrics": raw_lyrics}}
+                snapshot_song_lyrics(repair_snapshot, reason="targeted_repair")
+                try:
+                    repair_result = repair_song_sections_with_provider(
+                        api_key=active_api_key,
+                        model_name=active_model,
+                        provider=active_provider,
+                        repair_prompt=repair_prompt,
+                    )
+                    repair_calls = 1
+                    raw_lyrics = merge_repaired_sections(raw_lyrics, repair_result["text"], validation["repairable_sections"])
+                except Exception as exc:
+                    _show_song_generation_failure("Targeted lyric repair", exc)
+                    return
+                validation = check_song_production_quality(raw_lyrics, blueprint, provenance=repair_result.get("provenance"))
+                if not validation.get("passed"):
+                    _show_song_generation_failure("Song quality validation after repair", validation.get("blocking"))
+                    return
+                song_result["generation_lyric_snapshots"] = repair_snapshot.get("song_lyric_snapshots", [])
+                song_result["automatic_refinement_applied"] = True
+            prepared = prepare_validated_song_lyrics(
+                raw_lyrics,
+                artist_preset=generation_context["provider_artist_preset"],
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                vocal=generation_context["resolved_vocal"],
+                style_preset=direction_style_preset,
+            )
+            music_direction = prepared["music_direction"]
             advanced_settings = _settings_from_ai_controls(get_recommended_ai_controls(selected_music_preset_name))
             song_result.update({
                 "title": resolved_title,
@@ -6147,9 +6196,13 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "genre": genre,
                 "mood": mood,
                 "vocal": vocal,
-                "complete_lyrics": completeness["lyrics"],
-                "normalized_song_output": completeness["lyrics"],
-                "song_completeness": completeness["after"],
+                "complete_lyrics": prepared["lyrics"],
+                "normalized_song_output": prepared["lyrics"],
+                "song_completeness": prepared["completeness"],
+                "song_blueprint": blueprint,
+                "production_quality_validation": validation,
+                "provider_call_counts": {"hook": 1, "song": 1, "repair": repair_calls, "total": 2 + repair_calls},
+                "local_expansion_applied": False,
                 "music_direction": music_direction,
                 "music_style_prompt": style_prompt if generation_context.get("style_override_explicit") else (music_direction.get("master_music_style_prompt") or style_prompt),
                 "hook_candidates": candidates,
@@ -6176,7 +6229,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             project["song"] = normalize_song_metadata(song_result, preset)
             st.session_state["simple_song_pending_title"] = resolved_title
             st.session_state.generated_song = project["song"]
-            st.session_state.normalized_song_output = completeness["lyrics"]
+            st.session_state.normalized_song_output = prepared["lyrics"]
             _save_project()
             st.rerun()
 
@@ -6194,6 +6247,16 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
         st.session_state["simple_song_quality_review"] = check_lyrics_quality(edited_lyrics)
     if check_cols[1].button("Export to Suno", type="primary", use_container_width=True, key="simple_song_export_suno"):
         export_song = {**song, "complete_lyrics": edited_lyrics, "normalized_song_output": edited_lyrics}
+        blueprint = export_song.get("song_blueprint") if isinstance(export_song.get("song_blueprint"), dict) else {}
+        if blueprint:
+            export_validation = check_song_production_quality(
+                edited_lyrics,
+                blueprint,
+                provenance=export_song.get("generation_provenance") if isinstance(export_song.get("generation_provenance"), dict) else {},
+            )
+            if not export_validation.get("passed"):
+                _show_song_generation_failure("Suno export quality validation", export_validation.get("blocking"))
+                return
         export_result = export_suno_files(project.get("title") or song.get("title") or "VelaFlow Song", export_song, workflow_mode=st.session_state.get("workflow_mode", "Song Studio Only"))
         if export_result.get("ok"):
             project["song"] = export_song

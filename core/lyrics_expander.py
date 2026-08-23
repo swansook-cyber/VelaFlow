@@ -311,3 +311,29 @@ def ensure_full_song_structure(
     )
     after = analyze_song_completeness(expanded)
     return {"lyrics": expanded, "expanded": True, "before": before, "after": after, "music_direction": music_direction}
+
+
+def prepare_validated_song_lyrics(
+    lyrics: str,
+    *,
+    artist_preset: dict[str, Any] | None = None,
+    genre: str = "",
+    mood: str = "",
+    vocal: str = "",
+    style_preset: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Normalize a provider-complete production song without creating lyric content."""
+    music_direction = build_music_direction(
+        genre=genre,
+        mood=mood,
+        vocal=vocal,
+        artist_preset=artist_preset,
+        style_preset=style_preset,
+    )
+    normalized = normalize_section_direction_layout(str(lyrics or "").strip(), music_direction)
+    return {
+        "lyrics": normalized.strip(),
+        "music_direction": music_direction,
+        "completeness": analyze_song_completeness(normalized),
+        "manufactured_content": False,
+    }

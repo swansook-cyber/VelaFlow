@@ -4,6 +4,7 @@ from typing import Any, Dict
 import google.generativeai as genai
 
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
+from core.song_quality_core import blueprint_prompt_block, build_song_blueprint
 from core.song_workflow import NEUTRAL_ARTIST_PRESET, normalize_hook_candidates, resolve_song_generation_context, select_best_hook
 from providers.provider_manager import generate_text
 
@@ -244,6 +245,10 @@ def generate_song_with_gemini(
     force_english_instrument_tags: bool = True,
     provider: str = "gemini",
     generation_context: Dict[str, Any] | None = None,
+    song_blueprint: Dict[str, Any] | None = None,
+    title: str = "",
+    manual_title: bool = False,
+    allow_offline_fixture: bool = False,
 ) -> Dict[str, Any]:
     context = generation_context or resolve_song_generation_context(
         idea=idea,
@@ -261,6 +266,18 @@ def generate_song_with_gemini(
     viral_level = str(context.get("resolved_hook_focus") or viral_level)
     style_prompt = str(context.get("resolved_style_prompt") or music_style_override).strip()
     artist_preset = dict(context.get("provider_artist_preset") or NEUTRAL_ARTIST_PRESET)
+    blueprint = song_blueprint or build_song_blueprint(
+        idea=idea,
+        genre=genre,
+        mood=mood,
+        vocal=vocal,
+        selected_hook="",
+        title=title,
+        music_style_override=style_prompt,
+        explicit_advanced=context.get("advanced_explicit") if isinstance(context.get("advanced_explicit"), dict) else {},
+        artist_preset=artist_preset,
+        manual_title=manual_title,
+    )
     preset_json = json.dumps(
         {
             "artist_id": context.get("resolved_artist_preset", "neutral"),
@@ -290,8 +307,10 @@ INPUT:
 - Viral level: {viral_level}
 - Language: {language}
 - Artist Preset: {artist_preset.get('artist_name', 'Neutral')}
-- Music Style Prompt: {style_prompt}
 - Style Source: {context.get('resolved_style_source', 'explicit main controls')}
+
+INTERNAL SONG BLUEPRINT (authoritative songwriting contract):
+{blueprint_prompt_block(blueprint)}
 
 ARTIST PRESET JSON:
 {preset_json}
@@ -315,6 +334,9 @@ Part 8: TikTok Clip Cut Recommendation
 6) เลือกเครื่องดนตรีแบบ Main / Supporting / Atmosphere ให้เข้ากับ genre + mood ห้ามยัดแน่นเกิน
 7) ตรวจภาษาไทยให้เป็นธรรมชาติ เหมือนคนไทยพูดจริง ฮุกต้องร้องง่าย
 8) แนะนำ TikTok clip cut 1-3 ท่อน
+9) Follow every section objective in INTERNAL SONG BLUEPRINT. Verse 2 must add new information, Bridge must turn perspective, and Final Chorus must add a new payoff.
+10) The selected hook in hook_contract must appear recognizably in Chorus and Final Chorus.
+11) Write at least 30 meaningful lyric lines distributed across all required sections. Do not use filler or duplicate non-chorus lines.
 
 IMPORTANT LANGUAGE RULE:
 - Lyrics must be Thai.
@@ -359,17 +381,67 @@ IMPORTANT LANGUAGE RULE:
   "thai_quality_check": "ผ่านการตรวจคำไทย/ความลื่น/ฮุก/ความเป็นธรรมชาติแล้ว"
 }}
 """
-    text = generate_text(
+    generation = generate_text(
         provider=provider,
         api_key=api_key,
         prompt=prompt,
         primary_model=model_name,
-        offline_factory=lambda: _offline_song(idea, genre, mood, vocal, viral_level, artist_preset),
+        offline_factory=(lambda: _offline_song(idea, genre, mood, vocal, viral_level, artist_preset)) if allow_offline_fixture else None,
+        return_metadata=True,
     )
+    if isinstance(generation, dict):
+        text = str(generation.get("text") or "")
+        provenance = dict(generation.get("provenance") or {})
+    else:
+        text = str(generation or "")
+        provenance = {
+            "status": "offline_synthetic" if allow_offline_fixture else "provider_success",
+            "provider": provider,
+            "model": model_name,
+            "model_fallback": False,
+            "synthetic": bool(allow_offline_fixture),
+            "cache_hit": False,
+        }
     song = _extract_json(text)
     song["music_style_prompt"] = song.get("music_style_prompt") or style_prompt
     song["generation_resolution"] = {key: value for key, value in context.items() if key != "provider_artist_preset"}
+    song["song_blueprint"] = blueprint
+    song["generation_provenance"] = provenance
     return _normalize_song(song, artist_preset, force_english_instrument_tags)
+
+
+def repair_song_sections_with_provider(
+    *,
+    api_key: str,
+    model_name: str,
+    provider: str,
+    repair_prompt: str,
+) -> Dict[str, Any]:
+    """Run one production-only section repair without synthetic fallback."""
+    generation = generate_text(
+        provider=provider,
+        api_key=api_key,
+        prompt=repair_prompt,
+        primary_model=model_name,
+        offline_factory=None,
+        return_metadata=True,
+    )
+    if isinstance(generation, dict):
+        text = str(generation.get("text") or "")
+        provenance = dict(generation.get("provenance") or {})
+    else:
+        text = str(generation or "")
+        provenance = {
+            "status": "provider_success",
+            "provider": provider,
+            "model": model_name,
+            "model_fallback": False,
+            "synthetic": False,
+            "cache_hit": False,
+        }
+    if not text.strip():
+        raise ValueError("AI repair returned no lyrics")
+    return {"text": text.strip(), "provenance": provenance}
 
 
 def analyze_song_with_gemini(api_key: str, model_name: str, title: str, artist: str, lyrics: str, style: str, quality: str, image_ai: str = "manual", video_ai: str = "manual", scene_count: int = 10, character_note: str = "", language: str = "thai", provider: str = "gemini") -> Dict[str, Any]:

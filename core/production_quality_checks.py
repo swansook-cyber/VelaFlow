@@ -4,6 +4,8 @@ import re
 from collections import Counter
 from typing import Any
 
+from core.song_quality_core import validate_production_song
+
 
 SECTION_RE = re.compile(r"^\s*\[([^\]]+)\]\s*$")
 MAJOR_SECTIONS = ("verse", "pre-chorus", "chorus", "bridge", "final chorus", "outro")
@@ -139,6 +141,16 @@ def check_lyrics_quality(lyrics: str) -> dict[str, Any]:
             "long_line_count": len(long_lines),
         },
     }
+
+
+def check_song_production_quality(
+    lyrics: str,
+    blueprint: dict[str, Any],
+    *,
+    provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Blocking production gate used before normal Song Studio save/export."""
+    return validate_production_song(lyrics, blueprint, provenance=provenance)
 
 
 def build_lyrics_improvement_prompt(lyrics: str, review: dict[str, Any]) -> str:

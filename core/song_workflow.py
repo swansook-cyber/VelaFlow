@@ -342,6 +342,7 @@ def generate_hook_candidates_with_provider(
     artist_preset: Dict[str, Any] | None = None,
     seed: str | None = None,
     generation_context: Dict[str, Any] | None = None,
+    allow_offline_fixture: bool = True,
 ) -> Dict[str, Any]:
     context = generation_context or resolve_song_generation_context(
         idea=idea,
@@ -356,6 +357,8 @@ def generate_hook_candidates_with_provider(
     mood = str(context.get("resolved_mood") or mood)
     seed_value = seed or f"{datetime.now().isoformat()}-{random.randint(10000, 999999)}"
     if not api_key:
+        if not allow_offline_fixture:
+            return {"ok": False, "message": "AI provider unavailable", "data": {}, "error": "missing_api_key"}
         return {"ok": True, "message": "Using offline fallback hooks", "data": {"hooks": generate_hook_candidates(idea, preset, seed_value), "offline": True, "seed": seed_value}, "error": ""}
     prompt = f"""
 Generate 5 fresh Thai hook candidates for a Suno song.
@@ -379,17 +382,22 @@ Style source: {context.get('resolved_style_source', 'explicit main controls')}
 Random seed / timestamp: {seed_value}
 """
     fallback_text = json.dumps(generate_hook_candidates(idea, preset, seed_value), ensure_ascii=False)
-    text = generate_text(
-        provider=provider,
-        api_key=api_key,
-        prompt=prompt,
-        primary_model=model_name,
-        offline_factory=lambda: fallback_text,
-    )
+    try:
+        text = generate_text(
+            provider=provider,
+            api_key=api_key,
+            prompt=prompt,
+            primary_model=model_name,
+            offline_factory=(lambda: fallback_text) if allow_offline_fixture else None,
+        )
+    except Exception:
+        return {"ok": False, "message": "AI hook generation failed", "data": {}, "error": "provider_failure"}
     offline = text == fallback_text
     try:
         hooks = normalize_hook_candidates(_extract_json(text))
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        if not allow_offline_fixture:
+            return {"ok": False, "message": "AI hook response was invalid", "data": {}, "error": "invalid_provider_response"}
         hooks = generate_hook_candidates(idea, preset, seed_value)
         return {
             "ok": True,
@@ -403,6 +411,8 @@ Random seed / timestamp: {seed_value}
             "error": "",
         }
     if not hooks:
+        if not allow_offline_fixture:
+            return {"ok": False, "message": "AI hook response was empty", "data": {}, "error": "empty_provider_response"}
         hooks = generate_hook_candidates(idea, preset, seed_value)
         offline = True
     return {"ok": True, "message": "Using offline fallback hooks" if offline else "Hook candidates generated", "data": {"hooks": hooks, "offline": offline, "seed": seed_value}, "error": ""}
