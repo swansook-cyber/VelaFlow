@@ -5,6 +5,7 @@ import json
 import math
 import subprocess
 import time
+from array import array
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -15,13 +16,22 @@ from core.project_io import atomic_write_json
 from core.real_clip_pipeline import find_ffmpeg, probe_media
 
 
-SCHEMA_VERSION = 1
-ANALYZER_VERSION = "audio-intelligence-v1"
+SCHEMA_VERSION = 2
+ANALYZER_VERSION = "audio-intelligence-v1-energy-silence"
 SUPPORTED_DEPTHS = {"fast", "deep"}
 DEFAULT_CACHE_ROOT = ROOT / "outputs" / "cache" / "audio_intelligence"
+PCM_ANALYSIS_SAMPLE_RATE = 8000
+ENERGY_WINDOW_SEC = 1.0
+ENERGY_PROFILE_MAX_POINTS = 600
+SILENCE_WINDOW_SEC = 0.1
+SILENCE_THRESHOLD_DBFS = -50.0
+MINIMUM_ACTIVE_SEC = 0.2
+MINIMUM_INTERNAL_SILENCE_SEC = 2.0
+MAX_INTERNAL_SILENCE_REGIONS = 24
 
 ProbeFunction = Callable[..., dict[str, Any]]
 LoudnessRunner = Callable[[Path, str], dict[str, Any]]
+PcmRunner = Callable[[Path, str], dict[str, Any]]
 
 
 def _utc_now() -> str:
@@ -71,12 +81,29 @@ def _empty_result(path: Path, context: dict[str, str]) -> dict[str, Any]:
             "method": None,
             "status": "unknown",
         },
+        "energy": {
+            "profile": [],
+            "window_sec": ENERGY_WINDOW_SEC,
+            "normalization": "silence_floor_to_active_p90_dbfs",
+            "method": "pcm_rms_windows",
+            "status": "unknown",
+        },
+        "silence": {
+            "leading_sec": None,
+            "trailing_sec": None,
+            "internal_regions": [],
+            "threshold_dbfs": SILENCE_THRESHOLD_DBFS,
+            "minimum_active_sec": MINIMUM_ACTIVE_SEC,
+            "minimum_internal_sec": MINIMUM_INTERNAL_SILENCE_SEC,
+            "method": "pcm_window_activity",
+            "status": "unknown",
+        },
         "cache": {
             "hit": False,
             "analyzer_version": ANALYZER_VERSION,
             "created_at": None,
         },
-        "performance": {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0},
+        "performance": {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0},
         "warnings": [],
         "errors": [],
     }
@@ -195,7 +222,7 @@ def _valid_cache(payload: dict[str, Any] | None, source_id: str, depth: str) -> 
     capabilities = set(payload.get("completed_capabilities") or [])
     if "metadata" not in capabilities:
         return False
-    return depth == "fast" or "loudness" in capabilities
+    return depth == "fast" or {"loudness", "energy", "silence"}.issubset(capabilities)
 
 
 def _nullable_number(value: Any) -> float | None:
@@ -272,6 +299,219 @@ def _run_loudnorm_analysis(path: Path, ffmpeg_path: str) -> dict[str, Any]:
     }
 
 
+def _run_pcm_analysis(path: Path, ffmpeg_path: str) -> dict[str, Any]:
+    """Decode one bounded-rate mono PCM stream for all signal-level metrics."""
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not ffmpeg:
+        return {"ok": False, "samples": array("h"), "sample_rate": PCM_ANALYSIS_SAMPLE_RATE, "error": "missing_ffmpeg"}
+    command = [
+        ffmpeg,
+        "-hide_banner",
+        "-nostats",
+        "-v",
+        "error",
+        "-i",
+        str(path),
+        "-map",
+        "0:a:0",
+        "-ac",
+        "1",
+        "-ar",
+        str(PCM_ANALYSIS_SAMPLE_RATE),
+        "-c:a",
+        "pcm_s16le",
+        "-f",
+        "s16le",
+        "-",
+    ]
+    try:
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "samples": array("h"), "sample_rate": PCM_ANALYSIS_SAMPLE_RATE, "error": "pcm_analysis_timeout", "command": command}
+    except (FileNotFoundError, OSError) as exc:
+        return {"ok": False, "samples": array("h"), "sample_rate": PCM_ANALYSIS_SAMPLE_RATE, "error": f"pcm_analysis_failed:{exc}", "command": command}
+    samples = array("h")
+    if process.returncode == 0 and process.stdout:
+        samples.frombytes(process.stdout)
+    return {
+        "ok": process.returncode == 0 and bool(samples),
+        "samples": samples,
+        "sample_rate": PCM_ANALYSIS_SAMPLE_RATE,
+        "error": "" if process.returncode == 0 and samples else f"pcm_analysis_exit_{process.returncode}" if process.returncode else "empty_pcm_analysis",
+        "command": command,
+    }
+
+
+def _rms_dbfs(mean_square: float) -> float:
+    if mean_square <= 0.0:
+        return -120.0
+    return max(-120.0, 10.0 * math.log10(mean_square))
+
+
+def _percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = max(0.0, min(1.0, percentile)) * (len(ordered) - 1)
+    lower = int(math.floor(position))
+    upper = int(math.ceil(position))
+    if lower == upper:
+        return ordered[lower]
+    fraction = position - lower
+    return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
+
+
+def _activity_runs(flags: list[bool], target: bool) -> list[tuple[int, int]]:
+    runs: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, value in enumerate(flags + [not target]):
+        if value == target and start is None:
+            start = index
+        elif value != target and start is not None:
+            runs.append((start, index))
+            start = None
+    return runs
+
+
+def _analyze_pcm_signal(samples: array, sample_rate: int, duration_sec: float | None) -> dict[str, Any]:
+    decoded_duration = len(samples) / float(sample_rate) if sample_rate > 0 else 0.0
+    duration = min(float(duration_sec), decoded_duration) if duration_sec and duration_sec > 0 else decoded_duration
+    if not samples or duration <= 0:
+        return {"ok": False, "error": "empty_pcm_analysis"}
+
+    activity_window_samples = max(1, int(round(SILENCE_WINDOW_SEC * sample_rate)))
+    activity_frames: list[dict[str, float]] = []
+    sample_limit = min(len(samples), max(1, int(math.ceil(duration * sample_rate))))
+    for start in range(0, sample_limit, activity_window_samples):
+        end = min(sample_limit, start + activity_window_samples)
+        if end <= start:
+            continue
+        sum_square = 0.0
+        for value in samples[start:end]:
+            normalized = value / 32768.0
+            sum_square += normalized * normalized
+        mean_square = sum_square / (end - start)
+        activity_frames.append(
+            {
+                "start_sec": start / sample_rate,
+                "end_sec": min(duration, end / sample_rate),
+                "mean_square": mean_square,
+                "rms_dbfs": _rms_dbfs(mean_square),
+            }
+        )
+    if not activity_frames:
+        return {"ok": False, "error": "empty_pcm_windows"}
+
+    profile_window_sec = max(ENERGY_WINDOW_SEC, math.ceil((duration / ENERGY_PROFILE_MAX_POINTS) / SILENCE_WINDOW_SEC) * SILENCE_WINDOW_SEC)
+    profile_group_size = max(1, int(round(profile_window_sec / SILENCE_WINDOW_SEC)))
+    raw_profile: list[dict[str, float]] = []
+    for start in range(0, len(activity_frames), profile_group_size):
+        group = activity_frames[start : start + profile_group_size]
+        total_duration = sum(max(0.0, item["end_sec"] - item["start_sec"]) for item in group)
+        if total_duration <= 0:
+            continue
+        mean_square = sum(item["mean_square"] * max(0.0, item["end_sec"] - item["start_sec"]) for item in group) / total_duration
+        raw_profile.append(
+            {
+                "start_sec": group[0]["start_sec"],
+                "end_sec": min(duration, group[-1]["end_sec"]),
+                "rms_dbfs": _rms_dbfs(mean_square),
+            }
+        )
+
+    active_profile_db = [item["rms_dbfs"] for item in raw_profile if item["rms_dbfs"] > SILENCE_THRESHOLD_DBFS]
+    robust_upper_db = _percentile(active_profile_db, 0.90)
+    for item in raw_profile:
+        if robust_upper_db is None or item["rms_dbfs"] <= SILENCE_THRESHOLD_DBFS:
+            normalized_energy = 0.0
+        else:
+            scale = max(6.0, robust_upper_db - SILENCE_THRESHOLD_DBFS)
+            normalized_energy = max(0.0, min(1.0, (item["rms_dbfs"] - SILENCE_THRESHOLD_DBFS) / scale))
+        item["start_sec"] = round(item["start_sec"], 3)
+        item["end_sec"] = round(min(duration, item["end_sec"]), 3)
+        item["rms_dbfs"] = round(item["rms_dbfs"], 2)
+        item["normalized"] = round(normalized_energy, 4)
+
+    raw_active = [item["rms_dbfs"] > SILENCE_THRESHOLD_DBFS for item in activity_frames]
+    minimum_active_windows = max(1, int(math.ceil(MINIMUM_ACTIVE_SEC / SILENCE_WINDOW_SEC)))
+    qualified_active = [False] * len(raw_active)
+    for start, end in _activity_runs(raw_active, True):
+        if end - start >= minimum_active_windows:
+            for index in range(start, end):
+                qualified_active[index] = True
+
+    active_indexes = [index for index, active in enumerate(qualified_active) if active]
+    if not active_indexes:
+        leading_sec = duration
+        trailing_sec = duration
+        internal_regions: list[dict[str, float]] = []
+    else:
+        first_active = active_indexes[0]
+        last_active = active_indexes[-1]
+        leading_sec = activity_frames[first_active]["start_sec"]
+        trailing_sec = max(0.0, duration - activity_frames[last_active]["end_sec"])
+        minimum_internal_windows = max(1, int(math.ceil(MINIMUM_INTERNAL_SILENCE_SEC / SILENCE_WINDOW_SEC)))
+        internal_regions = []
+        internal_flags = [not value for value in qualified_active]
+        for start, end in _activity_runs(internal_flags, True):
+            if start <= first_active or end - 1 >= last_active or end - start < minimum_internal_windows:
+                continue
+            region_start = activity_frames[start]["start_sec"]
+            region_end = min(duration, activity_frames[end - 1]["end_sec"])
+            internal_regions.append(
+                {
+                    "start_sec": round(region_start, 3),
+                    "end_sec": round(region_end, 3),
+                    "duration_sec": round(max(0.0, region_end - region_start), 3),
+                }
+            )
+            if len(internal_regions) >= MAX_INTERNAL_SILENCE_REGIONS:
+                break
+
+    return {
+        "ok": True,
+        "energy": {
+            "profile": raw_profile[:ENERGY_PROFILE_MAX_POINTS],
+            "window_sec": round(profile_window_sec, 3),
+            "normalization": "linear dBFS scaling from -50 dBFS silence floor to active-window 90th percentile; clipped to 0..1",
+            "method": "pcm_rms_windows",
+            "status": "ok",
+        },
+        "silence": {
+            "leading_sec": round(min(duration, leading_sec), 3),
+            "trailing_sec": round(min(duration, trailing_sec), 3),
+            "internal_regions": internal_regions,
+            "threshold_dbfs": SILENCE_THRESHOLD_DBFS,
+            "minimum_active_sec": MINIMUM_ACTIVE_SEC,
+            "minimum_internal_sec": MINIMUM_INTERNAL_SILENCE_SEC,
+            "method": "pcm_window_activity",
+            "status": "ok",
+        },
+    }
+
+
+def _apply_signal_analysis(result: dict[str, Any], run: dict[str, Any]) -> bool:
+    if not run.get("ok"):
+        result["errors"].append(str(run.get("error") or "pcm_analysis_failed"))
+        result["warnings"].append("Energy and silence analysis were unavailable; values remain unknown.")
+        return False
+    signal = _analyze_pcm_signal(
+        run.get("samples") or array("h"),
+        int(run.get("sample_rate") or PCM_ANALYSIS_SAMPLE_RATE),
+        (result.get("metadata") or {}).get("duration_sec"),
+    )
+    if not signal.get("ok"):
+        result["errors"].append(str(signal.get("error") or "pcm_signal_analysis_failed"))
+        result["warnings"].append("Energy and silence analysis were unavailable; values remain unknown.")
+        return False
+    result["energy"] = signal["energy"]
+    result["silence"] = signal["silence"]
+    result["completed_capabilities"].extend(["energy", "silence"])
+    return True
+
+
 def _apply_probe(result: dict[str, Any], probe: dict[str, Any]) -> None:
     metadata = result["metadata"]
     if not probe.get("ok") or not probe.get("has_audio", True):
@@ -326,6 +566,7 @@ def analyze_audio_source(
     ffmpeg_path: str = "",
     _probe_func: ProbeFunction | None = None,
     _loudness_runner: LoudnessRunner | None = None,
+    _pcm_runner: PcmRunner | None = None,
 ) -> dict[str, Any]:
     """Return versioned source facts, preserving unknown values as null."""
     started = time.perf_counter()
@@ -358,6 +599,8 @@ def analyze_audio_source(
             "elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
             "ffprobe_runs": 0,
             "ffmpeg_runs": 0,
+            "ffmpeg_loudness_runs": 0,
+            "pcm_analysis_runs": 0,
         }
         return cached
 
@@ -365,7 +608,7 @@ def analyze_audio_source(
         result = cached
         result["cache"]["hit"] = False
         result["analysis_depth"] = requested_depth
-        result["performance"] = {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0}
+        result["performance"] = {"elapsed_ms": None, "ffprobe_runs": 0, "ffmpeg_runs": 0, "ffmpeg_loudness_runs": 0, "pcm_analysis_runs": 0}
     else:
         probe_function = _probe_func or probe_media
         probe = probe_function(source, ffmpeg_path=ffmpeg_path)
@@ -376,9 +619,15 @@ def analyze_audio_source(
         runner = _loudness_runner or _run_loudnorm_analysis
         loudness_run = runner(source, ffmpeg_path)
         result["performance"]["ffmpeg_runs"] += 1
+        result["performance"]["ffmpeg_loudness_runs"] += 1
         _apply_loudness(result, dict(loudness_run or {}))
+        pcm_runner = _pcm_runner or _run_pcm_analysis
+        pcm_run = pcm_runner(source, ffmpeg_path)
+        result["performance"]["pcm_analysis_runs"] += 1
+        _apply_signal_analysis(result, dict(pcm_run or {}))
 
-    result["analysis_depth"] = "deep" if "loudness" in result["completed_capabilities"] else "fast"
+    deep_capabilities = {"loudness", "energy", "silence"}
+    result["analysis_depth"] = "deep" if deep_capabilities.issubset(set(result["completed_capabilities"])) else "fast"
     result["cache"].update({"hit": False, "analyzer_version": ANALYZER_VERSION, "created_at": _utc_now()})
     result["performance"]["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 3)
     try:

@@ -377,6 +377,24 @@ def _write_audio_intelligence_wav(path: Path, *, channels: int = 2, duration: fl
         audio.writeframes(samples.tobytes())
 
 
+def _write_segmented_audio_intelligence_wav(path: Path, segments: list[tuple[float, float]], *, channels: int = 2, sample_rate: int = 8000) -> None:
+    samples = array("h")
+    sample_index = 0
+    for duration, amplitude in segments:
+        frame_count = max(1, int(round(sample_rate * duration)))
+        for _ in range(frame_count):
+            value = int(max(-1.0, min(1.0, amplitude)) * 32767 * math.sin(2 * math.pi * 440 * sample_index / sample_rate)) if amplitude else 0
+            for channel in range(channels):
+                samples.append(value if channel == 0 else int(value * 0.82))
+            sample_index += 1
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as audio:
+        audio.setnchannels(channels)
+        audio.setsampwidth(2)
+        audio.setframerate(sample_rate)
+        audio.writeframes(samples.tobytes())
+
+
 def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     fixture_root = out / "audio_intelligence"
     cache_root = fixture_root / "cache"
@@ -395,34 +413,78 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     cold_fast = analyze_audio_source(stereo, context, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
     assert_true(cold_fast["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION and cold_fast["analysis_depth"] == "fast", "Audio Intelligence fast schema/depth failed")
     assert_true(cold_fast["metadata"]["status"] == "measured" and cold_fast["metadata"]["channels"] == 2 and cold_fast["metadata"]["sample_rate_hz"] == 48000, "stereo WAV fast metadata failed")
-    assert_true(not cold_fast["cache"]["hit"] and cold_fast["performance"]["ffmpeg_runs"] == 0, "cold fast analysis cache/subprocess behavior failed")
+    assert_true(not cold_fast["cache"]["hit"] and cold_fast["performance"]["ffmpeg_runs"] == 0 and cold_fast["performance"]["pcm_analysis_runs"] == 0, "cold fast analysis cache/subprocess behavior failed")
     warm_fast = analyze_audio_source(stereo, context, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(warm_fast["cache"]["hit"] and warm_fast["performance"]["ffprobe_runs"] == 0 and warm_fast["performance"]["ffmpeg_runs"] == 0, "warm fast cache failed")
+    assert_true(warm_fast["cache"]["hit"] and warm_fast["performance"]["ffprobe_runs"] == 0 and warm_fast["performance"]["ffmpeg_runs"] == 0 and warm_fast["performance"]["pcm_analysis_runs"] == 0, "warm fast cache failed")
 
     deep_source = fixture_root / "deep.wav"
     shutil.copy2(stereo, deep_source)
     cold_deep = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(cold_deep["analysis_depth"] == "deep" and "loudness" in cold_deep["completed_capabilities"], "stereo WAV deep analysis failed")
-    assert_true(cold_deep["performance"]["ffmpeg_runs"] == 1 and cold_deep["loudness"]["method"] == "ffmpeg_loudnorm", "deep analysis must use one loudnorm run")
+    assert_true(cold_deep["analysis_depth"] == "deep" and {"loudness", "energy", "silence"}.issubset(set(cold_deep["completed_capabilities"])), "stereo WAV deep analysis failed")
+    assert_true(cold_deep["performance"]["ffmpeg_runs"] == 1 and cold_deep["performance"]["ffmpeg_loudness_runs"] == 1 and cold_deep["performance"]["pcm_analysis_runs"] == 1 and cold_deep["loudness"]["method"] == "ffmpeg_loudnorm", "deep analysis must use one loudness run and one shared PCM decode")
     assert_true(all(cold_deep["loudness"][key] is not None for key in ("integrated_lufs", "true_peak_dbtp", "lra_lu")), "deep loudness metrics missing")
+    assert_true(cold_deep["energy"]["status"] == "ok" and cold_deep["energy"]["profile"] and cold_deep["silence"]["status"] == "ok", "deep energy/silence metrics missing")
     warm_deep = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(warm_deep["cache"]["hit"] and warm_deep["performance"]["ffmpeg_runs"] == 0, "warm deep must run zero loudness subprocesses")
+    assert_true(warm_deep["cache"]["hit"] and warm_deep["performance"]["ffmpeg_runs"] == 0 and warm_deep["performance"]["ffmpeg_loudness_runs"] == 0 and warm_deep["performance"]["pcm_analysis_runs"] == 0, "warm deep must run zero loudness and PCM subprocesses")
     deep_as_fast = analyze_audio_source(deep_source, {**context, "path_role": "deep_source"}, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
     assert_true(deep_as_fast["cache"]["hit"] and deep_as_fast["analysis_depth"] == "deep" and deep_as_fast["loudness"]["integrated_lufs"] == cold_deep["loudness"]["integrated_lufs"], "deep cache was not reused by fast request")
 
-    mono_fast = analyze_audio_source(mono, {**context, "path_role": "mono"}, "fast", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(mono_fast["metadata"]["channels"] == 1, "mono audio analysis failed")
+    mono_fast = analyze_audio_source(mono, {**context, "path_role": "mono"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
+    assert_true(mono_fast["metadata"]["channels"] == 1 and mono_fast["energy"]["profile"], "mono audio analysis failed")
     short_deep = analyze_audio_source(short, {**context, "path_role": "short"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
-    assert_true(short_deep["metadata"]["duration_sec"] is not None and isinstance(short_deep["warnings"], list), "short audio handling failed")
+    assert_true(short_deep["metadata"]["duration_sec"] is not None and len(short_deep["energy"]["profile"]) == 1 and isinstance(short_deep["warnings"], list), "short audio handling failed")
     silent_deep = analyze_audio_source(silent, {**context, "path_role": "silent"}, "deep", cache_root=cache_root, ffmpeg_path=find_ffmpeg())
     assert_true(silent_deep["loudness"]["integrated_lufs"] is None and silent_deep["loudness"]["true_peak_dbtp"] is None, "silent audio unknown values must remain null")
+    assert_true(all(point["normalized"] == 0.0 for point in silent_deep["energy"]["profile"]) and silent_deep["silence"]["leading_sec"] >= 0.35 and silent_deep["silence"]["trailing_sec"] >= 0.35, "full-silence energy/boundary handling failed")
 
     ffmpeg = find_ffmpeg()
     mp3 = fixture_root / "stereo.mp3"
     mp3_process = subprocess.run([ffmpeg, "-y", "-i", str(stereo), "-c:a", "libmp3lame", "-b:a", "192k", str(mp3)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert_true(mp3_process.returncode == 0 and mp3.is_file(), "Audio Intelligence MP3 fixture generation failed")
     mp3_deep = analyze_audio_source(mp3, {**context, "path_role": "mp3"}, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg)
-    assert_true(mp3_deep["metadata"]["codec"] == "mp3" and mp3_deep["loudness"]["status"] == "measured", "MP3 deep analysis failed")
+    assert_true(mp3_deep["metadata"]["codec"] == "mp3" and mp3_deep["loudness"]["status"] == "measured" and mp3_deep["energy"]["profile"] and mp3_deep["performance"]["pcm_analysis_runs"] == 1, "MP3 deep analysis failed")
+
+    fake_loudness = lambda _path, _ffmpeg: {"ok": True, "output": '{"input_i":"-18.0","input_tp":"-1.2","input_lra":"7.0"}', "error": ""}
+
+    def analyze_signal_fixture(name: str, segments: list[tuple[float, float]], *, channels: int = 2) -> dict[str, Any]:
+        fixture = fixture_root / f"{name}.wav"
+        _write_segmented_audio_intelligence_wav(fixture, segments, channels=channels)
+        return analyze_audio_source(
+            fixture,
+            {**context, "path_role": name},
+            "deep",
+            cache_root=cache_root,
+            ffmpeg_path=ffmpeg,
+            _loudness_runner=fake_loudness,
+        )
+
+    immediate = analyze_signal_fixture("immediate", [(3.0, 0.35)])
+    leading = analyze_signal_fixture("leading", [(2.0, 0.0), (3.0, 0.35)])
+    trailing = analyze_signal_fixture("trailing", [(3.0, 0.35), (2.0, 0.0)])
+    bounded = analyze_signal_fixture("leading_trailing", [(2.0, 0.0), (3.0, 0.35), (2.0, 0.0)])
+    internal = analyze_signal_fixture("internal", [(1.0, 0.35), (2.5, 0.0), (1.0, 0.35)])
+    multiple_internal = analyze_signal_fixture("multiple_internal", [(1.0, 0.35), (2.2, 0.0), (1.0, 0.35), (2.3, 0.0), (1.0, 0.35)])
+    loud_quiet_loud = analyze_signal_fixture("loud_quiet_loud", [(2.0, 0.7), (2.0, 0.06), (2.0, 0.7)])
+    transient = analyze_signal_fixture("isolated_transient", [(2.0, 0.25), (0.02, 1.0), (2.0, 0.25)])
+    near_silence = analyze_signal_fixture("near_silence", [(2.0, 0.0008)])
+
+    assert_true(immediate["silence"]["leading_sec"] <= 0.1, "immediate activity should not create leading silence")
+    assert_true(abs(float(leading["silence"]["leading_sec"]) - 2.0) <= 0.2 and float(leading["silence"]["trailing_sec"]) <= 0.2, "long leading silence detection failed")
+    assert_true(abs(float(trailing["silence"]["trailing_sec"]) - 2.0) <= 0.2 and float(trailing["silence"]["leading_sec"]) <= 0.2, "long trailing silence detection failed")
+    assert_true(abs(float(bounded["silence"]["leading_sec"]) - 2.0) <= 0.2 and abs(float(bounded["silence"]["trailing_sec"]) - 2.0) <= 0.2, "combined leading/trailing silence detection failed")
+    assert_true(len(internal["silence"]["internal_regions"]) == 1 and float(internal["silence"]["internal_regions"][0]["duration_sec"]) >= 2.4, "internal silence detection failed")
+    assert_true(len(multiple_internal["silence"]["internal_regions"]) == 2, "multiple internal silence detection failed")
+    lql_values = [point["normalized"] for point in loud_quiet_loud["energy"]["profile"]]
+    assert_true(len(lql_values) >= 6 and max(lql_values[:2]) > max(lql_values[2:4]) and max(lql_values[-2:]) > max(lql_values[2:4]), "loud-quiet-loud energy profile failed")
+    transient_values = [point["normalized"] for point in transient["energy"]["profile"]]
+    assert_true(sum(value >= 0.65 for value in transient_values) >= 3, "isolated transient should not flatten sustained energy normalization")
+    assert_true(all(point["normalized"] == 0.0 for point in near_silence["energy"]["profile"]), "near-silence energy should remain near zero")
+    for analyzed in [immediate, leading, trailing, bounded, internal, multiple_internal, loud_quiet_loud, transient, near_silence]:
+        duration = float(analyzed["metadata"]["duration_sec"] or 0.0)
+        profile = analyzed["energy"]["profile"]
+        assert_true(profile and len(profile) <= 600 and all(0.0 <= point["normalized"] <= 1.0 and 0.0 <= point["start_sec"] <= point["end_sec"] <= duration + 0.001 for point in profile), "energy profile bounds/range failed")
+        assert_true(all(0.0 <= region["start_sec"] < region["end_sec"] <= duration + 0.001 and region["duration_sec"] >= 2.0 for region in analyzed["silence"]["internal_regions"]), "internal silence bounds failed")
+        assert_true(analyzed["performance"]["pcm_analysis_runs"] == 1, "energy and silence must share exactly one PCM decode")
 
     corrupt = fixture_root / "corrupt.wav"
     corrupt.write_bytes(b"not audio")
@@ -441,13 +503,13 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     mutation_source = fixture_root / "mutation.wav"
     shutil.copy2(stereo, mutation_source)
     mutation_context = {**context, "path_role": "mutation"}
-    mutation_first = analyze_audio_source(mutation_source, mutation_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
+    mutation_first = analyze_audio_source(mutation_source, mutation_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
     time.sleep(0.002)
     with mutation_source.open("ab") as handle:
         handle.write(b"mutation")
     os.utime(mutation_source, None)
-    mutation_second = analyze_audio_source(mutation_source, mutation_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
-    assert_true(mutation_first["source"]["source_id"] != mutation_second["source"]["source_id"] and not mutation_second["cache"]["hit"], "source mutation did not invalidate cache")
+    mutation_second = analyze_audio_source(mutation_source, mutation_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
+    assert_true(mutation_first["source"]["source_id"] != mutation_second["source"]["source_id"] and not mutation_second["cache"]["hit"] and mutation_second["performance"]["pcm_analysis_runs"] == 1, "source mutation did not invalidate deep signal cache")
 
     version_source = fixture_root / "version.wav"
     shutil.copy2(stereo, version_source)
@@ -468,6 +530,21 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
     malformed_recovery = analyze_audio_source(version_source, version_context, "fast", cache_root=cache_root, ffmpeg_path=ffmpeg)
     assert_true(not malformed_recovery["cache"]["hit"] and malformed_recovery["metadata"]["status"] == "measured", "malformed cache did not recover")
 
+    old_deep_source = fixture_root / "old_deep.wav"
+    shutil.copy2(stereo, old_deep_source)
+    old_deep_context = {**context, "path_role": "old_deep"}
+    old_deep_first = analyze_audio_source(old_deep_source, old_deep_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
+    old_deep_cache = cache_root / f"{old_deep_first['source']['source_id']}.json"
+    old_deep_payload = json.loads(old_deep_cache.read_text(encoding="utf-8"))
+    old_deep_payload["cache"]["analyzer_version"] = "audio-intelligence-v1"
+    old_deep_payload["schema_version"] = 1
+    old_deep_payload["completed_capabilities"] = ["metadata", "loudness"]
+    old_deep_payload.pop("energy", None)
+    old_deep_payload.pop("silence", None)
+    old_deep_cache.write_text(json.dumps(old_deep_payload), encoding="utf-8")
+    old_deep_rebuilt = analyze_audio_source(old_deep_source, old_deep_context, "deep", cache_root=cache_root, ffmpeg_path=ffmpeg, _loudness_runner=fake_loudness)
+    assert_true(not old_deep_rebuilt["cache"]["hit"] and old_deep_rebuilt["schema_version"] == AUDIO_INTELLIGENCE_SCHEMA_VERSION and old_deep_rebuilt["performance"]["pcm_analysis_runs"] == 1 and {"energy", "silence"}.issubset(set(old_deep_rebuilt["completed_capabilities"])), "old deep analyzer cache did not rebuild Phase 2D capabilities")
+
     parsed = parse_loudnorm_output('noise\n{"input_i":"-14.25","input_tp":"-0.82","input_lra":"6.40"}\n')
     assert_true(parsed["integrated_lufs"] == -14.25 and parsed["true_peak_dbtp"] == -0.82 and parsed["lra_lu"] == 6.4, "loudnorm LUFS/True Peak/LRA parsing failed")
     unknown = parse_loudnorm_output('{"input_i":"-inf","input_tp":"nan","input_lra":"invalid"}')
@@ -487,6 +564,16 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
         and "simulated_ffmpeg_failure" in failed_loudness["errors"],
         "FFmpeg loudness failure must preserve null values and report the real error",
     )
+    failed_signal = analyze_audio_source(
+        stereo,
+        {**context, "path_role": "failed_signal"},
+        "deep",
+        cache_root=cache_root,
+        ffmpeg_path=ffmpeg,
+        _loudness_runner=fake_loudness,
+        _pcm_runner=lambda _path, _ffmpeg: {"ok": False, "samples": array("h"), "sample_rate": 8000, "error": "simulated_pcm_failure"},
+    )
+    assert_true(failed_signal["energy"]["status"] == "unknown" and failed_signal["silence"]["leading_sec"] is None and "simulated_pcm_failure" in failed_signal["errors"], "PCM analysis failure must preserve unknown energy/silence values")
 
     performance = {
         "cold_fast": dict(cold_fast["performance"]),
@@ -494,7 +581,8 @@ def run_audio_intelligence_smoke(out: Path) -> dict[str, dict[str, Any]]:
         "warm_fast": dict(warm_fast["performance"]),
         "warm_deep": dict(warm_deep["performance"]),
     }
-    assert_true(performance["warm_deep"]["ffmpeg_runs"] == 0, "warm deep performance regression")
+    assert_true(performance["cold_deep"]["ffmpeg_loudness_runs"] == 1 and performance["cold_deep"]["pcm_analysis_runs"] == 1, "cold deep Phase 2D performance regression")
+    assert_true(performance["warm_deep"]["ffmpeg_loudness_runs"] == 0 and performance["warm_deep"]["pcm_analysis_runs"] == 0, "warm deep performance regression")
     return performance
 
 
