@@ -68,11 +68,8 @@ RECOMMENDATION_REASON_LABELS = {
     "metadata_pop_rock": "Project metadata indicates a pop-rock direction.",
     "metadata_modern_pop": "Project metadata indicates a modern pop or electronic direction.",
     "metadata_vocal": "Project metadata indicates spoken or vocal-forward content.",
-    "mid_forward_low_transient": "Legacy proxy evidence is mid-forward with restrained transients.",
-    "dense_bass_forward": "Legacy proxy evidence is dense and bass-forward.",
-    "transient_mid_forward": "Legacy proxy evidence is transient and mid-forward.",
-    "high_energy_low_silence": "Legacy proxy evidence indicates consistently high energy.",
-    "warm_dynamic_proxy": "Legacy proxy evidence supports a warm dynamic treatment.",
+    "explicit_electronic_direction": "Explicit electronic style metadata resolves mixed modern/pop-rock evidence.",
+    "explicit_style_confirmed": "Explicit project style is supported by reliable source character.",
     "conservative_fallback": "Evidence is limited or mixed; balanced processing is safest.",
 }
 
@@ -296,11 +293,12 @@ def recommend_remaster_preset(
 ) -> dict[str, Any]:
     """Return a deterministic reliable-first preset recommendation.
 
-    Reliable measurements define safety and context. Metadata and legacy PCM
-    proxies may distinguish character only after those gates are applied.
+    Reliable measurements define safety and context. Explicit metadata may
+    distinguish character after those gates are applied. ``proxy_metrics`` is
+    retained only for caller compatibility and never influences Auto.
     """
     analysis = audio_intelligence if isinstance(audio_intelligence, dict) else {}
-    proxies = proxy_metrics if isinstance(proxy_metrics, dict) else {}
+    _ = proxy_metrics
     loudness = analysis.get("loudness") or {}
     source_metadata = analysis.get("metadata") or {}
     silence = analysis.get("silence") or {}
@@ -430,38 +428,31 @@ def recommend_remaster_preset(
             reasons[preset].append(reason)
             metrics_used.append(reason)
 
-    rms = _finite_metric(proxies.get("rms_energy"))
-    bass = _finite_metric(proxies.get("bass_energy"))
-    mid = _finite_metric(proxies.get("mid_energy"))
-    high = _finite_metric(proxies.get("high_energy"))
-    transient = _finite_metric(proxies.get("transient_density"))
-    silence_ratio = _finite_metric(proxies.get("silence_ratio"))
-    dynamic_range = _finite_metric(proxies.get("dynamic_range"))
-    proxy_values = [rms, bass, mid, high, transient, silence_ratio, dynamic_range]
-    if any(value is not None for value in proxy_values):
-        metrics_used.append("legacy_pcm_proxies")
-    if None not in (mid, bass, transient, silence_ratio) and mid > bass * 1.25 and transient < 0.28 and silence_ratio > 0.18:
-        scores["Vocal Focus"] += 36
-        reasons["Vocal Focus"].append("mid_forward_low_transient")
-    if None not in (bass, mid, rms, high) and bass > mid * 1.18 and rms > 0.12 and high > 0.08:
-        scores["Modern Pop"] += 34
-        reasons["Modern Pop"].append("dense_bass_forward")
-    if None not in (transient, mid, bass) and transient > 0.32 and mid >= bass * 0.85:
-        scores["Pop Rock"] += 35
-        reasons["Pop Rock"].append("transient_mid_forward")
-    if None not in (rms, transient, silence_ratio) and rms > 0.16 and transient > 0.2 and silence_ratio < 0.18 and safety["aggressive_allowed"]:
-        scores["Loud Modern"] += 46
-        reasons["Loud Modern"].append("high_energy_low_silence")
-    if None not in (mid, bass, dynamic_range) and mid > bass and dynamic_range > 0.45:
-        scores["Warm Acoustic"] += 30
-        reasons["Warm Acoustic"].append("warm_dynamic_proxy")
+            reliable_character_match = (
+                preset in {"Pop Rock", "Modern Pop"} and float(energy["high_ratio"] or 0.0) >= 0.55
+            ) or (
+                preset in {"Warm Acoustic", "Emotional Ballad"}
+                and (float(energy["low_ratio"] or 0.0) >= 0.55 or bool(lra is not None and lra >= 11.0))
+            ) or (
+                preset == "Vocal Focus" and bool(channels is not None and channels <= 1)
+            )
+            if safety["already_near_streaming_target"] and reliable_character_match:
+                scores[preset] += 26
+                reasons[preset].append("explicit_style_confirmed")
+
+    if (
+        "metadata_modern_pop" in reasons["Modern Pop"]
+        and "metadata_pop_rock" in reasons["Pop Rock"]
+        and any(keyword in text for keyword in ("electronic", "edm", "trap", "dance", "808"))
+    ):
+        scores["Modern Pop"] += 4
+        reasons["Modern Pop"].append("explicit_electronic_direction")
 
     source_effectively_silent = (
         integrated_lufs is None
         and true_peak is None
         and energy["median"] == 0.0
         and float(energy["high_ratio"] or 0.0) == 0.0
-        and (rms is None or rms == 0.0)
     )
     if source_effectively_silent:
         safety["silent_or_unreliable_source"] = True
@@ -506,7 +497,29 @@ def recommend_remaster_preset(
     }
 
 
+def _reliable_recommendation_metrics(analysis: dict[str, Any] | None) -> dict[str, Any]:
+    source_analysis = analysis if isinstance(analysis, dict) else {}
+    metadata = source_analysis.get("metadata") or {}
+    loudness = source_analysis.get("loudness") or {}
+    silence = source_analysis.get("silence") or {}
+    musical = source_analysis.get("musical") or {}
+    return {
+        "duration": metadata.get("duration_sec"),
+        "integrated_loudness": loudness.get("integrated_lufs"),
+        "true_peak_dbtp": loudness.get("true_peak_dbtp"),
+        "lra_lu": loudness.get("lra_lu"),
+        "channels": metadata.get("channels"),
+        "energy_summary": _energy_summary(source_analysis),
+        "leading_silence_sec": silence.get("leading_sec"),
+        "trailing_silence_sec": silence.get("trailing_sec"),
+        "internal_silence_regions": list(silence.get("internal_regions") or []),
+        "measured_bpm": musical.get("bpm") if musical.get("bpm_status") == "ok" else None,
+        "provenance": AUDIO_INTELLIGENCE_ANALYZER_VERSION,
+    }
+
+
 def build_remaster_recommendation(decision: dict[str, Any], analysis: dict[str, Any], metrics: dict[str, Any] | None = None, *, source: str = "audio_analysis") -> dict[str, Any]:
+    _ = metrics
     confidence_value = max(0.0, min(1.0, float(decision.get("confidence") or 0.0)))
     score = int(round(confidence_value * 100))
     preset = str(decision.get("preset") or "Streaming Balanced")
@@ -517,7 +530,7 @@ def build_remaster_recommendation(decision: dict[str, Any], analysis: dict[str, 
         "confidence": _confidence_label(score),
         "confidence_score": score,
         "reasons": list(decision.get("reason_labels") or []),
-        "metrics": dict(metrics or {}),
+        "metrics": _reliable_recommendation_metrics(analysis),
         "audio_intelligence": analysis,
         "recommendation_confidence": confidence_value,
         "recommendation_reasons": list(decision.get("reasons") or []),
@@ -811,44 +824,8 @@ def analyze_audio_for_remaster_recommendation(
         probe = probe_media(source, ffmpeg_path=ffmpeg)
     if not probe.get("ok") or not probe.get("has_audio", True):
         return {"ok": False, "message": "Invalid or corrupt audio file", "error": "invalid_audio", "data": {"probe": probe}}
-    decoded = _decode_analysis_pcm(source, ffmpeg)
-    if not decoded.get("ok"):
-        return {"ok": False, "message": decoded.get("message", "Audio analysis failed"), "error": decoded.get("error", "analysis_failed")}
-    samples = decoded["samples"]
-    normalized = [sample / 32768.0 for sample in samples]
-    duration = float(probe.get("duration") or (len(samples) / float(decoded["sample_rate"])))
-    rms = math.sqrt(sum(value * value for value in normalized) / max(1, len(normalized)))
-    peak = max(abs(value) for value in normalized) if normalized else 0.0
-    silent = sum(1 for value in normalized if abs(value) < 0.01) / max(1, len(normalized))
-    diffs = [abs(normalized[idx] - normalized[idx - 1]) for idx in range(1, len(normalized))]
-    transient_density = min(1.0, (sum(1 for value in diffs if value > 0.12) / max(1, len(diffs))) * 8)
-    zero_cross = sum(1 for idx in range(1, len(normalized)) if (normalized[idx] >= 0) != (normalized[idx - 1] >= 0)) / max(1, len(normalized))
-    crest_factor = peak / max(rms, 0.0001)
-    bass_energy = max(0.0, min(1.0, rms * (1.6 - min(1.2, zero_cross * 18))))
-    high_energy = max(0.0, min(1.0, rms * min(1.8, zero_cross * 22)))
-    mid_energy = max(0.0, min(1.0, rms * (1.2 - abs(zero_cross - 0.055) * 5)))
-    dynamic_range = max(0.0, min(1.0, crest_factor / 12.0))
-    clipping_risk = peak > 0.985
-    metrics = {
-        "duration": round(duration, 3),
-        "integrated_loudness": (analysis.get("loudness") or {}).get("integrated_lufs"),
-        "true_peak_dbtp": (analysis.get("loudness") or {}).get("true_peak_dbtp"),
-        "lra_lu": (analysis.get("loudness") or {}).get("lra_lu"),
-        "peak": round(peak, 4),
-        "dynamic_range": round(dynamic_range, 4),
-        "rms_energy": round(rms, 4),
-        "bass_energy": round(bass_energy, 4),
-        "mid_energy": round(mid_energy, 4),
-        "high_energy": round(high_energy, 4),
-        "transient_density": round(transient_density, 4),
-        "silence_ratio": round(silent, 4),
-        "stereo_information": "available from source probe" if int(probe.get("channels") or 1) > 1 else "mono or unavailable",
-        "vocal_range_presence": round(mid_energy, 4),
-        "crest_factor": round(crest_factor, 3),
-        "clipping_risk": bool(clipping_risk),
-    }
-    decision = recommend_remaster_preset(analysis, metrics, metadata)
-    recommendation = build_remaster_recommendation(decision, analysis, metrics)
+    decision = recommend_remaster_preset(analysis, metadata=metadata)
+    recommendation = build_remaster_recommendation(decision, analysis)
     return {"ok": True, "data": recommendation, "error": ""}
 
 

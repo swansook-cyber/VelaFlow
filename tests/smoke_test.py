@@ -588,17 +588,28 @@ def run_remaster_recommendation_smoke() -> dict[str, Any]:
         "I": (_remaster_recommendation_analysis(-13, 0.6, 5, energy=0.7), {"rms_energy": 0.18, "silence_ratio": 0.02, "mid_energy": 0.12, "bass_energy": 0.11, "transient_density": 0.25, "high_energy": 0.08, "dynamic_range": 0.35}, {}),
         "J": (_remaster_recommendation_analysis(-14, -1, 8), {"rms_energy": 0.12, "silence_ratio": 0.03, "mid_energy": 0.10, "bass_energy": 0.09, "transient_density": 0.18, "high_energy": 0.05, "dynamic_range": 0.40}, {}),
     }
+    expected = {
+        "A": "Warm Acoustic",
+        "B": "Streaming Balanced",
+        "C": "Pop Rock",
+        "D": "Emotional Ballad",
+        "E": "Modern Pop",
+        "F": "Vocal Focus",
+        "G": "Streaming Balanced",
+        "H": "Streaming Balanced",
+        "I": "Streaming Balanced",
+        "J": "Streaming Balanced",
+    }
     results = {name: recommend_remaster_preset(*inputs) for name, inputs in profiles.items()}
-    assert_true(results["A"]["preset"] in {"Warm Acoustic", "Emotional Ballad"} and results["A"]["preset"] != "Loud Modern", "quiet dynamic acoustic recommendation is unsafe")
-    assert_true(results["B"]["preset"] != "Loud Modern" and not results["B"]["safety"]["aggressive_allowed"], "already-loud compressed pop received aggressive treatment")
-    assert_true(results["C"]["preset"] == "Pop Rock", "moderate pop-rock evidence did not select Pop Rock")
-    assert_true(results["D"]["preset"] == "Emotional Ballad", "Emotional Ballad is still unreachable")
-    assert_true(results["E"]["preset"] == "Modern Pop", "safe dense electronic profile did not select Modern Pop")
-    assert_true(results["F"]["preset"] in {"Vocal Focus", "Warm Acoustic", "Streaming Balanced"} and results["F"]["preset"] != "Loud Modern", "soft spoken source received an incompatible preset")
-    assert_true(results["G"]["preset"] not in {"Cinematic", "Custom", "Loud Modern"}, "mono source recommendation is unsafe")
-    assert_true(results["H"]["preset"] == "Streaming Balanced" and results["H"]["confidence"] < 0.5, "invalid reliable metrics did not use low-confidence fallback")
-    assert_true(results["I"]["preset"] == "Streaming Balanced" and "low_true_peak_headroom" in results["I"]["reasons"], "near-clipped source was not protected")
-    assert_true(results["J"]["preset"] == "Streaming Balanced" and "already_near_streaming_target" in results["J"]["reasons"], "streaming-ready source did not receive light-touch recommendation")
+    neutral_results = {name: recommend_remaster_preset(inputs[0], {}, inputs[2]) for name, inputs in profiles.items()}
+    assert_true({name: result["preset"] for name, result in results.items()} == expected, "A-J reliable-first recommendation matrix changed")
+    assert_true({name: result["preset"] for name, result in neutral_results.items()} == expected, "legacy proxies still control the A-J matrix")
+    assert_true(all("legacy_pcm_proxies" not in result["metrics_used"] for result in results.values()), "legacy proxy provenance leaked into Auto")
+    assert_true(not results["B"]["safety"]["aggressive_allowed"] and results["B"]["preset"] != "Loud Modern", "already-loud compressed pop received aggressive treatment")
+    assert_true("explicit_style_confirmed" in results["C"]["reasons"] and "metadata_pop_rock" in results["C"]["reasons"], "Profile C was not preserved by explicit style plus reliable energy")
+    assert_true(results["H"]["confidence"] < 0.5, "invalid reliable metrics did not use low-confidence fallback")
+    assert_true("low_true_peak_headroom" in results["I"]["reasons"], "near-clipped source was not protected")
+    assert_true("already_near_streaming_target" in results["J"]["reasons"], "streaming-ready source did not receive light-touch recommendation")
 
     collision_pop_loud = recommend_remaster_preset(
         _remaster_recommendation_analysis(-12, -1.2, 7, energy=0.8),
@@ -620,10 +631,45 @@ def run_remaster_recommendation_smoke() -> dict[str, Any]:
         {"rms_energy": 0.13, "silence_ratio": 0.04, "mid_energy": 0.11, "bass_energy": 0.14, "transient_density": 0.18, "high_energy": 0.09, "dynamic_range": 0.70},
         {"genre": "warm acoustic"},
     )
+    collision_inputs = [
+        (_remaster_recommendation_analysis(-12, -1.2, 7, energy=0.8), {"genre": "pop rock"}),
+        (_remaster_recommendation_analysis(-12, -1.2, 6, energy=0.9), {"genre": "electronic pop rock"}),
+        (_remaster_recommendation_analysis(-16, -2, 8, energy=0.6), {"song_type": "spoken voice modern pop"}),
+        (_remaster_recommendation_analysis(-19, -3, 13, energy=0.3), {"genre": "warm acoustic"}),
+    ]
+    collision_results = [collision_pop_loud, collision_modern_pop, collision_vocal, collision_warm]
+    collision_neutral = [recommend_remaster_preset(analysis, {}, metadata) for analysis, metadata in collision_inputs]
     assert_true(collision_pop_loud["preset"] == "Pop Rock" and collision_pop_loud["candidate_scores"]["Pop Rock"] > collision_pop_loud["candidate_scores"]["Loud Modern"], "Pop Rock/Loud Modern collision still depends on rule order")
     assert_true(collision_modern_pop["preset"] == "Modern Pop" and collision_vocal["preset"] == "Vocal Focus" and collision_warm["preset"] in {"Warm Acoustic", "Emotional Ballad"}, "Modern/Vocal/Warm collision scoring failed")
+    assert_true([item["preset"] for item in collision_results] == [item["preset"] for item in collision_neutral], "legacy proxies still change collision decisions")
     reversed_metadata = recommend_remaster_preset(profiles["C"][0], profiles["C"][1], {"style": "guitar", "genre": "pop rock"})
     assert_true(reversed_metadata["preset"] == results["C"]["preset"], "metadata dictionary order changed recommendation")
+
+    hostile_proxies = {"rms_energy": 1.0, "bass_energy": 1.0, "mid_energy": 0.0, "high_energy": 1.0, "transient_density": 1.0, "silence_ratio": 0.0, "dynamic_range": 0.0, "peak": 1.0, "clipping_risk": True}
+    assert_true(all(recommend_remaster_preset(inputs[0], hostile_proxies, inputs[2])["preset"] == expected[name] for name, inputs in profiles.items()), "hostile legacy proxy values changed Auto")
+
+    edge_profiles = {
+        "mono_acoustic": (_remaster_recommendation_analysis(-20, -3, 12, energy=0.25, channels=1), {"genre": "acoustic"}),
+        "dynamic_quiet": (_remaster_recommendation_analysis(-22, -5, 15, energy=0.2), {}),
+        "dense_loud_electronic": (_remaster_recommendation_analysis(-10, -0.3, 3, energy=0.9), {"genre": "EDM electronic"}),
+        "near_clipped": (_remaster_recommendation_analysis(-13, 0.4, 5, energy=0.75), {}),
+        "low_energy_vocal": (_remaster_recommendation_analysis(-23, -6, 6, energy=0.2), {"song_type": "spoken voice"}),
+        "already_mastered": (_remaster_recommendation_analysis(-14, -1, 8, energy=0.6), {}),
+        "silent_invalid": (_remaster_recommendation_analysis(None, None, None, energy=0.0), {}),
+    }
+    edge_expected = {
+        "mono_acoustic": "Warm Acoustic",
+        "dynamic_quiet": "Emotional Ballad",
+        "dense_loud_electronic": "Streaming Balanced",
+        "near_clipped": "Streaming Balanced",
+        "low_energy_vocal": "Vocal Focus",
+        "already_mastered": "Streaming Balanced",
+        "silent_invalid": "Streaming Balanced",
+    }
+    edge_results = {name: recommend_remaster_preset(analysis, metadata=metadata) for name, (analysis, metadata) in edge_profiles.items()}
+    assert_true({name: result["preset"] for name, result in edge_results.items()} == edge_expected, "reliable-first edge recommendation matrix changed")
+    assert_true(not edge_results["dense_loud_electronic"]["safety"]["aggressive_allowed"] and not edge_results["near_clipped"]["safety"]["aggressive_allowed"], "edge safety guards allowed aggressive processing")
+    assert_true(edge_results["silent_invalid"]["confidence"] < 0.5 and edge_results["silent_invalid"]["safety"]["silent_or_unreliable_source"], "silent source did not use low-confidence fallback")
 
     for result in [*results.values(), collision_pop_loud, collision_modern_pop, collision_vocal, collision_warm]:
         assert_true(result["preset"] in AUTO_REMASTER_PRESETS and result["preset"] not in {"Cinematic", "Custom"} and 0.0 <= result["confidence"] <= 1.0, "Auto returned an invalid or manual-only preset")
@@ -633,11 +679,13 @@ def run_remaster_recommendation_smoke() -> dict[str, Any]:
 
     payload = build_remaster_recommendation(results["C"], profiles["C"][0], profiles["C"][1])
     assert_true(all(key in payload for key in ["recommended_preset", "selected_preset", "confidence", "confidence_score", "reasons", "metrics", "recommendation_confidence", "recommendation_reasons", "recommendation_metrics_used", "recommendation_source_id"]), "recommendation report compatibility fields missing")
+    assert_true(all(key in payload["metrics"] for key in ["integrated_loudness", "true_peak_dbtp", "lra_lu", "energy_summary", "leading_silence_sec", "trailing_silence_sec", "provenance"]), "reliable recommendation metrics missing")
+    assert_true(not any(key in payload["metrics"] for key in ["rms_energy", "bass_energy", "mid_energy", "high_energy", "transient_density", "silence_ratio", "dynamic_range", "clipping_risk"]), "legacy proxy values leaked into new recommendation payload")
     same_source = {**profiles["C"][0], "source": {"source_id": payload["recommendation_source_id"]}}
     different_source = {**profiles["C"][0], "source": {"source_id": "different-source"}}
     assert_true(remaster_recommendation_matches_source(payload, same_source) and not remaster_recommendation_matches_source(payload, different_source), "stale recommendation source-id protection failed")
     assert_true(remaster_recommendation_matches_source(recommend_remaster_preset_from_metadata({"genre": "pop rock"}), different_source), "metadata fallback should not require Audio Intelligence source id")
-    return {"matrix": {name: result["preset"] for name, result in results.items()}, "collisions": 4, "cinematic_auto": False, "custom_auto": False}
+    return {"matrix": {name: result["preset"] for name, result in results.items()}, "collisions": 4, "edge_cases": {name: result["preset"] for name, result in edge_results.items()}, "proxy_invariant": True, "cinematic_auto": False, "custom_auto": False}
 
 
 def _smart_cut_analysis(
@@ -3194,12 +3242,21 @@ def main():
         assert_true(smart_audio_release["ok"] and f"audio_editor/{build_asset_export_filename(smart_export_data.get('export_name'), None, 'BestHook', 'mp3')}" in smart_release_names, "Release Pack did not include Smart Musical Hook BestHook output")
         original_hash = long_hook_source.read_bytes()
         remaster_source_context = {"kind": "external_upload", "project_id": "smoke-remaster", "path_role": "remaster_source"}
-        audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context)
+        original_legacy_decode = remaster_engine_module._decode_analysis_pcm
+        try:
+            def forbidden_auto_proxy_decode(*_args, **_kwargs):
+                raise AssertionError("Auto recommendation attempted a supplemental legacy PCM decode")
+
+            remaster_engine_module._decode_analysis_pcm = forbidden_auto_proxy_decode
+            audio_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context)
+            audio_recommend_again = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context)
+        finally:
+            remaster_engine_module._decode_analysis_pcm = original_legacy_decode
         assert_true(audio_recommend["ok"] and audio_recommend.get("data", {}).get("recommended_preset") in REMASTER_STYLES and audio_recommend.get("data", {}).get("source") == "audio_analysis", "external audio remaster recommendation failed")
-        audio_recommend_again = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context=remaster_source_context)
         assert_true(audio_recommend_again["ok"] and audio_recommend_again.get("data", {}).get("recommended_preset") == audio_recommend.get("data", {}).get("recommended_preset") and audio_recommend_again.get("data", {}).get("confidence_score") == audio_recommend.get("data", {}).get("confidence_score"), "external audio remaster recommendation should be deterministic")
         recommendation_analysis = audio_recommend_again.get("data", {}).get("audio_intelligence") or {}
         assert_true((recommendation_analysis.get("cache") or {}).get("hit") is True and (recommendation_analysis.get("performance") or {}).get("ffmpeg_runs") == 0, "Remaster recommendation rerun should reuse deep Audio Intelligence cache")
+        assert_true(not any(key in (audio_recommend.get("data", {}).get("metrics") or {}) for key in ["rms_energy", "bass_energy", "mid_energy", "high_energy", "transient_density", "silence_ratio", "dynamic_range", "clipping_risk"]), "runtime recommendation payload contains legacy proxy metrics")
         wav_recommend = analyze_audio_for_remaster_recommendation(smart_hook_wav_source, ffmpeg_path=find_ffmpeg(), source_context={"kind": "external_upload", "project_id": "smoke-remaster-wav", "path_role": "remaster_source"})
         assert_true(wav_recommend.get("ok") and (wav_recommend.get("data", {}).get("audio_intelligence", {}).get("metadata") or {}).get("codec", "").startswith("pcm"), "Remaster Audio Intelligence WAV source regression failed")
         project_master_recommend = analyze_audio_for_remaster_recommendation(long_hook_source, ffmpeg_path=find_ffmpeg(), source_context={"kind": "project_master", "project_id": "smoke-project-master", "path_role": "active_master"})
