@@ -19,6 +19,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 try:
+    from streamlit.web.server import app_static_file_handler
+except Exception:
+    app_static_file_handler = None
+
+try:
     from streamlit_js_eval import streamlit_js_eval
 except Exception:
     streamlit_js_eval = None
@@ -29,11 +34,12 @@ sys.path.append(str(ROOT))
 VELAFLOW_ICON_512 = ROOT / "assets" / "velaflow_icon_512.png"
 VELAFLOW_ICON_192 = ROOT / "assets" / "velaflow_icon_192.png"
 VELAFLOW_APPLE_TOUCH_ICON = ROOT / "assets" / "apple_touch_icon.png"
-VELAFLOW_STATIC_ICON_512 = "/app/static/velaflow_icon_512.png"
-VELAFLOW_STATIC_ICON_192 = "/app/static/velaflow_icon_192.png"
-VELAFLOW_STATIC_APPLE_TOUCH_ICON = "/app/static/apple_touch_icon.png"
-VELAFLOW_STATIC_FAVICON_32 = "/app/static/favicon-32.png"
-VELAFLOW_STATIC_MANIFEST = "/app/static/manifest.webmanifest"
+VELAFLOW_ICON_CACHE_VERSION = "20260823"
+VELAFLOW_STATIC_ICON_512 = f"/app/static/velaflow_icon_512.png?v={VELAFLOW_ICON_CACHE_VERSION}"
+VELAFLOW_STATIC_ICON_192 = f"/app/static/velaflow_icon_192.png?v={VELAFLOW_ICON_CACHE_VERSION}"
+VELAFLOW_STATIC_APPLE_TOUCH_ICON = f"/app/static/apple_touch_icon.png?v={VELAFLOW_ICON_CACHE_VERSION}"
+VELAFLOW_STATIC_FAVICON_32 = f"/app/static/favicon-32.png?v={VELAFLOW_ICON_CACHE_VERSION}"
+VELAFLOW_STATIC_MANIFEST = f"/app/static/manifest.webmanifest?v={VELAFLOW_ICON_CACHE_VERSION}"
 WAVEFORM_SELECTOR_COMPONENT = components.declare_component(
     "velaflow_waveform_selector",
     path=str(ROOT / "app" / "components" / "waveform_selector"),
@@ -317,6 +323,11 @@ from app.presets import (
     list_music_preset_names,
     list_vocal_direction_names,
 )
+
+
+if app_static_file_handler is not None and ".webmanifest" not in app_static_file_handler.SAFE_APP_STATIC_FILE_EXTENSIONS:
+    # Streamlit otherwise serves app-static manifests as text/plain with nosniff.
+    app_static_file_handler.SAFE_APP_STATIC_FILE_EXTENSIONS += (".webmanifest",)
 
 
 st.set_page_config(page_title="VelaFlow", page_icon=str(VELAFLOW_ICON_512) if VELAFLOW_ICON_512.is_file() else "🎬", layout="wide")

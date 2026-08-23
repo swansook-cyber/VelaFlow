@@ -3159,12 +3159,24 @@ def main():
         logo_512 = ROOT / "assets" / "velaflow_icon_512.png"
         logo_192 = ROOT / "assets" / "velaflow_icon_192.png"
         apple_icon = ROOT / "assets" / "apple_touch_icon.png"
-        manifest_path = ROOT / "static" / "manifest.webmanifest"
+        app_static_dir = ROOT / "app" / "static"
+        served_logo_512 = app_static_dir / "velaflow_icon_512.png"
+        served_logo_192 = app_static_dir / "velaflow_icon_192.png"
+        served_apple_icon = app_static_dir / "apple_touch_icon.png"
+        served_favicon = app_static_dir / "favicon-32.png"
+        manifest_path = app_static_dir / "manifest.webmanifest"
         streamlit_config = ROOT / ".streamlit" / "config.toml"
         assert_true(logo_512.is_file() and png_size(logo_512) == (512, 512) and logo_192.is_file() and png_size(logo_192) == (192, 192) and apple_icon.is_file() and png_size(apple_icon) == (180, 180), "VelaFlow Retina PNG icon assets missing or wrong size")
+        assert_true(served_logo_512.read_bytes() == logo_512.read_bytes() and png_size(served_logo_512) == (512, 512), "served 512px VelaFlow icon does not match the repository asset")
+        assert_true(served_logo_192.read_bytes() == logo_192.read_bytes() and png_size(served_logo_192) == (192, 192), "served 192px VelaFlow icon does not match the repository asset")
+        assert_true(served_apple_icon.read_bytes() == apple_icon.read_bytes() and png_size(served_apple_icon) == (180, 180), "served Apple touch icon does not match the repository asset")
+        assert_true(served_favicon.is_file() and png_size(served_favicon) == (32, 32), "served VelaFlow favicon missing or wrong size")
         manifest_source = manifest_path.read_text(encoding="utf-8")
+        manifest_data = json.loads(manifest_source)
         config_source = streamlit_config.read_text(encoding="utf-8")
-        assert_true("VELAFLOW_ICON_512" in main_source and "VELAFLOW_LOGO_ICON" not in main_source and 'st.set_page_config(page_title="VelaFlow"' in main_source and "AI Music Production" in main_source and "apple-touch-icon" in main_source and "manifest.webmanifest" in main_source and "velaflow_logo_icon.jpg" not in main_source and "codex-clipboard" not in main_source, "VelaFlow Retina branding or iPhone metadata wiring missing")
+        icon_urls = {item.get("src") for item in manifest_data.get("icons", [])}
+        assert_true(icon_urls == {"/app/static/velaflow_icon_192.png?v=20260823", "/app/static/velaflow_icon_512.png?v=20260823"} and all(item.get("purpose") == "any maskable" for item in manifest_data.get("icons", [])), "manifest icon URLs, cache version, or purpose metadata invalid")
+        assert_true("VELAFLOW_ICON_512" in main_source and "VELAFLOW_LOGO_ICON" not in main_source and 'st.set_page_config(page_title="VelaFlow"' in main_source and "AI Music Production" in main_source and "apple-touch-icon" in main_source and "manifest.webmanifest" in main_source and "VELAFLOW_ICON_CACHE_VERSION" in main_source and "SAFE_APP_STATIC_FILE_EXTENSIONS" in main_source and "velaflow_logo_icon.jpg" not in main_source and "codex-clipboard" not in main_source, "VelaFlow Retina branding or iPhone metadata wiring missing")
         page_header_source = main_source[main_source.find("def _page_header"):main_source.find("def _continue_to_mv_director")]
         sidebar_source = main_source[main_source.find("with st.sidebar:"):main_source.find("def _render_settings_system_controls")]
         home_source = main_source[main_source.find("def _render_home"):main_source.find("def _render_creator_dashboard")]
@@ -3194,7 +3206,7 @@ def main():
         assert_true("st.secrets" not in access_password_source and "tomllib.loads" in access_password_source and "AI settings are not configured." in main_source and "Open Settings" in main_source, "friendly AI/access settings error handling missing")
         assert_true('st.caption("  ·  ".join' in pipeline_status_source and "st.columns(len(statuses))" not in pipeline_status_source, "pipeline status should remain compact on mobile")
         assert_true("st.image(str(VELAFLOW_ICON_512)" not in main_source and "st.image(str(VELAFLOW_ICON_192)" not in main_source and "st.image(str(VELAFLOW_APPLE_TOUCH_ICON)" not in main_source, "visible VelaFlow logo images should not render inside app UI")
-        assert_true("enableStaticServing = true" in config_source and "velaflow_icon_192.png" in manifest_source and "velaflow_icon_512.png" in manifest_source and "standalone" in manifest_source, "VelaFlow static icon serving or manifest missing")
+        assert_true("enableStaticServing = true" in config_source and manifest_data.get("display") == "standalone" and manifest_data.get("name") == "VelaFlow", "VelaFlow static icon serving or manifest missing")
         assert_true(creative_source.count("def improve_hook_singability") == 1 and "ท่อนนี้ต้องจำได้ตั้งแต่ครั้งแรก" not in creative_source and "อารมณ์หลัก:" not in creative_source, "creative pack hook helper duplicate or unreachable fallback returned")
         assert_true("def _copy_to_clipboard_button" in main_source and "navigator.clipboard.writeText" in main_source and "document.execCommand('copy')" in main_source and "_clipboard_count" in main_source and "✓ Copied to clipboard" in main_source, "repeatable clipboard helper missing")
         assert_true('_copy_to_clipboard_button("Copy Lyrics for Suno"' in main_source and '_copy_to_clipboard_button("Copy Style for Suno"' in main_source and '_copy_to_clipboard_button("Copy Producer Notes"' in main_source, "Suno copy buttons are not wired to clipboard helper")
