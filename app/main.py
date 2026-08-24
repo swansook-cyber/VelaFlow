@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import io
+import html
 import json
 import hashlib
 import os
@@ -4252,22 +4253,60 @@ def _read_creator_file(path: Path) -> str:
 
 
 def _render_home(project: dict[str, Any]) -> None:
-    st.title("VelaFlow")
-    st.caption("AI Music Production")
+    st.markdown(
+        """
+        <div class="vf-home-shell">
+          <div class="vf-home-header">
+            <h1>VelaFlow</h1>
+            <p>AI Music Production</p>
+          </div>
+          <div class="vf-welcome-card">
+            <span class="vf-welcome-icon" aria-hidden="true">✦</span>
+            <div>
+              <strong>Welcome back</strong>
+              <p>Create, polish, and prepare your music with focused AI-powered tools.</p>
+            </div>
+          </div>
+          <div class="vf-home-section">
+            <h2>Explore Tools</h2>
+            <p>Everything you need to move a song from idea to release.</p>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     actions = [
-        ("Song Studio", "Song Studio", ""),
-        ("Remaster", "Remaster Studio", ""),
-        ("Cut Audio", "Audio Editor", "Cut"),
-        ("Join Audio", "Audio Editor", "Join"),
-        ("Visual Studio", "Visual Studio", ""),
-        ("Release Pack", "Release Pack", ""),
-        ("Settings", "Settings", ""),
+        ("Song Studio", "Thai lyrics and Suno-ready hooks.", "♫", "vf-accent-purple", "Song Studio", ""),
+        ("Remaster", "Polish loudness and clarity.", "≋", "vf-accent-blue", "Remaster Studio", ""),
+        ("Cut Audio", "Trim MP3/WAV with precision.", "✂", "vf-accent-green", "Audio Editor", "Cut"),
+        ("Join Audio", "Merge tracks into one clean export.", "▣", "vf-accent-orange", "Audio Editor", "Join"),
+        ("Visual Studio", "Build cover and storyboard prompts.", "▤", "vf-accent-pink", "Visual Studio", ""),
+        ("Release Pack", "Package music files for release.", "↗", "vf-accent-purple", "Release Pack", ""),
     ]
-    for label, target_page, editor_mode in actions:
-        if st.button(label, use_container_width=True, type="primary" if label == "Song Studio" else "secondary", key=f"home_action_{safe_name(label)}"):
-            if editor_mode:
-                st.session_state["audio_editor_mode"] = editor_mode
-            go_to_page("NAVIGATION", target_page)
+    home_tools = st.container(key="vf_home_tools")
+    for offset in range(0, len(actions), 2):
+        columns = home_tools.columns(2)
+        for column, action in zip(columns, actions[offset : offset + 2]):
+            label, description, icon, accent, target_page, editor_mode = action
+            with column.container(border=True):
+                st.markdown(
+                    f'<div class="vf-tool-head"><span class="vf-tool-icon {accent}" aria-hidden="true">{icon}</span>'
+                    f'<div class="vf-tool-copy"><strong>{html.escape(label)}</strong><p>{html.escape(description)}</p></div></div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("Open", use_container_width=True, type="primary" if label == "Song Studio" else "secondary", key=f"home_action_{safe_name(label)}"):
+                    if editor_mode:
+                        st.session_state["audio_editor_mode"] = editor_mode
+                    go_to_page("NAVIGATION", target_page)
+
+    with st.container(border=True, key="vf_home_settings"):
+        st.markdown(
+            '<div class="vf-tool-head"><span class="vf-tool-icon vf-accent-gray" aria-hidden="true">⚙</span>'
+            '<div class="vf-tool-copy"><strong>Settings</strong><p>Manage AI access, projects, and workspace preferences.</p></div></div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("Open Settings", use_container_width=True, key="home_action_settings"):
+            go_to_page("NAVIGATION", "Settings")
 
 
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
@@ -5584,9 +5623,21 @@ def _load_managed_project(path: str) -> dict[str, Any]:
 
 
 def _page_header(title: str, subtitle: str = "", project_context: dict[str, Any] | None = None) -> None:
-    st.title(title)
-    if subtitle:
-        st.caption(subtitle)
+    icon_map = {
+        "Song Studio": ("♫", "vf-accent-purple"),
+        "Remaster": ("≋", "vf-accent-blue"),
+        "Audio Editor": ("✂", "vf-accent-green"),
+        "Visual Studio": ("▤", "vf-accent-pink"),
+        "Release Pack": ("↗", "vf-accent-purple"),
+        "Settings": ("⚙", "vf-accent-gray"),
+    }
+    icon, accent = icon_map.get(title, ("✦", "vf-accent-purple"))
+    subtitle_markup = f"<p>{html.escape(subtitle)}</p>" if subtitle else ""
+    st.markdown(
+        f'<div class="vf-page-header"><span class="vf-page-icon {accent}" aria-hidden="true">{icon}</span>'
+        f'<div><h1>{html.escape(title)}</h1>{subtitle_markup}</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def _continue_to_mv_director() -> None:
@@ -6057,23 +6108,25 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
     st.session_state.setdefault("simple_song_artist", project_values.get("artist") or DEFAULT_ARTIST)
     st.session_state.setdefault("simple_song_idea", project_values.get("idea") or "")
 
-    title_row = st.columns([3, 1])
+    song_form = st.container(border=True, key="vf_song_form")
+    song_form.markdown('<div class="vf-form-kicker">Shape the song before generation</div>', unsafe_allow_html=True)
+    title_row = song_form.columns([3, 1])
     title_row[0].text_input("Project / Song Title", key="simple_song_title", help="Enter a title or let VelaFlow suggest one.")
     generate_title = title_row[1].button("Generate Title", key="simple_generate_title")
-    artist = st.text_input("Artist", key="simple_song_artist")
-    idea = st.text_area("Song Idea / Story", key="simple_song_idea", height=120)
+    artist = song_form.text_input("Artist", key="simple_song_artist")
+    idea = song_form.text_area("Song Idea / Story", key="simple_song_idea", height=120)
     genre_options = catalog_with_saved_value(GENRE_CATALOG, song.get("genre"))
     mood_options = catalog_with_saved_value(MOOD_CATALOG, song.get("mood"))
     vocal_options = catalog_with_saved_value(VOCAL_CATALOG, song.get("vocal"))
     st.session_state.setdefault("simple_song_genre", song.get("genre") if song.get("genre") in genre_options else genre_options[0])
     st.session_state.setdefault("simple_song_mood", song.get("mood") if song.get("mood") in mood_options else mood_options[1])
     st.session_state.setdefault("simple_song_vocal", song.get("vocal") if song.get("vocal") in vocal_options else vocal_options[0])
-    controls = st.columns(3)
+    controls = song_form.columns(3)
     genre = controls[0].selectbox("Genre", genre_options, key="simple_song_genre")
     mood = controls[1].selectbox("Mood", mood_options, key="simple_song_mood")
     vocal = controls[2].selectbox("Vocal", vocal_options, key="simple_song_vocal")
 
-    with st.expander("Advanced", expanded=False):
+    with song_form.expander("Advanced", expanded=False):
         current_artist_id = song.get("artist_preset") or st.session_state.get("selected_artist_preset") or PUBLIC_DEFAULT_ARTIST_ID
         preset = _select_artist_preset("simple_song_studio", current_artist_id)
         music_preset_names = list_music_preset_names()
@@ -6126,14 +6179,14 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
     title_candidates = generate_song_title_candidates(idea=idea, hook_text=str(current_hook or ""), lyrics=str(song.get("normalized_song_output") or song.get("complete_lyrics") or "")) if idea.strip() else []
     if generate_title:
         if not idea.strip():
-            st.warning("Add a song idea before generating a title.")
+            song_form.warning("Add a song idea before generating a title.")
         elif title_candidates:
             st.session_state["simple_suggested_title_index"] = 0
             st.session_state["simple_suggested_title"] = title_candidates[0]["title"]
             st.rerun()
     suggested_title = str(st.session_state.get("simple_suggested_title") or "")
     if suggested_title:
-        suggested_row = st.columns([4, 1, 1])
+        suggested_row = song_form.columns([4, 1, 1])
         suggested_row[0].text_input("Suggested Title", value=suggested_title, disabled=True, key="simple_suggested_title_display")
         if suggested_row[1].button("Use", use_container_width=True, key="simple_use_title"):
             st.session_state["simple_song_pending_title"] = suggested_title
@@ -6148,7 +6201,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
 
     if not active_api_key:
         _warn_missing_provider_key(active_provider, active_api_key)
-    if st.button("Generate Lyrics", type="primary", use_container_width=True, key="simple_generate_lyrics"):
+    if song_form.button("Generate Lyrics", type="primary", use_container_width=True, key="simple_generate_lyrics"):
         if not idea.strip():
             st.warning("Add a song idea before generating lyrics.")
         else:
@@ -8141,18 +8194,41 @@ def _legacy_sidebar_ui() -> None:
             st.warning("Selected provider will use offline fallback")
 
 
+_NAVIGATION_ICONS = {
+    "Home": "⌂",
+    "Song Studio": "♫",
+    "Remaster Studio": "≋",
+    "Audio Editor": "✂",
+    "Visual Studio": "▤",
+    "Release Pack": "↗",
+    "Settings": "⚙",
+}
+
+
+def _premium_navigation_label(page_name: str) -> str:
+    icon = _NAVIGATION_ICONS.get(page_name, "•")
+    return f"{icon}  {page_label(page_name)}"
+
+
 with st.sidebar:
-    st.markdown("### VelaFlow")
-    st.caption("AI Music Production")
+    st.markdown(
+        '<div class="vf-sidebar-brand"><span class="vf-sidebar-mark" aria-hidden="true">V</span>'
+        '<div><strong>VelaFlow</strong><span>AI Music Production</span></div></div>',
+        unsafe_allow_html=True,
+    )
     page = st.radio(
         "Navigation",
         PAGES,
         key="selected_page",
-        format_func=page_label,
+        format_func=_premium_navigation_label,
     )
     current_project_title = str((project or {}).get("title") or "").strip()
     if current_project_title:
-        st.caption(f"Project: {current_project_title}")
+        st.markdown(
+            '<div class="vf-sidebar-project-label">Current project</div>'
+            f'<div class="vf-sidebar-project">▰&nbsp;&nbsp;{html.escape(current_project_title)}</div>',
+            unsafe_allow_html=True,
+        )
     if (st.session_state.get("velaflow_access_policy") or {}).get("authentication_required"):
         if st.button("Sign Out", use_container_width=True, key="velaflow_sign_out"):
             sign_out_access_session(st.session_state)
