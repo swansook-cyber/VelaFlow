@@ -81,6 +81,8 @@ def _model_candidates(provider: str, primary_model: str | None = None, fallback_
 
 
 def _is_retryable_error(error: Exception) -> bool:
+    if isinstance(error, AttributeError):
+        return False
     message = str(error).lower()
     retryable = [
         "timeout",

@@ -75,6 +75,11 @@ def safe_exception_summary(error: Any) -> str:
         return "UnknownError: provider_error"
     error_type = type(error).__name__ if isinstance(error, BaseException) else "ProviderError"
     message = str(error or "").lower()
+    if error_type == "AttributeError":
+        original = str(error or "")
+        match = re.search(r"(?:module\s+)?['\"]([A-Za-z0-9_.]+)['\"](?:\s+object)?\s+has no attribute\s+['\"]([A-Za-z0-9_]+)['\"]", original)
+        if match:
+            return f"AttributeError: object={match.group(1)} missing_attribute={match.group(2)}"
     if any(token in message for token in ("401", "403", "unauthorized", "authentication", "invalid api", "permission")):
         category = "authentication"
     elif any(token in message for token in ("429", "quota", "rate limit", "resource exhausted")):

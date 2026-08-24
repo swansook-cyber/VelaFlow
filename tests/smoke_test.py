@@ -115,7 +115,7 @@ from core.hook_package_generator import build_final_creator_zip, generate_full_h
 from core.prompt_director import build_prompt_director_package
 from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_reference_master_plan, build_reference_result_comparison, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_reference_master_analysis, validate_remaster_input, validate_remaster_outputs
 from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, check_song_production_quality, clean_lyrics_improvement_preview
-from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, parse_ordered_song_sections, production_diagnostic_logger, snapshot_song_lyrics
+from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, parse_ordered_song_sections, production_diagnostic_logger, safe_exception_summary, snapshot_song_lyrics
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
@@ -1145,6 +1145,8 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     provider_log_handler.setFormatter(logging.Formatter("%(message)s"))
     provider_manager_module.LOGGER.addHandler(provider_log_handler)
     provider_secret = "sk-PROVIDER-SECRET-MUST-BE-REDACTED"
+    private_provider_prompt = "PRIVATE PROVIDER PROMPT MUST NOT APPEAR"
+    private_response_body = "PRIVATE RESPONSE BODY MUST NOT APPEAR"
     os.environ["AI_CACHE_ENABLED"] = "false"
     try:
         provider_manager_module._model_candidates = lambda *_args, **_kwargs: ["primary-model", "fallback-model"]
@@ -1158,10 +1160,10 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
         provenance_result = provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt="phase5b-model-fallback", retries=1, return_metadata=True)
         assert_true(provenance_result["text"] == "real provider response" and provenance_result["provenance"]["status"] == "model_fallback_success" and not provenance_result["provenance"]["synthetic"], "model fallback provenance failed")
 
-        provider_manager_module.provider_generate_text = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(f"provider unavailable {provider_secret}"))
+        provider_manager_module.provider_generate_text = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(f"provider unavailable {provider_secret} {private_response_body}"))
         failed_without_fixture = False
         try:
-            provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt="phase5b-total-failure", retries=1, return_metadata=True)
+            provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt=private_provider_prompt, retries=1, return_metadata=True)
         except ProviderError:
             failed_without_fixture = True
         assert_true(failed_without_fixture, "production provider failure silently used offline lyrics")
@@ -1177,7 +1179,11 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
             os.environ["AI_CACHE_ENABLED"] = original_cache
     provider_logs = provider_log_stream.getvalue()
     assert_true("provider_success" in provider_logs and "provider_failed" in provider_logs and "fallback=True" in provider_logs, "provider success/failure/model-fallback diagnostics missing")
-    assert_true(provider_secret not in provider_logs, "provider diagnostics leaked API key-like exception content")
+    assert_true(provider_secret not in provider_logs and private_provider_prompt not in provider_logs and private_response_body not in provider_logs, "provider diagnostics leaked API key, prompt, or response content")
+    assert_true(not provider_manager_module._is_retryable_error(AttributeError("connection object has no attribute method")), "AttributeError must be non-retryable")
+    assert_true(provider_manager_module._is_retryable_error(TimeoutError("timeout")) and provider_manager_module._is_retryable_error(RuntimeError("429 rate limit")), "transient provider errors must remain retryable")
+    attribute_summary = safe_exception_summary(AttributeError("module 'providers.gemini_provider' has no attribute 'generate_text'"))
+    assert_true(attribute_summary == "AttributeError: object=providers.gemini_provider missing_attribute=generate_text", "safe AttributeError diagnostics lost the missing SDK attribute")
 
     import providers.text_ai as text_ai_provider
 
@@ -2435,7 +2441,8 @@ def main():
     assert_true(local_provider.generate_text("test") and local_provider.available, "local fallback provider failed")
     gemini_provider = GeminiProvider(api_key="smoke-test-key")
     assert_true(gemini_provider.available and gemini_provider.model == "gemini-2.5-flash", "GeminiProvider key/model init failed")
-    assert_true(gemini_provider.diagnostics().get("api_key_detected") is True, "GeminiProvider diagnostics missing key state")
+    assert_true(gemini_provider.diagnostics().get("api_key_detected") is True and gemini_provider.diagnostics().get("client_initialized") is True, "GeminiProvider diagnostics missing initialized key/client state")
+    assert_true(callable(getattr(gemini_provider._model_client, "generate_content", None)), "Gemini SDK generate_content contract is unavailable")
     assert_true(REMEMBER_API_KEYS_DEFAULT is False and not api_key_persistence_enabled("false"), "API key persistence must default to OFF")
     session_only_script = build_browser_api_key_storage_script("gemini", API_MODE_OWN_KEY, "session-secret", remember=False)
     persistent_script = build_browser_api_key_storage_script("gemini", API_MODE_OWN_KEY, "persistent-secret", remember=True)
@@ -2455,34 +2462,98 @@ def main():
     assert_true("super-secret" not in redact_secret("https://example.test?key=super-secret x-goog-api-key: super-secret", "super-secret"), "secret redaction failed")
 
     captured_gemini_request = {}
-    saved_urlopen = gemini_provider_module.urllib.request.urlopen
+    saved_configure = gemini_provider_module.genai.configure
+    saved_model_factory = gemini_provider_module.genai.GenerativeModel
+
     class FakeGeminiResponse:
-        status = 200
-        def __enter__(self):
-            return self
-        def __exit__(self, exc_type, exc, tb):
-            return False
-        def read(self):
-            return json.dumps({"candidates": [{"content": {"parts": [{"text": "Gemini OK"}]}}]}).encode("utf-8")
-    try:
-        def fake_gemini_urlopen(request, timeout=0):
-            captured_gemini_request["url"] = request.full_url
-            captured_gemini_request["headers"] = {key.lower(): value for key, value in request.header_items()}
+        text = "Gemini OK"
+        candidates = []
+
+    class FakeGeminiModel:
+        def generate_content(self, prompt, *, generation_config=None, request_options=None):
+            captured_gemini_request["prompt"] = prompt
+            captured_gemini_request["generation_config"] = generation_config
+            captured_gemini_request["request_options"] = request_options
             return FakeGeminiResponse()
-        gemini_provider_module.urllib.request.urlopen = fake_gemini_urlopen
+
+    try:
+        def fake_configure(**kwargs):
+            captured_gemini_request["configured_key"] = kwargs.get("api_key")
+
+        def fake_model_factory(model_name, **kwargs):
+            captured_gemini_request["model_name"] = model_name
+            captured_gemini_request["system_instruction"] = kwargs.get("system_instruction")
+            return FakeGeminiModel()
+
+        gemini_provider_module.genai.configure = fake_configure
+        gemini_provider_module.genai.GenerativeModel = fake_model_factory
+        contract_text = gemini_provider_module.generate_text(
+            "contract prompt",
+            system_prompt="system contract",
+            temperature=0.4,
+            api_key="transport-secret",
+            model_name="gemini-2.5-flash",
+            timeout=31,
+        )
+        assert_true(contract_text == "Gemini OK", "Gemini module generation contract failed")
+        assert_true(captured_gemini_request.get("model_name") == "gemini-2.5-flash" and captured_gemini_request.get("system_instruction") == "system contract", "Gemini model/system contract failed")
+        assert_true(captured_gemini_request.get("generation_config", {}).get("temperature") == 0.4 and captured_gemini_request.get("request_options", {}).get("timeout") == 31, "Gemini generation options contract failed")
+
+        class Part:
+            text = "Gemini parts OK"
+        class Content:
+            parts = [Part()]
+        class Candidate:
+            content = Content()
+        class PartsResponse:
+            candidates = [Candidate()]
+            @property
+            def text(self):
+                raise ValueError("direct text unavailable")
+        assert_true(gemini_provider_module._extract_response_text(PartsResponse()) == "Gemini parts OK", "Gemini candidate/parts response extraction failed")
+
         transport_provider = GeminiProvider(api_key="transport-secret")
         assert_true(transport_provider.generate_text("hello") == "Gemini OK", "Gemini header transport request failed")
         transport_diagnostics = json.dumps(transport_provider.diagnostics(), ensure_ascii=False)
-        assert_true("transport-secret" not in captured_gemini_request["url"] and "?key=" not in captured_gemini_request["url"], "Gemini key leaked into request URL")
-        assert_true(captured_gemini_request["headers"].get("x-goog-api-key") == "transport-secret", "Gemini credential header missing")
+        assert_true(captured_gemini_request.get("configured_key") == "transport-secret", "Gemini SDK was not configured with the explicit runtime key")
         assert_true("transport-secret" not in transport_diagnostics, "Gemini diagnostics leaked the API key")
-        def failing_gemini_urlopen(request, timeout=0):
-            raise gemini_provider_module.urllib.error.URLError("transport-secret provider failure")
-        gemini_provider_module.urllib.request.urlopen = failing_gemini_urlopen
+
+        class EmptyGeminiModel:
+            def generate_content(self, *_args, **_kwargs):
+                return type("EmptyResponse", (), {"text": "", "candidates": []})()
+
+        gemini_provider_module.genai.GenerativeModel = lambda *_args, **_kwargs: EmptyGeminiModel()
+        empty_failed = False
+        try:
+            gemini_provider_module.generate_text("empty prompt", api_key="transport-secret")
+        except ValueError as exc:
+            empty_failed = "no text" in str(exc).lower()
+        assert_true(empty_failed, "Gemini empty response was not rejected")
+
+        class MalformedGeminiModel:
+            def generate_content(self, *_args, **_kwargs):
+                return None
+
+        gemini_provider_module.genai.GenerativeModel = lambda *_args, **_kwargs: MalformedGeminiModel()
+        malformed_failed = False
+        try:
+            gemini_provider_module.generate_text("malformed prompt", api_key="transport-secret")
+        except ValueError as exc:
+            malformed_failed = "empty response" in str(exc).lower()
+        assert_true(malformed_failed, "Gemini malformed response was not rejected")
+
+        class FailingGeminiModel:
+            def generate_content(self, *_args, **_kwargs):
+                raise RuntimeError("transport-secret PRIVATE RESPONSE BODY")
+
+        gemini_provider_module.genai.GenerativeModel = lambda *_args, **_kwargs: FailingGeminiModel()
+        transport_provider = GeminiProvider(api_key="transport-secret")
         assert_true(transport_provider.generate_text("fail") == "", "Gemini provider error fixture should return empty output")
-        assert_true("transport-secret" not in json.dumps(transport_provider.diagnostics(), ensure_ascii=False), "Gemini error diagnostics leaked the API key")
+        safe_transport_diagnostics = json.dumps(transport_provider.diagnostics(), ensure_ascii=False)
+        assert_true("transport-secret" not in safe_transport_diagnostics and "PRIVATE RESPONSE BODY" not in safe_transport_diagnostics, "Gemini error diagnostics leaked the API key or response body")
     finally:
-        gemini_provider_module.urllib.request.urlopen = saved_urlopen
+        gemini_provider_module.genai.configure = saved_configure
+        gemini_provider_module.genai.GenerativeModel = saved_model_factory
     missing_gemini = GeminiTextProvider(api_key="")
     assert_true(missing_gemini.generate_text("test") == "" and "missing" in missing_gemini.last_error.lower(), "gemini missing-key fallback failed")
     resolved_gemini = resolve_agent_provider("Gemini", provider_api_key="smoke-test-key")

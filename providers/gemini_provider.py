@@ -1,13 +1,77 @@
 from __future__ import annotations
 
-import json
 import os
-import urllib.error
-import urllib.request
 from typing import Any
 
+import google.generativeai as genai
+
 from core.api_keys import redact_secret, resolve_gemini_api_key
+from core.song_quality_core import safe_exception_summary
 from providers.base_provider import BaseTextProvider
+
+
+DEFAULT_GEMINI_TEXT_MODEL = "gemini-2.5-flash"
+
+
+def _build_model(api_key: str, model_name: str, system_prompt: str | None = None) -> Any:
+    if not str(api_key or "").strip():
+        raise ValueError("GEMINI_API_KEY missing")
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        model_name or DEFAULT_GEMINI_TEXT_MODEL,
+        system_instruction=system_prompt or None,
+    )
+    if not callable(getattr(model, "generate_content", None)):
+        raise AttributeError(f"'{type(model).__name__}' object has no attribute 'generate_content'")
+    return model
+
+
+def _extract_response_text(response: Any) -> str:
+    if response is None:
+        raise ValueError("Gemini returned an empty response")
+
+    try:
+        direct_text = str(getattr(response, "text", "") or "").strip()
+    except (ValueError, AttributeError):
+        direct_text = ""
+    if direct_text:
+        return direct_text
+
+    text_parts: list[str] = []
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            value = str(getattr(part, "text", "") or "").strip()
+            if value:
+                text_parts.append(value)
+    extracted = "\n".join(text_parts).strip()
+    if not extracted:
+        raise ValueError("Gemini returned no text")
+    return extracted
+
+
+def _generate_with_model(model: Any, prompt: str, *, temperature: float, timeout: int) -> str:
+    response = model.generate_content(
+        prompt,
+        generation_config={"temperature": float(temperature)},
+        request_options={"timeout": max(10, int(timeout))},
+    )
+    return _extract_response_text(response)
+
+
+def generate_text(
+    prompt: str,
+    system_prompt: str | None = None,
+    temperature: float = 0.7,
+    *,
+    api_key: str = "",
+    model_name: str = "",
+    timeout: int = 60,
+    **_kwargs: Any,
+) -> str:
+    """Gemini text contract used by providers.ai_provider."""
+    model = _build_model(api_key, model_name or DEFAULT_GEMINI_TEXT_MODEL, system_prompt)
+    return _generate_with_model(model, prompt, temperature=temperature, timeout=timeout)
 
 
 class GeminiTextProvider(BaseTextProvider):
@@ -19,14 +83,26 @@ class GeminiTextProvider(BaseTextProvider):
             str(model or "").strip()
             or str(os.getenv("GEMINI_TEXT_MODEL") or "").strip()
             or str(os.getenv("GEMINI_MODEL") or "").strip()
-            or "gemini-2.5-flash"
+            or DEFAULT_GEMINI_TEXT_MODEL
         )
         super().__init__(resolved_key, resolved_model)
         self.last_status = ""
-        self.configure_result = "configured" if self.api_key else "missing_api_key"
-        self.client_initialized = bool(self.api_key and self.model)
-        self.client_initialization_result = "initialized" if self.client_initialized else "not_initialized"
-        self.client_initialization_error = "" if self.client_initialized else "Gemini API key missing"
+        self._model_client = None
+        self.configure_result = "missing_api_key"
+        self.client_initialized = False
+        self.client_initialization_result = "not_initialized"
+        self.client_initialization_error = "Gemini API key missing"
+        if self.api_key:
+            try:
+                self._model_client = _build_model(self.api_key, self.model)
+                self.configure_result = "configured"
+                self.client_initialized = True
+                self.client_initialization_result = "initialized"
+                self.client_initialization_error = ""
+            except Exception as exc:
+                self.configure_result = "failed"
+                self.client_initialization_result = "failed"
+                self.client_initialization_error = safe_exception_summary(exc)
         self.debug_log: list[dict[str, Any]] = []
         self._record_debug(
             event="client_init",
@@ -67,42 +143,17 @@ class GeminiTextProvider(BaseTextProvider):
             self.last_error = "GEMINI_API_KEY missing"
             self._record_debug(event="request_skipped", exception_message=self.last_error)
             return ""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        if self._model_client is None:
+            self.last_error = self.client_initialization_error or "Gemini client initialization failed"
+            self._record_debug(event="request_skipped", exception_message=self.last_error)
+            return ""
         try:
-            request = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
-                method="POST",
-            )
-            with urllib.request.urlopen(request, timeout=25) as response:
-                self.last_status = str(getattr(response, "status", "") or "ok")
-                data = json.loads(response.read().decode("utf-8"))
-            candidates = data.get("candidates") or []
-            parts = ((candidates[0] if candidates else {}).get("content") or {}).get("parts") or []
-            text = "\n".join(str(part.get("text", "") or "").strip() for part in parts if part.get("text"))
-            text = text.strip()
-            if not text:
-                self.last_error = "Gemini returned no text"
-                self._record_debug(event="empty_response", api_response_status=self.last_status, exception_message=self.last_error)
-                return ""
+            text = _generate_with_model(self._model_client, prompt, temperature=0.7, timeout=25)
+            self.last_status = "ok"
             self._record_debug(event="request_success", api_response_status=self.last_status)
             return text
-        except urllib.error.HTTPError as exc:
-            self.last_status = str(getattr(exc, "code", "") or "http_error")
-            try:
-                body = exc.read().decode("utf-8", errors="replace")
-            except Exception:
-                body = ""
-            detail = f"{type(exc).__name__}: {exc}"
-            if body:
-                detail = f"{detail} | {body[:800]}"
-            self.last_error = redact_secret(detail, self.api_key)
-            self._record_debug(event="request_exception", api_response_status=self.last_status, exception_message=self.last_error)
-            return ""
-        except (urllib.error.URLError, TimeoutError, Exception) as exc:
-            self.last_error = redact_secret(f"{type(exc).__name__}: {exc}", self.api_key)
+        except Exception as exc:
+            self.last_error = safe_exception_summary(exc)
             self._record_debug(event="request_exception", api_response_status=self.last_status, exception_message=self.last_error)
             return ""
 
