@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -43,6 +44,60 @@ def _clean_phrase(value: str) -> str:
     text = re.sub(r"[\[\]{}()\"'“”‘’!?.,:;|/\\]+", " ", str(value or ""))
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
+_TITLE_LABEL_RE = re.compile(
+    r"^\s*(?:song\s*title|title|ชื่อเพลง)\s*[:：-]\s*",
+    re.IGNORECASE,
+)
+
+
+def clean_generated_song_title(value: str) -> str:
+    """Return one conservative, display-safe title from generated text.
+
+    This parser is intentionally limited to generated values. User-entered titles
+    remain authoritative and are not passed through this cleanup path.
+    """
+    text = str(value or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not text:
+        return ""
+    text = re.sub(r"^```(?:json|text|markdown)?\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s*```$", "", text)
+    if text.startswith(("{", "[")):
+        try:
+            payload = json.loads(text)
+            if isinstance(payload, dict):
+                text = str(payload.get("title") or payload.get("song_title") or payload.get("Song Title") or "")
+            elif isinstance(payload, list) and payload:
+                first = payload[0]
+                text = str((first.get("title") if isinstance(first, dict) else first) or "")
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+    lines: list[str] = []
+    for raw in text.splitlines():
+        line = re.sub(r"^\s*(?:[-*#]+|\d+[.)])\s*", "", raw).strip()
+        line = _TITLE_LABEL_RE.sub("", line).strip(" `\"'“”‘’")
+        if line:
+            lines.append(line)
+    if not lines:
+        return ""
+
+    # A generated response containing several candidates resolves to its first
+    # clean candidate; downstream code must never receive the whole response.
+    title = re.split(r"\s*(?:\||;| / )\s*", lines[0], maxsplit=1)[0].strip()
+    title = re.sub(r"[*_`]+", "", title)
+    title = re.sub(r"\s+", " ", title).strip(" ,.;:!?-–—\"'“”‘’")
+
+    # Remove exact duplicated fragments without changing the title's meaning.
+    words = title.split()
+    if len(words) % 2 == 0 and words[: len(words) // 2] == words[len(words) // 2 :]:
+        words = words[: len(words) // 2]
+
+    # Character-count truncation in the legacy candidate path could leave a
+    # short fragment of the opening Thai word at the end: "หมดใจของเธอ หม".
+    if len(words) >= 2 and 1 <= len(words[-1]) <= 2 and words[0].startswith(words[-1]):
+        words.pop()
+    return re.sub(r"\s+", " ", " ".join(words)).strip()
 
 
 def _compact(value: str) -> str:
@@ -125,11 +180,15 @@ def _simplified_candidates(text: str) -> list[str]:
     compact = _compact(phrase)
     if len(compact) <= 18:
         return [phrase]
-    return [phrase[:14].strip()]
+    # Never cut Thai by character count: it can leave a partial syllable that
+    # then contaminates filenames and release metadata. Long source phrases are
+    # already filtered by title validation; compact candidates come from the
+    # keyword/fragment paths above.
+    return []
 
 
 def title_is_valid(title: str, source_text: str = "") -> bool:
-    clean = _clean_phrase(title)
+    clean = clean_generated_song_title(title)
     compact = _compact(clean)
     source = _compact(source_text)
     clean_lower = clean.lower()
@@ -155,6 +214,7 @@ def title_is_valid(title: str, source_text: str = "") -> bool:
 
 
 def score_song_title_candidate(title: str, source_text: str = "") -> dict[str, Any]:
+    title = clean_generated_song_title(title)
     compact = _compact(title)
     source = _compact(source_text)
     brevity = max(0, 100 - max(0, len(compact) - 8) * 8)
@@ -208,7 +268,8 @@ def generate_song_title_candidates(idea: str = "", hook_text: str = "", lyrics: 
         raw_candidates.extend(_fragment_candidates(line))
         raw_candidates.extend(_simplified_candidates(line))
     raw_candidates.extend(FALLBACK_TITLES)
-    scored = [score_song_title_candidate(candidate, source_text) for candidate in _dedupe(raw_candidates)]
+    cleaned_candidates = [clean_generated_song_title(candidate) for candidate in raw_candidates]
+    scored = [score_song_title_candidate(candidate, source_text) for candidate in _dedupe(cleaned_candidates)]
     scored = [item for item in scored if item["score"] >= 45 and title_is_valid(item["title"], source_text)]
     return sorted(scored, key=lambda item: item["score"], reverse=True)[:10]
 
@@ -222,7 +283,19 @@ def generate_song_title_from_idea(idea: str = "", hook_text: str = "", lyrics: s
 def resolve_song_title(song: dict[str, Any], project_name: str = "") -> str:
     manual = str(song.get("title") or song.get("song_title") or "").strip()
     if manual and not is_placeholder_song_title(manual):
-        return manual
+        blueprint = song.get("song_blueprint") if isinstance(song.get("song_blueprint"), dict) else {}
+        hook_contract = blueprint.get("hook_contract") if isinstance(blueprint.get("hook_contract"), dict) else {}
+        if hook_contract.get("title_is_manual") is True or song.get("manual_title") is True:
+            return manual
+        generated_provenance = hook_contract.get("title_is_manual") is False or song.get("title_generated_from_idea") is True
+        if generated_provenance:
+            cleaned = clean_generated_song_title(manual)
+            if cleaned and title_is_valid(cleaned, str(song.get("idea") or song.get("song_idea") or "")):
+                return cleaned
+        else:
+            # Legacy project titles predate title provenance and remain
+            # authoritative for backward-compatible project/export naming.
+            return manual
     return generate_song_title_from_idea(
         idea=str(song.get("idea") or song.get("song_idea") or song.get("concept") or project_name or ""),
         hook_text=str((song.get("selected_hook") or {}).get("hook_text") if isinstance(song.get("selected_hook"), dict) else song.get("selected_hook_text") or ""),

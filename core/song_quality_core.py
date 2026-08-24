@@ -285,7 +285,9 @@ def build_song_blueprint(
         },
         "section_objectives": {
             "verse_1": "Establish one concrete scene, action, and emotional starting point.",
-            "pre_chorus": "Increase tension and lead naturally into the selected hook.",
+            "pre_chorus": "Build tension toward the chorus; a later pre-chorus may repeat when musically intentional.",
+            "pre_chorus_1": "Raise tension and anticipation toward the first chorus.",
+            "pre_chorus_2": "Rebuild tension from the advanced story angle, preferably with a small meaningful variation; repeat only when musically intentional.",
             "chorus": "State the central conflict concisely and preserve the selected hook.",
             "verse_2": "Add a new event, detail, consequence, or changed situation; never paraphrase Verse 1.",
             "bridge": "Introduce a realization, perspective change, or emotional truth not stated earlier.",

@@ -181,7 +181,7 @@ from core.song_structure_intelligence import (
     save_structure_plan,
     validate_structure_plan,
 )
-from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
+from core.song_title_engine import clean_generated_song_title, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, resolve_lyrics_download_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
@@ -1197,6 +1197,56 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     assert_true(check_song_production_quality(strong_song, ai_title_blueprint)["passed"], "manual title authority was not preserved")
     assert_true(strong["metrics"]["similarity_method"] == "normalized exact + word/Thai character trigram Jaccard" and strong["metrics"]["similarity_threshold"] == 0.72, "similarity method or threshold changed")
 
+    malformed_title = "หมดใจของเธอ หม"
+    assert_true(clean_generated_song_title(malformed_title) == "หมดใจของเธอ", "generated Thai title partial suffix was not removed")
+    assert_true(clean_generated_song_title('```text\nชื่อเพลง: **คืนที่ฝนหยุด**\nอีกชื่อหนึ่ง\n```') == "คืนที่ฝนหยุด", "generated title labels/markdown/multiple candidates were not normalized")
+    assert_true(clean_generated_song_title('{"title":"คืนที่ฝนหยุด","reason":"compact"}') == "คืนที่ฝนหยุด", "generated title JSON residue was not normalized")
+    assert_true(clean_generated_song_title('Song Title: Midnight Again') == "Midnight Again", "English generated title was not preserved")
+    manual_title_song = {
+        "title": "Title: คืนของฉัน!",
+        "song_blueprint": {"hook_contract": {"title_is_manual": True}},
+    }
+    assert_true(resolve_song_title(manual_title_song) == "Title: คืนของฉัน!", "manual title was altered by generated-title cleanup")
+
+    canonical_song = {
+        "title": malformed_title,
+        "song_title": malformed_title,
+        "generated_title": malformed_title,
+        "idea": "เมื่อเธอหมดใจ",
+        "artist_name": "Vela Moon",
+        "artist_preset": "vela_moon",
+        "music_preset_data": {"genre": "Modern Pop / Pop Rock", "mood": "balanced, emotional, clean, radio-friendly"},
+        "genre": "Pop Rock",
+        "mood": "เศร้า",
+        "vocal": "smooth emotional male vocal",
+        "vocal_direction": "Vela Moon Default",
+        "generation_resolution": {
+            "resolved_genre": "Pop Rock",
+            "resolved_mood": "เศร้า",
+            "resolved_vocal": "smooth emotional male vocal",
+            "resolved_style_prompt": "Pop Rock. Mood: เศร้า. Vocal: smooth emotional male vocal.",
+            "vela_moon_active": True,
+        },
+        "music_style_prompt": "Pop Rock. Mood: เศร้า. Vocal: smooth emotional male vocal. Acoustic intro, rising pre-chorus, full chorus.",
+        "selected_hook": {"hook_text": "หมดใจแล้วก็บอกกัน"},
+        "song_blueprint": {"hook_contract": {"title": malformed_title, "title_is_manual": False}},
+    }
+    canonical_release = build_release_package_data(canonical_song, "Stale Project Title")
+    canonical_metadata = canonical_release["song_metadata"]
+    assert_true(canonical_metadata["song_title"] == "หมดใจของเธอ", "Release Pack did not use canonical generated title")
+    assert_true(canonical_metadata["genre"] == "Pop Rock" and canonical_metadata["mood"] == "เศร้า" and canonical_metadata["vocal_style"] == "smooth emotional male vocal", "resolved Song Studio intent did not propagate to release metadata")
+    assert_true(all("หมดใจของเธอ" in prompt and malformed_title not in prompt for prompt in canonical_release["cover_art_prompts"].values()), "cover/canvas prompts did not use the canonical title")
+    assert_true("#หมดใจของเธอ" in canonical_release["hashtags"] and malformed_title not in canonical_release["youtube_description"], "caption/hashtag title propagation was inconsistent")
+    assert_true("หมดใจของเธอ" in resolve_export_txt_filename(canonical_song, "Stale Project Title") and " หม_" not in resolve_export_txt_filename(canonical_song, "Stale Project Title"), "Suno filename did not use canonical title")
+    assert_true("หมดใจของเธอ" in resolve_lyrics_download_filename(canonical_song, "Stale Project Title"), "Lyrics filename did not use canonical title")
+    assert_true(all(value in canonical_song["music_style_prompt"] for value in ("Pop Rock", "เศร้า", "smooth emotional male vocal")), "style prompt contradicted resolved release intent")
+
+    first_pre = re.search(r"\[Pre-Chorus\]\n(.*?)(?=\n\[Chorus\])", strong_song, flags=re.DOTALL).group(1)
+    repeated_pre_song = re.sub(r"\[Pre-Chorus 2\]\n.*?(?=\n\[Chorus 2\])", f"[Pre-Chorus 2]\n{first_pre}", strong_song, flags=re.DOTALL)
+    assert_true(check_song_production_quality(repeated_pre_song, blueprint)["passed"], "intentional repeated Pre-Chorus became a blocking defect")
+    assert_true(check_song_production_quality(strong_song, blueprint)["passed"], "meaningfully varied Pre-Chorus was rejected")
+    assert_true("meaningful variation" in blueprint["section_objectives"]["pre_chorus_2"] and "musically intentional" in blueprint["section_objectives"]["pre_chorus_2"], "Pre-Chorus progression guidance missing from blueprint")
+
     diagnostic_stream = io.StringIO()
     diagnostic_logger = production_diagnostic_logger("velaflow.song_studio.smoke")
     diagnostic_handler = logging.StreamHandler(diagnostic_stream)
@@ -1375,6 +1425,9 @@ def main():
     state_a_again = song_project_widget_state(project_a)
     assert_true(state_a["genre"] == "Pop Rock" and state_b["genre"] == "EDM" and state_b["vocal"] == "female vocal", "case F project switch retained stale Song Studio values")
     assert_true(state_a_again == state_a, "case F switching back did not restore project-owned values")
+    generated_title_state = song_project_widget_state({"title": "คืนที่วางงาน", "song": {"song_blueprint": {"hook_contract": {"title_is_manual": False}}}})
+    manual_title_state = song_project_widget_state({"title": "ชื่อที่ตั้งเอง", "song": {"manual_title": True}})
+    assert_true(generated_title_state["title_is_manual"] is False and manual_title_state["title_is_manual"] is True, "title provenance was lost across project reruns")
 
     import providers.text_ai as text_ai_provider
 

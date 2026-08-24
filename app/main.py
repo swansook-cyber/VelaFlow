@@ -310,7 +310,7 @@ from core.song_structure_intelligence import (
     structure_plan_prompt,
     validate_structure_plan,
 )
-from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
+from core.song_title_engine import clean_generated_song_title, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
 from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, production_diagnostic_logger, safe_diagnostic_label, safe_exception_summary, snapshot_song_lyrics
 from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename, resolve_lyrics_download_filename
 from core.theme import active_theme_name
@@ -6141,7 +6141,11 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
         else:
             generation_id = secrets.token_hex(4)
             diagnostics = SongGenerationDiagnosticAttempt(generation_id, SONG_STUDIO_LOGGER)
-            manual_title_requested = bool(str(st.session_state.get("simple_song_title") or "").strip()) and str(st.session_state.get("simple_song_title") or "").strip() != suggested_title
+            entered_title = str(st.session_state.get("simple_song_title") or "").strip()
+            saved_title = str(project_values.get("title") or "").strip()
+            title_changed_by_user = bool(entered_title and entered_title != saved_title)
+            prior_generated_title = project_values.get("title_is_manual") is False
+            manual_title_requested = bool(entered_title) and (title_changed_by_user or not prior_generated_title) and entered_title != suggested_title
             diagnostics.event(
                 "generation_start",
                 genre=generation_context["resolved_genre"],
@@ -6202,7 +6206,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 bool(hook_provenance.get("synthetic")),
                 bool(hook_provenance.get("model_fallback")),
             )
-            resolved_title = str(st.session_state.get("simple_song_title") or suggested_title or "").strip()
+            resolved_title = entered_title if manual_title_requested else clean_generated_song_title(suggested_title or entered_title)
             if is_placeholder_song_title(resolved_title):
                 resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
             style_prompt = generation_context["resolved_style_prompt"]
@@ -6332,11 +6336,13 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "title": resolved_title,
                 "song_title": resolved_title,
                 "generated_title": resolved_title,
+                "manual_title": title_was_manual,
+                "title_generated_from_idea": not title_was_manual,
                 "artist_name": artist,
                 "idea": idea,
-                "genre": genre,
-                "mood": mood,
-                "vocal": vocal,
+                "genre": generation_context["resolved_genre"],
+                "mood": generation_context["resolved_mood"],
+                "vocal": generation_context["resolved_vocal"],
                 "complete_lyrics": prepared["lyrics"],
                 "normalized_song_output": prepared["lyrics"],
                 "song_completeness": prepared["completeness"],

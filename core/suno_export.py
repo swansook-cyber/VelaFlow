@@ -47,6 +47,16 @@ def _song_title(song: Dict[str, Any], project_name: str = "") -> str:
     return resolve_song_title({**(song or {}), "idea": song.get("idea") or song.get("song_idea") or project_name}, project_name)
 
 
+def _canonical_export_title(song: Dict[str, Any], project_name: str = "") -> str:
+    if any(not _is_placeholder_title(song.get(key)) for key in ("title", "song_title", "generated_title")):
+        return _song_title(song, project_name)
+    if not _is_placeholder_title(project_name):
+        return str(project_name).strip()
+    if str(song.get("idea") or song.get("song_idea") or "").strip():
+        return _song_title(song, project_name)
+    return ""
+
+
 def safe_txt_filename(song_title: str | None, suffix: str) -> str:
     return build_export_filename(song_title or "Untitled Song", "Vela_Moon", suffix, "txt")
 
@@ -76,13 +86,7 @@ def resolve_export_txt_filename(
 ) -> str:
     suffix = "Suno_Export"
     artist = _artist_name(song)
-    candidates = [
-        song.get("title"),
-        song.get("song_title"),
-        song.get("generated_title"),
-        project_name,
-        extract_song_title_from_export_text(export_text),
-    ]
+    candidates = [_canonical_export_title(song, project_name), extract_song_title_from_export_text(export_text)]
     for candidate in candidates:
         if not _is_placeholder_title(candidate):
             return build_export_filename(str(candidate), artist, suffix, "txt")
@@ -91,12 +95,7 @@ def resolve_export_txt_filename(
 
 def resolve_lyrics_download_filename(song: Dict[str, Any], project_name: str = "") -> str:
     artist = _artist_name(song)
-    candidates = [
-        song.get("title"),
-        song.get("song_title"),
-        song.get("generated_title"),
-        project_name,
-    ]
+    candidates = [_canonical_export_title(song, project_name)]
     for candidate in candidates:
         if not _is_placeholder_title(candidate):
             return build_lyrics_download_filename(str(candidate), artist)
@@ -436,7 +435,8 @@ def export_suno_files(
         folder.mkdir(parents=True, exist_ok=True)
         preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
         lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
-        lyrics_path = ensure_unique_path(folder / build_export_filename(song.get("title") or project_name, _artist_name(song), "Lyrics_Only", "txt"))
+        canonical_title = _canonical_export_title(song, project_name)
+        lyrics_path = ensure_unique_path(folder / build_export_filename(canonical_title, _artist_name(song), "Lyrics_Only", "txt"))
         full_text = build_suno_full_package(song, project_name, workflow_mode=workflow_mode)
         full_path = ensure_unique_path(folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text))
         full_path.write_text(full_text, encoding="utf-8")
@@ -491,15 +491,27 @@ def _creator_hashtag(value: str) -> str:
     return f"#{text}" if text else ""
 
 
+def _resolved_song_intent(song: Dict[str, Any], preset: Dict[str, Any], music_preset: Dict[str, Any]) -> Dict[str, str]:
+    """Resolve downstream metadata from the same authoritative generation intent."""
+    resolution = song.get("generation_resolution") if isinstance(song.get("generation_resolution"), dict) else {}
+    return {
+        "genre": str(resolution.get("resolved_genre") or song.get("genre") or music_preset.get("genre") or preset.get("genre") or "Cinematic Thai Pop"),
+        "mood": str(resolution.get("resolved_mood") or song.get("mood") or music_preset.get("mood") or preset.get("mood") or "emotional"),
+        "vocal": str(resolution.get("resolved_vocal") or song.get("vocal") or music_preset.get("vocal_style") or preset.get("vocal_style") or "clear emotional vocal"),
+        "style_prompt": str(resolution.get("resolved_style_prompt") or song.get("music_style_prompt") or ""),
+    }
+
+
 def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> Dict[str, Any]:
     preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
     music_preset = song.get("music_preset_data") or {}
     hook = _selected_hook(song)
     title = _song_title(song, project_name)
     artist = _artist_name(song)
-    genre = str(music_preset.get("genre") or preset.get("genre") or song.get("genre") or "Cinematic Thai Pop")
-    mood = str(music_preset.get("mood") or song.get("mood") or "emotional, cinematic, relatable")
-    vocal_style = str(music_preset.get("vocal_style") or song.get("vocal_direction") or preset.get("vocal_style") or "clear emotional vocal")
+    intent = _resolved_song_intent(song, preset, music_preset)
+    genre = intent["genre"]
+    mood = intent["mood"]
+    vocal_style = intent["vocal"]
     hook_text = str(hook.get("hook_text") or song.get("selected_hook_text") or title).strip()
     primary_mood = mood.split(",")[0].strip() or "emotional"
     keywords = [title, artist, genre, mood, vocal_style, hook_text, "Thai music", "emotional song", "TikTok hook", "VelaFlow"]
@@ -829,7 +841,8 @@ def export_suno_files(
         folder.mkdir(parents=True, exist_ok=True)
         preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
         lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
-        lyrics_path = ensure_unique_path(folder / build_export_filename(song.get("title") or project_name, _artist_name(song), "Lyrics_Only", "txt"))
+        canonical_title = _canonical_export_title(song, project_name)
+        lyrics_path = ensure_unique_path(folder / build_export_filename(canonical_title, _artist_name(song), "Lyrics_Only", "txt"))
         full_text = build_suno_full_package(song, project_name, workflow_mode=workflow_mode)
         full_path = ensure_unique_path(folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text))
         full_path.write_text(full_text, encoding="utf-8-sig")

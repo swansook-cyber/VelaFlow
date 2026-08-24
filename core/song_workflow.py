@@ -197,6 +197,11 @@ def resolve_song_generation_context(
 def song_project_widget_state(project: Dict[str, Any], song: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """Return project-owned Song Studio values for safe widget hydration."""
     current_song = dict(song or project.get("song") or {})
+    blueprint = current_song.get("song_blueprint") if isinstance(current_song.get("song_blueprint"), dict) else {}
+    hook_contract = blueprint.get("hook_contract") if isinstance(blueprint.get("hook_contract"), dict) else {}
+    title_is_manual = current_song.get("manual_title")
+    if title_is_manual is None:
+        title_is_manual = hook_contract.get("title_is_manual")
     return {
         "title": str(project.get("title") or ""),
         "artist": str(project.get("artist") or ""),
@@ -210,6 +215,7 @@ def song_project_widget_state(project: Dict[str, Any], song: Dict[str, Any] | No
         "hook_focus": str(current_song.get("hook_focus") or ""),
         "music_style_override": str(current_song.get("music_style_override") or ""),
         "advanced_explicit": dict(current_song.get("advanced_explicit") or {}),
+        "title_is_manual": title_is_manual,
     }
 
 
