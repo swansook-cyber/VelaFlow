@@ -303,7 +303,7 @@ from core.song_workflow import (
     select_best_hook,
     song_project_widget_state,
 )
-from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, catalog_with_saved_value
+from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, VOCAL_CATALOG, catalog_with_saved_value
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -6064,7 +6064,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
     idea = st.text_area("Song Idea / Story", key="simple_song_idea", height=120)
     genre_options = catalog_with_saved_value(GENRE_CATALOG, song.get("genre"))
     mood_options = catalog_with_saved_value(MOOD_CATALOG, song.get("mood"))
-    vocal_options = ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"]
+    vocal_options = catalog_with_saved_value(VOCAL_CATALOG, song.get("vocal"))
     st.session_state.setdefault("simple_song_genre", song.get("genre") if song.get("genre") in genre_options else genre_options[0])
     st.session_state.setdefault("simple_song_mood", song.get("mood") if song.get("mood") in mood_options else mood_options[1])
     st.session_state.setdefault("simple_song_vocal", song.get("vocal") if song.get("vocal") in vocal_options else vocal_options[0])
@@ -6605,7 +6605,10 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         saved_mood = str(song.get("mood") or "").strip()
         mood_index = mood_options.index(saved_mood) if saved_mood in mood_options else mood_options.index("คิดถึง")
         mood = st.selectbox("Mood", mood_options, index=mood_index, help="เลือกอารมณ์หลักของเพลง เช่น เศร้า เหงา ให้กำลังใจ หรือรัก")
-        vocal = st.selectbox("Vocal", ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"], index=0, help="เลือกโทนเสียงร้องที่อยากให้เพลงรู้สึกใกล้เคียงที่สุด")
+        vocal_options = catalog_with_saved_value(VOCAL_CATALOG, song.get("vocal"))
+        saved_vocal = str(song.get("vocal") or "").strip()
+        vocal_index = vocal_options.index(saved_vocal) if saved_vocal in vocal_options else 0
+        vocal = st.selectbox("Vocal", vocal_options, index=vocal_index, help="เลือกโทนเสียงร้องที่อยากให้เพลงรู้สึกใกล้เคียงที่สุด")
         vocal_language = st.selectbox("Language", ["Thai lyrics"], index=0, disabled=True, help="ตอนนี้ Song Studio ตั้งค่าให้เนื้อเพลงเป็นภาษาไทย และแท็กดนตรีในวงเล็บเป็นภาษาอังกฤษ")
         viral = st.selectbox("Viral Level", ["balanced", "high", "ultra hook-focused"], index=1, help="เลือกระดับความเน้นฮุก ถ้าทำคลิปสั้นให้เลือก high หรือ ultra hook-focused")
     with right:

@@ -173,7 +173,7 @@ from core.artist_presets import (
 )
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
 from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_final_generation_title, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
-from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, catalog_with_saved_value, production_profile_in_range, resolve_song_production_profile
+from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, VOCAL_CATALOG, catalog_with_saved_value, production_profile_in_range, resolve_song_production_profile, resolve_vocal_profile
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -1626,6 +1626,66 @@ def main():
     assert_true(catalog_with_saved_value(GENRE_CATALOG, "Night Drive")[-1] == "Night Drive" and resolve_song_production_profile(genre="Night Drive", mood="คิดถึง", vocal="male vocal")["genre"] == "Night Drive", "legacy saved Genre compatibility failed")
     profile_direction = build_music_direction(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal")
     assert_true(profile_direction["bpm"] == production_matrix["B"]["recommended_bpm"] and profile_direction["production_profile"]["genre"] == "R&B" and "electric piano" in profile_direction["master_music_style_prompt"], "music direction did not consume the centralized production profile")
+
+    assert_true(len(VOCAL_CATALOG) == 12 and all(item in VOCAL_CATALOG for item in ("smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female", "duet soft harmony", "airy dreamy female vocal")), "expanded Vocal catalog is incomplete or duplicated")
+    vocal_matrix = {
+        "A": resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="warm intimate male vocal"),
+        "B": resolve_song_production_profile(genre="Rock", mood="ฮึกเหิม", vocal="raspy rock male vocal"),
+        "C": resolve_song_production_profile(genre="City Pop", mood="สดใส", vocal="airy dreamy female vocal"),
+        "D": resolve_song_production_profile(genre="Ballad", mood="เศร้า", vocal="emotional female vocal"),
+        "E": resolve_song_production_profile(genre="Acoustic Pop", mood="คิดถึง", vocal="warm intimate female vocal"),
+        "F": resolve_song_production_profile(genre="Cinematic Pop", mood="Epic", vocal="powerful male vocal"),
+        "G": resolve_song_production_profile(genre="Thai Pop", mood="ให้กำลังใจ", vocal="powerful female vocal"),
+        "H": resolve_song_production_profile(genre="ลูกทุ่งร่วมสมัย", mood="คิดถึง", vocal="emotional male vocal"),
+        "I": resolve_song_production_profile(genre="Dream Pop", mood="ฝัน ๆ", vocal="airy dreamy female vocal"),
+        "J": resolve_song_production_profile(genre="Pop", mood="อบอุ่น", vocal="duet male and female"),
+        "K": resolve_song_production_profile(genre="Acoustic Pop", mood="อบอุ่น", vocal="duet soft harmony"),
+    }
+    vocals = {key: value["vocal_profile"] for key, value in vocal_matrix.items()}
+    assert_true(all(term in vocals["A"]["style_direction"] for term in ("close-mic restrained delivery", "controlled", "smooth phrasing")), "vocal matrix A warm intimate R&B mapping failed")
+    assert_true(all(term in vocals["B"]["style_direction"] for term in ("gritty rock texture", "stronger attack", "high power")), "vocal matrix B raspy Rock mapping failed")
+    assert_true(all(term in vocals["C"]["style_direction"] for term in ("airy", "intelligible Thai diction", "brighter delivery")) and "without becoming harsh" in vocals["C"]["mood_interaction"], "vocal matrix C airy City Pop mapping failed")
+    assert_true("expressive phrasing" in vocals["D"]["delivery"] and "wide but controlled emotional arc" in vocals["D"]["dynamic_behavior"] and "restrained drums" in " ".join(vocal_matrix["D"]["instrument_palette"]), "vocal matrix D emotional Ballad mapping failed")
+    assert_true(all(term in vocals["E"]["style_direction"] for term in ("close warm delivery", "high intimacy", "clear gentle Thai articulation")), "vocal matrix E warm intimate Acoustic Pop mapping failed")
+    assert_true(all(term in vocals["F"]["style_direction"] for term in ("strong forward projection", "high power", "final chorus")), "vocal matrix F powerful Cinematic Epic mapping failed")
+    assert_true("strong clear Thai diction" in vocals["G"]["diction"] and "stronger projection" in vocals["G"]["mood_interaction"] and "large melodic chorus" in vocals["G"]["chorus_behavior"], "vocal matrix G powerful Thai Pop mapping failed")
+    assert_true(all(term in vocals["H"]["genre_interaction"] for term in ("storytelling", "clear Thai diction", "melodic lift")), "vocal matrix H luk thung storytelling mapping failed")
+    assert_true(all(term in vocals["I"]["style_direction"] for term in ("airy sustained phrasing", "soft consonant attack", "intelligible Thai diction")), "vocal matrix I dreamy intelligible mapping failed")
+    assert_true(vocals["J"]["gender_mode"] == "duet" and "call-and-response" in vocals["J"]["songwriting_guidance"] and "never force mechanical alternation" in vocals["J"]["songwriting_guidance"], "vocal matrix J duet guidance failed")
+    assert_true(vocals["K"]["gender_mode"] == "duet" and "one primary perspective" in vocals["K"]["songwriting_guidance"] and "restrained harmony" in vocals["K"]["songwriting_guidance"], "vocal matrix K soft harmony guidance failed")
+    vocal_matrix_l = resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="warm intimate male vocal")
+    assert_true(vocal_matrix_l == vocal_matrix["A"], "vocal matrix L is not deterministic")
+
+    unusual_vocal_cases = [
+        ("Rock", "มีพลัง", "soft female vocal"),
+        ("R&B", "อบอุ่น", "powerful male vocal"),
+        ("Ballad", "เศร้า", "raspy rock male vocal"),
+        ("Trap", "เหงา", "warm intimate female vocal"),
+    ]
+    for unusual_genre, unusual_mood, unusual_vocal in unusual_vocal_cases:
+        unusual = resolve_song_production_profile(genre=unusual_genre, mood=unusual_mood, vocal=unusual_vocal)
+        assert_true(unusual["vocal_direction"] == unusual_vocal and unusual["vocal_profile"]["label"] == unusual_vocal and production_profile_in_range(unusual), f"unusual Vocal combination failed: {unusual_genre} + {unusual_vocal}")
+    assert_true("soften the attack" in resolve_vocal_profile(vocal="raspy rock male vocal", genre="Ballad", mood="เศร้า")["genre_interaction"], "delicate Genre did not safely blend a raspy Vocal")
+
+    intimate_rnb = resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="warm intimate male vocal")
+    powerful_rnb = resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="powerful female vocal")
+    assert_true(intimate_rnb["recommended_bpm"] == powerful_rnb["recommended_bpm"] and intimate_rnb["instrument_palette"] == powerful_rnb["instrument_palette"] and intimate_rnb["style_prompt"] != powerful_rnb["style_prompt"], "Vocal differentiation changed Genre/Mood identity or failed to change guidance")
+    assert_true("close-mic restrained delivery" in intimate_rnb["style_prompt"] and "strong forward projection" in powerful_rnb["style_prompt"], "same Genre/Mood did not produce distinct Vocal production language")
+
+    vocal_override = resolve_song_generation_context(
+        idea="soft female vocal test",
+        genre="Ballad",
+        mood="เศร้า",
+        vocal="soft female vocal",
+        music_style_override="aggressive screaming male vocal, minimal piano arrangement",
+        advanced_explicit={**untouched_advanced, "music_style_override": True},
+    )
+    assert_true(vocal_override["resolved_vocal"] == "soft female vocal" and "aggressive screaming male vocal" not in vocal_override["resolved_style_prompt"] and "minimal piano arrangement" in vocal_override["resolved_style_prompt"], "manual style override contradicted selected Vocal metadata")
+    vocal_release = build_release_package_data({"title": "ลอยกลางคืน", "artist_name": "Vela Moon", "selected_hook_text": "คืนนี้ยังลอย", "generation_resolution": {"resolved_genre": "Dream Pop", "resolved_mood": "ฝัน ๆ", "resolved_vocal": "airy dreamy female vocal", "resolved_style_prompt": vocal_matrix["I"]["style_prompt"]}})
+    assert_true(vocal_release["song_metadata"]["vocal_style"] == "airy dreamy female vocal", "Release Pack collapsed the selected Vocal label")
+    assert_true(catalog_with_saved_value(VOCAL_CATALOG, "legacy theatrical vocal")[-1] == "legacy theatrical vocal" and resolve_vocal_profile(vocal="legacy theatrical vocal", genre="Pop", mood="อบอุ่น")["label"] == "legacy theatrical vocal", "legacy saved Vocal compatibility failed")
+    duet_direction = build_music_direction(genre="Pop", mood="อบอุ่น", vocal="duet soft harmony")
+    assert_true("primary vocal" in duet_direction["vocal_energy_map"]["Final Chorus"] and "restrained harmony" in duet_direction["vocal_energy_map"]["Final Chorus"], "music direction did not consume duet harmony behavior")
 
     project_a = {"title": "Project A", "artist": "Artist A", "song": {"idea": "A", "genre": "Pop Rock", "mood": "Warm", "vocal": "male vocal"}}
     project_b = {"title": "Project B", "artist": "Artist B", "song": {"idea": "B", "genre": "EDM", "mood": "Energetic", "vocal": "female vocal"}}

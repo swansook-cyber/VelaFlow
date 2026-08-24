@@ -17,23 +17,6 @@ def _text(value: Any, default: str = "") -> str:
     return str(value or default).strip()
 
 
-def _contains_any(text: str, words: list[str]) -> bool:
-    lower = text.lower()
-    return any(word.lower() in lower for word in words)
-
-
-def _vocal_tone(vocal: str, mood: str, artist_preset: dict[str, Any] | None = None, style_preset: dict[str, Any] | None = None) -> str:
-    preset_vocal = _text((artist_preset or {}).get("vocal_feeling") or (artist_preset or {}).get("vocal_style"))
-    style_vocal = _text((style_preset or {}).get("vocal_style"))
-    parts = [vocal] if _text(vocal) else [part for part in [style_vocal, preset_vocal] if part]
-    base = ", ".join(parts) or "intimate emotional lead vocal"
-    if _contains_any(mood, ["sad", "lonely", "heartbreak", "emotional"]):
-        return f"{base}, close-mic delivery, fragile first verse, wider harmony release in chorus"
-    if _contains_any(mood, ["hope", "motivational", "uplifting"]):
-        return f"{base}, warm confident delivery, gradual lift, bright final chorus"
-    return f"{base}, modern commercial delivery, clear diction, emotional chorus emphasis"
-
-
 def build_music_direction(
     *,
     genre: str = "",
@@ -62,7 +45,8 @@ def build_music_direction(
     bpm = int(production_profile["recommended_bpm"])
     palette = list(production_profile["instrument_palette"])
     mood_character = str(production_profile["mood_character"])
-    vocal_tone = _vocal_tone(vocal, mood_text, preset, style)
+    vocal_profile = dict(production_profile["vocal_profile"])
+    vocal_tone = str(vocal_profile["style_direction"])
     energy_curve = {
         "Intro": 22,
         "Verse 1": 34,
@@ -84,14 +68,14 @@ def build_music_direction(
         "Outro": f"(emotional fade out, {palette[1]} echoes, ambient reverb tail, soft final vocal adlibs)",
     }
     vocal_energy_map = {
-        "Intro": "breathy and close",
-        "Verse 1": "intimate, restrained, conversational",
-        "Pre-Chorus": "rising tension and brighter projection",
-        "Chorus": "open, memorable, emotionally released",
-        "Verse 2": "more urgent but still controlled",
-        "Bridge": "fragile, cinematic, almost whispered",
-        "Final Chorus": "full emotional lift with layered harmonies",
-        "Outro": "soft release, fading adlibs",
+        "Intro": f"{vocal_profile['texture']}, {vocal_profile['intimacy']}",
+        "Verse 1": f"{vocal_profile['delivery']}; {vocal_profile['diction']}",
+        "Pre-Chorus": f"{vocal_profile['dynamic_behavior']}",
+        "Chorus": f"{vocal_profile['chorus_behavior']}",
+        "Verse 2": f"retain {vocal_profile['delivery']} with increased emotional intent",
+        "Bridge": f"use contrast while preserving {vocal_profile['texture']}",
+        "Final Chorus": f"{vocal_profile['chorus_behavior']}; {vocal_profile['harmony_behavior']}",
+        "Outro": f"return to {vocal_profile['intimacy']} with a natural release",
     }
     master_prompt = (
         f"{production_profile['style_prompt']} "

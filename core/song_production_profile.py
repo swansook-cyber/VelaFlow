@@ -61,6 +61,65 @@ MOOD_CATALOG = (
     "Inspirational",
 )
 
+VOCAL_CATALOG = (
+    "smooth emotional male vocal",
+    "emotional male vocal",
+    "powerful male vocal",
+    "warm intimate male vocal",
+    "raspy rock male vocal",
+    "soft female vocal",
+    "emotional female vocal",
+    "powerful female vocal",
+    "warm intimate female vocal",
+    "airy dreamy female vocal",
+    "duet male and female",
+    "duet soft harmony",
+)
+
+
+def _vocal(
+    gender_mode: str,
+    delivery: str,
+    power: str,
+    intimacy: str,
+    texture: str,
+    breathiness: str,
+    rasp: str,
+    diction: str,
+    dynamic_behavior: str,
+    chorus_behavior: str,
+    harmony_behavior: str,
+) -> dict[str, str]:
+    return {
+        "gender_mode": gender_mode,
+        "delivery": delivery,
+        "power": power,
+        "intimacy": intimacy,
+        "texture": texture,
+        "breathiness": breathiness,
+        "rasp": rasp,
+        "diction": diction,
+        "dynamic_behavior": dynamic_behavior,
+        "chorus_behavior": chorus_behavior,
+        "harmony_behavior": harmony_behavior,
+    }
+
+
+VOCAL_PROFILES = {
+    "smooth emotional male vocal": _vocal("male", "smooth emotionally expressive delivery", "moderate controlled power", "moderate close-mic intimacy", "clean warm texture", "low breathiness", "little to no rasp", "clear natural Thai diction", "controlled movement from intimate verses to a wider chorus", "gentle emotional lift without forced belting", "subtle doubles and restrained harmony on key hook lines"),
+    "emotional male vocal": _vocal("male", "expressive phrasing with honest emotional emphasis", "moderate power", "personal verse intimacy", "natural resonant texture", "light breathiness on vulnerable phrases", "minimal rasp", "clear conversational Thai diction", "stronger dynamic movement across sections", "open emotional chorus with controlled upper-register lift", "supportive harmony that widens the final chorus"),
+    "powerful male vocal": _vocal("male", "strong forward projection with confident articulation", "high power", "moderate intimacy", "firm full-bodied texture", "very low breathiness", "low controlled rasp", "precise Thai articulation", "large dynamic rise with sustained control", "punchy chorus delivery and strong upper-register lift", "stacked support in the final chorus without masking the lead"),
+    "warm intimate male vocal": _vocal("male", "close-mic restrained delivery with smooth phrasing", "low to moderate power", "high intimacy", "warm rounded texture", "subtle natural breathiness", "no forced rasp", "clear soft Thai diction", "small controlled human dynamics with a gentle section lift", "personal chorus that opens slightly without power belting", "quiet doubles and occasional warm harmony"),
+    "raspy rock male vocal": _vocal("male", "energetic articulation with a stronger attack", "moderate to high power", "moderate intimacy", "gritty rock texture", "low breathiness", "moderate controlled rasp", "clear Thai consonants despite the grit", "physical dynamic drive with controlled recovery in verses", "aggressive but musical chorus lift", "firm gang-style support only on selected hook moments"),
+    "soft female vocal": _vocal("female", "gentle smooth delivery", "low to moderate power", "high intimacy", "soft clean upper register", "light breathiness", "no rasp", "clear intelligible Thai diction", "restrained dynamics with delicate growth", "soft melodic chorus lift without belting", "light doubles and minimal high harmony"),
+    "emotional female vocal": _vocal("female", "expressive phrasing with emotional nuance", "moderate power", "moderate to high intimacy", "clear resonant texture", "controlled breathiness", "no forced rasp", "clear Thai diction", "wide but controlled emotional arc", "larger emotional chorus with sustained expressive notes", "layered harmony that expands the final chorus"),
+    "powerful female vocal": _vocal("female", "strong forward projection and confident articulation", "high power", "moderate intimacy", "full bright texture without harshness", "low breathiness", "minimal controlled rasp", "strong clear Thai diction", "high dynamic lift with disciplined control", "large melodic chorus and sustained expressive peaks", "wide stacked harmony reserved for the largest sections"),
+    "warm intimate female vocal": _vocal("female", "close warm delivery with softer phrasing", "low to moderate power", "high intimacy", "warm smooth texture", "subtle breathiness", "no rasp", "clear gentle Thai articulation", "restrained verse movement with a natural emotional rise", "tender chorus lift that stays personal", "soft complementary harmony and quiet doubles"),
+    "airy dreamy female vocal": _vocal("female", "airy sustained phrasing with soft consonant attack", "low to moderate power", "high atmospheric intimacy", "light floating texture", "moderate controlled breathiness", "no rasp", "intelligible Thai diction despite the airy tone", "floating dynamics with gradual bloom", "polished spacious chorus that remains clear rather than forceful", "shimmering layered harmony with a distinct lead vocal"),
+    "duet male and female": _vocal("duet", "alternating or complementary lead delivery", "balanced shared power", "variable intimacy between perspectives", "contrasting but cohesive male and female textures", "controlled breathiness by phrase", "no forced rasp", "clear Thai diction for both singers", "natural call-and-response with shared emotional growth", "shared chorus with balanced lead presence", "complementary harmony moments without mechanical line-by-line alternation"),
+    "duet soft harmony": _vocal("duet", "one primary lead with gentle complementary responses", "restrained shared power", "high blended intimacy", "soft cohesive vocal blend", "light controlled breathiness", "no rasp", "clear Thai diction with an identifiable primary lead", "subtle dynamic growth led by the primary voice", "layered chorus with restrained support rather than a full duet", "one primary vocal with restrained harmony support, complementary phrasing and occasional response lines"),
+}
+
 
 def _genre(
     tempo: tuple[int, int],
@@ -220,6 +279,89 @@ def _canonical_mood(value: str) -> str:
     return "Bittersweet"
 
 
+def resolve_vocal_profile(*, vocal: str, genre: str, mood: str) -> dict[str, str]:
+    label = str(vocal or "natural lead vocal").strip() or "natural lead vocal"
+    base = dict(VOCAL_PROFILES.get(label) or {})
+    lower = label.lower()
+    if not base:
+        gender_mode = "duet" if "duet" in lower else "female" if "female" in lower else "male" if "male" in lower else "neutral"
+        base = _vocal(
+            gender_mode,
+            f"natural delivery consistent with the selected '{label}' character",
+            "balanced controlled power",
+            "moderate intimacy",
+            "clean natural texture",
+            "controlled breathiness",
+            "no forced rasp",
+            "clear natural Thai diction",
+            "coherent dynamics across the complete song",
+            "musical chorus lift without changing the selected vocal identity",
+            "restrained harmony supporting the lead",
+        )
+
+    canonical_genre = _canonical_genre(genre)
+    canonical_mood = _canonical_mood(mood)
+    if label == "raspy rock male vocal" and canonical_genre in {"Rock", "Alternative Rock", "Indie Rock", "Thai Rock"}:
+        genre_interaction = "Use the grit confidently with firm attack and live-band energy while keeping Thai words clear."
+    elif label == "raspy rock male vocal":
+        genre_interaction = "Blend rasp selectively on emotional peaks; soften the attack enough to preserve the selected genre identity."
+    elif label == "airy dreamy female vocal" and canonical_genre in {"Dream Pop", "Synth Pop", "Lo-fi Pop", "City Pop"}:
+        genre_interaction = "Use polished airy phrasing that floats over the groove while the lead remains intelligible and centered."
+    elif canonical_genre in {"R&B", "Soul", "Neo Soul"} and "intimate" in label:
+        genre_interaction = "Fit smooth close phrasing into the laid-back pocket and avoid unnecessary power belting."
+    elif canonical_genre == "ลูกทุ่งร่วมสมัย":
+        genre_interaction = "Prioritize expressive storytelling, clear Thai diction and an accessible emotional melodic lift."
+    elif canonical_genre == "เพื่อชีวิตร่วมสมัย":
+        genre_interaction = "Keep the delivery direct, sincere and storytelling-first over the organic arrangement."
+    elif base["gender_mode"] == "duet":
+        genre_interaction = "Blend both voices naturally into the selected genre without replacing its rhythmic or instrumental identity."
+    else:
+        genre_interaction = f"Shape the vocal around the {canonical_genre} arrangement without changing its core identity."
+
+    if canonical_mood in {"เหงา", "เหงากลางคืน", "สงบ"}:
+        mood_interaction = "Move closer and more restrained in the verses, leaving personal space around each phrase."
+    elif canonical_mood in {"ให้กำลังใจ", "ฮึกเหิม", "มีพลัง", "Inspirational"}:
+        mood_interaction = "Use stronger projection and a confident chorus lift while retaining controlled diction."
+    elif canonical_mood in {"เศร้า", "อกหัก", "คิดถึง", "Bittersweet"}:
+        mood_interaction = "Use a softer attack and emotionally detailed phrasing, then widen naturally at the main payoff."
+    elif canonical_mood == "สดใส":
+        mood_interaction = "Use brighter delivery and especially clear articulation without becoming harsh."
+    elif canonical_mood == "Epic":
+        mood_interaction = "Expand the dynamic range and reserve the strongest projection for the final chorus."
+    else:
+        mood_interaction = "Keep the selected vocal character consistent while following the song's emotional movement."
+
+    if base["gender_mode"] == "duet" and label == "duet male and female":
+        songwriting_guidance = "Allow complementary perspectives, occasional natural call-and-response and a shared chorus; never force mechanical alternation in every section."
+    elif base["gender_mode"] == "duet":
+        songwriting_guidance = "Keep one primary perspective, add occasional response lines and use restrained harmony support in the chorus."
+    elif "intimate" in label or label == "soft female vocal":
+        songwriting_guidance = "Favor conversational Thai phrasing and personal verse lines, with a controlled singable chorus."
+    elif "powerful" in label:
+        songwriting_guidance = "Favor concise strong chorus lines that support projection, sustained notes and a clear final payoff."
+    elif "airy" in label:
+        songwriting_guidance = "Allow flowing sustained phrases but keep Thai words concise and understandable."
+    elif "raspy" in label:
+        songwriting_guidance = "Favor direct rhythmic lines and reserve grit for emphasis rather than every syllable."
+    else:
+        songwriting_guidance = "Use natural conversational Thai phrasing shaped for the selected delivery and chorus lift."
+
+    profile = {
+        "label": label,
+        **base,
+        "genre_interaction": genre_interaction,
+        "mood_interaction": mood_interaction,
+        "songwriting_guidance": songwriting_guidance,
+    }
+    profile["style_direction"] = (
+        f"{label}: {base['delivery']}. Texture: {base['texture']}, {base['breathiness']}, {base['rasp']}; {base['diction']}. "
+        f"Power and intimacy: {base['power']}; {base['intimacy']}. "
+        f"Dynamics: {base['dynamic_behavior']}; chorus: {base['chorus_behavior']}. "
+        f"Harmony: {base['harmony_behavior']}. {mood_interaction} {genre_interaction}"
+    )
+    return profile
+
+
 def _recommended_bpm(tempo_range: tuple[int, int], position: float) -> int:
     low, high = tempo_range
     raw = low + ((high - low) * max(0.0, min(1.0, position)))
@@ -241,6 +383,7 @@ def resolve_song_production_profile(
     canonical_mood = _canonical_mood(selected_mood)
     base = dict(GENRE_PROFILES[canonical_genre])
     modifier = dict(MOOD_MODIFIERS[canonical_mood])
+    vocal_profile = resolve_vocal_profile(vocal=selected_vocal, genre=selected_genre, mood=selected_mood)
     tempo_range = tuple(base["tempo_range"])
     bpm = _recommended_bpm(tempo_range, float(modifier["tempo_position"]))
     prompt_genre = str(base.get("prompt_genre") or canonical_genre)
@@ -260,18 +403,20 @@ def resolve_song_production_profile(
         "arrangement_character": f"{base['arrangement_character']}; {modifier['arrangement_modifier']}",
         "production_notes": f"{base['production_notes']}; {modifier['production_modifier']}",
         "vocal_direction": selected_vocal,
+        "vocal_profile": vocal_profile,
+        "songwriting_guidance": vocal_profile["songwriting_guidance"],
         "manual_style_override": override,
     }
     core = (
         f"{prompt_genre} around {bpm} BPM with {', '.join(profile['instrument_palette'])}. "
         f"Use a {profile['rhythmic_feel']}; {modifier['english_label']} mood; {profile['energy']}. "
-        f"Vocal direction: {selected_vocal}. Arrangement: {profile['arrangement_character']}. "
+        f"Vocal production: {vocal_profile['style_direction']} Arrangement: {profile['arrangement_character']}. "
         f"Production: {profile['production_notes']}."
     )
     if override:
         core = (
             f"{prompt_genre} around {bpm} BPM. Mood direction: {modifier['english_label']}. "
-            f"Vocal direction: {selected_vocal}. Manual production direction: {override}. "
+            f"Vocal production: {vocal_profile['style_direction']} Manual production direction: {override}. "
             f"Retain the selected {prompt_genre} identity and a coherent full-song arrangement."
         )
     profile["style_prompt"] = core
