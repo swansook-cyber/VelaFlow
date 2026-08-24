@@ -303,6 +303,7 @@ from core.song_workflow import (
     select_best_hook,
     song_project_widget_state,
 )
+from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, catalog_with_saved_value
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -6061,8 +6062,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
     generate_title = title_row[1].button("Generate Title", key="simple_generate_title")
     artist = st.text_input("Artist", key="simple_song_artist")
     idea = st.text_area("Song Idea / Story", key="simple_song_idea", height=120)
-    genre_options = ["Pop Rock", "Heartbreak Ballad", "T-Pop", "Night Drive", "Isaan Indie"]
-    mood_options = ["เศร้า", "คิดถึง", "เหงากลางคืน", "อบอุ่น", "ให้กำลังใจ"]
+    genre_options = catalog_with_saved_value(GENRE_CATALOG, song.get("genre"))
+    mood_options = catalog_with_saved_value(MOOD_CATALOG, song.get("mood"))
     vocal_options = ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"]
     st.session_state.setdefault("simple_song_genre", song.get("genre") if song.get("genre") in genre_options else genre_options[0])
     st.session_state.setdefault("simple_song_mood", song.get("mood") if song.get("mood") in mood_options else mood_options[1])
@@ -6402,6 +6403,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "provider_call_counts": {"hook": 1, "song": 1, "repair": repair_calls, "total": 2 + repair_calls},
                 "local_expansion_applied": False,
                 "music_direction": music_direction,
+                "production_profile": generation_context["production_profile"],
+                "bpm": generation_context["recommended_bpm"],
                 "music_style_prompt": style_prompt if generation_context.get("style_override_explicit") else (music_direction.get("master_music_style_prompt") or style_prompt),
                 "hook_candidates": candidates,
                 "candidate_hooks": candidates,
@@ -6593,12 +6596,15 @@ def _render_song_studio(project: dict[str, Any]) -> None:
                 st.session_state.suggested_song_title_index = index
                 st.session_state.suggested_song_title = title_candidates[index % len(title_candidates)]["title"]
                 st.rerun()
-        genre_options = ["Pop Rock", "Heartbreak Ballad", "T-Pop", "Night Drive", "Isaan Indie"]
+        genre_options = catalog_with_saved_value(GENRE_CATALOG, song.get("genre"))
         direction_genre = creative_direction.get("music_direction", "")
-        genre_index = next((idx for idx, item in enumerate(genre_options) if item.lower() in direction_genre.lower() or direction_genre.lower() in item.lower()), 0)
+        saved_genre = str(song.get("genre") or "").strip()
+        genre_index = genre_options.index(saved_genre) if saved_genre in genre_options else next((idx for idx, item in enumerate(genre_options) if item.lower() in direction_genre.lower() or direction_genre.lower() in item.lower()), genre_options.index("Pop Rock"))
         genre = st.selectbox("Genre", genre_options, index=genre_index, help="เลือกแนวเพลงหลักเพื่อให้ดนตรีและคำร้องไปในทิศทางเดียวกัน")
-        mood_options = ["เศร้า", "คิดถึง", "เหงากลางคืน", "อบอุ่น", "ให้กำลังใจ"]
-        mood = st.selectbox("Mood", mood_options, index=1, help="เลือกอารมณ์หลักของเพลง เช่น เศร้า เหงา ให้กำลังใจ หรือรัก")
+        mood_options = catalog_with_saved_value(MOOD_CATALOG, song.get("mood"))
+        saved_mood = str(song.get("mood") or "").strip()
+        mood_index = mood_options.index(saved_mood) if saved_mood in mood_options else mood_options.index("คิดถึง")
+        mood = st.selectbox("Mood", mood_options, index=mood_index, help="เลือกอารมณ์หลักของเพลง เช่น เศร้า เหงา ให้กำลังใจ หรือรัก")
         vocal = st.selectbox("Vocal", ["smooth emotional male vocal", "emotional male vocal", "soft female vocal", "duet male and female"], index=0, help="เลือกโทนเสียงร้องที่อยากให้เพลงรู้สึกใกล้เคียงที่สุด")
         vocal_language = st.selectbox("Language", ["Thai lyrics"], index=0, disabled=True, help="ตอนนี้ Song Studio ตั้งค่าให้เนื้อเพลงเป็นภาษาไทย และแท็กดนตรีในวงเล็บเป็นภาษาอังกฤษ")
         viral = st.selectbox("Viral Level", ["balanced", "high", "ultra hook-focused"], index=1, help="เลือกระดับความเน้นฮุก ถ้าทำคลิปสั้นให้เลือก high หรือ ultra hook-focused")
@@ -6918,6 +6924,7 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         )
         song_result["music_style_prompt"] = final_style_prompt if generation_context.get("style_override_explicit") else (song_result["music_direction"].get("master_music_style_prompt") or final_style_prompt)
         song_result["bpm"] = song_result["music_direction"].get("bpm")
+        song_result["production_profile"] = generation_context["production_profile"]
         song_result["hook_candidates"] = candidates
         song_result["candidate_hooks"] = candidates
         song_result["selected_hook"] = hook

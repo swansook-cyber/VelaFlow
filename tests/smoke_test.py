@@ -173,6 +173,7 @@ from core.artist_presets import (
 )
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
 from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_final_generation_title, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
+from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, catalog_with_saved_value, production_profile_in_range, resolve_song_production_profile
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -1570,6 +1571,61 @@ def main():
     assert_true(default_music["prompt_suffix"] not in priority_e["resolved_style_prompt"], "case E appended the default music preset to a manual override")
     conflicting_style = priority_context("Acoustic", "Warm", "female vocal", music_style_override="smooth emotional male vocal, pop rock guitars, minimal nylon guitar", advanced_explicit=style_explicit)
     assert_true("smooth emotional male vocal" not in conflicting_style["resolved_style_prompt"].lower() and "pop rock" not in conflicting_style["resolved_style_prompt"].lower() and "minimal nylon guitar" in conflicting_style["resolved_style_prompt"].lower(), "case E did not remove direct conflicts from the manual style layer")
+
+    assert_true(22 <= len(GENRE_CATALOG) <= 28 and 20 <= len(MOOD_CATALOG) <= 25, "expanded Genre/Mood catalog size is outside the production UX target")
+    assert_true(all(item in GENRE_CATALOG for item in ("Pop Rock", "R&B", "Acoustic Pop", "Dream Pop", "City Pop", "Cinematic Pop", "ลูกทุ่งร่วมสมัย", "เพื่อชีวิตร่วมสมัย")), "expanded Genre catalog is incomplete")
+    assert_true(all(item in MOOD_CATALOG for item in ("ให้กำลังใจ", "เหงากลางคืน", "คิดถึง", "ฮึกเหิม", "ฝัน ๆ", "สดใส", "อบอุ่น", "Epic")), "expanded Mood catalog is incomplete")
+
+    production_matrix = {
+        "A": resolve_song_production_profile(genre="Pop Rock", mood="ให้กำลังใจ", vocal="smooth emotional male vocal"),
+        "B": resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal"),
+        "C": resolve_song_production_profile(genre="Acoustic Pop", mood="คิดถึง", vocal="smooth emotional male vocal"),
+        "D": resolve_song_production_profile(genre="Rock", mood="ฮึกเหิม", vocal="powerful male vocal"),
+        "E": resolve_song_production_profile(genre="Dream Pop", mood="ฝัน ๆ", vocal="soft intimate female vocal"),
+        "F": resolve_song_production_profile(genre="City Pop", mood="สดใส", vocal="clear emotional female vocal"),
+        "G": resolve_song_production_profile(genre="Cinematic Pop", mood="Epic", vocal="powerful male vocal"),
+        "H": resolve_song_production_profile(genre="ลูกทุ่งร่วมสมัย", mood="อบอุ่น", vocal="warm Thai male vocal"),
+        "I": resolve_song_production_profile(genre="เพื่อชีวิตร่วมสมัย", mood="คิดถึง", vocal="natural Thai male vocal"),
+    }
+    assert_true(production_matrix["A"]["recommended_bpm"] >= 110 and "electric guitars" in " ".join(production_matrix["A"]["instrument_palette"]) and "live" in production_matrix["A"]["rhythmic_feel"], "matrix A Pop Rock + encouraging profile failed")
+    assert_true(production_matrix["B"]["recommended_bpm"] < 85 and all(term in " ".join(production_matrix["B"]["instrument_palette"]) for term in ("electric piano", "deep controlled bass")) and "intimate" in production_matrix["B"]["style_prompt"], "matrix B R&B + lonely night profile failed")
+    assert_true(all(term in " ".join(production_matrix["C"]["instrument_palette"]) for term in ("acoustic guitar", "piano")) and "restrained" in production_matrix["C"]["style_prompt"], "matrix C Acoustic Pop + longing profile failed")
+    assert_true(production_matrix["D"]["recommended_bpm"] >= 135 and all(term in " ".join(production_matrix["D"]["instrument_palette"]) for term in ("distorted electric guitars", "powerful acoustic drums")), "matrix D Rock + anthemic profile failed")
+    assert_true(production_matrix["E"]["recommended_bpm"] <= 90 and all(term in production_matrix["E"]["style_prompt"] for term in ("airy", "spacious")), "matrix E Dream Pop + dreamy profile failed")
+    assert_true(production_matrix["F"]["recommended_bpm"] >= 110 and all(term in " ".join(production_matrix["F"]["instrument_palette"]) for term in ("clean funk guitar", "electric piano", "melodic bass")), "matrix F City Pop + bright profile failed")
+    assert_true("cinematic" in production_matrix["G"]["style_prompt"].lower() and "large dynamics" in production_matrix["G"]["energy"], "matrix G Cinematic Pop + Epic profile failed")
+    assert_true(production_matrix["H"]["genre"] == "ลูกทุ่งร่วมสมัย" and "luk thung" in production_matrix["H"]["style_prompt"].lower() and "pop-rock" not in production_matrix["H"]["style_prompt"].lower(), "matrix H contemporary luk thung identity failed")
+    assert_true(production_matrix["I"]["genre"] == "เพื่อชีวิตร่วมสมัย" and "storytelling" in production_matrix["I"]["style_prompt"].lower() and "organic" in production_matrix["I"]["style_prompt"].lower(), "matrix I contemporary phuea chiwit identity failed")
+    production_matrix_j = resolve_song_production_profile(genre="City Pop", mood="สดใส", vocal="clear emotional female vocal")
+    assert_true(production_matrix_j == production_matrix["F"], "matrix J production profile is not deterministic")
+
+    for genre_name in GENRE_CATALOG:
+        for mood_name in MOOD_CATALOG:
+            assert_true(production_profile_in_range(resolve_song_production_profile(genre=genre_name, mood=mood_name, vocal="natural lead vocal")), f"BPM escaped Genre range for {genre_name} + {mood_name}")
+
+    profile_override = resolve_song_generation_context(
+        idea="late night R&B",
+        genre="R&B",
+        mood="เหงา",
+        vocal="soft intimate female vocal",
+        music_style_override="minimal piano-led arrangement",
+        advanced_explicit={**untouched_advanced, "music_style_override": True},
+    )
+    assert_true(profile_override["resolved_genre"] == "R&B" and profile_override["resolved_mood"] == "เหงา" and "minimal piano-led arrangement" in profile_override["resolved_style_prompt"], "manual style override erased Genre/Mood metadata or was ignored")
+    assert_true(not any("\u0e00" <= char <= "\u0e7f" for char in profile_override["resolved_style_prompt"]), "producer style prompt leaked Thai metadata into the English production field")
+    release_profile = build_release_package_data(
+        {
+            "title": "คืนที่ไฟยังเปิด",
+            "artist_name": "Vela Moon",
+            "selected_hook_text": "คืนนี้ไม่มีใครตอบ",
+            "generation_resolution": profile_override,
+        }
+    )
+    assert_true(release_profile["song_metadata"]["genre"] == "R&B" and release_profile["song_metadata"]["mood"] == "เหงา" and release_profile["song_metadata"]["vocal_style"] == "soft intimate female vocal", "Release Pack collapsed resolved Genre/Mood/Vocal metadata")
+    assert_true("R&B" in release_profile["cover_art_prompts"]["1:1"] and "เหงา" in release_profile["canvas_prompt"], "resolved Genre/Mood did not propagate to visual release prompts")
+    assert_true(catalog_with_saved_value(GENRE_CATALOG, "Night Drive")[-1] == "Night Drive" and resolve_song_production_profile(genre="Night Drive", mood="คิดถึง", vocal="male vocal")["genre"] == "Night Drive", "legacy saved Genre compatibility failed")
+    profile_direction = build_music_direction(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal")
+    assert_true(profile_direction["bpm"] == production_matrix["B"]["recommended_bpm"] and profile_direction["production_profile"]["genre"] == "R&B" and "electric piano" in profile_direction["master_music_style_prompt"], "music direction did not consume the centralized production profile")
 
     project_a = {"title": "Project A", "artist": "Artist A", "song": {"idea": "A", "genre": "Pop Rock", "mood": "Warm", "vocal": "male vocal"}}
     project_b = {"title": "Project B", "artist": "Artist B", "song": {"idea": "B", "genre": "EDM", "mood": "Energetic", "vocal": "female vocal"}}

@@ -587,7 +587,8 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
         ),
         "Spotify Canvas / Short Visual Loop": (
             f"Spotify Canvas short visual loop for '{title}' by '{artist}', same character continuity, "
-            "same emotional lighting palette, subtle cinematic motion, loopable vertical scene, no watermark, no logo, no random text"
+            f"genre: {genre}, mood: {mood}, same emotional lighting palette, subtle cinematic motion, "
+            "loopable vertical scene, no watermark, no logo, no random text"
         ),
     }
     shorts_hooks = [

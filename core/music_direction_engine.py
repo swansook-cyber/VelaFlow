@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.song_production_profile import resolve_song_production_profile
+
 
 SECTION_ORDER = ["Intro", "Verse 1", "Pre-Chorus", "Chorus", "Verse 2", "Bridge", "Final Chorus", "Outro"]
 PRESERVE_ORIGINAL_MUSIC_DIRECTION = True
@@ -18,44 +20,6 @@ def _text(value: Any, default: str = "") -> str:
 def _contains_any(text: str, words: list[str]) -> bool:
     lower = text.lower()
     return any(word.lower() in lower for word in words)
-
-
-def _pick_bpm(genre: str, mood: str, style_preset: dict[str, Any] | None = None) -> int:
-    explicit = " ".join([genre, mood]).strip()
-    fallback = " ".join([_text((style_preset or {}).get("genre")), _text((style_preset or {}).get("mood"))])
-    source = explicit or fallback
-    if _contains_any(explicit, ["dance", "edm", "energetic", "viral", "tiktok", "fast"]):
-        return 112
-    if _contains_any(explicit, ["rock", "pop rock", "anthem"]):
-        return 92
-    if _contains_any(explicit, ["ballad", "acoustic", "soft", "emotional", "sad", "lonely"]):
-        return 78
-    if _contains_any(explicit, ["r&b", "lofi", "chill"]):
-        return 84
-    if _contains_any(source, ["dance", "edm", "energetic", "viral", "tiktok", "fast"]):
-        return 112
-    if _contains_any(source, ["rock", "pop rock", "anthem"]):
-        return 92
-    if _contains_any(source, ["ballad", "acoustic", "soft", "emotional", "sad", "lonely"]):
-        return 78
-    if _contains_any(source, ["r&b", "lofi", "chill"]):
-        return 84
-    return 88
-
-
-def _instrument_palette(genre: str, mood: str, style_preset: dict[str, Any] | None = None) -> list[str]:
-    explicit = " ".join([genre, mood]).strip()
-    source = explicit or " ".join([_text((style_preset or {}).get("arrangement")), _text((style_preset or {}).get("prompt_suffix"))])
-    palette = ["soft piano", "warm acoustic guitar", "ambient pad", "subtle bass", "cinematic drums"]
-    if _contains_any(source, ["dance", "edm", "viral", "tiktok"]):
-        palette = ["bright synth plucks", "punchy kick", "sidechain pad", "modern electronic bass", "clap/snare stack"]
-    elif _contains_any(source, ["acoustic", "folk"]):
-        palette = ["fingerpicked acoustic guitar", "soft piano", "brush snare", "upright bass warmth", "ambient reverb pad"]
-    elif _contains_any(source, ["rock", "pop rock", "band"]):
-        palette = ["clean electric guitar", "warm acoustic guitar", "live bass", "tight pop rock drums", "cinematic strings"]
-    elif _contains_any(source, ["r&b", "lofi", "chill"]):
-        palette = ["soft rhodes piano", "lofi drum groove", "round sub bass", "warm guitar plucks", "vinyl texture pad"]
-    return palette
 
 
 def _vocal_tone(vocal: str, mood: str, artist_preset: dict[str, Any] | None = None, style_preset: dict[str, Any] | None = None) -> str:
@@ -84,8 +48,20 @@ def build_music_direction(
     explicit_genre = _text(genre)
     genre_fusion = explicit_genre or _text(style.get("genre")) or _text(preset.get("genre") or preset.get("category"), "modern Thai pop")
     mood_text = _text(mood, _text(style.get("mood"), _text(preset.get("mood"), "emotional cinematic")))
-    bpm = _pick_bpm(genre_fusion, mood_text, style)
-    palette = _instrument_palette(genre_fusion, mood_text, style)
+    stored_profile = preset.get("production_profile") if isinstance(preset.get("production_profile"), dict) else {}
+    stored_matches = (
+        _text(stored_profile.get("genre")) == genre_fusion
+        and _text(stored_profile.get("mood")) == mood_text
+        and _text(stored_profile.get("vocal_direction")) == _text(vocal, "natural lead vocal")
+    )
+    production_profile = dict(stored_profile) if stored_matches else resolve_song_production_profile(
+        genre=genre_fusion,
+        mood=mood_text,
+        vocal=_text(vocal, "natural lead vocal"),
+    )
+    bpm = int(production_profile["recommended_bpm"])
+    palette = list(production_profile["instrument_palette"])
+    mood_character = str(production_profile["mood_character"])
     vocal_tone = _vocal_tone(vocal, mood_text, preset, style)
     energy_curve = {
         "Intro": 22,
@@ -98,7 +74,7 @@ def build_music_direction(
         "Outro": 24,
     }
     section_tags = {
-        "Intro": f"({palette[1]}, soft rhodes piano, warm ambient pad, {mood_text} atmosphere, intimate space)",
+        "Intro": f"({palette[1]}, soft rhodes piano, warm ambient pad, {mood_character} atmosphere, intimate space)",
         "Verse 1": f"({palette[0]}, close vocal tone, soft kick/snare groove, restrained bass, detailed emotional storytelling)",
         "Pre-Chorus": "(building tension, rising toms, suspended chords, emotional lift, wider reverb tail)",
         "Chorus": f"(full band energy, catchy pop groove, layered harmony, {palette[-1]}, strong emotional release)",
@@ -118,12 +94,10 @@ def build_music_direction(
         "Outro": "soft release, fading adlibs",
     }
     master_prompt = (
-        f"{genre_fusion or 'modern cinematic Thai pop'} at around {bpm} BPM. "
-        f"Mood: {mood_text}. Instrument palette: {', '.join(palette)}. "
-        f"Vocal tone: {vocal_tone}. Arrangement should feel commercial, modern, emotionally cinematic, "
-        "Suno-ready and Udio-ready. Start intimate, build through the pre-chorus, open into a memorable chorus, "
-        "drop into a cinematic bridge, then return with a larger final chorus and a soft emotional outro. "
-        "Keep production consistent across sections with warm space, clear vocal focus, and no random genre changes."
+        f"{production_profile['style_prompt']} "
+        "Start with a focused intro, develop the selected groove through the verses, increase tension in the pre-chorus, "
+        "open into a memorable chorus, create contrast in the bridge, then deliver the largest final chorus and a natural outro. "
+        "Keep the production coherent, vocal-forward and free from unrelated genre changes."
     )
     arrangement_map = [
         {
@@ -145,6 +119,7 @@ def build_music_direction(
         "arrangement_map": arrangement_map,
         "vocal_energy_map": vocal_energy_map,
         "master_music_style_prompt": master_prompt,
+        "production_profile": production_profile,
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
 

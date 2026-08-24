@@ -15,6 +15,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.project_io import safe_name
 from core.paths import resolve_project_folder, workflow_project_root
+from core.song_production_profile import resolve_song_production_profile
 from core.song_title_engine import (
     clean_generated_song_title,
     extract_central_title_sections,
@@ -74,9 +75,12 @@ def _sanitize_style_override(text: str, genre: str, mood: str, vocal: str) -> st
     mood_lower = mood.lower()
     vocal_lower = vocal.lower()
     genre_groups = {
-        "edm": ("edm", "dance", "electronic"),
+        "electronic": ("edm", "dance", "electronic", "synth pop"),
         "acoustic": ("acoustic", "folk"),
         "rock": ("rock", "pop rock"),
+        "r&b": ("r&b", "rnb", "neo soul", "soul"),
+        "hip-hop": ("hip-hop", "hip hop", "rap", "trap"),
+        "reggae": ("reggae",),
     }
     active_group = next((name for name, words in genre_groups.items() if any(word in genre_lower for word in words)), "")
     output: list[str] = []
@@ -147,12 +151,17 @@ def resolve_song_generation_context(
         }
     )
 
-    style_parts = [f"{resolved_genre}. Mood: {resolved_mood}. Vocal: {resolved_vocal}."]
+    cleaned_override = _sanitize_style_override(music_style_override, resolved_genre, resolved_mood, resolved_vocal) if style_is_explicit else ""
+    production_profile = resolve_song_production_profile(
+        genre=resolved_genre,
+        mood=resolved_mood,
+        vocal=resolved_vocal,
+        manual_style_override=cleaned_override,
+    )
+    provider_artist["production_profile"] = production_profile
+    style_parts = [str(production_profile["style_prompt"])]
     style_source = "explicit main controls"
     if style_is_explicit:
-        cleaned_override = _sanitize_style_override(music_style_override, resolved_genre, resolved_mood, resolved_vocal)
-        if cleaned_override:
-            style_parts.append(cleaned_override)
         style_source = "manual style override"
     else:
         supporting: list[str] = []
@@ -194,6 +203,8 @@ def resolve_song_generation_context(
         "resolved_vocal": resolved_vocal,
         "resolved_hook_focus": _clean_direction(hook_focus) or "high",
         "resolved_style_prompt": " ".join(style_parts).strip(),
+        "production_profile": production_profile,
+        "recommended_bpm": production_profile["recommended_bpm"],
         "resolved_style_source": style_source,
         "resolved_artist_preset": resolved_artist_id,
         "resolved_music_preset": str(music.get("name") or "") if music_is_explicit else "",
