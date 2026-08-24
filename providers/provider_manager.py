@@ -6,6 +6,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
+from core.song_quality_core import production_diagnostic_logger, safe_diagnostic_label, safe_exception_summary
 from providers.ai_provider import generate_text as provider_generate_text
 from providers.ai_provider import normalize_provider, provider_model
 
@@ -13,6 +14,7 @@ from providers.ai_provider import normalize_provider, provider_model
 ROOT = Path(__file__).resolve().parents[1]
 CACHE_DIR = ROOT / "outputs" / "cache" / "text"
 _EXECUTOR = ThreadPoolExecutor(max_workers=int(os.getenv("AI_QUEUE_WORKERS", "3")))
+LOGGER = production_diagnostic_logger("velaflow.provider_manager")
 
 
 class ProviderError(RuntimeError):
@@ -113,11 +115,14 @@ def generate_text(
     timeout: int | None = None,
     offline_factory: Callable[[], str] | None = None,
     return_metadata: bool = False,
+    diagnostic_id: str = "",
 ) -> str | dict[str, Any]:
     provider = normalize_provider(provider)
+    correlation = safe_diagnostic_label(diagnostic_id or "none", limit=24)
     if not str(api_key or "").strip():
         if offline_factory:
             text = offline_factory()
+            LOGGER.warning("provider_offline_fixture id=%s provider=%s chars=%s", correlation, provider, len(text))
             if return_metadata:
                 return {
                     "text": text,
@@ -128,9 +133,11 @@ def generate_text(
                         "model_fallback": False,
                         "synthetic": True,
                         "cache_hit": False,
+                        "response_character_count": len(text),
                     },
                 }
             return text
+        LOGGER.error("provider_failed id=%s provider=%s error=ProviderError:_missing_api_key", correlation, provider)
         raise ProviderError("Missing runtime API key")
 
     retries = max(1, int(retries or os.getenv("AI_RETRY_COUNT", "3")))
@@ -140,8 +147,23 @@ def generate_text(
 
     candidates = _model_candidates(provider, primary_model, fallback_model)
     for model_index, model_name in enumerate(candidates):
+        LOGGER.info(
+            "provider_attempt id=%s provider=%s model=%s fallback=%s",
+            correlation,
+            provider,
+            safe_diagnostic_label(model_name, limit=64),
+            bool(model_index),
+        )
         cached = _read_cache(provider, model_name, prompt)
         if cached:
+            LOGGER.info(
+                "provider_success id=%s provider=%s model=%s fallback=%s cache=true chars=%s",
+                correlation,
+                provider,
+                safe_diagnostic_label(model_name, limit=64),
+                bool(model_index),
+                len(cached),
+            )
             if return_metadata:
                 return {
                     "text": cached,
@@ -152,6 +174,7 @@ def generate_text(
                         "model_fallback": bool(model_index),
                         "synthetic": False,
                         "cache_hit": True,
+                        "response_character_count": len(cached),
                     },
                 }
             return cached
@@ -168,6 +191,14 @@ def generate_text(
                     timeout=timeout,
                 )
                 _write_cache(provider, model_name, prompt, text)
+                LOGGER.info(
+                    "provider_success id=%s provider=%s model=%s fallback=%s cache=false chars=%s",
+                    correlation,
+                    provider,
+                    safe_diagnostic_label(model_name, limit=64),
+                    bool(model_index),
+                    len(text),
+                )
                 if return_metadata:
                     return {
                         "text": text,
@@ -178,11 +209,20 @@ def generate_text(
                             "model_fallback": bool(model_index),
                             "synthetic": False,
                             "cache_hit": False,
+                            "response_character_count": len(text),
                         },
                     }
                 return text
             except Exception as error:
                 last_error = error
+                LOGGER.warning(
+                    "provider_attempt_failed id=%s provider=%s model=%s attempt=%s error=%s",
+                    correlation,
+                    provider,
+                    safe_diagnostic_label(model_name, limit=64),
+                    attempt + 1,
+                    safe_exception_summary(error),
+                )
                 if _is_model_error(error):
                     break
                 if attempt >= retries - 1 or not _is_retryable_error(error):
@@ -191,6 +231,7 @@ def generate_text(
 
     if offline_factory:
         text = offline_factory()
+        LOGGER.warning("provider_offline_fixture id=%s provider=%s chars=%s", correlation, provider, len(text))
         if return_metadata:
             return {
                 "text": text,
@@ -201,10 +242,13 @@ def generate_text(
                     "model_fallback": False,
                     "synthetic": True,
                     "cache_hit": False,
+                    "response_character_count": len(text),
                 },
             }
         return text
-    raise ProviderError(f"All text providers failed: {last_error}")
+    safe_error = safe_exception_summary(last_error)
+    LOGGER.error("provider_failed id=%s provider=%s error=%s", correlation, provider, safe_error)
+    raise ProviderError(f"All text providers failed: {safe_error}")
 
 
 def enqueue_text_generation(**kwargs: Any) -> Future:

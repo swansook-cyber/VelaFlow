@@ -1,4 +1,6 @@
 import json
+import io
+import logging
 import math
 import os
 import re
@@ -113,7 +115,7 @@ from core.hook_package_generator import build_final_creator_zip, generate_full_h
 from core.prompt_director import build_prompt_director_package
 from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_reference_master_plan, build_reference_result_comparison, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_reference_master_analysis, validate_remaster_input, validate_remaster_outputs
 from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, check_song_production_quality, clean_lyrics_improvement_preview
-from core.song_quality_core import build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, parse_ordered_song_sections, snapshot_song_lyrics
+from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, parse_ordered_song_sections, production_diagnostic_logger, snapshot_song_lyrics
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
 from core.character_engine import apply_character_consistency, create_character_profile
@@ -1138,6 +1140,11 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     original_candidates = provider_manager_module._model_candidates
     original_provider_call = provider_manager_module.provider_generate_text
     original_cache = os.environ.get("AI_CACHE_ENABLED")
+    provider_log_stream = io.StringIO()
+    provider_log_handler = logging.StreamHandler(provider_log_stream)
+    provider_log_handler.setFormatter(logging.Formatter("%(message)s"))
+    provider_manager_module.LOGGER.addHandler(provider_log_handler)
+    provider_secret = "sk-PROVIDER-SECRET-MUST-BE-REDACTED"
     os.environ["AI_CACHE_ENABLED"] = "false"
     try:
         provider_manager_module._model_candidates = lambda *_args, **_kwargs: ["primary-model", "fallback-model"]
@@ -1151,7 +1158,7 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
         provenance_result = provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt="phase5b-model-fallback", retries=1, return_metadata=True)
         assert_true(provenance_result["text"] == "real provider response" and provenance_result["provenance"]["status"] == "model_fallback_success" and not provenance_result["provenance"]["synthetic"], "model fallback provenance failed")
 
-        provider_manager_module.provider_generate_text = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("provider unavailable"))
+        provider_manager_module.provider_generate_text = lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError(f"provider unavailable {provider_secret}"))
         failed_without_fixture = False
         try:
             provider_manager_module.generate_text(provider="gemini", api_key="test-key", prompt="phase5b-total-failure", retries=1, return_metadata=True)
@@ -1163,10 +1170,14 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     finally:
         provider_manager_module._model_candidates = original_candidates
         provider_manager_module.provider_generate_text = original_provider_call
+        provider_manager_module.LOGGER.removeHandler(provider_log_handler)
         if original_cache is None:
             os.environ.pop("AI_CACHE_ENABLED", None)
         else:
             os.environ["AI_CACHE_ENABLED"] = original_cache
+    provider_logs = provider_log_stream.getvalue()
+    assert_true("provider_success" in provider_logs and "provider_failed" in provider_logs and "fallback=True" in provider_logs, "provider success/failure/model-fallback diagnostics missing")
+    assert_true(provider_secret not in provider_logs, "provider diagnostics leaked API key-like exception content")
 
     import providers.text_ai as text_ai_provider
 
@@ -1179,6 +1190,34 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     ai_title_blueprint["hook_contract"]["title_is_manual"] = True
     assert_true(check_song_production_quality(strong_song, ai_title_blueprint)["passed"], "manual title authority was not preserved")
     assert_true(strong["metrics"]["similarity_method"] == "normalized exact + word/Thai character trigram Jaccard" and strong["metrics"]["similarity_threshold"] == 0.72, "similarity method or threshold changed")
+
+    diagnostic_stream = io.StringIO()
+    diagnostic_logger = production_diagnostic_logger("velaflow.song_studio.smoke")
+    diagnostic_handler = logging.StreamHandler(diagnostic_stream)
+    diagnostic_handler.setFormatter(logging.Formatter("%(message)s"))
+    diagnostic_logger.addHandler(diagnostic_handler)
+    secret_key = "sk-THIS-MUST-NEVER-APPEAR-123456"
+    private_idea = "FULL PRIVATE SONG IDEA MUST NOT APPEAR"
+    private_lyrics = "FULL PRIVATE LYRICS MUST NOT APPEAR"
+    try:
+        success_attempt = SongGenerationDiagnosticAttempt("ab12cd34", diagnostic_logger)
+        success_attempt.event("generation_start", genre="Pop Rock", provider="gemini", api_key=secret_key, idea=private_idea)
+        success_attempt.event("hook_result", success=True, candidates=5, selected=True, hook_text="private hook")
+        success_attempt.event("full_song_result", success=True, chars=1824, synthetic=False, lyrics=private_lyrics)
+        success_attempt.event("validation_result", result="PASS", defects=["none"], meaningful_lines=38)
+        assert_true(success_attempt.succeed(provider="gemini", repair_used=False, meaningful_lines=38), "success diagnostic was not emitted")
+
+        failure_stages = ["provider", "initial_validation", "repair_provider", "repair_validation", "synthetic_output", "missing_hook", "short_song"]
+        for index, stage in enumerate(failure_stages):
+            attempt = SongGenerationDiagnosticAttempt(f"fail{index:04d}", diagnostic_logger)
+            assert_true(attempt.fail(stage, defects=[stage], error=RuntimeError(f"provider failed {secret_key} {private_lyrics}")), f"{stage} final failure log missing")
+            assert_true(not attempt.fail("duplicate_final", error="must not log"), f"{stage} emitted duplicate final failure")
+    finally:
+        diagnostic_logger.removeHandler(diagnostic_handler)
+    captured_diagnostics = diagnostic_stream.getvalue()
+    assert_true("generation_start id=ab12cd34" in captured_diagnostics and "generation_success id=ab12cd34" in captured_diagnostics, "success diagnostic sequence or generation ID missing")
+    assert_true(captured_diagnostics.count("generation_failed id=fail0000") == 1 and "stage=repair_validation" in captured_diagnostics, "final failure stage was missing or duplicated")
+    assert_true(secret_key not in captured_diagnostics and private_idea not in captured_diagnostics and private_lyrics not in captured_diagnostics and "private hook" not in captured_diagnostics, "diagnostics leaked a secret, Song Idea, hook, or lyrics")
     return {
         "matrix": matrix,
         "normal_provider_calls": 2,
@@ -4217,6 +4256,8 @@ def main():
         release_workspace_source = main_source[main_source.find("def _render_release_pack_workspace"):main_source.find("def _render_ai_creative_pack_generator")]
         assert_true(all(label in simple_song_source for label in ["Project / Song Title", "Artist", "Song Idea / Story", "Genre", "Mood", "Vocal", "Generate Title", "Generate Lyrics", "Lyrics Check", "Export to Suno", 'st.expander("Advanced"']), "simplified Song Studio controls missing")
         assert_true("simple_song_project_source_id" in simple_song_source and all(key in simple_song_source for key in ["simple_song_genre", "simple_song_mood", "simple_song_vocal", "simple_song_style_override"]), "Song Studio project state isolation wiring is incomplete")
+        assert_true(all(event in simple_song_source for event in ["generation_start", "hook_call_started", "hook_result", "full_song_call_started", "full_song_result", "repair_attempt", "repair_result"]) and "diagnostics.succeed" in simple_song_source and "diagnostic_id=generation_id" in simple_song_source, "Song Studio production diagnostic stages are incomplete")
+        assert_true("_log_song_validation(generation_id, \"initial\"" in simple_song_source and "_log_song_validation(generation_id, \"repair\"" in simple_song_source and all(stage in simple_song_source for stage in ["hook_provider", "initial_validation", "repair_provider", "repair_validation"]), "Song Studio validation/final failure diagnostics are incomplete")
         assert_true("Suggested Title" in simple_song_source and 'button("Use"' in simple_song_source and 'button("↻"' in simple_song_source and "Accept Title" not in simple_song_source and "Active AI provider" not in simple_song_source, "Song Studio title actions or provider-detail cleanup missing")
         assert_true("_render_simple_song_studio" in song_route_source and "if creator_mode:" in song_route_source and "return" in song_route_source, "normal Song Studio does not route to the simplified workspace")
         assert_true(all(label in visual_workspace_source for label in ["Cover Prompt", "MV Storyboard", 'st.expander("Short-form Visuals"']) and "Advanced / Diagnostics" in visual_workspace_source, "Visual Studio primary workflow or advanced diagnostics split missing")

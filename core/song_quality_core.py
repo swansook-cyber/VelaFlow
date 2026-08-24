@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+import sys
 import time
 from datetime import datetime
 from typing import Any, Iterable
@@ -43,6 +45,108 @@ MIN_CHARACTER_VOLUME = 380
 FUZZY_SIMILARITY_THRESHOLD = 0.72
 BRIDGE_SIMILARITY_THRESHOLD = 0.78
 MAX_SNAPSHOTS = 3
+
+
+def production_diagnostic_logger(name: str) -> logging.Logger:
+    """Create one stderr logger that remains visible under Streamlit/systemd."""
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    if not any(getattr(handler, "_velaflow_production_diagnostics", False) for handler in logger.handlers):
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+        handler._velaflow_production_diagnostics = True  # type: ignore[attr-defined]
+        logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+
+def safe_diagnostic_label(value: Any, *, limit: int = 96) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    text = re.sub(r"(?i)bearer\s+[a-z0-9._~-]+", "Bearer [REDACTED]", text)
+    text = re.sub(r"(?i)(api[_ -]?key|authorization|token)\s*[:=]\s*\S+", r"\1=[REDACTED]", text)
+    text = re.sub(r"\b(?:AIza|sk-|xai-)[A-Za-z0-9_-]{8,}\b", "[REDACTED]", text)
+    return text[:limit]
+
+
+def safe_exception_summary(error: Any) -> str:
+    """Return an operational category without copying arbitrary provider payloads."""
+    if error is None:
+        return "UnknownError: provider_error"
+    error_type = type(error).__name__ if isinstance(error, BaseException) else "ProviderError"
+    message = str(error or "").lower()
+    if any(token in message for token in ("401", "403", "unauthorized", "authentication", "invalid api", "permission")):
+        category = "authentication"
+    elif any(token in message for token in ("429", "quota", "rate limit", "resource exhausted")):
+        category = "rate_limited"
+    elif any(token in message for token in ("timeout", "deadline")):
+        category = "timeout"
+    elif any(token in message for token in ("connection", "network", "dns", "remote end")):
+        category = "network"
+    elif any(token in message for token in ("404", "model not found", "not supported", "no longer available")):
+        category = "model_unavailable"
+    elif any(token in message for token in ("json", "parse", "malformed", "empty")):
+        category = "invalid_response"
+    elif "missing" in message and "key" in message:
+        category = "missing_api_key"
+    else:
+        category = "provider_error"
+    return f"{safe_diagnostic_label(error_type, limit=48)}: {category}"
+
+
+class SongGenerationDiagnosticAttempt:
+    """Emit compact correlated events and guarantee one final outcome event."""
+
+    _FORBIDDEN_FIELDS = {
+        "api_key",
+        "authorization",
+        "token",
+        "prompt",
+        "repair_prompt",
+        "lyrics",
+        "full_lyrics",
+        "idea",
+        "song_idea",
+        "hook_text",
+        "response_body",
+    }
+
+    def __init__(self, generation_id: str, logger: logging.Logger | None = None) -> None:
+        self.generation_id = safe_diagnostic_label(generation_id, limit=24)
+        self.logger = logger or production_diagnostic_logger("velaflow.song_studio")
+        self.finalized = False
+
+    def event(self, event: str, *, level: int = logging.INFO, **fields: Any) -> None:
+        safe_fields: list[str] = []
+        for key, value in fields.items():
+            normalized_key = re.sub(r"[^a-z0-9_]", "", str(key).lower())
+            if not normalized_key or normalized_key in self._FORBIDDEN_FIELDS:
+                continue
+            if isinstance(value, BaseException) or normalized_key == "error":
+                rendered = safe_exception_summary(value)
+            elif isinstance(value, (bool, int, float)) or value is None:
+                rendered = str(value).lower() if isinstance(value, bool) else str(value)
+            elif isinstance(value, (list, tuple, set)):
+                rendered = ",".join(safe_diagnostic_label(item, limit=64) for item in value)
+            else:
+                rendered = safe_diagnostic_label(value)
+            safe_fields.append(f"{normalized_key}={rendered}")
+        suffix = " " + " ".join(safe_fields) if safe_fields else ""
+        self.logger.log(level, "SongStudio %s id=%s%s", safe_diagnostic_label(event, limit=48), self.generation_id, suffix)
+
+    def fail(self, stage: str, **fields: Any) -> bool:
+        if self.finalized:
+            return False
+        self.finalized = True
+        self.event("generation_failed", level=logging.ERROR, stage=stage, **fields)
+        return True
+
+    def succeed(self, **fields: Any) -> bool:
+        if self.finalized:
+            return False
+        self.finalized = True
+        self.event("generation_success", **fields)
+        return True
 
 
 def _compact(value: str) -> str:

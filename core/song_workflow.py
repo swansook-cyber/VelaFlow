@@ -343,6 +343,7 @@ def generate_hook_candidates_with_provider(
     seed: str | None = None,
     generation_context: Dict[str, Any] | None = None,
     allow_offline_fixture: bool = True,
+    diagnostic_id: str = "",
 ) -> Dict[str, Any]:
     context = generation_context or resolve_song_generation_context(
         idea=idea,
@@ -383,16 +384,24 @@ Random seed / timestamp: {seed_value}
 """
     fallback_text = json.dumps(generate_hook_candidates(idea, preset, seed_value), ensure_ascii=False)
     try:
-        text = generate_text(
+        generation = generate_text(
             provider=provider,
             api_key=api_key,
             prompt=prompt,
             primary_model=model_name,
             offline_factory=(lambda: fallback_text) if allow_offline_fixture else None,
+            return_metadata=True,
+            diagnostic_id=diagnostic_id,
         )
     except Exception:
         return {"ok": False, "message": "AI hook generation failed", "data": {}, "error": "provider_failure"}
-    offline = text == fallback_text
+    if isinstance(generation, dict):
+        text = str(generation.get("text") or "")
+        provenance = dict(generation.get("provenance") or {})
+    else:
+        text = str(generation or "")
+        provenance = {"status": "provider_success", "synthetic": False, "model_fallback": False}
+    offline = bool(provenance.get("synthetic")) or text == fallback_text
     try:
         hooks = normalize_hook_candidates(_extract_json(text))
     except (json.JSONDecodeError, ValueError, TypeError) as exc:
@@ -415,7 +424,7 @@ Random seed / timestamp: {seed_value}
             return {"ok": False, "message": "AI hook response was empty", "data": {}, "error": "empty_provider_response"}
         hooks = generate_hook_candidates(idea, preset, seed_value)
         offline = True
-    return {"ok": True, "message": "Using offline fallback hooks" if offline else "Hook candidates generated", "data": {"hooks": hooks, "offline": offline, "seed": seed_value}, "error": ""}
+    return {"ok": True, "message": "Using offline fallback hooks" if offline else "Hook candidates generated", "data": {"hooks": hooks, "offline": offline, "seed": seed_value, "provenance": provenance}, "error": ""}
 
 
 def select_best_hook(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:

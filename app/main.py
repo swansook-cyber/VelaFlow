@@ -4,6 +4,7 @@ import io
 import json
 import hashlib
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -310,7 +311,7 @@ from core.song_structure_intelligence import (
     validate_structure_plan,
 )
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
-from core.song_quality_core import build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, snapshot_song_lyrics
+from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, production_diagnostic_logger, safe_diagnostic_label, safe_exception_summary, snapshot_song_lyrics
 from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
@@ -331,6 +332,9 @@ from app.presets import (
     list_music_preset_names,
     list_vocal_direction_names,
 )
+
+
+SONG_STUDIO_LOGGER = production_diagnostic_logger("velaflow.song_studio")
 
 
 if app_static_file_handler is not None and ".webmanifest" not in app_static_file_handler.SAFE_APP_STATIC_FILE_EXTENSIONS:
@@ -526,12 +530,69 @@ def _show_api_quality_stop(gate: dict[str, Any]) -> None:
             st.caption(str(gate.get("error") or gate.get("message") or API_QUALITY_WARNING))
 
 
-def _show_song_generation_failure(stage: str, detail: Any = "") -> None:
+def _diagnostic_defect_codes(detail: Any) -> list[str]:
+    rows = detail if isinstance(detail, list) else []
+    return [safe_diagnostic_label(item.get("code", "unknown"), limit=64) for item in rows if isinstance(item, dict)]
+
+
+def _log_song_validation(generation_id: str, phase: str, validation: dict[str, Any]) -> None:
+    metrics = validation.get("metrics") if isinstance(validation.get("metrics"), dict) else {}
+    defects = _diagnostic_defect_codes(validation.get("blocking"))
+    log = SONG_STUDIO_LOGGER.info if validation.get("passed") else SONG_STUDIO_LOGGER.warning
+    log(
+        "SongStudio validation_result id=%s phase=%s result=%s defects=%s meaningful_lines=%s compact_chars=%s verse_similarity=%s bridge_similarity=%s final_similarity=%s",
+        safe_diagnostic_label(generation_id, limit=24),
+        safe_diagnostic_label(phase, limit=32),
+        "PASS" if validation.get("passed") else "FAIL",
+        ",".join(defects) or "none",
+        metrics.get("meaningful_line_count", "n/a"),
+        metrics.get("character_volume", "n/a"),
+        metrics.get("verse_similarity", "n/a"),
+        metrics.get("bridge_similarity", "n/a"),
+        metrics.get("final_chorus_similarity", "n/a"),
+    )
+
+
+def _show_song_generation_failure(
+    stage: str,
+    detail: Any = "",
+    *,
+    generation_id: str = "",
+    metrics: dict[str, Any] | None = None,
+    diagnostics: SongGenerationDiagnosticAttempt | None = None,
+) -> None:
+    defects = _diagnostic_defect_codes(detail)
+    if diagnostics is not None:
+        safe_metrics = metrics or {}
+        diagnostics.fail(
+            stage,
+            defects=defects or ["none"],
+            meaningful_lines=safe_metrics.get("meaningful_line_count", "n/a"),
+            compact_chars=safe_metrics.get("character_volume", "n/a"),
+            verse_similarity=safe_metrics.get("verse_similarity", "n/a"),
+            bridge_similarity=safe_metrics.get("bridge_similarity", "n/a"),
+            error=detail if not defects else "validation_error",
+        )
+    elif generation_id:
+        safe_metrics = metrics or {}
+        SONG_STUDIO_LOGGER.error(
+            "SongStudio generation_failed id=%s stage=%s defects=%s meaningful_lines=%s compact_chars=%s verse_similarity=%s bridge_similarity=%s error=%s",
+            safe_diagnostic_label(generation_id, limit=24),
+            safe_diagnostic_label(stage, limit=48),
+            ",".join(defects) or "none",
+            safe_metrics.get("meaningful_line_count", "n/a"),
+            safe_metrics.get("character_volume", "n/a"),
+            safe_metrics.get("verse_similarity", "n/a"),
+            safe_metrics.get("bridge_similarity", "n/a"),
+            safe_exception_summary(detail) if not defects else "validation_error",
+        )
+    else:
+        SONG_STUDIO_LOGGER.warning("SongStudio output_blocked stage=%s defects=%s", safe_diagnostic_label(stage, limit=48), ",".join(defects) or "none")
     st.error("VelaFlow stopped this generation to protect song quality. Your previous lyrics are unchanged. Please try again.")
     if st.session_state.get("developer_mode"):
         with st.expander("Advanced / Diagnostics", expanded=False):
             st.write(stage)
-            st.caption(_safe_provider_error_text(detail) or "No provider details available")
+            st.caption(", ".join(defects) or safe_exception_summary(detail))
 
 
 def _workflow_analytics_key(workflow_mode: str | None = None) -> str:
@@ -6072,12 +6133,38 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
         if not idea.strip():
             st.warning("Add a song idea before generating lyrics.")
         else:
+            generation_id = secrets.token_hex(4)
+            diagnostics = SongGenerationDiagnosticAttempt(generation_id, SONG_STUDIO_LOGGER)
+            manual_title_requested = bool(str(st.session_state.get("simple_song_title") or "").strip()) and str(st.session_state.get("simple_song_title") or "").strip() != suggested_title
+            diagnostics.event(
+                "generation_start",
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                vocal=generation_context["resolved_vocal"],
+                provider=active_provider,
+                model=active_model,
+                manual_title=manual_title_requested,
+                manual_style_override=bool(generation_context.get("style_override_explicit")),
+                vela_moon=bool(generation_context.get("vela_moon_active")),
+            )
             gate = _production_api_gate(active_provider, active_api_key)
             if not gate.get("ok"):
+                diagnostics.fail(
+                    "api_gate",
+                    defects=["none"],
+                    status=gate.get("status") or "provider_unavailable",
+                    error=gate.get("error") or gate.get("message"),
+                )
                 _show_api_quality_stop(gate)
                 return
             if snapshot_song_lyrics(project, reason="regenerate"):
                 _save_project()
+            SONG_STUDIO_LOGGER.info(
+                "SongStudio hook_call_started id=%s provider=%s model=%s",
+                generation_id,
+                safe_diagnostic_label(active_provider, limit=32),
+                safe_diagnostic_label(active_model, limit=64),
+            )
             hook_result = generate_hook_candidates_with_provider(
                 api_key=active_api_key,
                 model_name=active_model,
@@ -6088,12 +6175,27 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 artist_preset=generation_context["provider_artist_preset"],
                 generation_context=generation_context,
                 allow_offline_fixture=False,
+                diagnostic_id=generation_id,
             )
             if not hook_result.get("ok"):
-                _show_song_generation_failure("Hook generation", hook_result.get("error") or hook_result.get("message"))
+                SONG_STUDIO_LOGGER.warning(
+                    "SongStudio hook_result id=%s success=false candidates=0 selected=false error=%s",
+                    generation_id,
+                    safe_diagnostic_label(hook_result.get("error") or "provider_failure", limit=64),
+                )
+                _show_song_generation_failure("hook_provider", hook_result.get("error") or hook_result.get("message"), generation_id=generation_id, diagnostics=diagnostics)
                 return
             candidates = hook_result.get("data", {}).get("hooks", [])
             hook = select_best_hook(candidates)
+            hook_provenance = hook_result.get("data", {}).get("provenance") if isinstance(hook_result.get("data", {}).get("provenance"), dict) else {}
+            SONG_STUDIO_LOGGER.info(
+                "SongStudio hook_result id=%s success=true candidates=%s selected=%s synthetic=%s fallback=%s",
+                generation_id,
+                len(candidates),
+                bool(hook.get("hook_text")),
+                bool(hook_provenance.get("synthetic")),
+                bool(hook_provenance.get("model_fallback")),
+            )
             resolved_title = str(st.session_state.get("simple_song_title") or suggested_title or "").strip()
             if is_placeholder_song_title(resolved_title):
                 resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
@@ -6102,7 +6204,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 f"{idea}\n\n"
                 f"Selected Hook: {hook.get('hook_text', '')}\nUse this hook in the chorus and final chorus. Keep Thai lyrics natural."
             )
-            title_was_manual = bool(str(st.session_state.get("simple_song_title") or "").strip()) and resolved_title != suggested_title
+            title_was_manual = manual_title_requested
             blueprint = build_song_blueprint(
                 idea=idea,
                 genre=generation_context["resolved_genre"],
@@ -6114,6 +6216,12 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 explicit_advanced=advanced_explicit,
                 artist_preset=generation_context["provider_artist_preset"],
                 manual_title=title_was_manual,
+            )
+            SONG_STUDIO_LOGGER.info(
+                "SongStudio full_song_call_started id=%s provider=%s model=%s",
+                generation_id,
+                safe_diagnostic_label(active_provider, limit=32),
+                safe_diagnostic_label(active_model, limit=64),
             )
             try:
                 song_result = generate_song_with_gemini(
@@ -6133,18 +6241,29 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                     title=resolved_title,
                     manual_title=title_was_manual,
                     allow_offline_fixture=False,
+                    diagnostic_id=generation_id,
                 )
             except Exception as exc:
-                _show_song_generation_failure("Song generation", exc)
+                _show_song_generation_failure("provider", exc, generation_id=generation_id, diagnostics=diagnostics)
                 return
             raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
             direction_style_preset = selected_music_preset if advanced_explicit.get("music_preset") else {}
             provenance = dict(song_result.get("generation_provenance") or {})
+            SONG_STUDIO_LOGGER.info(
+                "SongStudio full_song_result id=%s provider=%s success=true chars=%s synthetic=%s fallback=%s status=%s",
+                generation_id,
+                safe_diagnostic_label(active_provider, limit=32),
+                len(raw_lyrics),
+                bool(provenance.get("synthetic")),
+                bool(provenance.get("model_fallback")),
+                safe_diagnostic_label(provenance.get("status") or "provider_success", limit=48),
+            )
             validation = check_song_production_quality(raw_lyrics, blueprint, provenance=provenance)
+            _log_song_validation(generation_id, "initial", validation)
             repair_calls = 0
             if not validation.get("passed"):
                 if not raw_lyrics.strip() or not validation.get("repairable_sections") or any(item.get("code") == "synthetic_production_result" for item in validation.get("blocking", [])):
-                    _show_song_generation_failure("Song quality validation", validation.get("blocking"))
+                    _show_song_generation_failure("initial_validation", validation.get("blocking"), generation_id=generation_id, metrics=validation.get("metrics"), diagnostics=diagnostics)
                     return
                 repair_prompt = build_targeted_repair_prompt(
                     idea=idea,
@@ -6159,21 +6278,37 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 )
                 repair_snapshot = {"song": {"complete_lyrics": raw_lyrics}}
                 snapshot_song_lyrics(repair_snapshot, reason="targeted_repair")
+                repair_defects = _diagnostic_defect_codes(validation.get("blocking"))
+                SONG_STUDIO_LOGGER.info(
+                    "SongStudio repair_attempt id=%s sections=%s defects=%s",
+                    generation_id,
+                    ",".join(safe_diagnostic_label(section, limit=32) for section in validation.get("repairable_sections", [])),
+                    ",".join(repair_defects) or "none",
+                )
                 try:
                     repair_result = repair_song_sections_with_provider(
                         api_key=active_api_key,
                         model_name=active_model,
                         provider=active_provider,
                         repair_prompt=repair_prompt,
+                        diagnostic_id=generation_id,
                     )
                     repair_calls = 1
+                    SONG_STUDIO_LOGGER.info(
+                        "SongStudio repair_result id=%s success=true chars=%s synthetic=%s fallback=%s",
+                        generation_id,
+                        len(str(repair_result.get("text") or "")),
+                        bool((repair_result.get("provenance") or {}).get("synthetic")),
+                        bool((repair_result.get("provenance") or {}).get("model_fallback")),
+                    )
                     raw_lyrics = merge_repaired_sections(raw_lyrics, repair_result["text"], validation["repairable_sections"])
                 except Exception as exc:
-                    _show_song_generation_failure("Targeted lyric repair", exc)
+                    _show_song_generation_failure("repair_provider", exc, generation_id=generation_id, diagnostics=diagnostics)
                     return
                 validation = check_song_production_quality(raw_lyrics, blueprint, provenance=repair_result.get("provenance"))
+                _log_song_validation(generation_id, "repair", validation)
                 if not validation.get("passed"):
-                    _show_song_generation_failure("Song quality validation after repair", validation.get("blocking"))
+                    _show_song_generation_failure("repair_validation", validation.get("blocking"), generation_id=generation_id, metrics=validation.get("metrics"), diagnostics=diagnostics)
                     return
                 song_result["generation_lyric_snapshots"] = repair_snapshot.get("song_lyric_snapshots", [])
                 song_result["automatic_refinement_applied"] = True
@@ -6231,6 +6366,12 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             st.session_state.generated_song = project["song"]
             st.session_state.normalized_song_output = prepared["lyrics"]
             _save_project()
+            diagnostics.succeed(
+                provider=active_provider,
+                repair_used=bool(repair_calls),
+                meaningful_lines=validation.get("metrics", {}).get("meaningful_line_count", "n/a"),
+                compact_chars=validation.get("metrics", {}).get("character_volume", "n/a"),
+            )
             st.rerun()
 
     song = normalize_song_metadata(project.get("song", {}) or {}, get_artist_preset((project.get("song", {}) or {}).get("artist_preset") or load_default_artist_id()))

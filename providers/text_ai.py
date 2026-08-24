@@ -4,9 +4,12 @@ from typing import Any, Dict
 import google.generativeai as genai
 
 from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_english_only_tags
-from core.song_quality_core import blueprint_prompt_block, build_song_blueprint
+from core.song_quality_core import blueprint_prompt_block, build_song_blueprint, production_diagnostic_logger, safe_diagnostic_label, safe_exception_summary
 from core.song_workflow import NEUTRAL_ARTIST_PRESET, normalize_hook_candidates, resolve_song_generation_context, select_best_hook
 from providers.provider_manager import generate_text
+
+
+LOGGER = production_diagnostic_logger("velaflow.text_ai")
 
 
 def _extract_json(text: str) -> Dict[str, Any]:
@@ -249,6 +252,7 @@ def generate_song_with_gemini(
     title: str = "",
     manual_title: bool = False,
     allow_offline_fixture: bool = False,
+    diagnostic_id: str = "",
 ) -> Dict[str, Any]:
     context = generation_context or resolve_song_generation_context(
         idea=idea,
@@ -388,6 +392,7 @@ IMPORTANT LANGUAGE RULE:
         primary_model=model_name,
         offline_factory=(lambda: _offline_song(idea, genre, mood, vocal, viral_level, artist_preset)) if allow_offline_fixture else None,
         return_metadata=True,
+        diagnostic_id=diagnostic_id,
     )
     if isinstance(generation, dict):
         text = str(generation.get("text") or "")
@@ -402,7 +407,26 @@ IMPORTANT LANGUAGE RULE:
             "synthetic": bool(allow_offline_fixture),
             "cache_hit": False,
         }
-    song = _extract_json(text)
+    LOGGER.info(
+        "full_song_provider_result id=%s provider=%s chars=%s status=%s synthetic=%s fallback=%s",
+        safe_diagnostic_label(diagnostic_id or "none", limit=24),
+        provider,
+        len(text),
+        provenance.get("status", "provider_success"),
+        bool(provenance.get("synthetic")),
+        bool(provenance.get("model_fallback")),
+    )
+    try:
+        song = _extract_json(text)
+    except Exception as exc:
+        LOGGER.error(
+            "full_song_parse_failed id=%s provider=%s chars=%s error=%s",
+            safe_diagnostic_label(diagnostic_id or "none", limit=24),
+            provider,
+            len(text),
+            safe_exception_summary(exc),
+        )
+        raise
     song["music_style_prompt"] = song.get("music_style_prompt") or style_prompt
     song["generation_resolution"] = {key: value for key, value in context.items() if key != "provider_artist_preset"}
     song["song_blueprint"] = blueprint
@@ -416,6 +440,7 @@ def repair_song_sections_with_provider(
     model_name: str,
     provider: str,
     repair_prompt: str,
+    diagnostic_id: str = "",
 ) -> Dict[str, Any]:
     """Run one production-only section repair without synthetic fallback."""
     generation = generate_text(
@@ -425,6 +450,7 @@ def repair_song_sections_with_provider(
         primary_model=model_name,
         offline_factory=None,
         return_metadata=True,
+        diagnostic_id=diagnostic_id,
     )
     if isinstance(generation, dict):
         text = str(generation.get("text") or "")
@@ -440,7 +466,17 @@ def repair_song_sections_with_provider(
             "cache_hit": False,
         }
     if not text.strip():
+        LOGGER.error("repair_provider_empty id=%s provider=%s", safe_diagnostic_label(diagnostic_id or "none", limit=24), provider)
         raise ValueError("AI repair returned no lyrics")
+    LOGGER.info(
+        "repair_provider_result id=%s provider=%s chars=%s status=%s synthetic=%s fallback=%s",
+        safe_diagnostic_label(diagnostic_id or "none", limit=24),
+        provider,
+        len(text),
+        provenance.get("status", "provider_success"),
+        bool(provenance.get("synthetic")),
+        bool(provenance.get("model_fallback")),
+    )
     return {"text": text.strip(), "provenance": provenance}
 
 
