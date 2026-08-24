@@ -17,6 +17,18 @@ from core.version import build_label
 
 ROOT = Path(__file__).resolve().parents[1]
 
+HASHTAG_CANONICAL_LABELS = {
+    "r&b": "RnB",
+    "city pop": "CityPop",
+    "pop rock": "PopRock",
+    "hip-hop": "HipHop",
+    "hip hop": "HipHop",
+    "lo-fi pop": "LofiPop",
+    "lofi pop": "LofiPop",
+    "neo soul": "NeoSoul",
+    "alternative rock": "AlternativeRock",
+}
+
 
 def _project_folder(project_name: str, base_dir: str | Path | None = None) -> Path:
     if base_dir:
@@ -38,8 +50,10 @@ def _setting_value(settings: Dict[str, Any], key: str) -> Any:
     return str(value)
 
 
-def _clean_hashtag(value: str) -> str:
-    text = re.sub(r"[^\wก-๙]+", "", str(value or ""), flags=re.UNICODE)
+def normalize_hashtag(value: str) -> str:
+    raw = re.sub(r"\s+", " ", str(value or "").strip().lstrip("#")).strip()
+    canonical = HASHTAG_CANONICAL_LABELS.get(raw.casefold(), raw)
+    text = re.sub(r"[^\wก-๙]+", "", canonical, flags=re.UNICODE)
     return f"#{text}" if text else ""
 
 
@@ -140,6 +154,7 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
     for tag in [
         "เพลงไทย",
         "เพลงใหม่",
+        genre.split("/")[0],
         "เพลงเศร้า",
         "เพลงรัก",
         "เพลงอกหัก",
@@ -153,11 +168,10 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
         "Reels",
         artist,
         title,
-        genre.split("/")[0],
         mood.split(",")[0],
         hook_text,
     ]:
-        cleaned = _clean_hashtag(tag)
+        cleaned = normalize_hashtag(tag)
         if cleaned and cleaned not in hashtags:
             hashtags.append(cleaned)
         if len(hashtags) >= 20:
@@ -486,11 +500,6 @@ def export_suno_files(
         return {"ok": False, "message": "Suno export failed", "data": {}, "error": str(exc)}
 
 
-def _creator_hashtag(value: str) -> str:
-    text = re.sub(r"[^\wก-๙]+", "", str(value or ""), flags=re.UNICODE)
-    return f"#{text}" if text else ""
-
-
 def _resolved_song_intent(song: Dict[str, Any], preset: Dict[str, Any], music_preset: Dict[str, Any]) -> Dict[str, str]:
     """Resolve downstream metadata from the same authoritative generation intent."""
     resolution = song.get("generation_resolution") if isinstance(song.get("generation_resolution"), dict) else {}
@@ -532,6 +541,7 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
     for tag in [
         "เพลงไทย",
         "เพลงใหม่",
+        genre.split("/")[0],
         "เพลงเศร้า",
         "เพลงอกหัก",
         "เพลงรัก",
@@ -547,10 +557,9 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
         "VelaFlow",
         artist,
         title,
-        genre.split("/")[0],
         primary_mood,
     ]:
-        cleaned = _creator_hashtag(tag)
+        cleaned = normalize_hashtag(tag)
         if cleaned and cleaned not in hashtags:
             hashtags.append(cleaned)
         if len(hashtags) >= 20:

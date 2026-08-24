@@ -28,6 +28,12 @@ META_MARKERS = (
     "style influence:",
 )
 
+MOJIBAKE_PATTERNS = (
+    re.compile(r"\ufffd"),
+    re.compile(r"(?:ï¿½|Ã[\x80-\xbf]|Â[\x80-\xbf]?|â(?:€|€™|€œ|€|€¦)|à(?:¸|¹)|ðŸ)", re.IGNORECASE),
+    re.compile(r"(?:เน€เธ|เน[\u0080-\u009f]|เธ[\u0080-\u009f])"),
+)
+
 
 def _clean_lines(lyrics: str) -> list[str]:
     return [line.strip() for line in str(lyrics or "").replace("\r\n", "\n").split("\n")]
@@ -68,6 +74,12 @@ def parse_lyrics_for_review(lyrics: str) -> dict[str, list[list[str]]]:
     if block:
         sections.setdefault(current, []).append(block)
     return sections
+
+
+def detect_mojibake(text: str) -> bool:
+    """Return True only for recognizable encoding-corruption artifacts."""
+    raw = str(text or "")
+    return any(pattern.search(raw) for pattern in MOJIBAKE_PATTERNS)
 
 
 def check_lyrics_quality(lyrics: str) -> dict[str, Any]:
@@ -113,7 +125,7 @@ def check_lyrics_quality(lyrics: str) -> dict[str, Any]:
     meta_found = [marker for marker in META_MARKERS if marker in lower]
     if meta_found:
         findings.append("ลบข้อความ prompt/production ที่ปนอยู่ในเนื้อเพลง")
-    mojibake = bool(re.search(r"(?:เน€|เธ[ก-๙]|ï¿½|�)", raw))
+    mojibake = detect_mojibake(raw)
     long_lines = [line for line in lyric_lines if len(line) > 72]
     thai_lines = [line for line in lyric_lines if re.search(r"[ก-๙]", line)]
     if raw and not thai_lines:

@@ -114,7 +114,7 @@ from core.hook_detector import detect_hook_section
 from core.hook_package_generator import build_final_creator_zip, generate_full_hook_creator_package
 from core.prompt_director import build_prompt_director_package
 from core.remaster_engine import AUTO_REMASTER_PRESETS, CUSTOM_REMASTER_DEFAULTS, PRESET_SAFETY_CLASSES, REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, STYLE_FILTERS, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, analyze_remaster_quality_metrics, build_clipping_validation, build_custom_remaster_config, build_reference_master_plan, build_reference_result_comparison, build_remaster_project_id, build_remaster_quality_comparison, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings, validate_reference_master_analysis, validate_remaster_input, validate_remaster_outputs
-from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, check_song_production_quality, clean_lyrics_improvement_preview
+from core.production_quality_checks import build_lyrics_improvement_prompt, check_lyrics_quality, check_song_production_quality, clean_lyrics_improvement_preview, detect_mojibake
 from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, parse_ordered_song_sections, production_diagnostic_logger, safe_exception_summary, snapshot_song_lyrics
 from core.automatic_hook_clip import quick_generate_hook_clip
 from core.character_studio import REQUIRED_CHARACTER_STUDIO_SECTIONS, character_prompt_pack_to_text, generate_character_prompt_pack
@@ -184,7 +184,7 @@ from core.song_structure_intelligence import (
 )
 from core.song_title_engine import clean_generated_song_title, generate_contextual_title_candidates, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
-from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, resolve_lyrics_download_filename, safe_txt_filename
+from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, normalize_hashtag, resolve_export_txt_filename, resolve_lyrics_download_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import ProjectLockPermissionError, _read_lock_snapshot, _release_owned_lock, _remove_lock_if_unchanged, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
@@ -1623,6 +1623,19 @@ def main():
     )
     assert_true(release_profile["song_metadata"]["genre"] == "R&B" and release_profile["song_metadata"]["mood"] == "เหงา" and release_profile["song_metadata"]["vocal_style"] == "soft intimate female vocal", "Release Pack collapsed resolved Genre/Mood/Vocal metadata")
     assert_true("R&B" in release_profile["cover_art_prompts"]["1:1"] and "เหงา" in release_profile["canvas_prompt"], "resolved Genre/Mood did not propagate to visual release prompts")
+    expected_genre_hashtags = {
+        "R&B": "#RnB",
+        "City Pop": "#CityPop",
+        "Pop Rock": "#PopRock",
+        "Hip-Hop": "#HipHop",
+        "Lo-fi Pop": "#LofiPop",
+        "Neo Soul": "#NeoSoul",
+        "Alternative Rock": "#AlternativeRock",
+        "ลูกทุ่งร่วมสมัย": "#ลูกทุ่งร่วมสมัย",
+    }
+    assert_true(all(normalize_hashtag(label) == expected for label, expected in expected_genre_hashtags.items()), "canonical Genre hashtag normalization failed")
+    assert_true("#RnB" in release_profile["hashtags"] and "#RnB" in release_profile["tiktok_caption"] and "#RnB" in release_profile["youtube_description"], "R&B hashtag did not propagate through release outputs")
+    assert_true(release_profile["song_metadata"]["genre"] == "R&B" and "#RB" not in release_profile["hashtags"], "hashtag normalization changed Genre metadata or retained #RB")
     assert_true(catalog_with_saved_value(GENRE_CATALOG, "Night Drive")[-1] == "Night Drive" and resolve_song_production_profile(genre="Night Drive", mood="คิดถึง", vocal="male vocal")["genre"] == "Night Drive", "legacy saved Genre compatibility failed")
     profile_direction = build_music_direction(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal")
     assert_true(profile_direction["bpm"] == production_matrix["B"]["recommended_bpm"] and profile_direction["production_profile"]["genre"] == "R&B" and "electric piano" in profile_direction["master_music_style_prompt"], "music direction did not consume the centralized production profile")
@@ -2211,6 +2224,16 @@ def main():
     weak_review = check_lyrics_quality("[Verse 1]\nฉันยังรักเธอ\n[Chorus]\nฉันยังรักเธอ\nTikTok-ready hook direction")
     assert_true(ready_review["status"] == "Good" and review_ready_lyrics == lyrics_before_review, "lyrics checker should approve complete lyrics without editing them")
     assert_true(weak_review["status"] == "Needs Review" and 1 <= len(weak_review["findings"]) <= 5 and weak_review["diagnostics"]["meta_markers"], "lyrics checker should flag concise actionable issues")
+    thai_regression_lyrics = review_ready_lyrics.replace(
+        "แก้วน้ำของพ่อวางอยู่ข้างจาน\nเช้านี้พ่อยื่นมือช้ากว่าเดิม\nผมตักข้าวให้ตรงโต๊ะตัวเก่า\nเสียงช้อนเบาลงจนผมได้ยิน",
+        "ไม่มีวันไหนที่ไม่คิดถึง\nหลับตาลงยังเห็นหน้า ตื่นขึ้นมาก็คิดถึง\nทุกนาทีที่หายใจ มีแต่เธออยู่ในใจ\nคิดถึงจนใจมันอ่อนแรง",
+    )
+    thai_regression_review = check_lyrics_quality(thai_regression_lyrics)
+    mixed_tag_review = check_lyrics_quality("[Intro]\n(warm pad, close-mic vocal)\n" + review_ready_lyrics)
+    corrupted_samples = ("เน€เธซเธเธฒ", "à¸„à¸´à¸”à¸–à¸¶à¸‡", "ข้อความเสีย �")
+    assert_true(not thai_regression_review["diagnostics"]["mojibake"] and thai_regression_review["status"] == "Good", "valid Thai lyrics were falsely marked as mojibake/Needs Review")
+    assert_true(not mixed_tag_review["diagnostics"]["mojibake"], "Thai lyrics with English production tags were falsely marked as mojibake")
+    assert_true(not detect_mojibake("เธอยังอยู่ตรงนี้… don't worry") and all(detect_mojibake(sample) for sample in corrupted_samples), "mojibake detector failed valid punctuation or real corruption fixtures")
     refinement_prompt = build_lyrics_improvement_prompt(review_ready_lyrics, ready_review)
     cleaned_preview = clean_lyrics_improvement_preview("Here is the revision:\n```text\n[Verse 1]\nแก้วน้ำยังอยู่ตรงเดิม\n```")
     assert_true("Return only the complete revised lyrics" in refinement_prompt and cleaned_preview.startswith("[Verse 1]") and "Here is" not in cleaned_preview, "optional AI lyrics preview must remain clean and explicit")
