@@ -172,7 +172,7 @@ from core.artist_presets import (
     validate_artist_preset,
 )
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
-from core.song_workflow import _extract_json, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_song_generation_context, save_song_state, select_best_hook, song_project_widget_state
+from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -1247,6 +1247,74 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     assert_true(check_song_production_quality(strong_song, blueprint)["passed"], "meaningfully varied Pre-Chorus was rejected")
     assert_true("meaningful variation" in blueprint["section_objectives"]["pre_chorus_2"] and "musically intentional" in blueprint["section_objectives"]["pre_chorus_2"], "Pre-Chorus progression guidance missing from blueprint")
 
+    generation_1_hook = "ล้มแล้วลุก สู้ต่อไม่ถอย"
+    generation_2_hook = "ทิ้งความหวัง แล้วโลกก็หมุนไปเจอเรื่องมหัศจรรย์"
+    generation_1_title = "พอได้แล้วใจ"
+    fresh_1 = resolve_fresh_generation_title(
+        current_title=generation_1_title,
+        provenance="generated",
+        idea="ล้มแล้วลุกเพื่อเริ่มต้นใหม่",
+        hook_text=generation_1_hook,
+        genre="Pop Rock",
+        mood="ให้กำลังใจ",
+        vocal="smooth emotional male vocal",
+    )
+    fresh_2 = resolve_fresh_generation_title(
+        current_title=generation_1_title,
+        provenance="generated",
+        idea="ทิ้งความหวังแล้วพบเรื่องมหัศจรรย์",
+        hook_text=generation_2_hook,
+        genre="Pop Rock",
+        mood="ให้กำลังใจ",
+        vocal="smooth emotional male vocal",
+    )
+    assert_true(not fresh_2["previous_title_authoritative"] and fresh_2["source"] == "current_generation_context", "old generated title remained authoritative in the real QA fixture")
+    assert_true(fresh_1["context_fingerprint"] != fresh_2["context_fingerprint"], "generated title was not associated with its generation context")
+    assert_true(
+        fresh_2["context_fingerprint"] == build_title_context_fingerprint(
+            idea="ทิ้งความหวังแล้วพบเรื่องมหัศจรรย์",
+            genre="Pop Rock",
+            mood="ให้กำลังใจ",
+            vocal="smooth emotional male vocal",
+            selected_hook=generation_2_hook,
+        ),
+        "title context fingerprint was not stable",
+    )
+    same_context_again = resolve_fresh_generation_title(
+        current_title="ชื่อเก่าคนละชื่อ",
+        provenance="generated",
+        idea="ทิ้งความหวังแล้วพบเรื่องมหัศจรรย์",
+        hook_text=generation_2_hook,
+        genre="Pop Rock",
+        mood="ให้กำลังใจ",
+        vocal="smooth emotional male vocal",
+    )
+    assert_true(same_context_again["title"] == fresh_2["title"] and same_context_again["context_fingerprint"] == fresh_2["context_fingerprint"], "freshness incorrectly forced random title uniqueness")
+    manual_freshness = resolve_fresh_generation_title(current_title="คืนสุดท้าย", provenance="manual", idea="เรื่องใหม่", hook_text=generation_2_hook)
+    cleared_manual = resolve_fresh_generation_title(current_title="", provenance="manual", idea="เรื่องใหม่", hook_text=generation_2_hook)
+    assert_true(manual_freshness["title"] == "คืนสุดท้าย" and manual_freshness["previous_title_authoritative"], "manual title lost authority during regeneration")
+    assert_true(cleared_manual["provenance"] in {"generated", "fallback"} and not cleared_manual["previous_title_authoritative"], "cleared manual title did not return to generated behavior")
+    stale_suggestion_a = resolve_fresh_generation_title(current_title="พอได้แล้วใจ", provenance="generated", idea="ทิ้งความหวังแล้วพบเรื่องมหัศจรรย์", hook_text=generation_2_hook)
+    stale_suggestion_b = resolve_fresh_generation_title(current_title="คำแนะนำเก่าอีกชื่อ", provenance="generated", idea="ทิ้งความหวังแล้วพบเรื่องมหัศจรรย์", hook_text=generation_2_hook)
+    assert_true(stale_suggestion_a["title"] == stale_suggestion_b["title"], "stale visible/generated title overrode current hook context")
+    failure_state = {"title": generation_1_title, "complete_lyrics": strong_song, "title_provenance": "generated"}
+    failure_state_before = json.loads(json.dumps(failure_state, ensure_ascii=False))
+    resolve_fresh_generation_title(current_title=failure_state["title"], provenance=failure_state["title_provenance"], idea="provider will fail", hook_text="new hook")
+    assert_true(failure_state == failure_state_before, "title freshness resolution mutated saved state before generation success")
+    fresh_export_song = {
+        "title": fresh_2["title"],
+        "song_title": fresh_2["title"],
+        "generated_title": fresh_2["title"],
+        "title_provenance": fresh_2["provenance"],
+        "title_generated_from_idea": True,
+        "idea": "ทิ้งความหวังแล้วพบเรื่องมหัศจรรย์",
+        "artist_name": "Vela Moon",
+        "selected_hook": {"hook_text": generation_2_hook},
+        "song_blueprint": {"hook_contract": {"title": fresh_2["title"], "title_is_manual": False}},
+    }
+    assert_true(build_release_package_data(fresh_export_song, generation_1_title)["song_metadata"]["song_title"] == fresh_2["title"], "Release Pack did not use the successful generation title")
+    assert_true(fresh_2["title"] in resolve_export_txt_filename(fresh_export_song, generation_1_title), "export filename did not use the successful generation title")
+
     diagnostic_stream = io.StringIO()
     diagnostic_logger = production_diagnostic_logger("velaflow.song_studio.smoke")
     diagnostic_handler = logging.StreamHandler(diagnostic_stream)
@@ -1427,7 +1495,8 @@ def main():
     assert_true(state_a_again == state_a, "case F switching back did not restore project-owned values")
     generated_title_state = song_project_widget_state({"title": "คืนที่วางงาน", "song": {"song_blueprint": {"hook_contract": {"title_is_manual": False}}}})
     manual_title_state = song_project_widget_state({"title": "ชื่อที่ตั้งเอง", "song": {"manual_title": True}})
-    assert_true(generated_title_state["title_is_manual"] is False and manual_title_state["title_is_manual"] is True, "title provenance was lost across project reruns")
+    assert_true(generated_title_state["title"] == "คืนที่วางงาน" and generated_title_state["title_provenance"] == "generated", "project load did not restore its saved generated title")
+    assert_true(generated_title_state["title_is_manual"] is False and manual_title_state["title_is_manual"] is True and resolve_title_provenance({"title_provenance": "manual"}) == "manual", "title provenance was lost across project reruns")
 
     import providers.text_ai as text_ai_provider
 

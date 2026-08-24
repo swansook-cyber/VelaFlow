@@ -296,6 +296,7 @@ from core.song_workflow import (
     load_song_draft,
     normalize_hook_candidates,
     normalize_song_metadata,
+    resolve_fresh_generation_title,
     resolve_song_generation_context,
     save_song_state,
     select_best_hook,
@@ -6028,6 +6029,10 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             "simple_song_studio_artist_preset",
             "simple_suggested_title",
             "simple_suggested_title_index",
+            "simple_song_pending_title",
+            "simple_song_pending_title_provenance",
+            "simple_song_title_provenance",
+            "simple_song_title_source_value",
         ):
             st.session_state.pop(key, None)
         st.session_state["simple_song_project_source_id"] = project_source_id
@@ -6039,9 +6044,14 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             "hook_focus": project_values.get("hook_focus") or "high",
         }
     pending_title = str(st.session_state.pop("simple_song_pending_title", "") or "")
+    pending_title_provenance = str(st.session_state.pop("simple_song_pending_title_provenance", "") or "")
     if pending_title:
         st.session_state["simple_song_title"] = pending_title
+        st.session_state["simple_song_title_provenance"] = pending_title_provenance or "generated"
+        st.session_state["simple_song_title_source_value"] = pending_title
     st.session_state.setdefault("simple_song_title", project_values.get("title") or "")
+    st.session_state.setdefault("simple_song_title_provenance", project_values.get("title_provenance") or "generated")
+    st.session_state.setdefault("simple_song_title_source_value", project_values.get("title") or "")
     st.session_state.setdefault("simple_song_artist", project_values.get("artist") or DEFAULT_ARTIST)
     st.session_state.setdefault("simple_song_idea", project_values.get("idea") or "")
 
@@ -6125,6 +6135,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
         suggested_row[0].text_input("Suggested Title", value=suggested_title, disabled=True, key="simple_suggested_title_display")
         if suggested_row[1].button("Use", use_container_width=True, key="simple_use_title"):
             st.session_state["simple_song_pending_title"] = suggested_title
+            st.session_state["simple_song_pending_title_provenance"] = "generated"
             st.rerun()
         if suggested_row[2].button("↻", use_container_width=True, key="simple_regenerate_title", help="Try another suggested title"):
             if title_candidates:
@@ -6142,10 +6153,11 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             generation_id = secrets.token_hex(4)
             diagnostics = SongGenerationDiagnosticAttempt(generation_id, SONG_STUDIO_LOGGER)
             entered_title = str(st.session_state.get("simple_song_title") or "").strip()
-            saved_title = str(project_values.get("title") or "").strip()
-            title_changed_by_user = bool(entered_title and entered_title != saved_title)
-            prior_generated_title = project_values.get("title_is_manual") is False
-            manual_title_requested = bool(entered_title) and (title_changed_by_user or not prior_generated_title) and entered_title != suggested_title
+            source_title = str(st.session_state.get("simple_song_title_source_value") or "").strip()
+            title_provenance = str(st.session_state.get("simple_song_title_provenance") or project_values.get("title_provenance") or "generated")
+            if entered_title != source_title:
+                title_provenance = "manual" if entered_title else "generated"
+            manual_title_requested = bool(entered_title) and title_provenance == "manual"
             diagnostics.event(
                 "generation_start",
                 genre=generation_context["resolved_genre"],
@@ -6206,7 +6218,17 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 bool(hook_provenance.get("synthetic")),
                 bool(hook_provenance.get("model_fallback")),
             )
-            resolved_title = entered_title if manual_title_requested else clean_generated_song_title(suggested_title or entered_title)
+            title_resolution = resolve_fresh_generation_title(
+                current_title=entered_title,
+                provenance=title_provenance,
+                idea=idea,
+                hook_text=str(hook.get("hook_text", "")),
+                genre=generation_context["resolved_genre"],
+                mood=generation_context["resolved_mood"],
+                vocal=generation_context["resolved_vocal"],
+                style_override_present=bool(generation_context.get("style_override_explicit")),
+            )
+            resolved_title = clean_generated_song_title(title_resolution["title"]) if title_resolution["provenance"] != "manual" else str(title_resolution["title"])
             if is_placeholder_song_title(resolved_title):
                 resolved_title = generate_song_title_from_idea(idea=idea, hook_text=str(hook.get("hook_text", "")))
             style_prompt = generation_context["resolved_style_prompt"]
@@ -6338,6 +6360,9 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "generated_title": resolved_title,
                 "manual_title": title_was_manual,
                 "title_generated_from_idea": not title_was_manual,
+                "title_provenance": title_resolution["provenance"],
+                "title_generation_id": generation_id,
+                "title_context_fingerprint": title_resolution["context_fingerprint"],
                 "artist_name": artist,
                 "idea": idea,
                 "genre": generation_context["resolved_genre"],
@@ -6375,6 +6400,10 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             project["artist"] = artist
             project["song"] = normalize_song_metadata(song_result, preset)
             st.session_state["simple_song_pending_title"] = resolved_title
+            st.session_state["simple_song_pending_title_provenance"] = title_resolution["provenance"]
+            if title_resolution["provenance"] != "manual":
+                st.session_state["simple_suggested_title"] = resolved_title
+                st.session_state["simple_suggested_title_index"] = 0
             st.session_state.generated_song = project["song"]
             st.session_state.normalized_song_output = prepared["lyrics"]
             _save_project()

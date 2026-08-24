@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import re
@@ -13,7 +14,7 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.project_io import safe_name
 from core.paths import resolve_project_folder, workflow_project_root
-from core.song_title_engine import resolve_song_title
+from core.song_title_engine import clean_generated_song_title, generate_song_title_from_idea, resolve_song_title
 from core.suno_export import export_suno_files
 from providers.provider_manager import generate_text
 
@@ -40,6 +41,11 @@ NEUTRAL_ARTIST_PRESET: Dict[str, Any] = {
     ],
     "suno_advanced_settings": {},
 }
+
+TITLE_PROVENANCE_MANUAL = "manual"
+TITLE_PROVENANCE_GENERATED = "generated"
+TITLE_PROVENANCE_FALLBACK = "fallback"
+TITLE_PROVENANCE_VALUES = {TITLE_PROVENANCE_MANUAL, TITLE_PROVENANCE_GENERATED, TITLE_PROVENANCE_FALLBACK}
 
 
 def _clean_direction(value: Any) -> str:
@@ -194,14 +200,96 @@ def resolve_song_generation_context(
     }
 
 
+def resolve_title_provenance(song: Dict[str, Any] | None) -> str:
+    current = dict(song or {})
+    explicit = str(current.get("title_provenance") or "").strip().lower()
+    if explicit in TITLE_PROVENANCE_VALUES:
+        return explicit
+    if current.get("manual_title") is True:
+        return TITLE_PROVENANCE_MANUAL
+    if current.get("title_generated_from_idea") is True:
+        return TITLE_PROVENANCE_GENERATED
+    blueprint = current.get("song_blueprint") if isinstance(current.get("song_blueprint"), dict) else {}
+    contract = blueprint.get("hook_contract") if isinstance(blueprint.get("hook_contract"), dict) else {}
+    if contract.get("title_is_manual") is False:
+        return TITLE_PROVENANCE_GENERATED
+    if contract.get("title_is_manual") is True:
+        return TITLE_PROVENANCE_MANUAL
+    # Legacy projects had no provenance. Preserve their non-empty title as
+    # user-authoritative rather than unexpectedly replacing it on first load.
+    return TITLE_PROVENANCE_MANUAL if str(current.get("title") or current.get("song_title") or "").strip() else TITLE_PROVENANCE_GENERATED
+
+
+def build_title_context_fingerprint(
+    *,
+    idea: str,
+    genre: str,
+    mood: str,
+    vocal: str,
+    selected_hook: str,
+    style_override_present: bool = False,
+) -> str:
+    payload = {
+        "idea": str(idea or "").strip(),
+        "genre": str(genre or "").strip(),
+        "mood": str(mood or "").strip(),
+        "vocal": str(vocal or "").strip(),
+        "selected_hook": str(selected_hook or "").strip(),
+        "style_override_present": bool(style_override_present),
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()[:20]
+
+
+def resolve_fresh_generation_title(
+    *,
+    current_title: str,
+    provenance: str,
+    idea: str,
+    hook_text: str,
+    genre: str = "",
+    mood: str = "",
+    vocal: str = "",
+    style_override_present: bool = False,
+) -> Dict[str, Any]:
+    """Resolve title authority for one generation without mutating saved state."""
+    current = str(current_title or "").strip()
+    normalized_provenance = str(provenance or "").strip().lower()
+    if normalized_provenance not in TITLE_PROVENANCE_VALUES:
+        normalized_provenance = TITLE_PROVENANCE_GENERATED
+    fingerprint = build_title_context_fingerprint(
+        idea=idea,
+        genre=genre,
+        mood=mood,
+        vocal=vocal,
+        selected_hook=hook_text,
+        style_override_present=style_override_present,
+    )
+    if normalized_provenance == TITLE_PROVENANCE_MANUAL and current:
+        return {
+            "title": current,
+            "provenance": TITLE_PROVENANCE_MANUAL,
+            "context_fingerprint": fingerprint,
+            "previous_title_authoritative": True,
+            "source": "manual_title",
+        }
+    generated = clean_generated_song_title(generate_song_title_from_idea(idea=idea, hook_text=hook_text))
+    return {
+        "title": generated,
+        "provenance": TITLE_PROVENANCE_GENERATED if generated else TITLE_PROVENANCE_FALLBACK,
+        "context_fingerprint": fingerprint,
+        "previous_title_authoritative": False,
+        "source": "current_generation_context",
+    }
+
+
 def song_project_widget_state(project: Dict[str, Any], song: Dict[str, Any] | None = None) -> Dict[str, Any]:
     """Return project-owned Song Studio values for safe widget hydration."""
     current_song = dict(song or project.get("song") or {})
     blueprint = current_song.get("song_blueprint") if isinstance(current_song.get("song_blueprint"), dict) else {}
     hook_contract = blueprint.get("hook_contract") if isinstance(blueprint.get("hook_contract"), dict) else {}
-    title_is_manual = current_song.get("manual_title")
-    if title_is_manual is None:
-        title_is_manual = hook_contract.get("title_is_manual")
+    title_provenance = resolve_title_provenance(current_song)
+    title_is_manual = title_provenance == TITLE_PROVENANCE_MANUAL
     return {
         "title": str(project.get("title") or ""),
         "artist": str(project.get("artist") or ""),
@@ -216,6 +304,8 @@ def song_project_widget_state(project: Dict[str, Any], song: Dict[str, Any] | No
         "music_style_override": str(current_song.get("music_style_override") or ""),
         "advanced_explicit": dict(current_song.get("advanced_explicit") or {}),
         "title_is_manual": title_is_manual,
+        "title_provenance": title_provenance,
+        "title_context_fingerprint": str(current_song.get("title_context_fingerprint") or ""),
     }
 
 
