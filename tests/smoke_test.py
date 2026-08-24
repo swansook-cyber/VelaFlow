@@ -70,7 +70,7 @@ from core.exporter import export_package
 from core.final_package import build_final_release_package, inspect_final_package_inputs
 from core.job_queue import get_job, register_handler, submit_job
 from core.licensing import LicenseService
-from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, ensure_unique_path, export_name_base, initialize_export_name_state, make_safe_filename, sanitize_filename
+from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, build_lyrics_download_filename, ensure_unique_path, export_name_base, initialize_export_name_state, make_safe_filename, sanitize_filename
 from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, prepare_validated_song_lyrics, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.marketing_package import build_marketing_package, export_marketing_package
@@ -183,7 +183,7 @@ from core.song_structure_intelligence import (
 )
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
-from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, safe_txt_filename
+from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, resolve_lyrics_download_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import ProjectLockPermissionError, _read_lock_snapshot, _release_owned_lock, _remove_lock_if_unchanged, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
@@ -1527,6 +1527,18 @@ def main():
     assert_true(sanitize_filename("My Song / demo:night?") == "My_Song_demonight", "English filename sanitization failed")
     assert_true(sanitize_filename("คิดถึง เธอ / demo:night?") == "คิดถึง_เธอ_demonight", "Thai filename sanitization failed")
     assert_true(build_export_filename("My Song", "Vela Moon", "Suno Export", "txt") == "My_Song_Vela_Moon_Suno_Export.txt", "professional export filename failed")
+    assert_true(build_lyrics_download_filename("มีแค่เงา", "Vela Moon") == "มีแค่เงา_Vela_Moon_Lyrics.txt", "Thai lyrics download filename failed")
+    assert_true(build_lyrics_download_filename("Only a Shadow", "Vela Moon") == "Only_a_Shadow_Vela_Moon_Lyrics.txt", "English lyrics download filename failed")
+    assert_true(build_lyrics_download_filename("เพลง 夜の道", "ศิลปิน Moon") == "เพลง_夜の道_ศิลปิน_Moon_Lyrics.txt", "Unicode lyrics download filename was not preserved")
+    assert_true(build_lyrics_download_filename("My / Song: Demo?", "Artist | Name") == "My_Song_Demo_Artist_Name_Lyrics.txt", "unsafe lyrics filename characters were not sanitized")
+    assert_true(build_lyrics_download_filename("", "Vela Moon") == "VelaFlow_Lyrics.txt", "missing-title lyrics filename fallback failed")
+    filename_state = {"title": "Project A", "artist": "Artist A"}
+    filename_state_before = dict(filename_state)
+    project_a_lyrics_name = resolve_lyrics_download_filename(filename_state, "Project A")
+    project_b_lyrics_name = resolve_lyrics_download_filename({"title": "Project B", "artist": "Artist B"}, "Project B")
+    assert_true(project_a_lyrics_name == "Project_A_Artist_A_Lyrics.txt" and project_b_lyrics_name == "Project_B_Artist_B_Lyrics.txt" and project_a_lyrics_name != project_b_lyrics_name, "project-scoped lyrics filename isolation failed")
+    assert_true(filename_state == filename_state_before, "lyrics filename resolution mutated Song Studio state")
+    assert_true(resolve_export_txt_filename(filename_state, "Project A") == "Project_A_Artist_A_Suno_Export.txt", "Suno filename changed during lyrics filename fix")
     idea_forget_ex = "\u0e22\u0e31\u0e07\u0e25\u0e37\u0e21\u0e41\u0e1f\u0e19\u0e40\u0e01\u0e48\u0e32\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49"
     title_forget_ex = "\u0e25\u0e37\u0e21\u0e40\u0e18\u0e2d\u0e44\u0e21\u0e48\u0e44\u0e14\u0e49"
     idea_return_ex = "\u0e23\u0e31\u0e01\u0e04\u0e19\u0e17\u0e35\u0e48\u0e44\u0e21\u0e48\u0e01\u0e25\u0e31\u0e1a\u0e21\u0e32"
@@ -2932,6 +2944,7 @@ def main():
     assert_true(lyrics_only_text == saved_song.get("normalized_song_output"), "lyrics TXT did not use normalized output")
     assert_true(Path(song_save["data"]["suno_export"].get("suno_full_package", "")).name == song_save["data"]["suno_export"].get("suno_full_filename"), "dynamic full pipeline path was not returned after save")
     assert_true(song_save["data"]["suno_export"].get("suno_full_filename", "").startswith(full_pipeline_name.removesuffix(".txt")), "dynamic download filename missing from export data")
+    assert_true(song_save["data"]["suno_export"].get("lyrics_download_filename") == resolve_lyrics_download_filename(saved_song, "Smoke Song Workflow"), "title-aware lyrics download filename missing from export data")
     assert_true(validate_english_only_tags(saved_song["normalized_song_output"])["ok"], "saved song tags are not English only")
     assert_true(contains_thai(saved_song["normalized_song_output"]), "Thai lyrics were not preserved in saved song")
     assert_true((song_folder / "song_drafts").exists(), "song draft history was not created")
@@ -4322,6 +4335,8 @@ def main():
         assert_true("About VelaFlow" in settings_about_source and "Closed Beta & Founding Member" not in settings_about_source and "License & Build" not in settings_about_source, "beta/license details were not consolidated under About VelaFlow")
         assert_true('st.expander("API Keys", expanded=False)' in settings_page_source and 'st.expander("System / Diagnostics", expanded=False)' in settings_page_source and settings_page_source.find('st.expander("API Keys"') < settings_page_source.find("_render_settings_system_controls(project)") < settings_page_source.find('st.expander("System / Diagnostics"') < settings_page_source.find("_render_settings_about()"), "Settings top-level group order or collapsed layout missing")
         simple_song_source = main_source[main_source.find("def _render_simple_song_studio"):main_source.find("def _render_song_studio")]
+        suno_download_source = main_source[main_source.find("def _render_suno_downloads"):main_source.find("def _render_creator_lyrics_action_bar")]
+        creator_lyrics_action_source = main_source[main_source.find("def _render_creator_lyrics_action_bar"):main_source.find("def _artist_preset_label")]
         song_route_source = main_source[main_source.find("def _render_song_studio"):main_source.find("def _render_video_prompt_studio")]
         visual_workspace_source = main_source[main_source.find("def _render_visual_studio_workspace"):main_source.find("def _render_release_pack_workspace")]
         release_workspace_source = main_source[main_source.find("def _render_release_pack_workspace"):main_source.find("def _render_ai_creative_pack_generator")]
@@ -4330,6 +4345,10 @@ def main():
         assert_true(all(event in simple_song_source for event in ["generation_start", "hook_call_started", "hook_result", "full_song_call_started", "full_song_result", "repair_attempt", "repair_result"]) and "diagnostics.succeed" in simple_song_source and "diagnostic_id=generation_id" in simple_song_source, "Song Studio production diagnostic stages are incomplete")
         assert_true("_log_song_validation(generation_id, \"initial\"" in simple_song_source and "_log_song_validation(generation_id, \"repair\"" in simple_song_source and all(stage in simple_song_source for stage in ["hook_provider", "initial_validation", "repair_provider", "repair_validation"]), "Song Studio validation/final failure diagnostics are incomplete")
         assert_true("Suggested Title" in simple_song_source and 'button("Use"' in simple_song_source and 'button("↻"' in simple_song_source and "Accept Title" not in simple_song_source and "Active AI provider" not in simple_song_source, "Song Studio title actions or provider-detail cleanup missing")
+        song_txt_download_sources = [simple_song_source, suno_download_source, creator_lyrics_action_source]
+        assert_true(all("download_button" in source and 'mime="text/plain; charset=utf-8"' in source and "resolve_lyrics_download_filename" in source and "use_container_width=True" in source for source in song_txt_download_sources), "Song Studio TXT downloads are not Streamlit-native, UTF-8, title-aware, and mobile-width")
+        assert_true(all('file_name="lyrics_only.txt"' not in source and "window.open" not in source and "data:text" not in source and 'target="_blank"' not in source for source in song_txt_download_sources), "Song Studio still forces generic or navigated TXT downloads")
+        assert_true(all("download_scope" in source for source in song_txt_download_sources), "Song Studio TXT download keys are not project/source scoped")
         assert_true("_render_simple_song_studio" in song_route_source and "if creator_mode:" in song_route_source and "return" in song_route_source, "normal Song Studio does not route to the simplified workspace")
         assert_true(all(label in visual_workspace_source for label in ["Cover Prompt", "MV Storyboard", 'st.expander("Short-form Visuals"']) and "Advanced / Diagnostics" in visual_workspace_source, "Visual Studio primary workflow or advanced diagnostics split missing")
         assert_true(all(label in release_workspace_source for label in ["Package Summary", "Included Items", "Export Release Pack", "Download TXT", "Download ZIP", "Advanced / Package Details"]) and "manifest_path" in release_workspace_source, "Release Pack summary/export or collapsed package details missing")

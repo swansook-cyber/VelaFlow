@@ -6,7 +6,7 @@ from typing import Any, Dict
 import re
 
 from core.artist_presets import get_artist_preset
-from core.file_naming import build_export_filename, ensure_unique_path
+from core.file_naming import build_export_filename, build_lyrics_download_filename, ensure_unique_path
 from core.instrument_tag_normalizer import normalize_lyrics_tags
 from core.project_io import safe_name
 from core.paths import resolve_project_folder
@@ -87,6 +87,20 @@ def resolve_export_txt_filename(
         if not _is_placeholder_title(candidate):
             return build_export_filename(str(candidate), artist, suffix, "txt")
     return build_export_filename("Untitled Song", artist, suffix, "txt")
+
+
+def resolve_lyrics_download_filename(song: Dict[str, Any], project_name: str = "") -> str:
+    artist = _artist_name(song)
+    candidates = [
+        song.get("title"),
+        song.get("song_title"),
+        song.get("generated_title"),
+        project_name,
+    ]
+    for candidate in candidates:
+        if not _is_placeholder_title(candidate):
+            return build_lyrics_download_filename(str(candidate), artist)
+    return build_lyrics_download_filename(None, artist)
 
 
 def export_txt_filename(song: Dict[str, Any], project_name: str = "", workflow_mode: str = "Full Pipeline") -> str:
@@ -841,6 +855,7 @@ def export_suno_files(
                 "suno_full_package": str(full_path),
                 "suno_full_filename": full_path.name,
                 "lyrics_only": str(lyrics_path),
+                "lyrics_download_filename": resolve_lyrics_download_filename(song, project_name),
                 "suno_full_text": full_path.read_text(encoding="utf-8-sig"),
                 "lyrics_only_text": lyrics,
                 "release_package": release,

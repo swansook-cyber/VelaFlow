@@ -312,7 +312,7 @@ from core.song_structure_intelligence import (
 )
 from core.song_title_engine import generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
 from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, production_diagnostic_logger, safe_diagnostic_label, safe_exception_summary, snapshot_song_lyrics
-from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename
+from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename, resolve_lyrics_download_filename
 from core.theme import active_theme_name
 from core.ui_styles import apply_global_styles
 from core.veo_scene_renderer import download_veo_scene_result, load_scene_jobs, poll_veo_scene_job, save_scene_job, scene_output_path, submit_veo_scene_job
@@ -5646,6 +5646,8 @@ def _render_suno_downloads(project_name: str, song: dict[str, Any]) -> None:
     resolved_filename = data.get("suno_full_filename") or resolve_export_txt_filename(song, project_name, workflow_mode, data.get("suno_full_text", ""))
     if resolved_filename == "velaflow_export.txt":
         resolved_filename = resolve_export_txt_filename({**song, "title": project_name}, project_name, workflow_mode, data.get("suno_full_text", ""))
+    lyrics_filename = data.get("lyrics_download_filename") or resolve_lyrics_download_filename(song, project_name)
+    download_scope = hashlib.sha1(f"{project_name}|{lyrics_filename}|{resolved_filename}".encode("utf-8")).hexdigest()[:12]
     st.success("Lyrics saved successfully")
     st.caption(f"TXT filename: {resolved_filename}")
     d1, d2, d3, d4 = st.columns(4)
@@ -5653,16 +5655,18 @@ def _render_suno_downloads(project_name: str, song: dict[str, Any]) -> None:
         "Download Suno TXT",
         data=data.get("suno_full_text", ""),
         file_name=resolved_filename,
-        mime="text/plain",
+        mime="text/plain; charset=utf-8",
         use_container_width=True,
+        key=f"suno_full_txt_{download_scope}",
         help="ดาวน์โหลดเนื้อเพลง แคปชั่น SEO คำอธิบาย YouTube แฮชแท็ก และพรอมต์ปกเพลงเป็นไฟล์ TXT",
     )
     d2.download_button(
         "Download Lyrics Only",
         data=data.get("lyrics_only_text", ""),
-        file_name="lyrics_only.txt",
-        mime="text/plain",
+        file_name=lyrics_filename,
+        mime="text/plain; charset=utf-8",
         use_container_width=True,
+        key=f"suno_lyrics_txt_{download_scope}",
         help="ดาวน์โหลดเฉพาะเนื้อเพลงพร้อมแท็กสำหรับนำไปใช้ใน Suno",
     )
     if d3.button("Copy Lyrics for Suno", use_container_width=True, key="show_copy_lyrics_for_suno_btn", help="เปิดกล่องเนื้อเพลงเพื่อคัดลอกไปวางใน Suno ได้ง่ายขึ้น"):
@@ -5705,6 +5709,8 @@ def _render_creator_lyrics_action_bar(project: dict[str, Any], song: dict[str, A
     lyrics_txt = export_data.get("lyrics_only_text") or edited_lyrics
     suno_txt = export_data.get("suno_full_text") or edited_lyrics
     suno_filename = export_data.get("suno_full_filename") or resolve_export_txt_filename(temp_song, project_name, workflow_mode, suno_txt)
+    lyrics_filename = export_data.get("lyrics_download_filename") or resolve_lyrics_download_filename(temp_song, project_name)
+    download_scope = hashlib.sha1(f"{project_name}|{lyrics_filename}|{suno_filename}|{key_prefix}".encode("utf-8")).hexdigest()[:12]
     cols = st.columns(5)
     if cols[0].button("Save", type="primary", use_container_width=True, key=f"{key_prefix}_save"):
         temp_song["instrument_tag_validation"] = validate_english_only_tags(edited_lyrics)
@@ -5721,8 +5727,8 @@ def _render_creator_lyrics_action_bar(project: dict[str, Any], song: dict[str, A
             st.error(result.get("error", "Save failed"))
     if cols[1].button("Copy", use_container_width=True, key=f"{key_prefix}_copy"):
         st.session_state[f"{key_prefix}_show_copy"] = True
-    cols[2].download_button("Lyrics TXT", data=lyrics_txt, file_name="lyrics_only.txt", mime="text/plain", use_container_width=True, key=f"{key_prefix}_lyrics_txt")
-    cols[3].download_button("Suno TXT", data=suno_txt, file_name=suno_filename, mime="text/plain", use_container_width=True, key=f"{key_prefix}_suno_txt")
+    cols[2].download_button("Lyrics TXT", data=lyrics_txt, file_name=lyrics_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"{key_prefix}_lyrics_txt_{download_scope}")
+    cols[3].download_button("Suno TXT", data=suno_txt, file_name=suno_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"{key_prefix}_suno_txt_{download_scope}")
     if cols[4].button("Release Package", use_container_width=True, key=f"{key_prefix}_release"):
         if export_result.get("ok"):
             project["song"] = temp_song
@@ -6418,9 +6424,12 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             st.json(review.get("diagnostics") or {}, expanded=False)
     export_data = st.session_state.get("simple_song_suno_export") or {}
     if export_data:
+        lyrics_filename = export_data.get("lyrics_download_filename") or resolve_lyrics_download_filename(song, project.get("title") or song.get("title") or "")
+        suno_filename = export_data.get("suno_full_filename") or resolve_export_txt_filename(song, project.get("title") or "", st.session_state.get("workflow_mode", "Song Studio Only"), export_data.get("suno_full_text") or "")
+        download_scope = hashlib.sha1(f"{project.get('project_id') or project.get('title') or ''}|{lyrics_filename}|{suno_filename}".encode("utf-8")).hexdigest()[:12]
         export_cols = st.columns(2)
-        export_cols[0].download_button("Download Lyrics", data=export_data.get("lyrics_only_text") or edited_lyrics, file_name="lyrics_only.txt", mime="text/plain", use_container_width=True, key="simple_download_lyrics")
-        export_cols[1].download_button("Download Suno TXT", data=export_data.get("suno_full_text") or edited_lyrics, file_name=export_data.get("suno_full_filename") or "suno_export.txt", mime="text/plain", use_container_width=True, key="simple_download_suno")
+        export_cols[0].download_button("Download Lyrics", data=export_data.get("lyrics_only_text") or edited_lyrics, file_name=lyrics_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_lyrics_{download_scope}")
+        export_cols[1].download_button("Download Suno TXT", data=export_data.get("suno_full_text") or edited_lyrics, file_name=suno_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_suno_{download_scope}")
 
 
 def _render_song_studio(project: dict[str, Any]) -> None:

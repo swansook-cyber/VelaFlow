@@ -100,6 +100,15 @@ def build_export_filename(song_title: str | None, artist_name: str | None, expor
     return f"{title}_{artist}_{kind}.{suffix}"
 
 
+def build_lyrics_download_filename(song_title: str | None, artist_name: str | None = None) -> str:
+    """Build the browser-facing lyrics filename without renaming stored package assets."""
+    if is_placeholder_song_title(song_title):
+        return "VelaFlow_Lyrics.txt"
+    title = sanitize_filename(song_title)
+    artist = sanitize_filename(artist_name) if str(artist_name or "").strip() else ""
+    return "_".join(part for part in (title, artist, "Lyrics") if part) + ".txt"
+
+
 def ensure_unique_path(path: str | Path) -> Path:
     target = Path(path)
     if not target.exists():
