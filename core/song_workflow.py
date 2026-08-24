@@ -4,6 +4,7 @@ import hashlib
 import json
 import random
 import re
+from collections import Counter
 from datetime import datetime
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -14,7 +15,13 @@ from core.instrument_tag_normalizer import normalize_lyrics_tags, validate_engli
 from core.music_direction_engine import build_music_direction, export_music_direction_files
 from core.project_io import safe_name
 from core.paths import resolve_project_folder, workflow_project_root
-from core.song_title_engine import clean_generated_song_title, generate_song_title_from_idea, resolve_song_title
+from core.song_title_engine import (
+    clean_generated_song_title,
+    extract_central_title_sections,
+    generate_contextual_title_candidates,
+    generate_song_title_from_idea,
+    resolve_song_title,
+)
 from core.suno_export import export_suno_files
 from providers.provider_manager import generate_text
 
@@ -280,6 +287,74 @@ def resolve_fresh_generation_title(
         "context_fingerprint": fingerprint,
         "previous_title_authoritative": False,
         "source": "current_generation_context",
+    }
+
+
+def resolve_final_generation_title(
+    *,
+    current_title: str,
+    provenance: str,
+    provisional_title: str,
+    provider_title: str,
+    idea: str,
+    hook_text: str,
+    lyrics: str,
+    current_fingerprint: str,
+    previous_fingerprint: str = "",
+) -> Dict[str, Any]:
+    """Resolve the canonical title after validated lyrics exist.
+
+    Manual titles bypass candidate construction. Generated titles use only the
+    successful current generation and do not mutate project state themselves.
+    """
+    current = str(current_title or "").strip()
+    normalized_provenance = str(provenance or "").strip().lower()
+    if normalized_provenance == TITLE_PROVENANCE_MANUAL and current:
+        return {
+            "title": current,
+            "provenance": TITLE_PROVENANCE_MANUAL,
+            "context_fingerprint": current_fingerprint,
+            "source": "manual_title",
+            "candidates": [],
+            "candidate_summary": {
+                "candidate_count": 0,
+                "source_counts": {},
+                "selected_source": "manual_title",
+                "selected_score": 100,
+                "previous_title_match": current == provisional_title,
+                "fingerprint_changed": bool(previous_fingerprint and previous_fingerprint != current_fingerprint),
+            },
+        }
+
+    central = extract_central_title_sections(lyrics)
+    candidates = generate_contextual_title_candidates(
+        idea=idea,
+        hook_text=hook_text,
+        provider_title=provider_title,
+        chorus=central["chorus"],
+        final_chorus=central["final_chorus"],
+        provisional_title=provisional_title,
+        previous_title=current,
+        previous_fingerprint=previous_fingerprint,
+        current_fingerprint=current_fingerprint,
+        require_central_support=True,
+    )
+    winner = candidates[0]
+    source_counts = Counter(source for candidate in candidates for source in candidate.get("sources", []))
+    return {
+        "title": clean_generated_song_title(winner["title"]),
+        "provenance": TITLE_PROVENANCE_FALLBACK if winner.get("fallback") else TITLE_PROVENANCE_GENERATED,
+        "context_fingerprint": current_fingerprint,
+        "source": (winner.get("sources") or ["fallback"])[0],
+        "candidates": candidates,
+        "candidate_summary": {
+            "candidate_count": len(candidates),
+            "source_counts": dict(source_counts),
+            "selected_source": (winner.get("sources") or ["fallback"])[0],
+            "selected_score": int(winner.get("score", 0)),
+            "previous_title_match": bool(winner.get("previous_title_match")),
+            "fingerprint_changed": bool(previous_fingerprint and previous_fingerprint != current_fingerprint),
+        },
     }
 
 

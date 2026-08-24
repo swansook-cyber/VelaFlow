@@ -172,7 +172,7 @@ from core.artist_presets import (
     validate_artist_preset,
 )
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
-from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
+from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_final_generation_title, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -181,7 +181,7 @@ from core.song_structure_intelligence import (
     save_structure_plan,
     validate_structure_plan,
 )
-from core.song_title_engine import clean_generated_song_title, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
+from core.song_title_engine import clean_generated_song_title, generate_contextual_title_candidates, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
 from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, resolve_export_txt_filename, resolve_lyrics_download_filename, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
@@ -1314,6 +1314,91 @@ def run_song_quality_phase_5b_smoke() -> dict[str, Any]:
     }
     assert_true(build_release_package_data(fresh_export_song, generation_1_title)["song_metadata"]["song_title"] == fresh_2["title"], "Release Pack did not use the successful generation title")
     assert_true(fresh_2["title"] in resolve_export_txt_filename(fresh_export_song, generation_1_title), "export filename did not use the successful generation title")
+
+    # Phase 5F: contextual titles must outrank true emergency fallbacks without
+    # randomization or an extra provider call.
+    phase_5f_hooks = [
+        "ล้มแล้วลุก สู้ต่อไม่ถอย",
+        "ทิ้งความหวัง... แล้วโลกก็หมุนไปเจอเรื่องมหัศจรรย์",
+        "เหนื่อยแล้วที่ต้องพยายาม กับใจที่ไม่มีทางเปิด",
+        "ใจมันบอกว่าไม่ไหว... แต่หวังข้างในยังคงมี",
+    ]
+    phase_5f_candidates = [generate_song_title_candidates(hook_text=value) for value in phase_5f_hooks]
+    assert_true(all(items and not items[0].get("fallback") for items in phase_5f_candidates), "real QA title pools fell back to static titles")
+    assert_true(all(items[0].get("sources") and items[0].get("source_support", 0) >= 1 for items in phase_5f_candidates), "title candidate source metadata/support missing")
+    assert_true(phase_5f_candidates[0][0]["title"] in {"ล้มแล้วลุก", "สู้ต่อไม่ถอย"}, "case A did not extract a contextual Thai hook clause")
+    assert_true(phase_5f_candidates[1][0]["title"] == "ทิ้งความหวัง", "case B long-clause extraction failed")
+    assert_true(all(items[0]["title"] != "พอได้แล้วใจ" for items in phase_5f_candidates[2:]), "generic ใจ overlap still made พอได้แล้วใจ dominate")
+    title_engine_source = (ROOT / "core" / "song_title_engine.py").read_text(encoding="utf-8")
+    assert_true('if _clean_phrase(title) == "พอได้แล้วใจ"' not in title_engine_source, "title-specific พอได้แล้วใจ scoring bonus remains")
+
+    provider_title_lyrics = """[Chorus]
+ใจมันบอกว่าไม่ไหว
+แต่พรุ่งนี้ยังมีหวัง
+ขอแค่ยังไม่ยอมแพ้
+แล้วค่อยเริ่มใหม่อีกครั้ง
+
+[Final Chorus]
+ยังมีวันพรุ่งนี้
+แม้คืนนี้จะเหนื่อยเพียงไหน
+ขอแค่ยังไม่ยอมแพ้
+พรุ่งนี้เราจะเริ่มใหม่"""
+    provider_title_final = resolve_final_generation_title(
+        current_title="ชื่อจากรอบก่อน",
+        provenance="generated",
+        provisional_title="ใจยังหวัง",
+        provider_title="ยังมีวันพรุ่งนี้",
+        idea="คนที่ยังมีหวังแม้เหนื่อย",
+        hook_text=phase_5f_hooks[3],
+        lyrics=provider_title_lyrics,
+        current_fingerprint="phase5f-current",
+        previous_fingerprint="phase5f-previous",
+    )
+    assert_true(provider_title_final["title"] == "ยังมีวันพรุ่งนี้" and provider_title_final["source"] == "provider_title", "supported provider title did not participate or win naturally")
+    provider_candidate = next(item for item in provider_title_final["candidates"] if item["title"] == "ยังมีวันพรุ่งนี้")
+    assert_true(set(provider_candidate["sources"]) >= {"provider_title", "final_chorus"} and provider_candidate["central_support"], "provider/final-chorus source support was not merged")
+    assert_true(provider_title_final["candidate_summary"]["candidate_count"] >= 2 and provider_title_final["candidate_summary"]["selected_score"] > 0, "production-safe title diagnostics missing")
+
+    previous_penalty_candidates = generate_contextual_title_candidates(
+        hook_text="คืนที่ยังรอ... คืนที่ยังหวัง",
+        previous_title="คืนที่ยังรอ",
+        previous_fingerprint="old-context",
+        current_fingerprint="new-context",
+    )
+    penalized_previous = next(item for item in previous_penalty_candidates if item["title"] == "คืนที่ยังรอ")
+    assert_true(penalized_previous.get("previous_title_penalty") == 5, "mild changed-context previous-title penalty missing")
+    same_title_allowed = resolve_final_generation_title(
+        current_title="ยังมีวันพรุ่งนี้",
+        provenance="generated",
+        provisional_title="ยังมีวันพรุ่งนี้",
+        provider_title="ยังมีวันพรุ่งนี้",
+        idea="ยังมีความหวังในวันใหม่",
+        hook_text="ยังมีวันพรุ่งนี้",
+        lyrics=provider_title_lyrics,
+        current_fingerprint="same-context",
+        previous_fingerprint="same-context",
+    )
+    assert_true(same_title_allowed["title"] == "ยังมีวันพรุ่งนี้", "legitimately supported repeated title was forced to change")
+    emergency_titles = generate_contextual_title_candidates()
+    assert_true(len(emergency_titles) == 1 and emergency_titles[0]["fallback"] and title_is_valid(emergency_titles[0]["title"]), "emergency-only fallback failed")
+    manual_final = resolve_final_generation_title(
+        current_title="คืนสุดท้าย",
+        provenance="manual",
+        provisional_title="ชื่อชั่วคราว",
+        provider_title="ชื่อจากผู้ให้บริการ",
+        idea="เรื่องใหม่",
+        hook_text="ฮุกใหม่",
+        lyrics=provider_title_lyrics,
+        current_fingerprint="manual-current",
+        previous_fingerprint="manual-previous",
+    )
+    assert_true(manual_final["title"] == "คืนสุดท้าย" and manual_final["source"] == "manual_title" and not manual_final["candidates"], "manual title did not bypass both ranking stages")
+    failed_generation_state = {"title": "ชื่อเดิม", "complete_lyrics": strong_song}
+    failed_generation_before = json.loads(json.dumps(failed_generation_state, ensure_ascii=False))
+    resolve_final_generation_title(current_title="ชื่อเดิม", provenance="generated", provisional_title="ชื่อชั่วคราว", provider_title="ชื่อใหม่", idea="เรื่องใหม่", hook_text="ฮุกใหม่", lyrics=provider_title_lyrics, current_fingerprint="failed-new", previous_fingerprint="failed-old")
+    assert_true(failed_generation_state == failed_generation_before, "final title resolver mutated project state before commit")
+    final_title_export_song = {**fresh_export_song, "title": provider_title_final["title"], "song_title": provider_title_final["title"], "generated_title": provider_title_final["title"]}
+    assert_true(build_release_package_data(final_title_export_song, "ชื่อชั่วคราว")["song_metadata"]["song_title"] == provider_title_final["title"] and provider_title_final["title"] in resolve_export_txt_filename(final_title_export_song, "ชื่อชั่วคราว"), "final canonical title did not propagate through Release Pack/Suno export")
 
     diagnostic_stream = io.StringIO()
     diagnostic_logger = production_diagnostic_logger("velaflow.song_studio.smoke")

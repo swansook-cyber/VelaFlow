@@ -296,6 +296,7 @@ from core.song_workflow import (
     load_song_draft,
     normalize_hook_candidates,
     normalize_song_metadata,
+    resolve_final_generation_title,
     resolve_fresh_generation_title,
     resolve_song_generation_context,
     save_song_state,
@@ -6278,6 +6279,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             except Exception as exc:
                 _show_song_generation_failure("provider", exc, generation_id=generation_id, diagnostics=diagnostics)
                 return
+            provider_generated_title = str(song_result.get("title") or "")
             raw_lyrics = str(song_result.get("normalized_song_output") or song_result.get("complete_lyrics") or song_result.get("original_song_output") or "")
             direction_style_preset = selected_music_preset if advanced_explicit.get("music_preset") else {}
             provenance = dict(song_result.get("generation_provenance") or {})
@@ -6352,6 +6354,29 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 vocal=generation_context["resolved_vocal"],
                 style_preset=direction_style_preset,
             )
+            final_title_resolution = resolve_final_generation_title(
+                current_title=entered_title,
+                provenance=title_provenance,
+                provisional_title=resolved_title,
+                provider_title=provider_generated_title,
+                idea=idea,
+                hook_text=str(hook.get("hook_text", "")),
+                lyrics=prepared["lyrics"],
+                current_fingerprint=title_resolution["context_fingerprint"],
+                previous_fingerprint=str(project_values.get("title_context_fingerprint") or ""),
+            )
+            resolved_title = str(final_title_resolution["title"])
+            title_summary = dict(final_title_resolution.get("candidate_summary") or {})
+            diagnostics.event(
+                "title_candidate_summary",
+                candidate_count=title_summary.get("candidate_count", 0),
+                source_counts=",".join(f"{key}:{value}" for key, value in sorted((title_summary.get("source_counts") or {}).items())),
+                selected_source=title_summary.get("selected_source", "fallback"),
+                selected_score=title_summary.get("selected_score", 0),
+                previous_title_match=title_summary.get("previous_title_match", False),
+                fingerprint_changed=title_summary.get("fingerprint_changed", False),
+            )
+            blueprint.setdefault("hook_contract", {})["title"] = resolved_title
             music_direction = prepared["music_direction"]
             advanced_settings = _settings_from_ai_controls(get_recommended_ai_controls(selected_music_preset_name))
             song_result.update({
@@ -6360,9 +6385,10 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 "generated_title": resolved_title,
                 "manual_title": title_was_manual,
                 "title_generated_from_idea": not title_was_manual,
-                "title_provenance": title_resolution["provenance"],
+                "title_provenance": final_title_resolution["provenance"],
                 "title_generation_id": generation_id,
-                "title_context_fingerprint": title_resolution["context_fingerprint"],
+                "title_context_fingerprint": final_title_resolution["context_fingerprint"],
+                "title_candidate_summary": title_summary,
                 "artist_name": artist,
                 "idea": idea,
                 "genre": generation_context["resolved_genre"],
@@ -6400,8 +6426,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             project["artist"] = artist
             project["song"] = normalize_song_metadata(song_result, preset)
             st.session_state["simple_song_pending_title"] = resolved_title
-            st.session_state["simple_song_pending_title_provenance"] = title_resolution["provenance"]
-            if title_resolution["provenance"] != "manual":
+            st.session_state["simple_song_pending_title_provenance"] = final_title_resolution["provenance"]
+            if final_title_resolution["provenance"] != "manual":
                 st.session_state["simple_suggested_title"] = resolved_title
                 st.session_state["simple_suggested_title_index"] = 0
             st.session_state.generated_song = project["song"]
@@ -6872,6 +6898,17 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["normalized_song_output"] = completeness["lyrics"]
         song_result["song_completeness"] = completeness["after"]
         song_result["song_completeness_before_expansion"] = completeness["before"]
+        developer_title_resolution = resolve_final_generation_title(
+            current_title=title.strip(),
+            provenance="generated" if generated_title_used else "manual",
+            provisional_title=resolved_title,
+            provider_title=str(song_result.get("title") or ""),
+            idea=idea,
+            hook_text=str(hook.get("hook_text", "")),
+            lyrics=completeness["lyrics"],
+            current_fingerprint="",
+        )
+        resolved_title = str(developer_title_resolution["title"])
         song_result["music_direction"] = completeness.get("music_direction") or build_music_direction(
             genre=generation_context["resolved_genre"],
             mood=generation_context["resolved_mood"],
@@ -6890,6 +6927,8 @@ def _render_song_studio(project: dict[str, Any]) -> None:
         song_result["song_title"] = resolved_title
         song_result["generated_title"] = resolved_title
         song_result["title_generated_from_idea"] = generated_title_used
+        song_result["title_provenance"] = developer_title_resolution["provenance"]
+        song_result["title_candidate_summary"] = developer_title_resolution.get("candidate_summary", {})
         song_result["artist_preset"] = preset.get("artist_id", "vela_moon")
         song_result["artist_preset_data"] = preset
         song_result["music_preset"] = selected_music_preset_name
