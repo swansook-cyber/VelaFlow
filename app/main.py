@@ -77,7 +77,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
 from core.audio_intelligence import analyze_audio_source
 from core.smart_cut import suggest_cut_regions
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_join_track_instance, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -2409,6 +2409,9 @@ def _render_interactive_waveform_selector(
     key: str,
     source_id: str = "",
     audio_url: str = "",
+    selection_preview_url: str = "",
+    selection_preview_id: str = "",
+    selection_preview_required: bool = False,
     mode: str = "cut",
 ) -> dict[str, Any]:
     selection = clamp_audio_selection(start, end, duration)
@@ -2419,6 +2422,9 @@ def _render_interactive_waveform_selector(
         end=selection["end"],
         source_id=str(source_id or ""),
         audio_url=str(audio_url or ""),
+        selection_preview_url=str(selection_preview_url or ""),
+        selection_preview_id=str(selection_preview_id or ""),
+        selection_preview_required=bool(selection_preview_required),
         mode=str(mode or "cut"),
         key=key,
         default=selection | {"source_id": str(source_id or ""), "event": ""},
@@ -4127,10 +4133,57 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         editor_state["selection_origin"] = "manual"
     start = float(st.session_state.get("audio_editor_simple_start", 0.0))
     end = float(st.session_state.get("audio_editor_simple_end", min(duration, 30.0)))
+    selection_signature = f"{source_id}|{start:.3f}|{end:.3f}"
+    if st.session_state.get("audio_editor_time_fields_signature") != selection_signature:
+        st.session_state["audio_editor_simple_start_text"] = format_timecode(start)
+        st.session_state["audio_editor_simple_end_text"] = format_timecode(end)
+        st.session_state["audio_editor_time_fields_signature"] = selection_signature
+    if "audio_editor_simple_fade_in" not in st.session_state:
+        st.session_state["audio_editor_simple_fade_in"] = bool(editor_state.get("fade_in_enabled", False))
+    if "audio_editor_simple_fade_out" not in st.session_state:
+        st.session_state["audio_editor_simple_fade_out"] = bool(editor_state.get("fade_out_enabled", False))
+    fade_in_requested = bool(st.session_state.get("audio_editor_simple_fade_in"))
+    fade_out_requested = bool(st.session_state.get("audio_editor_simple_fade_out"))
     if waveform_result.get("ok"):
         waveform_data = waveform_result["data"]
         _remember_project_master_waveform_signature(source_info, source_id, waveform_data)
         browser_audio = _waveform_browser_audio_source(source_path, source_id=source_id, ffmpeg_path=settings.ffmpeg_path)
+        selection_preview_url = ""
+        selection_preview_id = ""
+        selection_preview_error = ""
+        if (fade_in_requested or fade_out_requested) and validate_audio_selection(start, end, duration).get("ok") and ffmpeg_ready:
+            selection_preview_id = hashlib.sha1(
+                f"{source_id}|{start:.3f}|{end:.3f}|{int(fade_in_requested)}|{int(fade_out_requested)}".encode("utf-8")
+            ).hexdigest()
+            preview_cache = st.session_state.setdefault("audio_editor_selection_preview_cache", {})
+            cached_preview = preview_cache.get(selection_preview_id) or {}
+            preview_path = Path(str(cached_preview.get("path") or ""))
+            if not preview_path.is_file():
+                preview_result = create_audio_selection_preview(
+                    source_path,
+                    start_time=start,
+                    end_time=end,
+                    cache_key=selection_preview_id,
+                    fade_in=0.25 if fade_in_requested else 0.0,
+                    fade_out=0.25 if fade_out_requested else 0.0,
+                    ffmpeg_path=settings.ffmpeg_path,
+                )
+                if preview_result.get("ok"):
+                    preview_path = Path(str(preview_result.get("path") or ""))
+                    while len(preview_cache) >= 8:
+                        preview_cache.pop(next(iter(preview_cache)))
+                    preview_cache[selection_preview_id] = {"path": str(preview_path)}
+                else:
+                    selection_preview_error = str(preview_result.get("message") or "Fade preview unavailable")
+            if preview_path.is_file():
+                preview_browser = _waveform_browser_audio_source(
+                    preview_path,
+                    source_id=f"selection-preview:{selection_preview_id}",
+                    ffmpeg_path=settings.ffmpeg_path,
+                )
+                selection_preview_url = str(preview_browser.get("url") or "")
+                if not selection_preview_url:
+                    selection_preview_error = "Fade preview is unavailable in this browser session."
         smart_cut_cache = st.session_state.get("audio_editor_smart_cut_cache") or {}
         if smart_cut_cache.get("source_id") != source_id:
             try:
@@ -4185,8 +4238,13 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                 duration=duration,
                 source_id=source_id,
                 audio_url=str(browser_audio.get("url") or ""),
+                selection_preview_url=selection_preview_url,
+                selection_preview_id=selection_preview_id,
+                selection_preview_required=fade_in_requested or fade_out_requested,
                 key=f"audio_editor_simple_waveform_{hashlib.sha1(source_id.encode()).hexdigest()[:12]}",
             )
+        if selection_preview_error:
+            workspace_card.warning(selection_preview_error)
         if selected.get("event") == "selection_committed" and selected.get("source_id") == source_id:
             clamped = clamp_audio_selection(float(selected.get("start", start)), float(selected.get("end", end)), duration)
             selection_changed = abs(clamped["start"] - start) > 0.0005 or abs(clamped["end"] - end) > 0.0005
@@ -4199,13 +4257,33 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                 editor_state["selection_origin"] = "manual_adjusted" if editor_state.get("selected_smart_cut") else "manual"
                 st.rerun()
     selection = validate_audio_selection(start, end, duration)
-    metrics = workspace_card.columns(3)
-    metrics[0].metric("Start", format_timecode(start))
-    metrics[1].metric("End", format_timecode(end))
-    metrics[2].metric("Selected", format_timecode(max(0.0, end - start)))
+    time_form = workspace_card.form("audio_editor_time_entry", border=False)
+    time_cols = time_form.columns(3)
+    time_cols[0].text_input("Start", key="audio_editor_simple_start_text", help="MM:SS.mmm or seconds")
+    time_cols[1].text_input("End", key="audio_editor_simple_end_text", help="MM:SS.mmm or seconds")
+    time_cols[2].metric("Selected", format_timecode(max(0.0, end - start)))
+    apply_times = time_form.form_submit_button("Apply Times", use_container_width=True)
+    if apply_times:
+        try:
+            typed_start = parse_time_input(st.session_state.get("audio_editor_simple_start_text", ""))
+            typed_end = parse_time_input(st.session_state.get("audio_editor_simple_end_text", ""))
+            typed_selection = validate_audio_selection(typed_start, typed_end, duration)
+        except (TypeError, ValueError):
+            typed_selection = {"ok": False, "message": "Enter time as MM:SS, MM:SS.mmm, seconds, or decimal seconds."}
+        if not typed_selection.get("ok"):
+            workspace_card.error(str(typed_selection.get("message") or "Enter a valid Start and End time."))
+        else:
+            st.session_state["audio_editor_simple_start"] = round(float(typed_start), 3)
+            st.session_state["audio_editor_simple_end"] = round(float(typed_end), 3)
+            editor_state["start_time"] = round(float(typed_start), 3)
+            editor_state["end_time"] = round(float(typed_end), 3)
+            editor_state["selection_origin"] = "manual_adjusted" if editor_state.get("selected_smart_cut") else "manual"
+            project["audio_editor"] = editor_state
+            _save_project()
+            st.rerun()
     fade_cols = workspace_card.columns(2)
-    fade_in = fade_cols[0].toggle("Fade In", value=bool(editor_state.get("fade_in_enabled", False)), key="audio_editor_simple_fade_in")
-    fade_out = fade_cols[1].toggle("Fade Out", value=bool(editor_state.get("fade_out_enabled", False)), key="audio_editor_simple_fade_out")
+    fade_in = fade_cols[0].toggle("Fade In", key="audio_editor_simple_fade_in")
+    fade_out = fade_cols[1].toggle("Fade Out", key="audio_editor_simple_fade_out")
     export_card = st.container(border=True, key="vf_audio_export_card")
     export_card.markdown(
         '<div class="vf-workspace-card-title"><span>04</span><div><strong>Export selection</strong>'
@@ -4219,7 +4297,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     output_format_label = export_card.radio("Export Format", ["MP3", "WAV"], horizontal=True, key="audio_editor_simple_format")
     with export_card.expander("Advanced", expanded=False):
         if st.button("Generate playback fallback", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_preview"):
-            preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+            preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", fade_in=0.25 if fade_in else 0.0, fade_out=0.25 if fade_out else 0.0, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
             editor_state["simple_preview"] = preview.get("data", {}) if preview.get("ok") else {}
             editor_state["last_error"] = "" if preview.get("ok") else preview.get("message") or preview.get("error")
             project["audio_editor"] = editor_state

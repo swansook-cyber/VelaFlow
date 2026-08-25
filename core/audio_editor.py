@@ -272,7 +272,7 @@ def format_timecode(seconds: float) -> str:
 def parse_time_input(value: str | float | int) -> float:
     if isinstance(value, (int, float)):
         seconds = float(value)
-        if seconds < 0:
+        if not math.isfinite(seconds) or seconds < 0:
             raise ValueError("time cannot be negative")
         return seconds
     text = str(value or "").strip()
@@ -280,7 +280,7 @@ def parse_time_input(value: str | float | int) -> float:
         raise ValueError("time is empty")
     if ":" not in text:
         seconds = float(text)
-        if seconds < 0:
+        if not math.isfinite(seconds) or seconds < 0:
             raise ValueError("time cannot be negative")
         return seconds
     parts = text.split(":")
@@ -288,7 +288,7 @@ def parse_time_input(value: str | float | int) -> float:
         raise ValueError("time must be MM:SS or seconds")
     minutes = int(parts[0])
     seconds = float(parts[1])
-    if minutes < 0 or seconds < 0 or seconds >= 60:
+    if minutes < 0 or not math.isfinite(seconds) or seconds < 0 or seconds >= 60:
         raise ValueError("invalid MM:SS value")
     return minutes * 60 + seconds
 
@@ -343,6 +343,8 @@ def validate_audio_selection(start: float, end: float, source_duration: float, *
         duration_value = float(source_duration)
     except (TypeError, ValueError):
         return {"ok": False, "error": "invalid_selection", "message": "Start, end, and duration must be numeric"}
+    if not all(math.isfinite(value) for value in (start_value, end_value, duration_value)):
+        return {"ok": False, "error": "invalid_selection", "message": "Start, end, and duration must be finite numbers"}
     if duration_value <= 0:
         return {"ok": False, "error": "invalid_source_duration", "message": "Audio duration is unavailable"}
     if start_value < 0:
@@ -418,6 +420,62 @@ def build_audio_cut_command(
     if filters:
         args += ["-af", ",".join(filters)]
     return [*args, output]
+
+
+def create_audio_selection_preview(
+    source_audio_path: str | Path,
+    *,
+    start_time: float,
+    end_time: float,
+    cache_key: str,
+    fade_in: float = 0.0,
+    fade_out: float = 0.0,
+    ffmpeg_path: str = "",
+) -> dict[str, Any]:
+    """Create a cached MP3 preview using the same cut/fade command as export."""
+    source = Path(source_audio_path)
+    ffmpeg = ffmpeg_path or find_ffmpeg()
+    if not source.is_file():
+        return {"ok": False, "error": "missing_audio", "message": "Audio file missing"}
+    if not ffmpeg:
+        return {"ok": False, "error": "missing_ffmpeg", "message": "FFmpeg not found"}
+    probe = probe_media(source, ffmpeg_path=ffmpeg)
+    if not probe.get("ok") or not probe.get("has_audio"):
+        return {"ok": False, "error": "invalid_audio", "message": "Invalid or corrupt audio file"}
+    selection = validate_audio_selection(start_time, end_time, float(probe.get("duration") or 0))
+    if not selection.get("ok"):
+        return {"ok": False, "error": selection.get("error", "invalid_selection"), "message": selection.get("message", "Invalid selection")}
+
+    preview_dir = ROOT / "exports" / "audio_editor" / "previews"
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha1(str(cache_key or "selection").encode("utf-8", errors="ignore")).hexdigest()[:20]
+    preview_path = preview_dir / f"selection_{digest}.mp3"
+    if preview_path.is_file() and preview_path.stat().st_size > 0:
+        return {"ok": True, "path": str(preview_path), "cache_status": "hit", "command": []}
+
+    command = build_audio_cut_command(
+        ffmpeg,
+        source,
+        preview_path,
+        start_time=start_time,
+        end_time=end_time,
+        cut_mode="Precise Cut",
+        fade_in=fade_in,
+        fade_out=fade_out,
+        sample_rate=int(probe.get("sample_rate") or 0),
+        channels=int(probe.get("channels") or 2),
+        output_format="mp3",
+    )
+    result = _run(command, timeout=180)
+    if not result.get("ok") or not preview_path.is_file() or preview_path.stat().st_size <= 0:
+        preview_path.unlink(missing_ok=True)
+        return {
+            "ok": False,
+            "error": "preview_failed",
+            "message": str(result.get("output") or "Selection preview failed")[:600],
+            "command": command,
+        }
+    return {"ok": True, "path": str(preview_path), "cache_status": "miss", "command": command}
 
 
 def _run(args: list[str], timeout: int = 180) -> dict[str, Any]:

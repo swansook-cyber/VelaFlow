@@ -151,6 +151,8 @@
     let activeArgs = {};
     let interactionActive = false;
     let selectionPlayback = false;
+    let selectionPreviewAudio = null;
+    let activeSelectionPreviewId = "";
     let subscriptions = [];
     const minGap = 0.1;
 
@@ -209,9 +211,11 @@
 
     function updatePlaybackButtons() {
       const ready = Boolean(wavesurfer && activeArgs.audio_url);
+      const previewReady = !activeArgs.selection_preview_required || Boolean(selectionPreviewAudio && activeArgs.selection_preview_url);
       playButton.disabled = !ready;
-      selectionButton.disabled = !ready || !selectionRegion;
+      selectionButton.disabled = !ready || !selectionRegion || !previewReady;
       playButton.textContent = wavesurfer?.isPlaying() ? "Pause" : "Play";
+      selectionButton.textContent = selectionPlayback ? "Pause Selection" : "Play Selection";
     }
 
     function commitSelection(region) {
@@ -236,12 +240,50 @@
       selectionRegion = null;
       regionsPlugin = null;
       selectionPlayback = false;
+      if (selectionPreviewAudio) {
+        try { selectionPreviewAudio.pause(); } catch (_) {}
+        selectionPreviewAudio.removeAttribute("src");
+        try { selectionPreviewAudio.load(); } catch (_) {}
+      }
+      selectionPreviewAudio = null;
+      activeSelectionPreviewId = "";
       if (wavesurfer) {
         try { wavesurfer.pause(); } catch (_) {}
         try { wavesurfer.destroy(); } catch (_) {}
       }
       wavesurfer = null;
       waveformHost.replaceChildren();
+      updatePlaybackButtons();
+    }
+
+    function syncSelectionPreview(nextArgs) {
+      const nextPreviewId = String(nextArgs.selection_preview_id || "");
+      const nextPreviewUrl = String(nextArgs.selection_preview_url || "");
+      if (nextPreviewId === activeSelectionPreviewId && Boolean(selectionPreviewAudio) === Boolean(nextPreviewUrl)) return;
+      if (selectionPreviewAudio) {
+        try { selectionPreviewAudio.pause(); } catch (_) {}
+      }
+      selectionPlayback = false;
+      selectionPreviewAudio = null;
+      activeSelectionPreviewId = nextPreviewId;
+      if (nextPreviewUrl) {
+        const preview = new Audio(nextPreviewUrl);
+        preview.preload = "auto";
+        preview.addEventListener("ended", () => {
+          selectionPlayback = false;
+          updatePlaybackButtons();
+        });
+        preview.addEventListener("pause", () => {
+          if (!preview.ended) selectionPlayback = false;
+          updatePlaybackButtons();
+        });
+        preview.addEventListener("error", () => {
+          selectionPlayback = false;
+          showMessage("Fade preview is unavailable. Selection and export still work.");
+          updatePlaybackButtons();
+        });
+        selectionPreviewAudio = preview;
+      }
       updatePlaybackButtons();
     }
 
@@ -265,6 +307,7 @@
       destroyWaveSurfer();
       activeArgs = nextArgs;
       activeSourceId = String(nextArgs.source_id || "");
+      syncSelectionPreview(nextArgs);
       applyMode(nextArgs.mode);
       showMessage("");
 
@@ -343,6 +386,7 @@
 
     function syncCommittedSelection(nextArgs) {
       activeArgs = nextArgs;
+      syncSelectionPreview(nextArgs);
       applyMode(nextArgs.mode);
       if (wavesurfer) wavesurfer.setOptions({height: nextArgs.mode === "join_compact" ? 118 : (window.innerWidth <= 430 ? 158 : 180)});
       if (!selectionRegion || interactionActive) return;
@@ -356,6 +400,9 @@
     playButton.addEventListener("click", async () => {
       if (!wavesurfer || !activeArgs.audio_url) return;
       selectionPlayback = false;
+      if (selectionPreviewAudio) {
+        try { selectionPreviewAudio.pause(); } catch (_) {}
+      }
       try {
         if (!wavesurfer.isPlaying() && wavesurfer.getCurrentTime() >= wavesurfer.getDuration() - 0.05) {
           wavesurfer.setTime(0);
@@ -371,9 +418,21 @@
     selectionButton.addEventListener("click", async () => {
       if (!wavesurfer || !selectionRegion || !activeArgs.audio_url) return;
       try {
+        if (selectionPlayback) {
+          if (selectionPreviewAudio && !selectionPreviewAudio.paused) selectionPreviewAudio.pause();
+          else wavesurfer.pause();
+          selectionPlayback = false;
+          updatePlaybackButtons();
+          return;
+        }
         wavesurfer.pause();
         selectionPlayback = true;
-        await wavesurfer.play(selectionRegion.start, selectionRegion.end);
+        if (selectionPreviewAudio && activeArgs.selection_preview_url) {
+          selectionPreviewAudio.currentTime = 0;
+          await selectionPreviewAudio.play();
+        } else {
+          await wavesurfer.play(selectionRegion.start, selectionRegion.end);
+        }
         showMessage("");
       } catch (_) {
         selectionPlayback = false;
