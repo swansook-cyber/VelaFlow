@@ -2629,7 +2629,13 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         with st.expander("Advanced / Diagnostics", expanded=False):
             st.caption("FFmpeg is required for local remaster processing.")
             st.code(str(ffmpeg_probe.get("error") or ffmpeg_probe.get("message") or "FFmpeg not found"))
-    uploaded = st.file_uploader(
+    source_card = st.container(border=True, key="vf_remaster_source_card")
+    source_card.markdown(
+        '<div class="vf-workspace-card-title"><span>01</span><div><strong>Source audio</strong>'
+        '<p>Upload the finished mix you want VelaFlow to polish.</p></div></div>',
+        unsafe_allow_html=True,
+    )
+    uploaded = source_card.file_uploader(
         "Source",
         type=["wav", "mp3"],
         key="remaster_audio_upload",
@@ -2637,7 +2643,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     )
     if uploaded:
         if uploaded.size > max_upload_mb * 1024 * 1024:
-            st.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
+            source_card.warning(f"Audio exceeds the {max_upload_mb} MB upload limit.")
         else:
             upload_result = _save_uploaded_audio(
                 project.get("title") or "remaster_project",
@@ -2649,7 +2655,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             if upload_result.get("ok"):
                 ext = Path(uploaded.name).suffix.lower().lstrip(".")
                 if ext not in {"mp3", "wav"}:
-                    st.warning("Only MP3 and WAV are supported in Remaster Studio V1.")
+                    source_card.warning("Only MP3 and WAV are supported in Remaster Studio V1.")
                     return
                 upload_result["data"]["original_filename"] = uploaded.name
                 upload_result["data"]["format"] = ext.upper()
@@ -2664,35 +2670,35 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                     remaster_state["export_name_manual"] = False
                     project["remaster_studio"] = remaster_state
                     _save_project()
-                    st.success("Original audio uploaded")
+                    source_card.success("Original audio uploaded")
             else:
-                st.warning(upload_result.get("error") or upload_result.get("message"))
+                source_card.warning(upload_result.get("error") or upload_result.get("message"))
     source_path = str((remaster_state.get("source_audio") or {}).get("path") or "")
     source_info = remaster_state.get("source_audio") or {}
     source_identity = _audio_source_signature(source_info, source_path) if source_path else ""
     source_analysis_context = _remaster_audio_intelligence_context(project, source_info)
     input_analysis: dict[str, Any] = {}
-    st.markdown("### Source")
+    source_card.markdown('<div class="vf-workspace-section"><span>02</span>Source status</div>', unsafe_allow_html=True)
     if source_path and Path(source_path).is_file():
         input_analysis = analyze_audio_source(source_path, source_analysis_context, depth="fast", ffmpeg_path=settings.ffmpeg_path)
         input_metadata = input_analysis.get("metadata") or {}
-        cols = st.columns(2)
+        cols = source_card.columns(2)
         cols[0].metric("Filename", str(source_info.get("original_filename") or Path(source_path).name)[:28])
         cols[1].metric("Duration", f"{float(input_metadata.get('duration_sec') or 0):.1f}s" if input_metadata.get("duration_sec") else "Unknown")
-        with st.expander("Advanced / Source Details", expanded=False):
+        with source_card.expander("Advanced / Source Details", expanded=False):
             st.caption(f"Format: {str(source_info.get('format') or Path(source_path).suffix.lstrip('.')).upper()}")
             st.caption(f"Sample Rate: {input_metadata.get('sample_rate_hz') or 'Unknown'} Hz")
             st.caption(f"Channels: {input_metadata.get('channels') or 'Unknown'}")
             st.caption("Loudness, true peak, and LRA are measured during source analysis or processing.")
-        st.markdown("**Original Preview**")
+        source_card.markdown("**Original Preview**")
         original_preview = _resolve_safari_audio_preview_bytes(source_path, cache_key="remaster_original", label="Original", ffmpeg_path=settings.ffmpeg_path, prefer_mp3=True, source_identity=source_identity)
         if original_preview.get("ok"):
-            st.audio(original_preview["bytes"], format=original_preview["format"])
+            source_card.audio(original_preview["bytes"], format=original_preview["format"])
             remaster_state.setdefault("preview_diagnostics", {})["original"] = original_preview.get("diagnostics", {})
         else:
-            st.warning(f"Preview unavailable: {original_preview.get('reason', 'unknown')}")
+            source_card.warning(f"Preview unavailable: {original_preview.get('reason', 'unknown')}")
     else:
-        st.info("Upload a finished MP3 or WAV to begin.")
+        source_card.info("Upload a finished MP3 or WAV to begin.")
     if source_path and Path(source_path).is_file():
         default_export_name = _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project)
         source_id = source_identity
@@ -2704,7 +2710,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             manual_key="remaster_export_name_manual",
             source_key="remaster_export_source_id",
         )
-        st.text_input("Export Name", key="remaster_export_name")
+        source_card.text_input("Export Name", key="remaster_export_name")
         export_name_value = str(st.session_state.get("remaster_export_name") or default_export_name)
         remaster_state["export_name"] = export_name_value
         remaster_state["export_name_source_signature"] = source_id
@@ -2712,7 +2718,12 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.session_state["remaster_export_name_manual"] = remaster_state["export_name_manual"]
         project["remaster_studio"] = remaster_state
         _save_project()
-    st.markdown("### Preset")
+    preset_card = st.container(border=True, key="vf_remaster_preset_card")
+    preset_card.markdown(
+        '<div class="vf-workspace-card-title"><span>03</span><div><strong>Mastering preset</strong>'
+        '<p>Use the recommended profile or choose a preset manually.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     preset_state_before = (
         str(remaster_state.get("preset_mode") or ""),
         str(remaster_state.get("preset_name") or ""),
@@ -2727,7 +2738,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.session_state.pop("remaster_preset_selection_mode", None)
     stored_mode = str(remaster_state.get("preset_mode") or "").lower()
     default_mode = "Manual" if stored_mode == "manual" else "Auto Recommended"
-    selection_mode = st.radio(
+    selection_mode = preset_card.radio(
         "Preset Selection",
         REMASTER_RECOMMENDATION_MODES,
         index=REMASTER_RECOMMENDATION_MODES.index(default_mode),
@@ -2765,8 +2776,8 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         recommendation["overridden"] = False
         remaster_state["remaster_recommendation"] = recommendation
         if recommendation:
-            st.markdown(f"**Recommended:** {recommendation.get('recommended_preset') or style}")
-            with st.expander("Audio Analysis / Why this preset", expanded=False):
+            preset_card.markdown(f"**Recommended:** {recommendation.get('recommended_preset') or style}")
+            with preset_card.expander("Audio Analysis / Why this preset", expanded=False):
                 st.caption(f"Confidence: {recommendation.get('confidence') or 'Low'} · Recommended by VelaFlow")
                 for reason in recommendation.get("reasons", []):
                     st.write(f"- {reason}")
@@ -2796,7 +2807,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
             stored_style = "Streaming Balanced"
         if st.session_state.get("remaster_style") not in {None, *REMASTER_STYLES}:
             st.session_state.pop("remaster_style", None)
-        manual_style = st.selectbox("Preset", REMASTER_STYLES, index=REMASTER_STYLES.index(stored_style), key="remaster_style")
+        manual_style = preset_card.selectbox("Preset", REMASTER_STYLES, index=REMASTER_STYLES.index(stored_style), key="remaster_style")
         style = manual_style
         recommendation = dict(recommendation or {"source": "manual", "recommended_preset": manual_style, "confidence": "Manual", "reasons": ["Selected manually by user."], "metrics": {}})
         recommendation["source"] = "manual" if not recommendation.get("source") else recommendation.get("source")
@@ -2808,22 +2819,24 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         remaster_state["manual_override_active"] = True
         remaster_state["preset_mode"] = "manual"
         remaster_state["preset_name"] = manual_style
-        st.caption("Selected Manually")
+        preset_card.caption("Selected Manually")
     custom_settings = sanitize_custom_remaster_settings(remaster_state.get("custom_settings")) if style == "Custom" else {}
     reference_plan: dict[str, Any] = {}
     if selection_mode == "Manual" and style == "Custom":
-        custom_settings = _render_custom_remaster_controls(project, remaster_state)
+        with preset_card:
+            custom_settings = _render_custom_remaster_controls(project, remaster_state)
         remaster_state["custom_settings"] = custom_settings
         recommendation["custom_settings"] = custom_settings
         remaster_state["remaster_recommendation"] = recommendation
     elif selection_mode == "Manual" and style == REFERENCE_GUIDED_PRESET:
-        reference_plan = _render_reference_guided_controls(
-            project,
-            remaster_state,
-            source_path=source_path,
-            source_context=source_analysis_context,
-            max_upload_mb=max_upload_mb,
-        )
+        with preset_card:
+            reference_plan = _render_reference_guided_controls(
+                project,
+                remaster_state,
+                source_path=source_path,
+                source_context=source_analysis_context,
+                max_upload_mb=max_upload_mb,
+            )
     project["remaster_studio"] = remaster_state
     preset_state_after = (
         str(remaster_state.get("preset_mode") or ""),
@@ -2833,7 +2846,13 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
     if preset_state_after != preset_state_before:
         _save_project()
     reference_ready = style != REFERENCE_GUIDED_PRESET or bool(reference_plan.get("ok"))
-    if st.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok") or not reference_ready, key="generate_mastered_wav"):
+    process_card = st.container(border=True, key="vf_remaster_process_card")
+    process_card.markdown(
+        '<div class="vf-workspace-card-title"><span>04</span><div><strong>Process master</strong>'
+        '<p>Create streaming-ready WAV and MP3 files from the selected source.</p></div></div>',
+        unsafe_allow_html=True,
+    )
+    if process_card.button("Process Audio", type="primary", use_container_width=True, disabled=not bool(source_path) or not ffmpeg_probe.get("ok") or not reference_ready, key="generate_mastered_wav"):
         remaster_export_title = str(remaster_state.get("export_name") or _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project))
         with st.spinner("Processing audio locally: validation, EQ, compression, loudness normalization, limiting, export..."):
             result = remaster_song_audio(
@@ -2878,12 +2897,19 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         st.rerun()
     result_data = remaster_state.get("last_result") or {}
     result_status = str(remaster_state.get("last_status") or result_data.get("overall_status") or "")
-    if result_status == "success":
-        st.success("Remaster complete")
-    elif result_status == "partial":
-        st.warning(remaster_state.get("last_message") or "Remaster partially completed. WAV is available, but MP3 failed validation and was not marked master-ready.")
-    elif result_status == "failed" and (remaster_state.get("last_error") or remaster_state.get("last_message")):
-        st.error(remaster_state.get("last_message") or remaster_state.get("last_error") or "Remaster failed")
+    if result_status:
+        results_card = st.container(border=True, key="vf_remaster_results_card")
+        results_card.markdown(
+            '<div class="vf-workspace-card-title"><span>05</span><div><strong>Master results</strong>'
+            '<p>Compare the finished master and download validated exports.</p></div></div>',
+            unsafe_allow_html=True,
+        )
+        if result_status == "success":
+            results_card.success("Remaster complete")
+        elif result_status == "partial":
+            results_card.warning(remaster_state.get("last_message") or "Remaster partially completed. WAV is available, but MP3 failed validation and was not marked master-ready.")
+        elif result_status == "failed" and (remaster_state.get("last_error") or remaster_state.get("last_message")):
+            results_card.error(remaster_state.get("last_message") or remaster_state.get("last_error") or "Remaster failed")
     mastered_wav = Path(str(result_data.get("mastered_wav") or ""))
     mp3_preview = Path(str(result_data.get("mastered_mp3") or result_data.get("mp3_preview") or ""))
     zip_path = Path(str(result_data.get("zip_path") or ""))
@@ -3688,8 +3714,14 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     if str(join_state.get("active_track_id") or "") not in valid_track_ids:
         join_state["active_track_id"] = str(tracks[0].get("track_id") or "") if tracks else ""
 
+    join_source_card = st.container(border=True, key="vf_audio_join_source_card")
+    join_source_card.markdown(
+        '<div class="vf-workspace-card-title"><span>02</span><div><strong>Audio files</strong>'
+        '<p>Add two or more MP3/WAV tracks to build the joined arrangement.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     upload_key = f"audio_joiner_uploads_{scope}"
-    uploads = st.file_uploader(
+    uploads = join_source_card.file_uploader(
         "Add Files",
         type=["mp3", "wav"],
         accept_multiple_files=True,
@@ -3697,7 +3729,7 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         help=f"Add two or more MP3/WAV files. Maximum {max_upload_mb} MB per file.",
     )
     add_disabled = not bool(uploads) or len(tracks) >= JOIN_MAX_NEW_TRACKS
-    if st.button("+ Add Tracks", type="primary", use_container_width=True, disabled=add_disabled, key=f"audio_joiner_add_files_{scope}"):
+    if join_source_card.button("+ Add Tracks", type="primary", use_container_width=True, disabled=add_disabled, key=f"audio_joiner_add_files_{scope}"):
         available_slots = max(0, JOIN_MAX_NEW_TRACKS - len(tracks))
         added = 0
         for upload in list(uploads or [])[:available_slots]:
@@ -3713,14 +3745,14 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                 storage_stem=f"audio_join_{storage_token}",
             )
             if not saved.get("ok"):
-                st.warning(saved.get("message") or saved.get("error") or f"Could not add {upload.name}")
+                join_source_card.warning(saved.get("message") or saved.get("error") or f"Could not add {upload.name}")
                 continue
             data = saved.get("data") or {}
             upload_id = str(data.get("upload_id") or "")
             probe = _cached_audio_probe(data["path"], source_identity=upload_id, ffmpeg_path=settings.ffmpeg_path)
             duration = float(probe.get("duration") or 0.0)
             if not probe.get("ok") or duration <= 0:
-                st.warning(f"Could not read {upload.name}")
+                join_source_card.warning(f"Could not read {upload.name}")
                 continue
             tracks.append(create_join_track_instance(
                 {
@@ -3743,20 +3775,24 @@ def _render_audio_joiner(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         project["audio_joiner"] = join_state
         _save_project()
         if added:
-            st.success(f"Added {added} file(s)")
+            join_source_card.success(f"Added {added} file(s)")
         if len(uploads or []) > available_slots:
-            st.warning(f"Join Audio supports up to {JOIN_MAX_NEW_TRACKS} new tracks.")
+            join_source_card.warning(f"Join Audio supports up to {JOIN_MAX_NEW_TRACKS} new tracks.")
         st.rerun()
 
     if not tracks:
-        st.info("Add at least two MP3 or WAV files to build a joined track.")
+        join_source_card.caption("Add at least two files to open the arrangement workspace.")
         return
 
     missing_tracks = [track for track in tracks if not Path(str(track.get("path") or "")).is_file()]
     if missing_tracks:
         st.warning(f"{len(missing_tracks)} track source(s) are missing. Restore or remove them before preview/export.")
 
-    st.markdown("### Tracks")
+    st.markdown(
+        '<div class="vf-workspace-card-title"><span>03</span><div><strong>Track arrangement</strong>'
+        '<p>Reorder, trim, preview, and blend the selected files.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     reorder_items = []
     for track in tracks:
         trimmed = max(0.0, float(track.get("end") or track.get("duration") or 0.0) - float(track.get("start") or 0.0))
@@ -4036,14 +4072,20 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     editor_state = project.setdefault("audio_editor", {})
     project_master = _project_master_audio(project)
     source_options = ["Use Project Master (Recommended)", "Upload External MP3/WAV"]
-    source_choice = st.radio("Audio Source", source_options, index=0 if project_master.get("ok") else 1, key="audio_editor_simple_source")
+    source_card = st.container(border=True, key="vf_audio_source_card")
+    source_card.markdown(
+        '<div class="vf-workspace-card-title"><span>02</span><div><strong>Audio source</strong>'
+        '<p>Use the project master or bring in an external MP3/WAV file.</p></div></div>',
+        unsafe_allow_html=True,
+    )
+    source_choice = source_card.radio("Audio Source", source_options, index=0 if project_master.get("ok") else 1, key="audio_editor_simple_source")
     source_path = ""
     source_info: dict[str, Any] = {}
     if source_choice == source_options[0] and project_master.get("ok"):
         source_path = str(project_master["path"])
         source_info = {"original_filename": project_master.get("filename", Path(source_path).name), "format": "MP3", "source_type": "Project Master"}
     else:
-        uploaded = st.file_uploader("Select MP3 or WAV", type=["mp3", "wav"], key="audio_editor_simple_upload", help=f"Maximum {max_upload_mb} MB")
+        uploaded = source_card.file_uploader("Select MP3 or WAV", type=["mp3", "wav"], key="audio_editor_simple_upload", help=f"Maximum {max_upload_mb} MB")
         if uploaded:
             saved = _save_uploaded_audio(project.get("title") or "audio_editor", uploaded, "song", upload_state_key="audio_editor_upload_id", previous_source=editor_state.get("source_audio") or {})
             if saved.get("ok"):
@@ -4056,15 +4098,22 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                 project["audio_editor"] = editor_state
                 _save_project()
             else:
-                st.warning(saved.get("message") or saved.get("error"))
+                source_card.warning(saved.get("message") or saved.get("error"))
         source_info = editor_state.get("source_audio") or {}
         source_path = str(source_info.get("path") or "")
     if not source_path or not Path(source_path).is_file():
+        source_card.caption("Choose a source to open the waveform editor.")
         return
+    workspace_card = st.container(border=True, key="vf_audio_cut_workspace")
+    workspace_card.markdown(
+        '<div class="vf-workspace-card-title"><span>03</span><div><strong>Waveform editor</strong>'
+        '<p>Choose the exact musical moment to preview and export.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     source_id = _audio_source_signature(source_info, source_path)
     probe = _cached_audio_probe(source_path, source_identity=source_id, ffmpeg_path=settings.ffmpeg_path)
     duration = float(probe.get("duration") or 0.0)
-    st.caption(f"{source_info.get('original_filename') or Path(source_path).name} · {format_timecode(duration)}")
+    workspace_card.caption(f"{source_info.get('original_filename') or Path(source_path).name} · {format_timecode(duration)}")
     waveform_dir = ROOT / "exports" / "audio_editor" / "waveforms"
     waveform_json = waveform_dir / f"{safe_name(project.get('title') or 'audio_editor')}_{Path(source_path).stem}_waveform.json"
     waveform_signature = _waveform_source_signature(source_info, source_path, source_id)
@@ -4114,10 +4163,10 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             st.session_state["audio_editor_smart_cut_cache"] = smart_cut_cache
         suggestions = smart_cut_cache.get("suggestions") or []
         if suggestions:
-            st.markdown("**Suggested Cuts**")
+            workspace_card.markdown("**Suggested Cuts**")
             for index, suggestion in enumerate(suggestions):
                 label = f"{suggestion.get('label', 'Suggested Cut')} · {format_timecode(float(suggestion.get('start_sec') or 0.0))}–{format_timecode(float(suggestion.get('end_sec') or 0.0))}"
-                if st.button(label, use_container_width=True, key=f"audio_editor_smart_cut_{index}_{hashlib.sha1(source_id.encode()).hexdigest()[:10]}"):
+                if workspace_card.button(label, use_container_width=True, key=f"audio_editor_smart_cut_{index}_{hashlib.sha1(source_id.encode()).hexdigest()[:10]}"):
                     clamped = clamp_audio_selection(float(suggestion.get("start_sec") or 0.0), float(suggestion.get("end_sec") or duration), duration)
                     st.session_state["audio_editor_simple_start"] = clamped["start"]
                     st.session_state["audio_editor_simple_end"] = clamped["end"]
@@ -4128,15 +4177,16 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                     project["audio_editor"] = editor_state
                     _save_project()
                     st.rerun()
-        selected = _render_interactive_waveform_selector(
-            waveform_data,
-            start=start,
-            end=end,
-            duration=duration,
-            source_id=source_id,
-            audio_url=str(browser_audio.get("url") or ""),
-            key=f"audio_editor_simple_waveform_{hashlib.sha1(source_id.encode()).hexdigest()[:12]}",
-        )
+        with workspace_card:
+            selected = _render_interactive_waveform_selector(
+                waveform_data,
+                start=start,
+                end=end,
+                duration=duration,
+                source_id=source_id,
+                audio_url=str(browser_audio.get("url") or ""),
+                key=f"audio_editor_simple_waveform_{hashlib.sha1(source_id.encode()).hexdigest()[:12]}",
+            )
         if selected.get("event") == "selection_committed" and selected.get("source_id") == source_id:
             clamped = clamp_audio_selection(float(selected.get("start", start)), float(selected.get("end", end)), duration)
             selection_changed = abs(clamped["start"] - start) > 0.0005 or abs(clamped["end"] - end) > 0.0005
@@ -4149,19 +4199,25 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                 editor_state["selection_origin"] = "manual_adjusted" if editor_state.get("selected_smart_cut") else "manual"
                 st.rerun()
     selection = validate_audio_selection(start, end, duration)
-    metrics = st.columns(3)
+    metrics = workspace_card.columns(3)
     metrics[0].metric("Start", format_timecode(start))
     metrics[1].metric("End", format_timecode(end))
     metrics[2].metric("Selected", format_timecode(max(0.0, end - start)))
-    fade_cols = st.columns(2)
+    fade_cols = workspace_card.columns(2)
     fade_in = fade_cols[0].toggle("Fade In", value=bool(editor_state.get("fade_in_enabled", False)), key="audio_editor_simple_fade_in")
     fade_out = fade_cols[1].toggle("Fade Out", value=bool(editor_state.get("fade_out_enabled", False)), key="audio_editor_simple_fade_out")
+    export_card = st.container(border=True, key="vf_audio_export_card")
+    export_card.markdown(
+        '<div class="vf-workspace-card-title"><span>04</span><div><strong>Export selection</strong>'
+        '<p>Name the cut, choose a format, and create the final file.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     default_name = _resolved_audio_export_default(source_info=source_info, source_path=source_path, project=project)
     initialize_export_name_state(st.session_state, "audio_editor_export_name", source_id, default_name, manual_key="audio_editor_export_name_manual", source_key="audio_editor_export_source_id")
-    st.text_input("Export Name", key="audio_editor_export_name")
+    export_card.text_input("Export Name", key="audio_editor_export_name")
     export_name = str(st.session_state.get("audio_editor_export_name") or default_name)
-    output_format_label = st.radio("Export Format", ["MP3", "WAV"], horizontal=True, key="audio_editor_simple_format")
-    with st.expander("Advanced", expanded=False):
+    output_format_label = export_card.radio("Export Format", ["MP3", "WAV"], horizontal=True, key="audio_editor_simple_format")
+    with export_card.expander("Advanced", expanded=False):
         if st.button("Generate playback fallback", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_preview"):
             preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
             editor_state["simple_preview"] = preview.get("data", {}) if preview.get("ok") else {}
@@ -4182,7 +4238,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             st.write(f"Cut Quality: {quality.get('label', 'REVIEW')}")
             for finding in (quality.get("findings") or [])[:3]:
                 st.caption(f"• {finding}")
-    if st.button("Export", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_export"):
+    if export_card.button("Export", type="primary", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_export"):
         selection_origin = str(editor_state.get("selection_origin") or "manual")
         selected_smart_cut = editor_state.get("selected_smart_cut") or {}
         result = export_audio_selection(
@@ -4213,19 +4269,25 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     output_data = editor_state.get("last_result") or {}
     output_path = Path(str(output_data.get("output_audio") or ""))
     if editor_state.get("last_ok") and output_path.is_file():
-        st.success("Audio cut ready")
-        st.download_button(f"Download {output_path.suffix.lstrip('.').upper()}", data=output_path.read_bytes(), file_name=output_path.name, mime="audio/wav" if output_path.suffix.lower() == ".wav" else "audio/mpeg", use_container_width=True, key="audio_editor_simple_download")
+        export_card.success("Audio cut ready")
+        export_card.download_button(f"Download {output_path.suffix.lstrip('.').upper()}", data=output_path.read_bytes(), file_name=output_path.name, mime="audio/wav" if output_path.suffix.lower() == ".wav" else "audio/mpeg", use_container_width=True, key="audio_editor_simple_download")
     elif editor_state.get("last_error"):
-        st.warning(str(editor_state.get("last_error")))
+        export_card.warning(str(editor_state.get("last_error")))
 
 
 def _render_audio_editor(project: dict[str, Any]) -> None:
-    _page_header("Audio Editor", project_context=project)
+    _page_header("Audio Editor", "Cut or join audio with a focused, touch-friendly workflow.", project_context=project)
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
     ffmpeg_probe = ffmpeg_version(settings.ffmpeg_path)
     if not ffmpeg_probe.get("ok"):
         st.error("FFmpeg is required for Audio Editor.")
-    mode = st.radio("Mode", ["Cut", "Join"], horizontal=True, index=0, key="audio_editor_mode")
+    mode_card = st.container(border=True, key="vf_audio_mode_card")
+    mode_card.markdown(
+        '<div class="vf-workspace-card-title"><span>01</span><div><strong>Choose a workflow</strong>'
+        '<p>Cut one precise section or join multiple audio files.</p></div></div>',
+        unsafe_allow_html=True,
+    )
+    mode = mode_card.radio("Mode", ["Cut", "Join"], horizontal=True, index=0, key="audio_editor_mode")
     if mode == "Join":
         _render_audio_joiner(project, ffmpeg_ready=bool(ffmpeg_probe.get("ok")), max_upload_mb=max_upload_mb)
     else:
@@ -6109,11 +6171,17 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
     st.session_state.setdefault("simple_song_idea", project_values.get("idea") or "")
 
     song_form = st.container(border=True, key="vf_song_form")
-    song_form.markdown('<div class="vf-form-kicker">Shape the song before generation</div>', unsafe_allow_html=True)
+    song_form.markdown(
+        '<div class="vf-workspace-card-title"><span>01</span><div><strong>Song foundation</strong>'
+        '<p>Set the title and artist identity before shaping the lyrics.</p></div></div>',
+        unsafe_allow_html=True,
+    )
     title_row = song_form.columns([3, 1])
+    title_row[0].markdown('<span class="vf-title-row-marker" aria-hidden="true"></span>', unsafe_allow_html=True)
     title_row[0].text_input("Project / Song Title", key="simple_song_title", help="Enter a title or let VelaFlow suggest one.")
     generate_title = title_row[1].button("Generate Title", key="simple_generate_title")
     artist = song_form.text_input("Artist", key="simple_song_artist")
+    song_form.markdown('<div class="vf-workspace-section"><span>02</span>Creative direction</div>', unsafe_allow_html=True)
     idea = song_form.text_area("Song Idea / Story", key="simple_song_idea", height=120)
     genre_options = catalog_with_saved_value(GENRE_CATALOG, song.get("genre"))
     mood_options = catalog_with_saved_value(MOOD_CATALOG, song.get("mood"))
