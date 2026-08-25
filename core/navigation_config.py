@@ -22,6 +22,7 @@ PAGE_LABELS = {
     "Release Hardening Tools": "Recovery Tools",
     "AI Settings": "Settings",
     "Settings": "Settings",
+    "About": "About",
 }
 
 SIMPLE_NAVIGATION_PAGES = [
@@ -32,6 +33,7 @@ SIMPLE_NAVIGATION_PAGES = [
     "Visual Studio",
     "Release Pack",
     "Settings",
+    "About",
 ]
 
 FULL_MENU_GROUPS = {

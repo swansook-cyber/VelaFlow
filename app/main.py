@@ -4371,6 +4371,32 @@ def _render_home(project: dict[str, Any]) -> None:
             go_to_page("NAVIGATION", "Settings")
 
 
+def _render_about() -> None:
+    _page_header("About VelaFlow", "AI Music Production by VelaLab")
+    st.markdown(
+        f'<div class="vf-about-brand"><img src="{VELAFLOW_STATIC_ICON_192}" alt="VelaFlow logo">'
+        '<div><strong>VelaFlow</strong><span>AI Music Production by VelaLab</span></div></div>',
+        unsafe_allow_html=True,
+    )
+    with st.container(border=True, key="vf_about_product"):
+        st.markdown('<div class="vf-about-card-title">Focused music production</div>', unsafe_allow_html=True)
+        st.write(
+            "VelaFlow is an AI-assisted music production workspace for creating, "
+            "refining, and preparing music in a focused workflow."
+        )
+        st.caption(f"Version {APP_VERSION} · {RELEASE_CHANNEL} · Build {BUILD_VERSION}")
+    with st.container(border=True, key="vf_about_velalab"):
+        st.markdown('<div class="vf-about-card-title">VelaLab</div>', unsafe_allow_html=True)
+        st.markdown("[**www.velalab.net**](https://www.velalab.net)")
+        st.caption("Music. Software. Stories.")
+        st.link_button(
+            "Visit VelaLab",
+            "https://www.velalab.net",
+            use_container_width=True,
+            type="primary",
+        )
+
+
 def _render_creator_dashboard(project: dict[str, Any]) -> None:
     _page_header("Creator Dashboard", "Single-path music creation for release-ready Suno/Udio packs.", project)
     state = project.setdefault("creator_dashboard", {})
@@ -5692,6 +5718,7 @@ def _page_header(title: str, subtitle: str = "", project_context: dict[str, Any]
         "Visual Studio": ("▤", "vf-accent-pink"),
         "Release Pack": ("↗", "vf-accent-purple"),
         "Settings": ("⚙", "vf-accent-gray"),
+        "About VelaFlow": ("i", "vf-accent-purple"),
     }
     icon, accent = icon_map.get(title, ("✦", "vf-accent-purple"))
     subtitle_markup = f"<p>{html.escape(subtitle)}</p>" if subtitle else ""
@@ -8270,6 +8297,7 @@ _NAVIGATION_ICONS = {
     "Visual Studio": "▤",
     "Release Pack": "↗",
     "Settings": "⚙",
+    "About": "ⓘ",
 }
 
 
@@ -8280,7 +8308,7 @@ def _premium_navigation_label(page_name: str) -> str:
 
 with st.sidebar:
     st.markdown(
-        '<div class="vf-sidebar-brand"><span class="vf-sidebar-mark" aria-hidden="true">V</span>'
+        f'<div class="vf-sidebar-brand"><img class="vf-sidebar-logo" src="{VELAFLOW_STATIC_ICON_192}" alt="VelaFlow logo">'
         '<div><strong>VelaFlow</strong><span>AI Music Production</span></div></div>',
         unsafe_allow_html=True,
     )
@@ -8699,6 +8727,9 @@ def render_agent_studio(project: dict[str, Any] | None) -> None:
 
 if page == "Home":
     _render_home(project)
+
+elif page == "About":
+    _render_about()
 
 elif page == "Creator Dashboard":
     _render_creator_dashboard(project)

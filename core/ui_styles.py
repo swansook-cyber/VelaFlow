@@ -282,6 +282,16 @@ section[data-testid="stSidebar"] > div {
   font-size: 1.2rem;
 }
 
+.vf-sidebar-logo {
+  display: block;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 13px;
+  object-fit: cover;
+  box-shadow: 0 7px 16px rgba(66, 87, 232, 0.2);
+}
+
 .vf-sidebar-brand .vf-sidebar-mark {
   display: inline-flex;
   color: #ffffff;
@@ -370,6 +380,68 @@ section[data-testid="stSidebar"] [data-testid="stRadio"] div[role="radiogroup"] 
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.vf-about-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  max-width: 720px;
+  margin: 0 0 0.85rem;
+}
+
+.vf-about-brand img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  border-radius: 18px;
+  object-fit: cover;
+  box-shadow: 0 9px 22px rgba(66, 87, 232, 0.2);
+}
+
+.vf-about-brand strong {
+  display: block;
+  color: var(--vf-text);
+  font-size: 1.22rem;
+}
+
+.vf-about-brand span {
+  display: block;
+  margin-top: 0.14rem;
+  color: var(--vf-muted);
+  font-size: 0.86rem;
+}
+
+.st-key-vf_about_product,
+.st-key-vf_about_velalab {
+  max-width: 720px;
+  margin-bottom: 0.78rem;
+}
+
+.st-key-vf_about_product > div,
+.st-key-vf_about_velalab > div {
+  padding: 1rem !important;
+}
+
+.vf-about-card-title {
+  margin-bottom: 0.48rem;
+  color: var(--vf-text);
+  font-size: 1rem;
+  font-weight: 740;
+}
+
+.st-key-vf_about_velalab [data-testid="stLinkButton"] a {
+  min-height: 3rem;
+  border-color: var(--vf-primary) !important;
+  background: var(--vf-primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(66, 87, 232, 0.2);
+}
+
+.st-key-vf_about_velalab [data-testid="stLinkButton"] a:hover {
+  border-color: var(--vf-primary-dark) !important;
+  background: var(--vf-primary-dark) !important;
 }
 
 /* Controls and content surfaces */
@@ -773,6 +845,10 @@ code { border-radius: 8px !important; border: 1px solid var(--vf-border) !import
   .st-key-vf_audio_cut_workspace > div,
   .st-key-vf_audio_export_card > div,
   .st-key-vf_audio_join_source_card > div { padding: 0.82rem !important; }
+  .st-key-vf_about_product > div,
+  .st-key-vf_about_velalab > div { padding: 0.82rem !important; }
+  .vf-about-brand { gap: 0.72rem; margin-bottom: 0.72rem; }
+  .vf-about-brand img { width: 56px; height: 56px; flex-basis: 56px; border-radius: 16px; }
   .vf-workspace-card-title { margin-bottom: 0.62rem; }
   .st-key-vf_audio_mode_card [data-testid="stRadio"] div[role="radiogroup"],
   .st-key-vf_remaster_preset_card [data-testid="stRadio"] div[role="radiogroup"] { grid-template-columns: 1fr 1fr; }
