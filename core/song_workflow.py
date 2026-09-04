@@ -157,6 +157,7 @@ def resolve_song_generation_context(
         mood=resolved_mood,
         vocal=resolved_vocal,
         manual_style_override=cleaned_override,
+        song_idea=idea,
     )
     provider_artist["production_profile"] = production_profile
     provider_artist["vocal_profile"] = dict(production_profile["vocal_profile"])
@@ -205,6 +206,8 @@ def resolve_song_generation_context(
         "resolved_hook_focus": _clean_direction(hook_focus) or "high",
         "resolved_style_prompt": " ".join(style_parts).strip(),
         "production_profile": production_profile,
+        "production_intelligence_selected_profile": production_profile["production_intelligence_selected_profile"],
+        "production_intelligence": dict(production_profile["production_intelligence"]),
         "resolved_vocal_profile": production_profile["vocal_profile"],
         "vocal_songwriting_guidance": production_profile["songwriting_guidance"],
         "recommended_bpm": production_profile["recommended_bpm"],

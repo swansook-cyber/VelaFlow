@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from core.production_intelligence_profiles import select_production_intelligence_profile
+
 
 GENRE_CATALOG = (
     "Pop",
@@ -169,6 +171,7 @@ GENRE_PROFILES: dict[str, dict[str, Any]] = {
     "Thai Rock": _genre((95, 135), ("guitar-forward layers", "live bass", "energetic drums", "supporting piano"), "driving Thai rock groove", "strong and emotionally direct", "restrained storytelling verses into a powerful chorus", "live-band energy with clear Thai vocal focus"),
     "ลูกทุ่งร่วมสมัย": _genre((80, 115), ("acoustic and clean electric guitars", "melodic bass", "accessible live groove", "modern Thai country accents"), "accessible Thai country-pop groove", "warm and expressive", "storytelling verses with a direct melodic chorus", "modern clarity while retaining Thai country character", "contemporary Thai luk thung"),
     "เพื่อชีวิตร่วมสมัย": _genre((75, 115), ("acoustic guitar", "organic drums", "bass", "restrained electric guitar"), "grounded organic storytelling groove", "earthy and gradually lifting", "narrative-first verses with a sincere communal chorus", "natural band dynamics and unembellished emotional delivery", "contemporary Thai phuea chiwit"),
+    "Jazz": _genre((68, 126), ("acoustic piano", "upright bass", "live drums", "clean jazz guitar"), "human jazz pocket", "dynamic and harmonically expressive", "vocal-led verses with tasteful instrumental responses", "natural ensemble dynamics, warm room tone and clear vocal placement"),
 }
 
 GENRE_ALIASES = {
@@ -375,6 +378,7 @@ def resolve_song_production_profile(
     mood: str,
     vocal: str,
     manual_style_override: str = "",
+    song_idea: str = "",
 ) -> dict[str, Any]:
     selected_genre = str(genre or "Modern Pop").strip() or "Modern Pop"
     selected_mood = str(mood or "Balanced").strip() or "Balanced"
@@ -388,6 +392,30 @@ def resolve_song_production_profile(
     bpm = _recommended_bpm(tempo_range, float(modifier["tempo_position"]))
     prompt_genre = str(base.get("prompt_genre") or canonical_genre)
     override = " ".join(str(manual_style_override or "").split()).strip(" ,.;")
+    intelligence = select_production_intelligence_profile(
+        canonical_genre=canonical_genre,
+        canonical_mood=canonical_mood,
+        vocal=selected_vocal,
+        song_idea=song_idea,
+    )
+    internal_profile = dict(intelligence.get("profile") or {})
+    if internal_profile:
+        internal_range = tuple(internal_profile.get("bpm_range") or tempo_range)
+        refined_range = (max(tempo_range[0], internal_range[0]), min(tempo_range[1], internal_range[1]))
+        if refined_range[0] <= refined_range[1]:
+            bpm = _recommended_bpm(refined_range, float(modifier["tempo_position"]))
+        palette = list(internal_profile.get("main_instruments") or ()) + list(internal_profile.get("supporting_instruments") or ())
+        instrument_palette = list(dict.fromkeys(palette)) or list(base["instrument_palette"])
+        rhythmic_feel = str(internal_profile.get("rhythm_character") or base["rhythmic_feel"])
+        energy = f"{base['energy']}; {modifier['energy_modifier']}"
+        arrangement_character = f"{internal_profile.get('arrangement_character') or base['arrangement_character']}; {modifier['arrangement_modifier']}"
+        production_notes = f"{internal_profile.get('production_finish') or base['production_notes']}; {modifier['production_modifier']}"
+    else:
+        instrument_palette = list(base["instrument_palette"])
+        rhythmic_feel = base["rhythmic_feel"]
+        energy = f"{base['energy']}; {modifier['energy_modifier']}"
+        arrangement_character = f"{base['arrangement_character']}; {modifier['arrangement_modifier']}"
+        production_notes = f"{base['production_notes']}; {modifier['production_modifier']}"
     profile = {
         "genre": selected_genre,
         "mood": selected_mood,
@@ -397,22 +425,44 @@ def resolve_song_production_profile(
         "tempo_min": tempo_range[0],
         "tempo_max": tempo_range[1],
         "recommended_bpm": bpm,
-        "instrument_palette": list(base["instrument_palette"]),
-        "rhythmic_feel": base["rhythmic_feel"],
-        "energy": f"{base['energy']}; {modifier['energy_modifier']}",
-        "arrangement_character": f"{base['arrangement_character']}; {modifier['arrangement_modifier']}",
-        "production_notes": f"{base['production_notes']}; {modifier['production_modifier']}",
+        "instrument_palette": instrument_palette,
+        "rhythmic_feel": rhythmic_feel,
+        "energy": energy,
+        "arrangement_character": arrangement_character,
+        "production_notes": production_notes,
         "vocal_direction": selected_vocal,
         "vocal_profile": vocal_profile,
         "songwriting_guidance": vocal_profile["songwriting_guidance"],
         "manual_style_override": override,
+        "production_intelligence_selected_profile": str(internal_profile.get("id") or ""),
+        "production_intelligence_sub_style": str(internal_profile.get("sub_style") or ""),
+        "production_intelligence": {
+            "matched": bool(internal_profile),
+            "candidate_count": int(intelligence.get("candidate_count") or 0),
+            "selection_score": int(intelligence.get("score") or 0),
+            "selection_reason": str(intelligence.get("selection_reason") or ""),
+            "genre_match": canonical_genre,
+            "mood_match": canonical_mood if internal_profile else "",
+            "cue_matches": list(intelligence.get("cue_matches") or []),
+        },
     }
-    core = (
-        f"{prompt_genre} around {bpm} BPM with {', '.join(profile['instrument_palette'])}. "
-        f"Use a {profile['rhythmic_feel']}; {modifier['english_label']} mood; {profile['energy']}. "
-        f"Vocal production: {vocal_profile['style_direction']} Arrangement: {profile['arrangement_character']}. "
-        f"Production: {profile['production_notes']}."
-    )
+    if internal_profile:
+        core = (
+            f"{prompt_genre}, {internal_profile['sub_style']}, around {bpm} BPM. "
+            f"Mood: {modifier['english_label']}. Instruments: {', '.join(profile['instrument_palette'])}. "
+            f"Groove: {profile['rhythmic_feel']}; bass: {internal_profile['bass_character']}. "
+            f"Atmosphere and texture: {internal_profile['atmosphere']}; {internal_profile['texture']}. "
+            f"Vocal production: {vocal_profile['style_direction']} "
+            f"Arrangement: {profile['arrangement_character']}; chorus: {internal_profile['chorus_energy']}. "
+            f"Production: {profile['production_notes']}."
+        )
+    else:
+        core = (
+            f"{prompt_genre} around {bpm} BPM with {', '.join(profile['instrument_palette'])}. "
+            f"Use a {profile['rhythmic_feel']}; {modifier['english_label']} mood; {profile['energy']}. "
+            f"Vocal production: {vocal_profile['style_direction']} Arrangement: {profile['arrangement_character']}. "
+            f"Production: {profile['production_notes']}."
+        )
     if override:
         core = (
             f"{prompt_genre} around {bpm} BPM. Mood direction: {modifier['english_label']}. "

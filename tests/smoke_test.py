@@ -174,6 +174,7 @@ from core.artist_presets import (
 from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
 from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_final_generation_title, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
 from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, VOCAL_CATALOG, catalog_with_saved_value, production_profile_in_range, resolve_song_production_profile, resolve_vocal_profile
+from core.production_intelligence_profiles import extract_production_cues
 from core.song_structure_intelligence import (
     create_structure_plan,
     export_structure_plan_files,
@@ -1598,6 +1599,50 @@ def main():
     assert_true(production_matrix["I"]["genre"] == "เพื่อชีวิตร่วมสมัย" and "storytelling" in production_matrix["I"]["style_prompt"].lower() and "organic" in production_matrix["I"]["style_prompt"].lower(), "matrix I contemporary phuea chiwit identity failed")
     production_matrix_j = resolve_song_production_profile(genre="City Pop", mood="สดใส", vocal="clear emotional female vocal")
     assert_true(production_matrix_j == production_matrix["F"], "matrix J production profile is not deterministic")
+
+    intelligence_matrix = {
+        "A": resolve_song_production_profile(genre="Pop", mood="สดใส", vocal="clear emotional female vocal", song_idea="summer trip positive ทริปทะเลหน้าร้อน"),
+        "B": resolve_song_production_profile(genre="Pop", mood="เหงากลางคืน", vocal="warm intimate male vocal", song_idea="thinking about someone at 2am ในเมือง"),
+        "C": resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal", song_idea="missing an old relationship at midnight"),
+        "D": resolve_song_production_profile(genre="Rock", mood="ฮึกเหิม", vocal="powerful male vocal", song_idea="keep fighting ไปต่อไม่ยอมแพ้"),
+        "E": resolve_song_production_profile(genre="ลูกทุ่งร่วมสมัย", mood="คิดถึง", vocal="warm Thai male vocal", song_idea="คนไกลบ้านคิดถึงครอบครัวและหมู่บ้าน"),
+        "F": resolve_song_production_profile(genre="ลูกทุ่งร่วมสมัย", mood="สดใส", vocal="warm Thai male vocal", song_idea="road trip เดินทางบนถนนกลับบ้าน"),
+        "G": resolve_song_production_profile(genre="Acoustic Pop", mood="คิดถึง", vocal="smooth emotional male vocal", song_idea="คิดถึงบ้านและมื้อเย็นกับครอบครัว"),
+        "H": resolve_song_production_profile(genre="City Pop", mood="สดใส", vocal="clear emotional female vocal", song_idea="bright city summer trip"),
+        "I": resolve_song_production_profile(genre="Dream Pop", mood="ฝัน ๆ", vocal="airy dreamy female vocal", song_idea="คืนฝันลอยเหนือเมือง"),
+    }
+    expected_profiles = {
+        "A": "pop_bright_escape",
+        "B": "pop_night_drive",
+        "C": "rnb_midnight_intimate",
+        "D": "rock_modern_anthem",
+        "E": "lukthung_hometown",
+        "F": "lukthung_road_bright",
+        "G": "acoustic_warm_reflection",
+        "H": "citypop_bright",
+        "I": "dreampop_nocturnal",
+    }
+    assert_true(all(intelligence_matrix[key]["production_intelligence_selected_profile"] == profile_id for key, profile_id in expected_profiles.items()), "Production Intelligence test matrix selected an incorrect sub-profile")
+    assert_true(all(production_profile_in_range(profile) for profile in intelligence_matrix.values()), "Production Intelligence refined BPM outside the established Genre range")
+    assert_true(all(term in " ".join(intelligence_matrix["E"]["instrument_palette"]) for term in ("acoustic guitar", "khaen", "phin")), "hometown Luk Thung profile lost acoustic-regional context")
+    assert_true("heartbreak" not in intelligence_matrix["F"]["production_intelligence_sub_style"].lower(), "bright Luk Thung road-trip case drifted into heartbreak")
+    assert_true(all(term in " ".join(intelligence_matrix["H"]["instrument_palette"]) for term in ("funk guitar", "electric piano", "melodic bass", "polished drums")), "bright City Pop profile lost its rhythm-section identity")
+    assert_true(all(term in intelligence_matrix["I"]["style_prompt"].lower() for term in ("dream", "spacious")), "Dream Pop profile lost atmospheric character")
+    assert_true(intelligence_matrix["D"]["production_intelligence_sub_style"] == "Modern Uplifting Rock Anthem" and "dark depressive" not in intelligence_matrix["D"]["style_prompt"].lower(), "uplifting Mood selected a contradictory dark Rock profile")
+    mood_authority = resolve_song_production_profile(genre="Pop", mood="เศร้า", vocal="soft female vocal", song_idea="summer road trip freedom victory")
+    assert_true(mood_authority["production_intelligence_selected_profile"] != "pop_bright_escape" and "bright feel-good" not in mood_authority["style_prompt"].lower(), "Song Idea cues overrode an authoritative sad Mood")
+    assert_true(intelligence_matrix["I"]["vocal_direction"] == "airy dreamy female vocal" and "aggressive" not in intelligence_matrix["I"]["style_prompt"].lower(), "Production Intelligence contradicted the selected Vocal profile")
+    assert_true(extract_production_cues("คิดถึงบ้านตอนตีสอง on a lonely road") == ["home_family", "night_city", "travel_freedom", "rain_memory"], "Thai/English Production Intelligence cue extraction failed")
+    repeated_intelligence = resolve_song_production_profile(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal", song_idea="missing an old relationship at midnight")
+    assert_true(repeated_intelligence == intelligence_matrix["C"], "Production Intelligence is not deterministic for identical input")
+    fallback_intelligence = resolve_song_production_profile(genre="Cinematic Pop", mood="Epic", vocal="powerful male vocal", song_idea="heroic film ending")
+    assert_true(not fallback_intelligence["production_intelligence"]["matched"] and fallback_intelligence["production_intelligence_selected_profile"] == "" and "cinematic" in fallback_intelligence["style_prompt"].lower(), "Phase 5G fallback was not preserved when no internal profile matched")
+    jazz_intelligence = resolve_song_production_profile(genre="Jazz", mood="เหงากลางคืน", vocal="warm intimate female vocal", song_idea="late night city rain")
+    assert_true(jazz_intelligence["production_intelligence_selected_profile"] == "jazz_late_night" and all(term in " ".join(jazz_intelligence["instrument_palette"]) for term in ("acoustic piano", "upright bass", "brush drums")), "Jazz Production Intelligence coverage failed")
+    context_intelligence = resolve_song_generation_context(idea="summer trip positive ทริปทะเล", genre="Pop", mood="สดใส", vocal="clear emotional female vocal", advanced_explicit=untouched_advanced)
+    assert_true(context_intelligence["production_intelligence_selected_profile"] == "pop_bright_escape" and context_intelligence["production_intelligence"]["cue_matches"], "Song Studio did not pass Song Idea cues into Production Intelligence")
+    diagnostics_text = json.dumps(context_intelligence["production_intelligence"], ensure_ascii=False)
+    assert_true("summer trip" not in diagnostics_text and "ทริปทะเล" not in diagnostics_text, "Production Intelligence diagnostics exposed the full Song Idea")
 
     for genre_name in GENRE_CATALOG:
         for mood_name in MOOD_CATALOG:
