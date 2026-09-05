@@ -314,6 +314,22 @@ def assert_true(value, message):
         raise AssertionError(message)
 
 
+def audio_max_volume_db(path: str | Path, *, ffmpeg_path: str) -> float:
+    result = subprocess.run(
+        [ffmpeg_path, "-hide_banner", "-i", str(path), "-af", "volumedetect", "-f", "null", os.devnull],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=60,
+    )
+    match = re.search(r"max_volume:\s*(-?(?:\d+(?:\.\d+)?|inf))\s*dB", result.stdout or "", re.IGNORECASE)
+    if result.returncode != 0 or not match:
+        raise AssertionError(f"Unable to measure audio payload: {path}")
+    return float("-inf") if match.group(1).lower() == "-inf" else float(match.group(1))
+
+
 def wait_job(job_id: str, timeout: float = 10.0):
     start = time.time()
     while time.time() - start < timeout:
@@ -2244,7 +2260,7 @@ def main():
     wav_to_mp3_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", output_format="mp3", sample_rate=48000, channels=2)
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
     assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
-    assert_true(precise_cmd.index("-i") < precise_cmd.index("-ss") and f"d={CUT_BOUNDARY_SMOOTHING_SECONDS:.3f}" in " ".join(smoothed_cmd), "Precise Cut must use accurate output seeking and tiny boundary smoothing")
+    assert_true("-ss" not in precise_cmd and "atrim=start=1.000:duration=3.000" in " ".join(precise_cmd) and "asetpts=PTS-STARTPTS" in " ".join(precise_cmd) and f"d={CUT_BOUNDARY_SMOOTHING_SECONDS:.3f}" in " ".join(smoothed_cmd), "Precise Cut must use sample-accurate filter trimming, reset timestamps, and apply tiny boundary smoothing")
     assert_true("pcm_s24le" in wav_hook_cmd and "libmp3lame" in wav_to_mp3_cmd and "copy" not in wav_to_mp3_cmd, "Audio Editor WAV export commands failed")
     assert_true(REMASTER_RECOMMENDATION_MODES == ["Auto Recommended", "Manual"] and REMASTER_STYLES[0] == "Streaming Balanced" and REMASTER_STYLES[-1] == "Custom" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern", REFERENCE_GUIDED_PRESET, "Custom"}.issubset(set(REMASTER_STYLES)), "simple Remaster preset modes or preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
@@ -3926,15 +3942,21 @@ def main():
         fade_in_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.25, fade_out=0.0, ffmpeg_path=find_ffmpeg())
         fade_out_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.0, fade_out=0.25, ffmpeg_path=find_ffmpeg())
         no_fade_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, ffmpeg_path=find_ffmpeg())
+        short_both_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=2.1, cache_key=fade_preview_cache_key, fade_in=0.05, fade_out=0.05, ffmpeg_path=find_ffmpeg())
         fade_preview_path = Path(str(fade_preview_first.get("path") or ""))
         fade_preview_probe = probe_media(fade_preview_path, ffmpeg_path=find_ffmpeg()) if fade_preview_path.is_file() else {}
-        assert_true(fade_preview_first.get("ok") and fade_preview_path.is_file() and fade_preview_probe.get("audio_codec") == "mp3" and "afade=t=in:st=0:d=0.250" in " ".join(fade_preview_first.get("command") or []) and "afade=t=out:st=2.750:d=0.250" in " ".join(fade_preview_first.get("command") or []), "Cut selection fade preview did not reuse export fade processing")
+        fade_command = " ".join(fade_preview_first.get("command") or [])
+        assert_true(fade_preview_first.get("ok") and fade_preview_path.is_file() and fade_preview_probe.get("audio_codec") == "mp3" and "asetpts=PTS-STARTPTS" in fade_command and "afade=t=in:st=0:d=0.250" in fade_command and "afade=t=out:st=2.750:d=0.250" in fade_command, "Cut selection fade preview did not reset timestamps or reuse export fade processing")
         assert_true(fade_preview_second.get("ok") and fade_preview_second.get("cache_status") == "hit" and not fade_preview_second.get("command"), "Cut selection fade preview cache was not reused")
         assert_true(fade_preview_changed.get("ok") and fade_preview_changed.get("path") != fade_preview_first.get("path") and fade_preview_changed.get("cache_key") != fade_preview_first.get("cache_key"), "Cut preview cache reused a stale selection")
-        assert_true(all(item.get("ok") for item in [fade_in_preview, fade_out_preview, no_fade_preview]) and len({item.get("path") for item in [fade_preview_first, fade_in_preview, fade_out_preview, no_fade_preview]}) == 4, "Cut preview cache did not distinguish fade settings")
+        preview_variants = [fade_preview_first, fade_in_preview, fade_out_preview, no_fade_preview, short_both_preview]
+        assert_true(all(item.get("ok") for item in preview_variants) and len({item.get("path") for item in preview_variants}) == 5, "Cut preview cache did not distinguish fade settings or accept a 100 ms selection")
+        preview_max_volumes = [audio_max_volume_db(Path(str(item.get("path") or "")), ffmpeg_path=find_ffmpeg()) for item in preview_variants]
+        assert_true(all(level > -60.0 for level in preview_max_volumes), f"Cut fade preview contains silent audio: {preview_max_volumes}")
+        assert_true(audio_max_volume_db(precise_hook, ffmpeg_path=find_ffmpeg()) > -60.0, "Cut precise fade export contains silent audio")
         cache_key_a = build_audio_preview_cache_key(long_hook_source, start_time=2.0, end_time=5.0, fade_in=0.25, fade_out=0.25, caller_key="same")
         cache_key_b = build_audio_preview_cache_key(long_hook_source, start_time=2.001, end_time=5.0, fade_in=0.25, fade_out=0.25, caller_key="same")
-        assert_true(cache_key_a != cache_key_b, "Cut preview fingerprint must preserve millisecond selection changes")
+        assert_true(cache_key_a != cache_key_b and "SELECTION_PREVIEW_PROCESSING_VERSION" in (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8"), "Cut preview fingerprint must preserve millisecond selection changes and invalidate obsolete processing")
         assert_true(Path(precise_data.get("report_path", "")).name == "edit_report.json" and Path(precise_data.get("report_txt_path", "")).name == "edit_report.txt", "Audio Editor edit reports missing")
         assert_true(long_hook_source.read_bytes() == audio_source_hash, "Audio Editor modified the original MP3 source")
         smart_hook_source = out / "hook_clip_projects" / "smart_hook_source.mp3"
@@ -4920,8 +4942,11 @@ def main():
         assert_true('id="playButton"' in waveform_component_source and 'id="selectionButton"' in waveform_component_source and "selectionPlayback" in waveform_component_source and "wavesurfer.play(selectionRegion.start, selectionRegion.end)" in waveform_component_source and "selectionPreviewAudio.play()" in waveform_component_source and "selection_preview_required" in waveform_component_source and "export_audio_selection" not in waveform_component_source, "client-side Play/Play Selection or fade-preview behavior missing")
         assert_true(all(token in waveform_component_source for token in ['id="zoomOutButton"', 'id="zoomResetButton"', 'id="zoomInButton"', "wavesurfer.zoom(zoomLevels[zoomIndex])", "updateZoomButtons()"]), "lightweight browser-side waveform zoom missing")
         apply_zoom_source = waveform_component_source[waveform_component_source.find("function applyZoom"):waveform_component_source.find("function stopPreviewSync")]
-        assert_true("setComponentValue" not in apply_zoom_source and "initializeWaveSurfer" not in apply_zoom_source, "waveform zoom must not rerun Streamlit or reload audio")
+        assert_true("setComponentValue" not in apply_zoom_source and "initializeWaveSurfer" not in apply_zoom_source and "updateRegion(" in apply_zoom_source and "setScrollTime" in apply_zoom_source and "revealSelection()" in apply_zoom_source, "waveform zoom/external selection updates must stay local and reveal the selected region")
+        assert_true("externalRegionUpdate" in waveform_component_source and 'updateRegion(nextArgs.start, nextArgs.end, {reveal: true})' in waveform_component_source and "selectionRegion.setOptions" in apply_zoom_source, "typed Start/End updates need an explicit idempotent external region update contract")
         assert_true("requestAnimationFrame(syncPreviewPlayhead)" in waveform_component_source and "selectionRegion.start + selectionPreviewAudio.currentTime" in waveform_component_source and "wavesurfer.setTime(selectionRegion.start)" in waveform_component_source, "fade preview playhead is not synchronized browser-side")
+        safari_preview_source = waveform_component_source[waveform_component_source.find("if (selectionPreviewAudio && activeArgs.selection_preview_url)"):waveform_component_source.find("} else {", waveform_component_source.find("if (selectionPreviewAudio && activeArgs.selection_preview_url)"))]
+        assert_true("selectionPreviewAudio.play()" in safari_preview_source and "await previewPlay" in safari_preview_source and safari_preview_source.find("selectionPreviewAudio.play()") < safari_preview_source.find("wavesurfer.pause()") and "playsInline = true" in waveform_component_source and "muted = false" in waveform_component_source, "Safari fade preview must start its unmuted inline HTMLAudio playback directly inside the tap handler")
         assert_true("nextSourceId !== activeSourceId" in waveform_component_source and "destroyWaveSurfer()" in waveform_component_source and "syncCommittedSelection(nextArgs)" in waveform_component_source and "revokeObjectURL" not in waveform_component_source, "WaveSurfer source lifecycle or same-source preservation missing")
         assert_true("44px" in waveform_component_source and "touch-action: none" in waveform_component_source and "touch-action: pan-x pan-y" in waveform_component_source and "overflow: hidden" in waveform_component_source, "Waveform mobile touch targets or overflow controls missing")
         assert_true("join-compact" in waveform_component_source and 'mode === "join_compact"' in waveform_component_source and "118" in waveform_component_source, "Waveform V2 compact Join mode missing")

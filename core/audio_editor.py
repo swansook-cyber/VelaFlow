@@ -40,6 +40,7 @@ WAVEFORM_TARGET_POINTS = 1600
 MIN_AUDIO_SELECTION_SECONDS = 0.1
 CUT_BOUNDARY_SMOOTHING_SECONDS = 0.008
 SELECTION_PREVIEW_CACHE_LIMIT = 24
+SELECTION_PREVIEW_PROCESSING_VERSION = "3"
 PHRASE_COMPLETION_LOOKAHEAD_SECONDS = 10.0
 PHRASE_STABLE_BOUNDARY_SECONDS = 0.5
 SMART_HOOK_TYPES = {
@@ -356,7 +357,7 @@ def validate_audio_selection(start: float, end: float, source_duration: float, *
         return {"ok": False, "error": "end_beyond_duration", "message": "End time is beyond the source duration"}
     if start_value >= end_value:
         return {"ok": False, "error": "start_after_end", "message": "Start time must be before end time"}
-    if end_value - start_value < minimum_seconds:
+    if end_value - start_value + 1e-9 < minimum_seconds:
         return {"ok": False, "error": "selection_too_short", "message": f"Selection must be at least {minimum_seconds:.1f} second"}
     return {"ok": True, "error": "", "message": "", "selection_duration": round(end_value - start_value, 3)}
 
@@ -402,6 +403,7 @@ def build_audio_preview_cache_key(
         source_identity = str(source.resolve())
     payload = "|".join(
         [
+            SELECTION_PREVIEW_PROCESSING_VERSION,
             source_identity,
             f"{float(start_time):.3f}",
             f"{float(end_time):.3f}",
@@ -447,16 +449,17 @@ def build_audio_cut_command(
     output = str(output_path)
     mode, _warnings = effective_cut_mode(source_path, cut_mode, fade_in, fade_out)
     export_format = str(output_format or "mp3").lower()
-    fast_seek = [ffmpeg, "-y", "-ss", f"{float(start_time):.3f}", "-i", source]
-    accurate_seek = [ffmpeg, "-y", "-i", source, "-ss", f"{float(start_time):.3f}"]
-    base = [*(fast_seek if mode == "Lossless Quick Cut" else accurate_seek), "-t", f"{duration:.3f}", "-map", "0:a:0", "-map_metadata", "0"]
+    if mode == "Lossless Quick Cut":
+        base = [ffmpeg, "-y", "-ss", f"{float(start_time):.3f}", "-i", source, "-t", f"{duration:.3f}", "-map", "0:a:0", "-map_metadata", "0"]
+    else:
+        base = [ffmpeg, "-y", "-i", source, "-map", "0:a:0", "-map_metadata", "0"]
     resolved_fade_in, resolved_fade_out = resolve_audio_fades(duration, fade_in, fade_out)
     smoothing = CUT_BOUNDARY_SMOOTHING_SECONDS if mode == "Precise Cut" and resolved_fade_in <= 0 and resolved_fade_out <= 0 else 0.0
     if export_format == "wav":
         if mode == "Lossless Quick Cut" and resolved_fade_in <= 0 and resolved_fade_out <= 0:
             return [*base, "-c:a", "pcm_s24le", output]
         args = [*base, "-c:a", "pcm_s24le"]
-        filters: list[str] = []
+        filters: list[str] = [f"atrim=start={float(start_time):.3f}:duration={duration:.3f}", "asetpts=PTS-STARTPTS"]
         if resolved_fade_in > 0:
             filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}")
         if resolved_fade_out > 0:
@@ -469,8 +472,7 @@ def build_audio_cut_command(
                     f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}",
                 ]
             )
-        if filters:
-            args += ["-af", ",".join(filters)]
+        args += ["-af", ",".join(filters)]
         if sample_rate in {32000, 44100, 48000}:
             args += ["-ar", str(sample_rate)]
         if channels:
@@ -483,7 +485,7 @@ def build_audio_cut_command(
         args += ["-ac", "2"]
     if sample_rate in {32000, 44100, 48000}:
         args += ["-ar", str(sample_rate)]
-    filters: list[str] = []
+    filters: list[str] = [f"atrim=start={float(start_time):.3f}:duration={duration:.3f}", "asetpts=PTS-STARTPTS"]
     if resolved_fade_in > 0:
         filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}")
     if resolved_fade_out > 0:
@@ -496,8 +498,7 @@ def build_audio_cut_command(
                 f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}",
             ]
         )
-    if filters:
-        args += ["-af", ",".join(filters)]
+    args += ["-af", ",".join(filters)]
     return [*args, output]
 
 

@@ -177,6 +177,7 @@
     let subscriptions = [];
     let previewSyncFrame = 0;
     let zoomIndex = 0;
+    let externalRegionUpdate = false;
     const zoomLevels = [0, 25, 50, 100, 200];
     const minGap = 0.1;
 
@@ -253,7 +254,36 @@
       if (!wavesurfer) return;
       zoomIndex = Math.max(0, Math.min(zoomLevels.length - 1, Number(nextIndex) || 0));
       wavesurfer.zoom(zoomLevels[zoomIndex]);
+      revealSelection();
       updateZoomButtons();
+    }
+
+    function revealSelection() {
+      if (!wavesurfer || !selectionRegion || zoomIndex <= 0) return;
+      const pixelsPerSecond = zoomLevels[zoomIndex];
+      const visibleDuration = waveformHost.clientWidth / Math.max(1, pixelsPerSecond);
+      const revealTime = Math.max(0, selectionRegion.start - visibleDuration * 0.15);
+      requestAnimationFrame(() => wavesurfer?.setScrollTime(revealTime));
+    }
+
+    function updateRegion(startValue, endValue, {reveal = false} = {}) {
+      if (!selectionRegion || interactionActive) return false;
+      const selection = normalizedSelection(startValue, endValue, activeArgs.duration);
+      const changed = Math.abs(selectionRegion.start - selection.start) > 0.0005 || Math.abs(selectionRegion.end - selection.end) > 0.0005;
+      if (!changed) return false;
+      externalRegionUpdate = true;
+      try {
+        selectionRegion.setOptions({start: selection.start, end: selection.end});
+      } catch (_) {
+        externalRegionUpdate = false;
+        return false;
+      }
+      requestAnimationFrame(() => { externalRegionUpdate = false; });
+      const currentTime = wavesurfer?.getCurrentTime() ?? 0;
+      if (wavesurfer && (currentTime < selection.start || currentTime > selection.end)) wavesurfer.setTime(selection.start);
+      updateLabels(selectionRegion);
+      if (reveal) revealSelection();
+      return true;
     }
 
     function stopPreviewSync() {
@@ -322,6 +352,10 @@
       if (nextPreviewUrl) {
         const preview = new Audio(nextPreviewUrl);
         preview.preload = "auto";
+        preview.playsInline = true;
+        preview.muted = false;
+        preview.volume = 1;
+        preview.load();
         preview.addEventListener("ended", () => {
           stopPreviewSync();
           if (wavesurfer && selectionRegion) wavesurfer.setTime(selectionRegion.end);
@@ -400,12 +434,14 @@
         regionsPlugin = wavesurfer.registerPlugin(window.WaveSurfer.Regions.create());
 
         subscriptions.push(regionsPlugin.on("region-update", (region) => {
+          if (externalRegionUpdate) return;
           interactionActive = true;
           selectionRegion = region;
           updateLabels(region);
           // Active dragging stays browser-side; only the final region event is committed.
         }));
         subscriptions.push(regionsPlugin.on("region-updated", (region) => {
+          if (externalRegionUpdate) return;
           if (selectionPlayback) {
             if (selectionPreviewAudio && !selectionPreviewAudio.paused) selectionPreviewAudio.pause();
             else wavesurfer.pause();
@@ -452,12 +488,7 @@
       syncSelectionPreview(nextArgs);
       applyMode(nextArgs.mode);
       if (wavesurfer) wavesurfer.setOptions({height: nextArgs.mode === "join_compact" ? 118 : (window.innerWidth <= 430 ? 158 : 180)});
-      if (!selectionRegion || interactionActive) return;
-      const selection = normalizedSelection(nextArgs.start, nextArgs.end, nextArgs.duration);
-      if (Math.abs(selectionRegion.start - selection.start) > 0.001 || Math.abs(selectionRegion.end - selection.end) > 0.001) {
-        selectionRegion.setOptions({start: selection.start, end: selection.end});
-        updateLabels(selectionRegion);
-      }
+      updateRegion(nextArgs.start, nextArgs.end, {reveal: true});
     }
 
     playButton.addEventListener("click", async () => {
@@ -489,14 +520,20 @@
           updatePlaybackButtons();
           return;
         }
-        wavesurfer.pause();
-        selectionPlayback = true;
         if (selectionPreviewAudio && activeArgs.selection_preview_url) {
+          selectionPreviewAudio.pause();
           selectionPreviewAudio.currentTime = 0;
+          selectionPreviewAudio.muted = false;
+          selectionPreviewAudio.volume = 1;
+          const previewPlay = selectionPreviewAudio.play();
+          wavesurfer.pause();
           wavesurfer.setTime(selectionRegion.start);
-          await selectionPreviewAudio.play();
+          selectionPlayback = true;
+          await previewPlay;
           syncPreviewPlayhead();
         } else {
+          wavesurfer.pause();
+          selectionPlayback = true;
           await wavesurfer.play(selectionRegion.start, selectionRegion.end);
         }
         showMessage("");
