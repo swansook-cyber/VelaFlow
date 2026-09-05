@@ -39,8 +39,10 @@ HOOK_ANALYSIS_STEP_SECONDS = 2.0
 WAVEFORM_TARGET_POINTS = 1600
 MIN_AUDIO_SELECTION_SECONDS = 0.1
 CUT_BOUNDARY_SMOOTHING_SECONDS = 0.008
+AUDIO_EDITOR_USER_FADE_SECONDS = 1.5
+AUDIO_EDITOR_FADE_CURVE = "tri"
 SELECTION_PREVIEW_CACHE_LIMIT = 24
-SELECTION_PREVIEW_PROCESSING_VERSION = "3"
+SELECTION_PREVIEW_PROCESSING_VERSION = "4"
 PHRASE_COMPLETION_LOOKAHEAD_SECONDS = 10.0
 PHRASE_STABLE_BOUNDARY_SECONDS = 0.5
 SMART_HOOK_TYPES = {
@@ -372,16 +374,17 @@ def effective_cut_mode(source_path: str | Path, cut_mode: str, fade_in: float = 
 
 
 def resolve_audio_fades(duration: float, fade_in: float = 0.0, fade_out: float = 0.0) -> tuple[float, float]:
-    """Clamp requested fades to the selected range without changing its bounds."""
+    """Clamp fades while retaining an audible full-level portion of the selection."""
     selected_duration = max(0.0, float(duration or 0.0))
     requested_in = max(0.0, float(fade_in or 0.0))
     requested_out = max(0.0, float(fade_out or 0.0))
     if selected_duration <= 0:
         return 0.0, 0.0
     if requested_in and requested_out:
-        maximum = selected_duration / 2.0
+        maximum = selected_duration * 0.4
         return min(requested_in, maximum), min(requested_out, maximum)
-    return min(requested_in, selected_duration), min(requested_out, selected_duration)
+    maximum = selected_duration * 0.8
+    return min(requested_in, maximum), min(requested_out, maximum)
 
 
 def build_audio_preview_cache_key(
@@ -461,15 +464,15 @@ def build_audio_cut_command(
         args = [*base, "-c:a", "pcm_s24le"]
         filters: list[str] = [f"atrim=start={float(start_time):.3f}:duration={duration:.3f}", "asetpts=PTS-STARTPTS"]
         if resolved_fade_in > 0:
-            filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}")
+            filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}")
         if resolved_fade_out > 0:
             fade_start = max(0.0, duration - resolved_fade_out)
-            filters.append(f"afade=t=out:st={fade_start:.3f}:d={resolved_fade_out:.3f}")
+            filters.append(f"afade=t=out:st={fade_start:.3f}:d={resolved_fade_out:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}")
         if smoothing:
             filters.extend(
                 [
-                    f"afade=t=in:st=0:d={smoothing:.3f}",
-                    f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}",
+                    f"afade=t=in:st=0:d={smoothing:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}",
+                    f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}",
                 ]
             )
         args += ["-af", ",".join(filters)]
@@ -487,15 +490,15 @@ def build_audio_cut_command(
         args += ["-ar", str(sample_rate)]
     filters: list[str] = [f"atrim=start={float(start_time):.3f}:duration={duration:.3f}", "asetpts=PTS-STARTPTS"]
     if resolved_fade_in > 0:
-        filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}")
+        filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}")
     if resolved_fade_out > 0:
         fade_start = max(0.0, duration - resolved_fade_out)
-        filters.append(f"afade=t=out:st={fade_start:.3f}:d={resolved_fade_out:.3f}")
+        filters.append(f"afade=t=out:st={fade_start:.3f}:d={resolved_fade_out:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}")
     if smoothing:
         filters.extend(
             [
-                f"afade=t=in:st=0:d={smoothing:.3f}",
-                f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}",
+                f"afade=t=in:st=0:d={smoothing:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}",
+                f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}:curve={AUDIO_EDITOR_FADE_CURVE}",
             ]
         )
     args += ["-af", ",".join(filters)]

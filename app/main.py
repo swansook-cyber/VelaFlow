@@ -77,7 +77,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.api_quality_gate import API_QUALITY_WARNING, STATUS_API_READY, build_api_quality_gate
 from core.audio_intelligence import analyze_audio_source
 from core.smart_cut import suggest_cut_regions
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, AUDIO_EDITOR_USER_FADE_SECONDS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, smart_hook_suffix, validate_audio_selection
 from core.asset_manager import list_assets as list_workspace_assets, register_asset
 from core.media_pipeline import load_pipeline as load_media_pipeline, save_pipeline as save_media_pipeline, transition_stage
 from core.project_assets import cover_prompt_history, project_asset_summary as workspace_asset_summary
@@ -4153,7 +4153,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         selection_preview_error = ""
         if (fade_in_requested or fade_out_requested) and validate_audio_selection(start, end, duration).get("ok") and ffmpeg_ready:
             selection_preview_id = hashlib.sha1(
-                f"{source_id}|{start:.3f}|{end:.3f}|fade_in={0.25 if fade_in_requested else 0.0:.3f}|fade_out={0.25 if fade_out_requested else 0.0:.3f}|format=mp3".encode("utf-8")
+                f"{source_id}|{start:.3f}|{end:.3f}|fade_in={AUDIO_EDITOR_USER_FADE_SECONDS if fade_in_requested else 0.0:.3f}|fade_out={AUDIO_EDITOR_USER_FADE_SECONDS if fade_out_requested else 0.0:.3f}|format=mp3".encode("utf-8")
             ).hexdigest()
             preview_cache = st.session_state.setdefault("audio_editor_selection_preview_cache", {})
             cached_preview = preview_cache.get(selection_preview_id) or {}
@@ -4164,8 +4164,8 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
                     start_time=start,
                     end_time=end,
                     cache_key=selection_preview_id,
-                    fade_in=0.25 if fade_in_requested else 0.0,
-                    fade_out=0.25 if fade_out_requested else 0.0,
+                    fade_in=AUDIO_EDITOR_USER_FADE_SECONDS if fade_in_requested else 0.0,
+                    fade_out=AUDIO_EDITOR_USER_FADE_SECONDS if fade_out_requested else 0.0,
                     ffmpeg_path=settings.ffmpeg_path,
                 )
                 if preview_result.get("ok"):
@@ -4298,7 +4298,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     export_card.caption("Precise boundaries · MP3 320 kbps or lossless PCM WAV")
     with export_card.expander("Advanced", expanded=False):
         if st.button("Generate playback fallback", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_preview"):
-            preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", fade_in=0.25 if fade_in else 0.0, fade_out=0.25 if fade_out else 0.0, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
+            preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", fade_in=AUDIO_EDITOR_USER_FADE_SECONDS if fade_in else 0.0, fade_out=AUDIO_EDITOR_USER_FADE_SECONDS if fade_out else 0.0, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
             editor_state["simple_preview"] = preview.get("data", {}) if preview.get("ok") else {}
             editor_state["last_error"] = "" if preview.get("ok") else preview.get("message") or preview.get("error")
             project["audio_editor"] = editor_state
@@ -4327,8 +4327,8 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             project_name=project.get("title") or "audio_editor",
             output_name=export_name,
             cut_mode="Precise Cut",
-            fade_in=0.25 if fade_in else 0.0,
-            fade_out=0.25 if fade_out else 0.0,
+            fade_in=AUDIO_EDITOR_USER_FADE_SECONDS if fade_in else 0.0,
+            fade_out=AUDIO_EDITOR_USER_FADE_SECONDS if fade_out else 0.0,
             ffmpeg_path=settings.ffmpeg_path,
             max_upload_mb=max_upload_mb,
             waveform_summary=waveform_result.get("data") or {},

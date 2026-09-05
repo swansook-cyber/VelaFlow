@@ -35,7 +35,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, CUT_BOUNDARY_SMOOTHING_SECONDS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_audio_preview_cache_key, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, build_source_signature, build_upload_identity, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_audio_selection_region, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, resolve_audio_fades, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_CURVE, AUDIO_EDITOR_FADE_OPTIONS, AUDIO_EDITOR_USER_FADE_SECONDS, CUT_BOUNDARY_SMOOTHING_SECONDS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_audio_preview_cache_key, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, build_source_signature, build_upload_identity, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_audio_selection_region, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, resolve_audio_fades, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, SCHEMA_VERSION as AUDIO_INTELLIGENCE_SCHEMA_VERSION, analyze_audio_source, parse_loudnorm_output
 from core.audio_bpm import BPM_METHOD, build_onset_envelope, estimate_bpm
 from core.smart_cut import suggest_cut_regions
@@ -328,6 +328,50 @@ def audio_max_volume_db(path: str | Path, *, ffmpeg_path: str) -> float:
     if result.returncode != 0 or not match:
         raise AssertionError(f"Unable to measure audio payload: {path}")
     return float("-inf") if match.group(1).lower() == "-inf" else float(match.group(1))
+
+
+def decode_audio_mono(path: str | Path, *, ffmpeg_path: str, sample_rate: int = 48000) -> tuple[array, int]:
+    result = subprocess.run(
+        [ffmpeg_path, "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(sample_rate), "-f", "f32le", "-"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=60,
+    )
+    if result.returncode != 0 or not result.stdout:
+        raise AssertionError(f"Unable to decode audio envelope: {path}")
+    samples = array("f")
+    samples.frombytes(result.stdout)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    return samples, sample_rate
+
+
+def audio_window_rms_db(samples: array, sample_rate: int, start: float, end: float) -> float:
+    first = max(0, min(len(samples), int(float(start) * sample_rate)))
+    last = max(first + 1, min(len(samples), int(float(end) * sample_rate)))
+    window = samples[first:last]
+    if not window:
+        return float("-inf")
+    mean_square = sum(float(value) * float(value) for value in window) / len(window)
+    return 20.0 * math.log10(max(1e-12, math.sqrt(mean_square)))
+
+
+def audio_envelope_points(path: str | Path, *, ffmpeg_path: str, duration: float = 10.0) -> dict[str, float]:
+    samples, sample_rate = decode_audio_mono(path, ffmpeg_path=ffmpeg_path)
+    points = {
+        "first_50ms": (0.0, 0.05),
+        "100ms": (0.075, 0.125),
+        "250ms": (0.225, 0.275),
+        "500ms": (0.475, 0.525),
+        "1s": (0.975, 1.025),
+        "midpoint": (duration / 2.0 - 0.025, duration / 2.0 + 0.025),
+        "last_1s": (duration - 1.025, duration - 0.975),
+        "last_500ms": (duration - 0.525, duration - 0.475),
+        "last_250ms": (duration - 0.275, duration - 0.225),
+        "last_100ms": (duration - 0.125, duration - 0.075),
+        "last_50ms": (duration - 0.05, duration),
+    }
+    return {label: round(audio_window_rms_db(samples, sample_rate, start, end), 3) for label, (start, end) in points.items()}
 
 
 def wait_job(job_id: str, timeout: float = 10.0):
@@ -2233,7 +2277,10 @@ def main():
     precision_a = validate_audio_selection(parse_time_input("00:10.000"), parse_time_input("00:20.000"), 300.0)
     precision_b = validate_audio_selection(parse_time_input("02:19.611"), parse_time_input("03:24.778"), 300.0)
     assert_true(precision_a.get("selection_duration") == 10.0 and precision_b.get("selection_duration") == 65.167 and format_timecode(139.611) == "02:19.611", "Cut millisecond time round-trip or selection duration failed")
-    assert_true(resolve_audio_fades(0.1, 0.25, 0.25) == (0.05, 0.05), "Cut fades must clamp safely for very short selections")
+    short_pair = resolve_audio_fades(0.1, AUDIO_EDITOR_USER_FADE_SECONDS, AUDIO_EDITOR_USER_FADE_SECONDS)
+    one_second_pair = resolve_audio_fades(1.0, AUDIO_EDITOR_USER_FADE_SECONDS, AUDIO_EDITOR_USER_FADE_SECONDS)
+    short_single = resolve_audio_fades(0.1, AUDIO_EDITOR_USER_FADE_SECONDS, 0.0)
+    assert_true(AUDIO_EDITOR_USER_FADE_SECONDS == 1.5 and AUDIO_EDITOR_FADE_CURVE == "tri" and tuple(round(value, 3) for value in short_pair) == (0.04, 0.04) and one_second_pair == (0.4, 0.4) and tuple(round(value, 3) for value in short_single) == (0.08, 0.0), "Cut user fade default or audible-center clamp rule failed")
     join_order_fixture = [{"track_id": "a", "path": "a.mp3"}, {"track_id": "b", "path": "b.mp3"}, {"track_id": "c", "path": "c.mp3"}]
     assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", -1)] == ["b", "a", "c"], "Audio Joiner move-up ordering failed")
     assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", 1)] == ["a", "c", "b"], "Audio Joiner move-down ordering failed")
@@ -2259,7 +2306,7 @@ def main():
     wav_hook_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.wav", start_time=1, end_time=4, cut_mode="Lossless Quick Cut", output_format="wav", sample_rate=48000, channels=2)
     wav_to_mp3_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", output_format="mp3", sample_rate=48000, channels=2)
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
-    assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
+    assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd and "curve=tri" in " ".join(precise_cmd), "Precise Cut command must use libmp3lame 320k and explicit linear fade filters when requested")
     assert_true("-ss" not in precise_cmd and "atrim=start=1.000:duration=3.000" in " ".join(precise_cmd) and "asetpts=PTS-STARTPTS" in " ".join(precise_cmd) and f"d={CUT_BOUNDARY_SMOOTHING_SECONDS:.3f}" in " ".join(smoothed_cmd), "Precise Cut must use sample-accurate filter trimming, reset timestamps, and apply tiny boundary smoothing")
     assert_true("pcm_s24le" in wav_hook_cmd and "libmp3lame" in wav_to_mp3_cmd and "copy" not in wav_to_mp3_cmd, "Audio Editor WAV export commands failed")
     assert_true(REMASTER_RECOMMENDATION_MODES == ["Auto Recommended", "Manual"] and REMASTER_STYLES[0] == "Streaming Balanced" and REMASTER_STYLES[-1] == "Custom" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern", REFERENCE_GUIDED_PRESET, "Custom"}.issubset(set(REMASTER_STYLES)), "simple Remaster preset modes or preset list failed")
@@ -3957,6 +4004,88 @@ def main():
         cache_key_a = build_audio_preview_cache_key(long_hook_source, start_time=2.0, end_time=5.0, fade_in=0.25, fade_out=0.25, caller_key="same")
         cache_key_b = build_audio_preview_cache_key(long_hook_source, start_time=2.001, end_time=5.0, fade_in=0.25, fade_out=0.25, caller_key="same")
         assert_true(cache_key_a != cache_key_b and "SELECTION_PREVIEW_PROCESSING_VERSION" in (ROOT / "core" / "audio_editor.py").read_text(encoding="utf-8"), "Cut preview fingerprint must preserve millisecond selection changes and invalidate obsolete processing")
+        fade_qa_dir = out / "audio_cutter_fade_verification"
+        fade_qa_dir.mkdir(parents=True, exist_ok=True)
+        fade_source = fade_qa_dir / "constant_tone_10s.wav"
+        subprocess.run(
+            [find_ffmpeg(), "-y", "-f", "lavfi", "-i", "sine=frequency=1000:sample_rate=48000:duration=10", "-af", "volume=0.5", "-ac", "1", "-c:a", "pcm_s24le", str(fade_source)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        fade_states = {
+            "no_fade": (0.0, 0.0),
+            "fade_in": (AUDIO_EDITOR_USER_FADE_SECONDS, 0.0),
+            "fade_out": (0.0, AUDIO_EDITOR_USER_FADE_SECONDS),
+            "both": (AUDIO_EDITOR_USER_FADE_SECONDS, AUDIO_EDITOR_USER_FADE_SECONDS),
+        }
+        fade_artifacts: dict[str, dict[str, Path]] = {}
+        fade_envelopes: dict[str, dict[str, dict[str, float]]] = {}
+        for state, (fade_in_seconds, fade_out_seconds) in fade_states.items():
+            preview_result = create_audio_selection_preview(
+                fade_source,
+                start_time=0.0,
+                end_time=10.0,
+                cache_key=f"fade-envelope-{state}",
+                fade_in=fade_in_seconds,
+                fade_out=fade_out_seconds,
+                ffmpeg_path=find_ffmpeg(),
+            )
+            wav_result = export_audio_selection(
+                fade_source,
+                start_time=0.0,
+                end_time=10.0,
+                project_name=f"Fade QA WAV {state}",
+                output_name=state,
+                cut_mode="Precise Cut",
+                fade_in=fade_in_seconds,
+                fade_out=fade_out_seconds,
+                ffmpeg_path=find_ffmpeg(),
+                output_format="wav",
+            )
+            mp3_result = export_audio_selection(
+                fade_source,
+                start_time=0.0,
+                end_time=10.0,
+                project_name=f"Fade QA MP3 {state}",
+                output_name=state,
+                cut_mode="Precise Cut",
+                fade_in=fade_in_seconds,
+                fade_out=fade_out_seconds,
+                ffmpeg_path=find_ffmpeg(),
+                output_format="mp3",
+            )
+            assert_true(preview_result.get("ok") and wav_result.get("ok") and mp3_result.get("ok"), f"Cut fade production-path artifact failed: {state}")
+            paths = {
+                "preview": Path(str(preview_result.get("path") or "")),
+                "wav": Path(str((wav_result.get("data") or {}).get("output_audio") or "")),
+                "mp3": Path(str((mp3_result.get("data") or {}).get("output_audio") or "")),
+            }
+            fade_artifacts[state] = paths
+            fade_envelopes[state] = {kind: audio_envelope_points(path, ffmpeg_path=find_ffmpeg()) for kind, path in paths.items()}
+            wav_report = (wav_result.get("data") or {}).get("report") or {}
+            mp3_report = (mp3_result.get("data") or {}).get("report") or {}
+            assert_true(
+                wav_report.get("effective_fade_in") == fade_in_seconds
+                and wav_report.get("effective_fade_out") == fade_out_seconds
+                and mp3_report.get("effective_fade_in") == fade_in_seconds
+                and mp3_report.get("effective_fade_out") == fade_out_seconds,
+                f"Cut preview/export fade duration parity failed: {state}",
+            )
+        no_fade = fade_envelopes["no_fade"]["wav"]
+        fade_in_curve = fade_envelopes["fade_in"]["wav"]
+        fade_out_curve = fade_envelopes["fade_out"]["wav"]
+        both_curve = fade_envelopes["both"]["wav"]
+        assert_true(max(no_fade.values()) - min(no_fade.values()) < 1.5, f"No-fade fixture should remain stable apart from 8 ms smoothing: {no_fade}")
+        assert_true(fade_in_curve["first_50ms"] < fade_in_curve["100ms"] < fade_in_curve["250ms"] < fade_in_curve["500ms"] < fade_in_curve["1s"] < fade_in_curve["midpoint"] + 0.5, f"Fade-in envelope is not progressive: {fade_in_curve}")
+        assert_true(fade_out_curve["midpoint"] > fade_out_curve["last_1s"] > fade_out_curve["last_500ms"] > fade_out_curve["last_250ms"] > fade_out_curve["last_100ms"] > fade_out_curve["last_50ms"], f"Fade-out envelope is not progressive: {fade_out_curve}")
+        assert_true(both_curve["first_50ms"] < both_curve["500ms"] < both_curve["midpoint"] and both_curve["midpoint"] > both_curve["last_500ms"] > both_curve["last_50ms"], f"Combined fade envelope is incomplete: {both_curve}")
+        for state, formats in fade_envelopes.items():
+            for point in no_fade:
+                assert_true(abs(formats["preview"][point] - formats["wav"][point]) < 2.0 and abs(formats["mp3"][point] - formats["wav"][point]) < 2.0, f"Preview/WAV/MP3 envelope mismatch: {state} {point} {formats}")
+        one_second_preview = create_audio_selection_preview(fade_source, start_time=0.0, end_time=1.0, cache_key="fade-short-1s", fade_in=AUDIO_EDITOR_USER_FADE_SECONDS, fade_out=AUDIO_EDITOR_USER_FADE_SECONDS, ffmpeg_path=find_ffmpeg())
+        minimum_preview = create_audio_selection_preview(fade_source, start_time=0.0, end_time=0.1, cache_key="fade-short-100ms", fade_in=AUDIO_EDITOR_USER_FADE_SECONDS, fade_out=AUDIO_EDITOR_USER_FADE_SECONDS, ffmpeg_path=find_ffmpeg())
+        assert_true(one_second_preview.get("ok") and minimum_preview.get("ok") and audio_max_volume_db(one_second_preview["path"], ffmpeg_path=find_ffmpeg()) > -30.0 and audio_max_volume_db(minimum_preview["path"], ffmpeg_path=find_ffmpeg()) > -30.0, "Short combined fades must retain audible full-level content")
         assert_true(Path(precise_data.get("report_path", "")).name == "edit_report.json" and Path(precise_data.get("report_txt_path", "")).name == "edit_report.txt", "Audio Editor edit reports missing")
         assert_true(long_hook_source.read_bytes() == audio_source_hash, "Audio Editor modified the original MP3 source")
         smart_hook_source = out / "hook_clip_projects" / "smart_hook_source.mp3"
@@ -4954,7 +5083,7 @@ def main():
         assert_true("_waveform_browser_audio_source" in main_source and "media_file_mgr.add" in main_source and "waveform_browser_audio_url_cache" in main_source and "audio_url=str(browser_audio.get" in cutter_slice, "stable session media URL delivery for Waveform V2 missing")
         assert_true('selected.get("event") == "selection_committed"' in cutter_slice and 'selected.get("source_id") == source_id' in cutter_slice and 'start_time=start' in cutter_slice and 'end_time=end' in cutter_slice, "Cut export is not gated by the committed Waveform V2 selection")
         assert_true('text_input("Start", key="audio_editor_simple_start_text"' in cutter_slice and 'text_input("End", key="audio_editor_simple_end_text"' in cutter_slice and 'form_submit_button("Apply Times"' in cutter_slice and "parse_time_input" in cutter_slice and "validate_audio_selection(typed_start, typed_end, duration)" in cutter_slice, "Cut direct Start/End entry or explicit validation commit missing")
-        assert_true("audio_editor_time_fields_signature" in cutter_slice and "selection_preview_id" in cutter_slice and "audio_editor_selection_preview_cache" in cutter_slice and "create_audio_selection_preview" in cutter_slice and "fade_in=0.25 if fade_in_requested else 0.0" in cutter_slice, "Cut waveform-to-fields synchronization or source/selection/fade preview cache missing")
+        assert_true("audio_editor_time_fields_signature" in cutter_slice and "selection_preview_id" in cutter_slice and "audio_editor_selection_preview_cache" in cutter_slice and "create_audio_selection_preview" in cutter_slice and "AUDIO_EDITOR_USER_FADE_SECONDS if fade_in_requested else 0.0" in cutter_slice and "AUDIO_EDITOR_USER_FADE_SECONDS if fade_out_requested else 0.0" in cutter_slice, "Cut waveform-to-fields synchronization or audible source/selection/fade preview cache missing")
         assert_true('cut_mode="Precise Cut"' in cutter_slice and "Precise boundaries" in cutter_slice, "production Cut UI must use accurate precise exports")
         assert_true("project_master_waveform_signatures" in main_source and "_remember_project_master_waveform_signature" in cutter_slice and "_waveform_source_signature" in cutter_slice, "unchanged Project Master waveform signature cache missing")
         assert_true('source_card.text_input("Export Name", key="remaster_export_name")' in main_source and 'export_card.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
