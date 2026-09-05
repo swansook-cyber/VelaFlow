@@ -1,5 +1,6 @@
 import json
 import io
+import hashlib
 import logging
 import math
 import os
@@ -34,7 +35,7 @@ from core.access_control import access_gate_policy, authenticate_access_password
 from core.agent_tools import build_multi_agent_creator_exports, build_release_package, create_project_folder, export_txt, generate_filename, generate_release_checklist, save_project_package, summarize_memory
 from core.agent_router import route_agent_tasks
 from core.agent_workflows import WORKFLOW_MODES, get_workflow_profile
-from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, build_source_signature, build_upload_identity, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, generate_waveform_data, join_audio_tracks, join_pair_id, move_audio_selection_region, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
+from core.audio_editor import AUDIO_EDITOR_CUT_MODES, AUDIO_EDITOR_FADE_OPTIONS, CUT_BOUNDARY_SMOOTHING_SECONDS, HOOK_DURATION_PRESETS, JOIN_CROSSFADE_DURATIONS, JOIN_DEFAULT_TRANSITION, JOIN_MAX_NEW_TRACKS, SMART_HOOK_TYPES, analyze_hook_candidates, analyze_phrase_completion, build_audio_preview_cache_key, build_join_arrangement_fingerprint, build_join_project_scope, build_join_transition_preview_tracks, build_source_signature, build_upload_identity, cached_probe_media, calculate_join_total_duration, clamp_audio_selection, create_audio_selection_preview, create_join_track_instance, evaluate_hook_selection_quality, expand_end_to_complete_phrase, export_audio_batch, build_audio_cut_command, effective_cut_mode, export_audio_selection, format_timecode, generate_waveform_data, join_audio_tracks, join_pair_id, move_audio_selection_region, move_join_track, parse_time_input, preview_join_transition, reconcile_join_pair_settings, refine_musical_hook_boundaries, remove_join_track, render_waveform_svg, reorder_join_tracks, reset_source_dependent_state, resolve_audio_fades, save_uploaded_audio_once, score_end_boundary, smart_hook_suffix, validate_audio_editor_input, validate_audio_selection
 from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, SCHEMA_VERSION as AUDIO_INTELLIGENCE_SCHEMA_VERSION, analyze_audio_source, parse_loudnorm_output
 from core.audio_bpm import BPM_METHOD, build_onset_envelope, estimate_bpm
 from core.smart_cut import suggest_cut_regions
@@ -2203,7 +2204,7 @@ def main():
     assert_true("Creator Wizard" in full_pages and "Song Studio" in full_pages, "navigation config missing Creator Wizard or Song Studio")
     assert_true(["Song Studio", "Remaster Studio", "Audio Editor", "Visual Studio", "Release Pack", "AI Settings"] == song_only_pages, "V1 navigation should expose five product workspaces and Settings")
     assert_true(AUDIO_EDITOR_CUT_MODES == ["Lossless Quick Cut", "Precise Cut"] and AUDIO_EDITOR_FADE_OPTIONS["Off"] == 0.0, "Audio Editor V1 cut mode/fade config failed")
-    assert_true(validate_audio_selection(1.0, 3.0, 10.0)["ok"] and not validate_audio_selection(3.0, 1.0, 10.0)["ok"] and validate_audio_selection(0.0, 20.0, 10.0)["error"] == "end_beyond_duration" and validate_audio_selection(0.0, 0.5, 10.0)["error"] == "selection_too_short", "Audio Editor selection validation failed")
+    assert_true(validate_audio_selection(1.0, 3.0, 10.0)["ok"] and validate_audio_selection(0.0, 0.1, 10.0)["ok"] and not validate_audio_selection(3.0, 1.0, 10.0)["ok"] and validate_audio_selection(0.0, 20.0, 10.0)["error"] == "end_beyond_duration" and validate_audio_selection(0.0, 0.05, 10.0)["error"] == "selection_too_short", "Audio Editor selection validation failed")
     assert_true({"15 seconds", "30 seconds", "45 seconds", "60 seconds", "Custom"}.issubset(set(HOOK_DURATION_PRESETS)), "Audio Editor hook duration helpers missing")
     assert_true("Best Hook" in SMART_HOOK_TYPES and smart_hook_suffix("Best Hook") == "BestHook" and parse_time_input("01:25.5") == 85.5 and parse_time_input("02:19.611") == 139.611 and parse_time_input("139.611") == 139.611 and parse_time_input("85.5") == 85.5, "Smart Musical Hook type/time parsing failed")
     for invalid_time in ("", "1:60", "1:2:3", "-1", "nan", "inf"):
@@ -2213,6 +2214,10 @@ def main():
             pass
         else:
             raise AssertionError(f"Invalid Cut time was accepted: {invalid_time}")
+    precision_a = validate_audio_selection(parse_time_input("00:10.000"), parse_time_input("00:20.000"), 300.0)
+    precision_b = validate_audio_selection(parse_time_input("02:19.611"), parse_time_input("03:24.778"), 300.0)
+    assert_true(precision_a.get("selection_duration") == 10.0 and precision_b.get("selection_duration") == 65.167 and format_timecode(139.611) == "02:19.611", "Cut millisecond time round-trip or selection duration failed")
+    assert_true(resolve_audio_fades(0.1, 0.25, 0.25) == (0.05, 0.05), "Cut fades must clamp safely for very short selections")
     join_order_fixture = [{"track_id": "a", "path": "a.mp3"}, {"track_id": "b", "path": "b.mp3"}, {"track_id": "c", "path": "c.mp3"}]
     assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", -1)] == ["b", "a", "c"], "Audio Joiner move-up ordering failed")
     assert_true([track["track_id"] for track in move_join_track(join_order_fixture, "b", 1)] == ["a", "c", "b"], "Audio Joiner move-down ordering failed")
@@ -2234,10 +2239,12 @@ def main():
     assert_true(effective_cut_mode("song.mp3", "Lossless Quick Cut", 0, 0)[0] == "Lossless Quick Cut" and effective_cut_mode("song.mp3", "Lossless Quick Cut", 0.25, 0)[0] == "Precise Cut", "Audio Editor effective mode validation failed")
     lossless_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Lossless Quick Cut")
     precise_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", fade_in=0.25, fade_out=0.25, sample_rate=44100, channels=2)
+    smoothed_cmd = build_audio_cut_command("ffmpeg", "source.mp3", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", sample_rate=44100, channels=2)
     wav_hook_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.wav", start_time=1, end_time=4, cut_mode="Lossless Quick Cut", output_format="wav", sample_rate=48000, channels=2)
     wav_to_mp3_cmd = build_audio_cut_command("ffmpeg", "source.wav", "hook.mp3", start_time=1, end_time=4, cut_mode="Precise Cut", output_format="mp3", sample_rate=48000, channels=2)
     assert_true("-c:a" in lossless_cmd and "copy" in lossless_cmd and "-af" not in lossless_cmd, "Lossless Quick Cut command must stream copy without filters")
     assert_true("libmp3lame" in precise_cmd and "320k" in precise_cmd and "-af" in precise_cmd, "Precise Cut command must use libmp3lame 320k and fade filters when requested")
+    assert_true(precise_cmd.index("-i") < precise_cmd.index("-ss") and f"d={CUT_BOUNDARY_SMOOTHING_SECONDS:.3f}" in " ".join(smoothed_cmd), "Precise Cut must use accurate output seeking and tiny boundary smoothing")
     assert_true("pcm_s24le" in wav_hook_cmd and "libmp3lame" in wav_to_mp3_cmd and "copy" not in wav_to_mp3_cmd, "Audio Editor WAV export commands failed")
     assert_true(REMASTER_RECOMMENDATION_MODES == ["Auto Recommended", "Manual"] and REMASTER_STYLES[0] == "Streaming Balanced" and REMASTER_STYLES[-1] == "Custom" and {"Streaming Balanced", "Modern Pop", "Pop Rock", "Emotional Ballad", "Warm Acoustic", "Vocal Focus", "Cinematic", "Loud Modern", REFERENCE_GUIDED_PRESET, "Custom"}.issubset(set(REMASTER_STYLES)), "simple Remaster preset modes or preset list failed")
     assert_true(STYLE_FILTERS["Streaming Balanced"]["target_lufs"].startswith("-14"), "Remaster Streaming Balanced target failed")
@@ -3915,10 +3922,19 @@ def main():
         fade_preview_cache_key = f"smoke-fade-preview-{long_hook_source.stat().st_mtime_ns}"
         fade_preview_first = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.25, fade_out=0.25, ffmpeg_path=find_ffmpeg())
         fade_preview_second = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.25, fade_out=0.25, ffmpeg_path=find_ffmpeg())
+        fade_preview_changed = create_audio_selection_preview(long_hook_source, start_time=2.1, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.25, fade_out=0.25, ffmpeg_path=find_ffmpeg())
+        fade_in_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.25, fade_out=0.0, ffmpeg_path=find_ffmpeg())
+        fade_out_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, fade_in=0.0, fade_out=0.25, ffmpeg_path=find_ffmpeg())
+        no_fade_preview = create_audio_selection_preview(long_hook_source, start_time=2.0, end_time=5.0, cache_key=fade_preview_cache_key, ffmpeg_path=find_ffmpeg())
         fade_preview_path = Path(str(fade_preview_first.get("path") or ""))
         fade_preview_probe = probe_media(fade_preview_path, ffmpeg_path=find_ffmpeg()) if fade_preview_path.is_file() else {}
         assert_true(fade_preview_first.get("ok") and fade_preview_path.is_file() and fade_preview_probe.get("audio_codec") == "mp3" and "afade=t=in:st=0:d=0.250" in " ".join(fade_preview_first.get("command") or []) and "afade=t=out:st=2.750:d=0.250" in " ".join(fade_preview_first.get("command") or []), "Cut selection fade preview did not reuse export fade processing")
         assert_true(fade_preview_second.get("ok") and fade_preview_second.get("cache_status") == "hit" and not fade_preview_second.get("command"), "Cut selection fade preview cache was not reused")
+        assert_true(fade_preview_changed.get("ok") and fade_preview_changed.get("path") != fade_preview_first.get("path") and fade_preview_changed.get("cache_key") != fade_preview_first.get("cache_key"), "Cut preview cache reused a stale selection")
+        assert_true(all(item.get("ok") for item in [fade_in_preview, fade_out_preview, no_fade_preview]) and len({item.get("path") for item in [fade_preview_first, fade_in_preview, fade_out_preview, no_fade_preview]}) == 4, "Cut preview cache did not distinguish fade settings")
+        cache_key_a = build_audio_preview_cache_key(long_hook_source, start_time=2.0, end_time=5.0, fade_in=0.25, fade_out=0.25, caller_key="same")
+        cache_key_b = build_audio_preview_cache_key(long_hook_source, start_time=2.001, end_time=5.0, fade_in=0.25, fade_out=0.25, caller_key="same")
+        assert_true(cache_key_a != cache_key_b, "Cut preview fingerprint must preserve millisecond selection changes")
         assert_true(Path(precise_data.get("report_path", "")).name == "edit_report.json" and Path(precise_data.get("report_txt_path", "")).name == "edit_report.txt", "Audio Editor edit reports missing")
         assert_true(long_hook_source.read_bytes() == audio_source_hash, "Audio Editor modified the original MP3 source")
         smart_hook_source = out / "hook_clip_projects" / "smart_hook_source.mp3"
@@ -3978,6 +3994,27 @@ def main():
         assert_true(wav_hook_wav["ok"] and wav_hook_wav_path.name.endswith("_Hook.wav") and wav_hook_wav_probe.get("audio_codec", "").startswith("pcm") and wav_hook_wav_data.get("report", {}).get("source_format") == "wav" and wav_hook_wav_data.get("report", {}).get("export_format") == "WAV", "WAV Hook export/report failed")
         assert_true(wav_hook_mp3["ok"] and wav_hook_mp3_path.name.endswith("_Hook.mp3") and wav_hook_mp3_probe.get("audio_codec") == "mp3" and wav_hook_mp3_data.get("report", {}).get("preview_format") == "audio/mpeg" and wav_hook_mp3_data.get("report", {}).get("export_format") == "MP3", "WAV source MP3 Hook export/report failed")
         assert_true(smart_hook_wav_source.read_bytes() == wav_source_hash, "Audio Editor modified the original WAV source")
+        precision_source = out / "hook_clip_projects" / "precision_source.wav"
+        subprocess.run(
+            [find_ffmpeg(), "-y", "-f", "lavfi", "-i", "sine=frequency=523.25:duration=206:sample_rate=32000", "-ac", "1", "-c:a", "pcm_s16le", str(precision_source)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        precision_source_hash = hashlib.sha256(precision_source.read_bytes()).hexdigest()
+        precision_a_wav = export_audio_selection(precision_source, start_time=10.0, end_time=20.0, project_name="Cut QA A", output_name="Cut QA A", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="wav")
+        precision_b_wav = export_audio_selection(precision_source, start_time=139.611, end_time=204.778, project_name="Cut QA B WAV", output_name="Cut QA B", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="wav")
+        precision_b_mp3 = export_audio_selection(precision_source, start_time=139.611, end_time=204.778, project_name="Cut QA B MP3", output_name="Cut QA B", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="mp3")
+        near_start = export_audio_selection(precision_source, start_time=0.001, end_time=0.501, project_name="Cut QA Near Start", output_name="Near Start", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="wav")
+        near_end = export_audio_selection(precision_source, start_time=205.75, end_time=205.95, project_name="Cut QA Near End", output_name="Near End", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="wav")
+        repeat_changed = export_audio_selection(precision_source, start_time=20.0, end_time=21.25, project_name="Cut QA Repeat", output_name="Repeated Range", cut_mode="Precise Cut", ffmpeg_path=find_ffmpeg(), output_format="wav")
+        precision_reports = [item.get("data", {}).get("report", {}) for item in [precision_a_wav, precision_b_wav, precision_b_mp3, near_start, near_end, repeat_changed]]
+        assert_true(all(item.get("ok") for item in [precision_a_wav, precision_b_wav, precision_b_mp3, near_start, near_end, repeat_changed]), "Cut production QA export matrix failed")
+        assert_true(abs(float(precision_reports[0].get("actual_output_duration") or 0) - 10.0) <= 0.01 and abs(float(precision_reports[1].get("actual_output_duration") or 0) - 65.167) <= 0.01, "Precise WAV export duration exceeded 10 ms tolerance")
+        assert_true(abs(float(precision_reports[2].get("actual_output_duration") or 0) - 65.167) <= 0.01 and precision_reports[2].get("output_codec") == "mp3", "Precise MP3 export duration/codec failed")
+        assert_true(precision_reports[3].get("selected_start") == 0.001 and precision_reports[4].get("selected_end") == 205.95 and precision_reports[5].get("selected_start") == 20.0, "Near-boundary or repeated Cut export reused stale bounds")
+        assert_true(all(float(report.get("boundary_smoothing_ms") or 0) == 8.0 for report in precision_reports), "No-fade precise Cut exports must apply tiny boundary smoothing")
+        assert_true(hashlib.sha256(precision_source.read_bytes()).hexdigest() == precision_source_hash, "Cut QA modified the original precision source")
         clamped_selection = clamp_audio_selection(-5.0, 99.0, 30.0)
         reversed_selection = clamp_audio_selection(20.0, 10.0, 30.0)
         short_selection = clamp_audio_selection(0.0, 0.02, 30.0)
@@ -4881,14 +4918,19 @@ def main():
         committed_update_source = waveform_component_source[waveform_component_source.find('regionsPlugin.on("region-updated"'):waveform_component_source.find('wavesurfer.on("ready"')]
         assert_true("setComponentValue" not in continuous_update_source and "updateLabels(region)" in continuous_update_source and "commitSelection(region)" in committed_update_source and 'event: "selection_committed"' in waveform_component_source, "Waveform drag must stay local and emit only its committed selection")
         assert_true('id="playButton"' in waveform_component_source and 'id="selectionButton"' in waveform_component_source and "selectionPlayback" in waveform_component_source and "wavesurfer.play(selectionRegion.start, selectionRegion.end)" in waveform_component_source and "selectionPreviewAudio.play()" in waveform_component_source and "selection_preview_required" in waveform_component_source and "export_audio_selection" not in waveform_component_source, "client-side Play/Play Selection or fade-preview behavior missing")
+        assert_true(all(token in waveform_component_source for token in ['id="zoomOutButton"', 'id="zoomResetButton"', 'id="zoomInButton"', "wavesurfer.zoom(zoomLevels[zoomIndex])", "updateZoomButtons()"]), "lightweight browser-side waveform zoom missing")
+        apply_zoom_source = waveform_component_source[waveform_component_source.find("function applyZoom"):waveform_component_source.find("function stopPreviewSync")]
+        assert_true("setComponentValue" not in apply_zoom_source and "initializeWaveSurfer" not in apply_zoom_source, "waveform zoom must not rerun Streamlit or reload audio")
+        assert_true("requestAnimationFrame(syncPreviewPlayhead)" in waveform_component_source and "selectionRegion.start + selectionPreviewAudio.currentTime" in waveform_component_source and "wavesurfer.setTime(selectionRegion.start)" in waveform_component_source, "fade preview playhead is not synchronized browser-side")
         assert_true("nextSourceId !== activeSourceId" in waveform_component_source and "destroyWaveSurfer()" in waveform_component_source and "syncCommittedSelection(nextArgs)" in waveform_component_source and "revokeObjectURL" not in waveform_component_source, "WaveSurfer source lifecycle or same-source preservation missing")
-        assert_true("44px" in waveform_component_source and "touch-action: none" in waveform_component_source and "touch-action: pan-y" in waveform_component_source and "overflow: hidden" in waveform_component_source, "Waveform mobile touch targets or overflow controls missing")
+        assert_true("44px" in waveform_component_source and "touch-action: none" in waveform_component_source and "touch-action: pan-x pan-y" in waveform_component_source and "overflow: hidden" in waveform_component_source, "Waveform mobile touch targets or overflow controls missing")
         assert_true("join-compact" in waveform_component_source and 'mode === "join_compact"' in waveform_component_source and "118" in waveform_component_source, "Waveform V2 compact Join mode missing")
         assert_true("https://" not in waveform_component_source and "http://" not in waveform_component_source and "cdn" not in waveform_component_source.lower(), "interactive waveform component must stay local-only")
         assert_true("_waveform_browser_audio_source" in main_source and "media_file_mgr.add" in main_source and "waveform_browser_audio_url_cache" in main_source and "audio_url=str(browser_audio.get" in cutter_slice, "stable session media URL delivery for Waveform V2 missing")
         assert_true('selected.get("event") == "selection_committed"' in cutter_slice and 'selected.get("source_id") == source_id' in cutter_slice and 'start_time=start' in cutter_slice and 'end_time=end' in cutter_slice, "Cut export is not gated by the committed Waveform V2 selection")
         assert_true('text_input("Start", key="audio_editor_simple_start_text"' in cutter_slice and 'text_input("End", key="audio_editor_simple_end_text"' in cutter_slice and 'form_submit_button("Apply Times"' in cutter_slice and "parse_time_input" in cutter_slice and "validate_audio_selection(typed_start, typed_end, duration)" in cutter_slice, "Cut direct Start/End entry or explicit validation commit missing")
         assert_true("audio_editor_time_fields_signature" in cutter_slice and "selection_preview_id" in cutter_slice and "audio_editor_selection_preview_cache" in cutter_slice and "create_audio_selection_preview" in cutter_slice and "fade_in=0.25 if fade_in_requested else 0.0" in cutter_slice, "Cut waveform-to-fields synchronization or source/selection/fade preview cache missing")
+        assert_true('cut_mode="Precise Cut"' in cutter_slice and "Precise boundaries" in cutter_slice, "production Cut UI must use accurate precise exports")
         assert_true("project_master_waveform_signatures" in main_source and "_remember_project_master_waveform_signature" in cutter_slice and "_waveform_source_signature" in cutter_slice, "unchanged Project Master waveform signature cache missing")
         assert_true('source_card.text_input("Export Name", key="remaster_export_name")' in main_source and 'export_card.text_input("Export Name", key="audio_editor_export_name")' in main_source and 'value=default_export_name, key="remaster_export_name"' not in main_source and 'value=default_audio_export_name, key="audio_editor_export_name"' not in main_source, "export name widgets should not mix value= with session_state keys")
         assert_true("Use Project Master (Recommended)" in main_source and "Upload External MP3/WAV" in main_source and "Current Audio Source" in main_source and "No remastered master found." in main_source and "active_master" in main_source and "_project_master_audio" in main_source and "_render_music_pipeline_status" in main_source, "Project Master source workflow UI/state missing")

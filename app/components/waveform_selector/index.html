@@ -35,11 +35,12 @@
       border-radius: 8px;
       background: #0b1220;
       overflow: hidden;
-      touch-action: pan-y;
+      touch-action: pan-x pan-y;
     }
     #waveform ::part(region) {
       border: 2px solid rgba(74, 222, 128, 0.95);
       border-radius: 4px;
+      touch-action: none;
     }
     #waveform ::part(region-handle) {
       width: 44px !important;
@@ -87,6 +88,17 @@
       gap: 8px;
       margin-top: 8px;
     }
+    .zoom-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(44px, 1fr));
+      gap: 8px;
+      max-width: 220px;
+      margin: 8px 0 0 auto;
+    }
+    .zoom-controls button {
+      min-width: 44px;
+      padding: 0 10px;
+    }
     button {
       min-height: 44px;
       border: 1px solid #3b4c6b;
@@ -117,15 +129,21 @@
     body.join-compact #waveform { min-height: 118px; }
     body.join-compact .metric { padding: 5px 6px; }
     body.join-compact .controls { margin-top: 6px; }
+    body.join-compact .zoom-controls { display: none; }
   </style>
 </head>
 <body>
   <div class="shell">
     <div id="waveform" aria-label="Audio waveform selection"></div>
+    <div class="zoom-controls" aria-label="Waveform zoom">
+      <button id="zoomOutButton" type="button" title="Zoom out" aria-label="Zoom out" disabled>−</button>
+      <button id="zoomResetButton" type="button" title="Fit waveform" aria-label="Fit waveform" disabled>Fit</button>
+      <button id="zoomInButton" type="button" title="Zoom in" aria-label="Zoom in" disabled>+</button>
+    </div>
     <div class="meta" aria-live="polite">
-      <div class="metric"><span>Start</span><strong id="startLabel">00:00.0</strong></div>
-      <div class="metric"><span>End</span><strong id="endLabel">00:01.0</strong></div>
-      <div class="metric"><span>Length</span><strong id="durationLabel">00:01.0</strong></div>
+      <div class="metric"><span>Start</span><strong id="startLabel">00:00.000</strong></div>
+      <div class="metric"><span>End</span><strong id="endLabel">00:01.000</strong></div>
+      <div class="metric"><span>Length</span><strong id="durationLabel">00:01.000</strong></div>
     </div>
     <div class="controls">
       <button id="playButton" type="button">Play</button>
@@ -142,6 +160,9 @@
     const durationLabel = document.getElementById("durationLabel");
     const playButton = document.getElementById("playButton");
     const selectionButton = document.getElementById("selectionButton");
+    const zoomOutButton = document.getElementById("zoomOutButton");
+    const zoomResetButton = document.getElementById("zoomResetButton");
+    const zoomInButton = document.getElementById("zoomInButton");
     const message = document.getElementById("message");
 
     let wavesurfer = null;
@@ -154,6 +175,9 @@
     let selectionPreviewAudio = null;
     let activeSelectionPreviewId = "";
     let subscriptions = [];
+    let previewSyncFrame = 0;
+    let zoomIndex = 0;
+    const zoomLevels = [0, 25, 50, 100, 200];
     const minGap = 0.1;
 
     function send(type, value) {
@@ -188,7 +212,7 @@
       const value = Math.max(0, Number(seconds) || 0);
       const minutes = Math.floor(value / 60);
       const remainder = value - minutes * 60;
-      return `${String(minutes).padStart(2, "0")}:${remainder.toFixed(1).padStart(4, "0")}`;
+      return `${String(minutes).padStart(2, "0")}:${remainder.toFixed(3).padStart(6, "0")}`;
     }
 
     function updateLabels(region = selectionRegion) {
@@ -218,6 +242,32 @@
       selectionButton.textContent = selectionPlayback ? "Pause Selection" : "Play Selection";
     }
 
+    function updateZoomButtons() {
+      const ready = Boolean(wavesurfer);
+      zoomOutButton.disabled = !ready || zoomIndex <= 0;
+      zoomResetButton.disabled = !ready || zoomIndex === 0;
+      zoomInButton.disabled = !ready || zoomIndex >= zoomLevels.length - 1;
+    }
+
+    function applyZoom(nextIndex) {
+      if (!wavesurfer) return;
+      zoomIndex = Math.max(0, Math.min(zoomLevels.length - 1, Number(nextIndex) || 0));
+      wavesurfer.zoom(zoomLevels[zoomIndex]);
+      updateZoomButtons();
+    }
+
+    function stopPreviewSync() {
+      if (previewSyncFrame) cancelAnimationFrame(previewSyncFrame);
+      previewSyncFrame = 0;
+    }
+
+    function syncPreviewPlayhead() {
+      stopPreviewSync();
+      if (!selectionPlayback || !selectionPreviewAudio || selectionPreviewAudio.paused || !selectionRegion || !wavesurfer) return;
+      wavesurfer.setTime(Math.min(selectionRegion.end, selectionRegion.start + selectionPreviewAudio.currentTime));
+      previewSyncFrame = requestAnimationFrame(syncPreviewPlayhead);
+    }
+
     function commitSelection(region) {
       if (!region || !activeSourceId) return;
       setComponentValue({
@@ -236,6 +286,7 @@
     }
 
     function destroyWaveSurfer() {
+      stopPreviewSync();
       clearSubscriptions();
       selectionRegion = null;
       regionsPlugin = null;
@@ -252,8 +303,10 @@
         try { wavesurfer.destroy(); } catch (_) {}
       }
       wavesurfer = null;
+      zoomIndex = 0;
       waveformHost.replaceChildren();
       updatePlaybackButtons();
+      updateZoomButtons();
     }
 
     function syncSelectionPreview(nextArgs) {
@@ -270,10 +323,13 @@
         const preview = new Audio(nextPreviewUrl);
         preview.preload = "auto";
         preview.addEventListener("ended", () => {
+          stopPreviewSync();
+          if (wavesurfer && selectionRegion) wavesurfer.setTime(selectionRegion.end);
           selectionPlayback = false;
           updatePlaybackButtons();
         });
         preview.addEventListener("pause", () => {
+          stopPreviewSync();
           if (!preview.ended) selectionPlayback = false;
           updatePlaybackButtons();
         });
@@ -350,6 +406,12 @@
           // Active dragging stays browser-side; only the final region event is committed.
         }));
         subscriptions.push(regionsPlugin.on("region-updated", (region) => {
+          if (selectionPlayback) {
+            if (selectionPreviewAudio && !selectionPreviewAudio.paused) selectionPreviewAudio.pause();
+            else wavesurfer.pause();
+            selectionPlayback = false;
+            stopPreviewSync();
+          }
           interactionActive = false;
           selectionRegion = region;
           updateLabels(region);
@@ -377,6 +439,7 @@
         addSelectionRegion();
         updateLabels();
         updatePlaybackButtons();
+        updateZoomButtons();
       } catch (_) {
         showMessage("Waveform playback is unavailable. Start, end, and export still work.");
         updateLabels();
@@ -422,6 +485,7 @@
           if (selectionPreviewAudio && !selectionPreviewAudio.paused) selectionPreviewAudio.pause();
           else wavesurfer.pause();
           selectionPlayback = false;
+          stopPreviewSync();
           updatePlaybackButtons();
           return;
         }
@@ -429,7 +493,9 @@
         selectionPlayback = true;
         if (selectionPreviewAudio && activeArgs.selection_preview_url) {
           selectionPreviewAudio.currentTime = 0;
+          wavesurfer.setTime(selectionRegion.start);
           await selectionPreviewAudio.play();
+          syncPreviewPlayhead();
         } else {
           await wavesurfer.play(selectionRegion.start, selectionRegion.end);
         }
@@ -440,6 +506,10 @@
       }
       updatePlaybackButtons();
     });
+
+    zoomOutButton.addEventListener("click", () => applyZoom(zoomIndex - 1));
+    zoomResetButton.addEventListener("click", () => applyZoom(0));
+    zoomInButton.addEventListener("click", () => applyZoom(zoomIndex + 1));
 
     window.addEventListener("resize", () => {
       if (wavesurfer) wavesurfer.setOptions({height: activeArgs.mode === "join_compact" ? 118 : (window.innerWidth <= 430 ? 158 : 180)});

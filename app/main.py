@@ -4153,7 +4153,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         selection_preview_error = ""
         if (fade_in_requested or fade_out_requested) and validate_audio_selection(start, end, duration).get("ok") and ffmpeg_ready:
             selection_preview_id = hashlib.sha1(
-                f"{source_id}|{start:.3f}|{end:.3f}|{int(fade_in_requested)}|{int(fade_out_requested)}".encode("utf-8")
+                f"{source_id}|{start:.3f}|{end:.3f}|fade_in={0.25 if fade_in_requested else 0.0:.3f}|fade_out={0.25 if fade_out_requested else 0.0:.3f}|format=mp3".encode("utf-8")
             ).hexdigest()
             preview_cache = st.session_state.setdefault("audio_editor_selection_preview_cache", {})
             cached_preview = preview_cache.get(selection_preview_id) or {}
@@ -4295,6 +4295,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
     export_card.text_input("Export Name", key="audio_editor_export_name")
     export_name = str(st.session_state.get("audio_editor_export_name") or default_name)
     output_format_label = export_card.radio("Export Format", ["MP3", "WAV"], horizontal=True, key="audio_editor_simple_format")
+    export_card.caption("Precise boundaries · MP3 320 kbps or lossless PCM WAV")
     with export_card.expander("Advanced", expanded=False):
         if st.button("Generate playback fallback", use_container_width=True, disabled=not selection.get("ok") or not ffmpeg_ready, key="audio_editor_simple_preview"):
             preview = export_audio_selection(source_path, start_time=start, end_time=end, project_name=f"{project.get('title') or 'audio_editor'} Preview", output_name="Selection Preview", cut_mode="Precise Cut", fade_in=0.25 if fade_in else 0.0, fade_out=0.25 if fade_out else 0.0, ffmpeg_path=settings.ffmpeg_path, max_upload_mb=max_upload_mb, preview=True)
@@ -4325,7 +4326,7 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
             end_time=end,
             project_name=project.get("title") or "audio_editor",
             output_name=export_name,
-            cut_mode="Precise Cut" if fade_in or fade_out or output_format_label == "WAV" else "Lossless Quick Cut",
+            cut_mode="Precise Cut",
             fade_in=0.25 if fade_in else 0.0,
             fade_out=0.25 if fade_out else 0.0,
             ffmpeg_path=settings.ffmpeg_path,

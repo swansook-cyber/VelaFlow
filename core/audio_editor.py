@@ -37,6 +37,9 @@ HOOK_DURATION_PRESETS = {
 HOOK_ANALYSIS_DURATIONS = [30.0, 15.0]
 HOOK_ANALYSIS_STEP_SECONDS = 2.0
 WAVEFORM_TARGET_POINTS = 1600
+MIN_AUDIO_SELECTION_SECONDS = 0.1
+CUT_BOUNDARY_SMOOTHING_SECONDS = 0.008
+SELECTION_PREVIEW_CACHE_LIMIT = 24
 PHRASE_COMPLETION_LOOKAHEAD_SECONDS = 10.0
 PHRASE_STABLE_BOUNDARY_SECONDS = 0.5
 SMART_HOOK_TYPES = {
@@ -336,7 +339,7 @@ def validate_audio_editor_input(path: str | Path, *, mime_type: str = "", max_up
     return {"ok": True, "error": "", "message": "", "format": ext, "size_mb": round(size_mb, 3)}
 
 
-def validate_audio_selection(start: float, end: float, source_duration: float, *, minimum_seconds: float = 1.0) -> dict[str, Any]:
+def validate_audio_selection(start: float, end: float, source_duration: float, *, minimum_seconds: float = MIN_AUDIO_SELECTION_SECONDS) -> dict[str, Any]:
     try:
         start_value = float(start)
         end_value = float(end)
@@ -367,6 +370,64 @@ def effective_cut_mode(source_path: str | Path, cut_mode: str, fade_in: float = 
     return mode, warnings
 
 
+def resolve_audio_fades(duration: float, fade_in: float = 0.0, fade_out: float = 0.0) -> tuple[float, float]:
+    """Clamp requested fades to the selected range without changing its bounds."""
+    selected_duration = max(0.0, float(duration or 0.0))
+    requested_in = max(0.0, float(fade_in or 0.0))
+    requested_out = max(0.0, float(fade_out or 0.0))
+    if selected_duration <= 0:
+        return 0.0, 0.0
+    if requested_in and requested_out:
+        maximum = selected_duration / 2.0
+        return min(requested_in, maximum), min(requested_out, maximum)
+    return min(requested_in, selected_duration), min(requested_out, selected_duration)
+
+
+def build_audio_preview_cache_key(
+    source_audio_path: str | Path,
+    *,
+    start_time: float,
+    end_time: float,
+    fade_in: float = 0.0,
+    fade_out: float = 0.0,
+    output_format: str = "mp3",
+    caller_key: str = "",
+) -> str:
+    """Build a source-aware preview identity so stale ranges cannot be reused."""
+    source = Path(source_audio_path)
+    try:
+        stat = source.stat()
+        source_identity = f"{source.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
+    except OSError:
+        source_identity = str(source.resolve())
+    payload = "|".join(
+        [
+            source_identity,
+            f"{float(start_time):.3f}",
+            f"{float(end_time):.3f}",
+            f"{float(fade_in):.3f}",
+            f"{float(fade_out):.3f}",
+            str(output_format or "mp3").lower(),
+            str(caller_key or ""),
+        ]
+    )
+    return hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()
+
+
+def _prune_selection_preview_cache(preview_dir: Path, *, keep: Path | None = None, limit: int = SELECTION_PREVIEW_CACHE_LIMIT) -> None:
+    """Bound generated preview artifacts while leaving user exports untouched."""
+    try:
+        candidates = sorted(
+            (path for path in preview_dir.glob("selection_*.mp3") if path.is_file() and path != keep),
+            key=lambda path: path.stat().st_mtime_ns,
+            reverse=True,
+        )
+        for stale in candidates[max(0, int(limit) - (1 if keep else 0)) :]:
+            stale.unlink(missing_ok=True)
+    except OSError:
+        return
+
+
 def build_audio_cut_command(
     ffmpeg: str,
     source_path: str | Path,
@@ -386,17 +447,28 @@ def build_audio_cut_command(
     output = str(output_path)
     mode, _warnings = effective_cut_mode(source_path, cut_mode, fade_in, fade_out)
     export_format = str(output_format or "mp3").lower()
-    base = [ffmpeg, "-y", "-ss", f"{float(start_time):.3f}", "-i", source, "-t", f"{duration:.3f}", "-map", "0:a:0", "-map_metadata", "0"]
+    fast_seek = [ffmpeg, "-y", "-ss", f"{float(start_time):.3f}", "-i", source]
+    accurate_seek = [ffmpeg, "-y", "-i", source, "-ss", f"{float(start_time):.3f}"]
+    base = [*(fast_seek if mode == "Lossless Quick Cut" else accurate_seek), "-t", f"{duration:.3f}", "-map", "0:a:0", "-map_metadata", "0"]
+    resolved_fade_in, resolved_fade_out = resolve_audio_fades(duration, fade_in, fade_out)
+    smoothing = CUT_BOUNDARY_SMOOTHING_SECONDS if mode == "Precise Cut" and resolved_fade_in <= 0 and resolved_fade_out <= 0 else 0.0
     if export_format == "wav":
-        if mode == "Lossless Quick Cut" and fade_in <= 0 and fade_out <= 0:
+        if mode == "Lossless Quick Cut" and resolved_fade_in <= 0 and resolved_fade_out <= 0:
             return [*base, "-c:a", "pcm_s24le", output]
         args = [*base, "-c:a", "pcm_s24le"]
         filters: list[str] = []
-        if fade_in > 0:
-            filters.append(f"afade=t=in:st=0:d={float(fade_in):.3f}")
-        if fade_out > 0:
-            fade_start = max(0.0, duration - float(fade_out))
-            filters.append(f"afade=t=out:st={fade_start:.3f}:d={float(fade_out):.3f}")
+        if resolved_fade_in > 0:
+            filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}")
+        if resolved_fade_out > 0:
+            fade_start = max(0.0, duration - resolved_fade_out)
+            filters.append(f"afade=t=out:st={fade_start:.3f}:d={resolved_fade_out:.3f}")
+        if smoothing:
+            filters.extend(
+                [
+                    f"afade=t=in:st=0:d={smoothing:.3f}",
+                    f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}",
+                ]
+            )
         if filters:
             args += ["-af", ",".join(filters)]
         if sample_rate in {32000, 44100, 48000}:
@@ -406,17 +478,24 @@ def build_audio_cut_command(
         return [*args, output]
     if mode == "Lossless Quick Cut" and str(source_path).lower().endswith(".mp3"):
         return [*base, "-c:a", "copy", output]
-    args = [*base, "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-write_xing", "0"]
+    args = [*base, "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k"]
     if channels and int(channels) != 1:
         args += ["-ac", "2"]
     if sample_rate in {32000, 44100, 48000}:
         args += ["-ar", str(sample_rate)]
     filters: list[str] = []
-    if fade_in > 0:
-        filters.append(f"afade=t=in:st=0:d={float(fade_in):.3f}")
-    if fade_out > 0:
-        fade_start = max(0.0, duration - float(fade_out))
-        filters.append(f"afade=t=out:st={fade_start:.3f}:d={float(fade_out):.3f}")
+    if resolved_fade_in > 0:
+        filters.append(f"afade=t=in:st=0:d={resolved_fade_in:.3f}")
+    if resolved_fade_out > 0:
+        fade_start = max(0.0, duration - resolved_fade_out)
+        filters.append(f"afade=t=out:st={fade_start:.3f}:d={resolved_fade_out:.3f}")
+    if smoothing:
+        filters.extend(
+            [
+                f"afade=t=in:st=0:d={smoothing:.3f}",
+                f"afade=t=out:st={max(0.0, duration - smoothing):.3f}:d={smoothing:.3f}",
+            ]
+        )
     if filters:
         args += ["-af", ",".join(filters)]
     return [*args, output]
@@ -448,10 +527,20 @@ def create_audio_selection_preview(
 
     preview_dir = ROOT / "exports" / "audio_editor" / "previews"
     preview_dir.mkdir(parents=True, exist_ok=True)
-    digest = hashlib.sha1(str(cache_key or "selection").encode("utf-8", errors="ignore")).hexdigest()[:20]
+    resolved_cache_key = build_audio_preview_cache_key(
+        source,
+        start_time=start_time,
+        end_time=end_time,
+        fade_in=fade_in,
+        fade_out=fade_out,
+        output_format="mp3",
+        caller_key=cache_key,
+    )
+    digest = resolved_cache_key[:20]
     preview_path = preview_dir / f"selection_{digest}.mp3"
     if preview_path.is_file() and preview_path.stat().st_size > 0:
-        return {"ok": True, "path": str(preview_path), "cache_status": "hit", "command": []}
+        _prune_selection_preview_cache(preview_dir, keep=preview_path)
+        return {"ok": True, "path": str(preview_path), "cache_status": "hit", "cache_key": resolved_cache_key, "command": []}
 
     command = build_audio_cut_command(
         ffmpeg,
@@ -475,7 +564,8 @@ def create_audio_selection_preview(
             "message": str(result.get("output") or "Selection preview failed")[:600],
             "command": command,
         }
-    return {"ok": True, "path": str(preview_path), "cache_status": "miss", "command": command}
+    _prune_selection_preview_cache(preview_dir, keep=preview_path)
+    return {"ok": True, "path": str(preview_path), "cache_status": "miss", "cache_key": resolved_cache_key, "command": command}
 
 
 def _run(args: list[str], timeout: int = 180) -> dict[str, Any]:
@@ -1281,9 +1371,14 @@ def _report_text(report: dict[str, Any]) -> str:
         f"Selected start: {report.get('selected_start', '')}",
         f"Selected end: {report.get('selected_end', '')}",
         f"Selection duration: {report.get('selection_duration', '')}",
+        f"Actual output duration: {report.get('actual_output_duration', '')}",
+        f"Duration difference (ms): {report.get('duration_difference_ms', '')}",
         f"Cut mode: {report.get('cut_mode', '')}",
         f"Fade In: {report.get('fade_in', '')}",
         f"Fade Out: {report.get('fade_out', '')}",
+        f"Effective Fade In: {report.get('effective_fade_in', report.get('fade_in', ''))}",
+        f"Effective Fade Out: {report.get('effective_fade_out', report.get('fade_out', ''))}",
+        f"Boundary smoothing (ms): {report.get('boundary_smoothing_ms', 0)}",
         f"Output filename: {report.get('output_filename', '')}",
         f"Export format: {report.get('export_format', '')}",
         f"Preview format: {report.get('preview_format', '')}",
@@ -1459,6 +1554,18 @@ def export_audio_selection(
         error = "libmp3lame_unavailable" if "libmp3lame" in error_text.lower() and "unknown encoder" in error_text.lower() else "audio_edit_failed"
         return {"ok": False, "message": error_text[:600], "data": {"command": command}, "error": error}
     output_probe = probe_media(output_path, ffmpeg_path=ffmpeg)
+    if not output_probe.get("ok") or not output_probe.get("has_audio") or float(output_probe.get("duration") or 0) <= 0:
+        return {
+            "ok": False,
+            "message": "Exported audio failed media validation",
+            "data": {"command": command, "output_probe": output_probe},
+            "error": "invalid_export",
+        }
+    requested_duration = float(selection.get("selection_duration") or 0.0)
+    actual_duration = float(output_probe.get("duration") or 0.0)
+    duration_difference_ms = round((actual_duration - requested_duration) * 1000.0, 3)
+    resolved_fade_in, resolved_fade_out = resolve_audio_fades(requested_duration, fade_in, fade_out)
+    boundary_smoothing = CUT_BOUNDARY_SMOOTHING_SECONDS if mode == "Precise Cut" and resolved_fade_in <= 0 and resolved_fade_out <= 0 else 0.0
     report = {
         "ok": True,
         "project_id": project_id,
@@ -1474,9 +1581,14 @@ def export_audio_selection(
         "selected_start": float(start_time),
         "selected_end": float(end_time),
         "selection_duration": selection.get("selection_duration", 0),
+        "actual_output_duration": round(actual_duration, 6),
+        "duration_difference_ms": duration_difference_ms,
         "cut_mode": mode,
         "fade_in": float(fade_in),
         "fade_out": float(fade_out),
+        "effective_fade_in": round(resolved_fade_in, 6),
+        "effective_fade_out": round(resolved_fade_out, 6),
+        "boundary_smoothing_ms": round(boundary_smoothing * 1000.0, 3),
         "output_filename": output_path.name,
         "output_codec": output_probe.get("audio_codec", export_format),
         "output_bitrate": "source stream copy" if mode == "Lossless Quick Cut" and export_format == "mp3" else "320 kbps CBR" if export_format == "mp3" else "lossless PCM WAV",
