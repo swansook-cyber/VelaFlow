@@ -29,6 +29,65 @@ HASHTAG_CANONICAL_LABELS = {
     "alternative rock": "AlternativeRock",
 }
 
+RELEASE_MOOD_FAMILIES = {
+    "uplifting": {
+        "aliases": ("ให้กำลังใจ", "ฮึกเหิม", "หวังใหม่", "inspirational", "hopeful", "positive", "uplifting"),
+        "caption": "บางครั้งเพลงหนึ่งก็ช่วยเตือนให้เราเชื่อในตัวเองอีกครั้ง ✨",
+        "description": "เพลงที่ส่งต่อกำลังใจและพาอารมณ์ค่อย ๆ ยกขึ้นอย่างจริงใจ",
+        "hashtags": ("เพลงให้กำลังใจ", "พลังบวก", "ฮีลใจ", "กำลังใจ"),
+        "shorts": ("เก็บท่อนนี้ไว้ฟังในวันที่ต้องการกำลังใจ", "ส่งเพลงนี้ให้ตัวเองในวันที่เหนื่อย"),
+        "keyword": "uplifting song",
+    },
+    "bright": {
+        "aliases": ("สดใส", "มีพลัง", "energetic", "bright", "cheerful", "feel good", "feel-good"),
+        "caption": "เปิดเพลงนี้แล้วออกไปใช้ชีวิตให้เต็มที่กัน 🌤️",
+        "description": "เพลงโทนสดใสที่เติมพลังและชวนออกไปใช้ชีวิตให้เต็มที่",
+        "hashtags": ("เพลงสดใส", "ฟีลกู๊ด", "พลังบวก", "เพลงอารมณ์ดี"),
+        "shorts": ("ท่อนนี้เหมาะกับวันที่อยากออกไปใช้ชีวิต", "เปิดท่อนนี้รับพลังดี ๆ ของวันนี้"),
+        "keyword": "feel-good song",
+    },
+    "sad": {
+        "aliases": ("อกหัก", "เศร้า", "heartbreak", "heartbroken", "sad", "broken"),
+        "caption": "บางครั้งท่อนเดียวก็พูดแทนทั้งใจได้ 💔",
+        "description": "เพลงที่ถ่ายทอดความเศร้าและพื้นที่ว่างหลังความสัมพันธ์อย่างตรงไปตรงมา",
+        "hashtags": ("เพลงเศร้า", "เพลงอกหัก", "อกหัก", "แคปชั่นเศร้า"),
+        "shorts": ("เก็บท่อนนี้ไว้ฟังในวันที่ใจยังเจ็บ", "บางความรู้สึกพูดออกมาได้ผ่านเพลงนี้"),
+        "keyword": "sad emotional song",
+    },
+    "romantic": {
+        "aliases": ("โรแมนติก", "อบอุ่น", "romantic", "warm", "รัก", "love"),
+        "caption": "บางความรู้สึกไม่ต้องพูดเยอะ เพลงนี้ก็เล่าแทนได้ ❤️",
+        "description": "เพลงรักโทนอุ่นที่เล่าความสัมพันธ์อย่างเป็นธรรมชาติและใกล้ตัว",
+        "hashtags": ("เพลงรัก", "เพลงโรแมนติก", "เพลงอบอุ่น", "ความรัก"),
+        "shorts": ("ส่งท่อนนี้ให้คนที่ทำให้วันธรรมดาอบอุ่นขึ้น", "เพลงนี้เหมาะกับความรู้สึกที่อยากบอกใครสักคน"),
+        "keyword": "romantic song",
+    },
+    "lonely": {
+        "aliases": ("เหงากลางคืน", "เหงา", "lonely", "late-night", "late night", "night"),
+        "caption": "บางคืนเราไม่ได้ต้องการคำตอบ แค่อยากมีเพลงอยู่เป็นเพื่อน 🌙",
+        "description": "เพลงบรรยากาศกลางคืนที่เล่าความเงียบและความคิดซึ่งดังขึ้นเมื่ออยู่คนเดียว",
+        "hashtags": ("เพลงกลางคืน", "เพลงเหงา", "ฟังตอนกลางคืน", "NightVibes"),
+        "shorts": ("เก็บท่อนนี้ไว้ฟังในคืนที่ความเงียบดังเป็นพิเศษ", "ท่อนสำหรับคืนที่ยังไม่อยากปิดไฟนอน"),
+        "keyword": "late-night reflective song",
+    },
+    "nostalgic": {
+        "aliases": ("คิดถึง", "nostalgic", "bittersweet", "longing", "reflective"),
+        "caption": "บางเพลงพาเรากลับไปหาช่วงเวลาที่ไม่เคยหายไปจากใจ 💙",
+        "description": "เพลงโทนคิดถึงที่ย้อนมองความทรงจำอย่างอ่อนโยน โดยไม่สรุปว่าเป็นความอกหัก",
+        "hashtags": ("เพลงคิดถึง", "ความทรงจำ", "เพลงฟังสบาย", "คิดถึง"),
+        "shorts": ("เก็บท่อนนี้ไว้ฟังตอนนึกถึงช่วงเวลาดี ๆ", "ท่อนนี้พากลับไปหาความทรงจำบางอย่าง"),
+        "keyword": "nostalgic song",
+    },
+    "neutral": {
+        "aliases": (),
+        "caption": "ท่อนนี้อาจเล่าเรื่องที่คุณกำลังรู้สึกอยู่พอดี 🎧",
+        "description": "เพลงที่เล่าเรื่องและอารมณ์อย่างชัดเจนผ่านท่อนร้องที่จดจำง่าย",
+        "hashtags": ("เพลงเพราะ", "เพลงใหม่", "ฟังเพลง", "ThaiMusic"),
+        "shorts": ("ถ้าท่อนนี้ตรงใจ ลองฟังให้จบ", "เก็บท่อนนี้ไว้ในเพลย์ลิสต์ของคุณ"),
+        "keyword": "Thai song",
+    },
+}
+
 
 def _project_folder(project_name: str, base_dir: str | Path | None = None) -> Path:
     if base_dir:
@@ -55,6 +114,72 @@ def normalize_hashtag(value: str) -> str:
     canonical = HASHTAG_CANONICAL_LABELS.get(raw.casefold(), raw)
     text = re.sub(r"[^\wก-๙]+", "", canonical, flags=re.UNICODE)
     return f"#{text}" if text else ""
+
+
+def resolve_release_mood_family(mood: str) -> str:
+    value = " ".join(str(mood or "").casefold().replace("_", " ").split())
+    for family in ("sad", "uplifting", "bright", "romantic", "lonely", "nostalgic"):
+        if any(alias.casefold() in value for alias in RELEASE_MOOD_FAMILIES[family]["aliases"]):
+            return family
+    return "neutral"
+
+
+def _mood_aware_release_copy(*, title: str, artist: str, genre: str, mood: str, hook_text: str) -> Dict[str, Any]:
+    family_name = resolve_release_mood_family(mood)
+    family = RELEASE_MOOD_FAMILIES[family_name]
+    primary_mood = str(mood or "emotional").split(",")[0].strip() or "emotional"
+    tags: list[str] = []
+    for tag in (
+        "เพลงไทย",
+        "เพลงใหม่",
+        genre.split("/")[0],
+        "ThaiMusic",
+        "Tpop",
+        "เพลงเพราะ",
+        "TikTokเพลงไทย",
+        "Shorts",
+        "Reels",
+        *family["hashtags"],
+        artist,
+        title,
+        primary_mood,
+        "VelaFlow",
+    ):
+        cleaned = normalize_hashtag(tag)
+        if cleaned and cleaned not in tags:
+            tags.append(cleaned)
+        if len(tags) >= 20:
+            break
+    seo_caption = f"{hook_text} - เพลงใหม่จาก {artist} โทน {primary_mood} {family['description']}"
+    youtube_description = "\n".join([
+        f"{title} - {artist}",
+        "",
+        str(family["description"]),
+        "",
+        "Credit:",
+        f"Artist / Creator: {artist}",
+        "Creative workflow: VelaFlow",
+        "",
+        "ฟังแล้วคอมเมนต์ท่อนที่ตรงใจที่สุดไว้ได้เลย",
+        "",
+        " ".join(tags[:15]),
+    ])
+    shorts = [
+        hook_text,
+        str(family["shorts"][0]),
+        f"{title} - ท่อนที่อยากให้เธอได้ยิน",
+        "บางเพลงดังในใจ ก่อนดังในฟีด",
+        str(family["shorts"][1]),
+    ]
+    return {
+        "family": family_name,
+        "seo_caption": seo_caption,
+        "tiktok_caption": f"{hook_text}\n\n{family['caption']}\n{' '.join(tags[:8])}",
+        "youtube_description": youtube_description,
+        "hashtags": tags,
+        "shorts_hooks": shorts,
+        "keyword": str(family["keyword"]),
+    }
 
 
 def _song_title(song: Dict[str, Any], project_name: str = "") -> str:
@@ -128,6 +253,11 @@ def _artist_name(song: Dict[str, Any]) -> str:
     return str(preset.get("artist_name") or "VelaFlow Artist")
 
 
+def _canonical_lyrics(song: Dict[str, Any], preset: Dict[str, Any]) -> str:
+    source = song.get("normalized_song_output") or song.get("complete_lyrics", "")
+    return normalize_lyrics_tags(str(source or ""), preset)
+
+
 def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> Dict[str, Any]:
     preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
     music_preset = song.get("music_preset_data") or {}
@@ -138,6 +268,7 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
     mood = str(music_preset.get("mood") or song.get("mood") or "emotional, cinematic, relatable")
     vocal_style = str(music_preset.get("vocal_style") or preset.get("vocal_style") or "clear emotional vocal")
     hook_text = str(hook.get("hook_text") or title)
+    release_copy = _mood_aware_release_copy(title=title, artist=artist, genre=genre, mood=mood, hook_text=hook_text)
     keywords = [
         title,
         artist,
@@ -146,55 +277,8 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
         vocal_style,
         hook_text,
         "Thai music",
-        "emotional song",
+        release_copy["keyword"],
         "VelaFlow",
-    ]
-    seo_caption = f"{hook_text} - เพลงใหม่จาก {artist} ที่เล่าอารมณ์แบบ {mood.split(',')[0].strip()} ฟังง่ายและจำติดใจ"
-    hashtags = []
-    for tag in [
-        "เพลงไทย",
-        "เพลงใหม่",
-        genre.split("/")[0],
-        "เพลงเศร้า",
-        "เพลงรัก",
-        "เพลงอกหัก",
-        "ThaiMusic",
-        "Tpop",
-        "PopRock",
-        "เพลงเพราะ",
-        "เพลงฮิต",
-        "TikTokเพลงไทย",
-        "Shorts",
-        "Reels",
-        artist,
-        title,
-        mood.split(",")[0],
-        hook_text,
-    ]:
-        cleaned = normalize_hashtag(tag)
-        if cleaned and cleaned not in hashtags:
-            hashtags.append(cleaned)
-        if len(hashtags) >= 20:
-            break
-    youtube_description = "\n".join([
-        f"{title} - {artist}",
-        "",
-        f"{seo_caption}",
-        "",
-        "Credits:",
-        f"Song / Concept: {artist}",
-        "Produced with VelaFlow",
-        "",
-        "Hashtags:",
-        " ".join(hashtags[:15]),
-    ])
-    tiktok_caption = f"{hook_text}\n\n{seo_caption}\n{' '.join(hashtags[:8])}"
-    shorts_hooks = [
-        hook_text,
-        f"ถ้าประโยคนี้ตรงใจ ลองฟังท่อนนี้",
-        f"{title} - ท่อนที่อยากให้เธอได้ยิน",
-        "บางเพลงไม่ได้ดังเพราะเสียงดัง แต่ดังเพราะมันตรงใจ",
-        "เก็บท่อนนี้ไว้ฟังตอนคิดถึงใครบางคน",
     ]
     visual_concept = (
         f"cinematic emotional realistic artwork for a Thai song titled '{title}' by '{artist}', "
@@ -227,11 +311,11 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
     }
     return {
         "song_metadata": metadata,
-        "seo_caption": seo_caption,
-        "tiktok_caption": tiktok_caption,
-        "youtube_description": youtube_description,
-        "hashtags": hashtags[:20],
-        "shorts_hooks": shorts_hooks[:5],
+        "seo_caption": release_copy["seo_caption"],
+        "tiktok_caption": release_copy["tiktok_caption"],
+        "youtube_description": release_copy["youtube_description"],
+        "hashtags": release_copy["hashtags"][:20],
+        "shorts_hooks": release_copy["shorts_hooks"][:5],
         "cover_art_prompts": cover_prompts,
         "canvas_prompt": cover_prompts["Spotify Canvas / Short Visual Loop"],
         "release_assets": [
@@ -296,7 +380,7 @@ def build_suno_full_package(song: Dict[str, Any], project_name: str = "", workfl
     preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
     hook = _selected_hook(song)
     settings = song.get("advanced_settings", {}) or {}
-    lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
+    lyrics = _canonical_lyrics(song, preset)
     if workflow_mode == "Song Studio Only":
         return _minimal_suno_package(song, project_name, lyrics, hook, settings, preset)
     release = build_release_package_data(song, project_name)
@@ -448,7 +532,7 @@ def export_suno_files(
         folder = _project_folder(project_name, base_dir) / "exports"
         folder.mkdir(parents=True, exist_ok=True)
         preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
-        lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
+        lyrics = _canonical_lyrics(song, preset)
         canonical_title = _canonical_export_title(song, project_name)
         lyrics_path = ensure_unique_path(folder / build_export_filename(canonical_title, _artist_name(song), "Lyrics_Only", "txt"))
         full_text = build_suno_full_package(song, project_name, workflow_mode=workflow_mode)
@@ -522,48 +606,8 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
     mood = intent["mood"]
     vocal_style = intent["vocal"]
     hook_text = str(hook.get("hook_text") or song.get("selected_hook_text") or title).strip()
-    primary_mood = mood.split(",")[0].strip() or "emotional"
-    keywords = [title, artist, genre, mood, vocal_style, hook_text, "Thai music", "emotional song", "TikTok hook", "VelaFlow"]
-    seo_caption = f"{hook_text} - เพลงใหม่จาก {artist} ที่เล่าอารมณ์แบบ {primary_mood} ฟังง่าย จำติดใจ และเหมาะกับคลิปสั้น"
-    tiktok_caption = f"{hook_text}\n\nบางครั้งท่อนเดียวก็พูดแทนทั้งใจได้ 💔"
-    youtube_description = "\n".join([
-        f"{title} - {artist}",
-        "",
-        f"เพลงโทน {primary_mood} ที่เล่าความรู้สึกผ่าน hook สั้น ๆ จำง่าย เหมาะสำหรับฟังซ้ำและใช้ทำคลิปอารมณ์บน Shorts/Reels/TikTok",
-        "",
-        "Credit:",
-        f"Artist / Creator: {artist}",
-        "Creative workflow: VelaFlow",
-        "",
-        "ฟังแล้วคอมเมนต์ท่อนที่ตรงใจที่สุดไว้ได้เลย",
-    ])
-    hashtags: list[str] = []
-    for tag in [
-        "เพลงไทย",
-        "เพลงใหม่",
-        genre.split("/")[0],
-        "เพลงเศร้า",
-        "เพลงอกหัก",
-        "เพลงรัก",
-        "เพลงเพราะ",
-        "เพลงฮิต",
-        "TikTokเพลงไทย",
-        "ThaiMusic",
-        "Tpop",
-        "EmotionalSong",
-        "TikTokMusic",
-        "Shorts",
-        "Reels",
-        "VelaFlow",
-        artist,
-        title,
-        primary_mood,
-    ]:
-        cleaned = normalize_hashtag(tag)
-        if cleaned and cleaned not in hashtags:
-            hashtags.append(cleaned)
-        if len(hashtags) >= 20:
-            break
+    release_copy = _mood_aware_release_copy(title=title, artist=artist, genre=genre, mood=mood, hook_text=hook_text)
+    keywords = [title, artist, genre, mood, vocal_style, hook_text, "Thai music", release_copy["keyword"], "TikTok hook", "VelaFlow"]
     visual_seed = str(song.get("visual_concept") or hook_text or title)
     visual_concept = (
         f"cinematic emotional Thai pop artwork for '{title}' by '{artist}', "
@@ -600,13 +644,6 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
             "loopable vertical scene, no watermark, no logo, no random text"
         ),
     }
-    shorts_hooks = [
-        hook_text,
-        "ถ้าท่อนนี้ตรงใจ ลองฟังให้จบ",
-        f"{title} - ท่อนที่อยากให้เธอได้ยิน",
-        "บางเพลงดังในใจ ก่อนดังในฟีด",
-        "เก็บท่อนนี้ไว้ฟังตอนคิดถึงใครบางคน",
-    ]
     return {
         "song_metadata": {
             "song_title": title,
@@ -616,11 +653,11 @@ def build_release_package_data(song: Dict[str, Any], project_name: str = "") -> 
             "vocal_style": vocal_style,
             "keywords": keywords,
         },
-        "seo_caption": seo_caption,
-        "tiktok_caption": f"{tiktok_caption}\n{' '.join(hashtags[:8])}",
-        "youtube_description": f"{youtube_description}\n\n{' '.join(hashtags[:15])}",
-        "hashtags": hashtags[:20],
-        "shorts_hooks": shorts_hooks[:5],
+        "seo_caption": release_copy["seo_caption"],
+        "tiktok_caption": release_copy["tiktok_caption"],
+        "youtube_description": release_copy["youtube_description"],
+        "hashtags": release_copy["hashtags"][:20],
+        "shorts_hooks": release_copy["shorts_hooks"][:5],
         "cover_art_prompts": cover_prompts,
         "canvas_prompt": cover_prompts["Spotify Canvas / Short Visual Loop"],
         "release_assets": [
@@ -716,7 +753,7 @@ def build_suno_full_package(song: Dict[str, Any], project_name: str = "", workfl
     preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
     hook = _selected_hook(song)
     settings = song.get("advanced_settings", {}) or {}
-    lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
+    lyrics = _canonical_lyrics(song, preset)
     release = build_release_package_data(song, project_name)
     metadata = release["song_metadata"]
     base = _minimal_suno_package(song, project_name, lyrics, hook, settings, preset)
@@ -850,7 +887,7 @@ def export_suno_files(
         folder = _project_folder(project_name, base_dir) / "exports"
         folder.mkdir(parents=True, exist_ok=True)
         preset = get_artist_preset(song.get("artist_preset", "vela_moon"))
-        lyrics = song.get("normalized_song_output") or normalize_lyrics_tags(song.get("complete_lyrics", ""), preset)
+        lyrics = _canonical_lyrics(song, preset)
         canonical_title = _canonical_export_title(song, project_name)
         lyrics_path = ensure_unique_path(folder / build_export_filename(canonical_title, _artist_name(song), "Lyrics_Only", "txt"))
         full_text = build_suno_full_package(song, project_name, workflow_mode=workflow_mode)

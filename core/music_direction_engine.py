@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.instrument_tag_normalizer import sanitize_production_tag_residue
 from core.song_production_profile import resolve_song_production_profile
 
 
@@ -163,6 +164,7 @@ def _split_tag_lines(tag: str) -> list[str]:
 
 def normalize_section_direction_layout(lyrics: str, music_direction: dict[str, Any]) -> str:
     """Place arrangement tags directly below headers and remove mid-lyric duplicate tags."""
+    lyrics = sanitize_production_tag_residue(lyrics)
     generated_tags = music_direction.get("section_tags") or {}
     existing_tags: dict[str, str] = {}
     scan_section = ""

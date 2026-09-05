@@ -7,6 +7,40 @@ from typing import Any, Dict, List
 THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]")
 SECTION_PATTERN = re.compile(r"^\s*\[([^\]]+)\]")
 PAREN_PATTERN = re.compile(r"\(([^()]*)\)")
+DOUBLE_PAREN_PATTERN = re.compile(r"\(\(\s*([^()]*)\s*\)\)")
+
+PRODUCTION_DIRECTION_TERMS = (
+    "chorus",
+    "harmony",
+    "harmonies",
+    "drum",
+    "guitar",
+    "piano",
+    "bass",
+    "vocal",
+    "fade",
+    "reverb",
+    "cinematic",
+    "energy",
+    "arrangement",
+    "mix",
+    "tempo",
+    "bpm",
+    "intro",
+    "outro",
+    "bridge",
+    "stacked",
+    "layered",
+    "stronger",
+    "wide",
+    "soft",
+    "softly",
+    "ambient",
+    "echo",
+    "breakdown",
+    "build",
+    "polished",
+)
 
 TAG_TRANSLATION_MAP = {
     "กีต้าร์โปร่ง": "acoustic guitar",
@@ -51,6 +85,30 @@ def contains_thai(text: str) -> bool:
     return bool(THAI_PATTERN.search(text or ""))
 
 
+def _looks_like_production_direction(text: str) -> bool:
+    value = str(text or "").strip().lower()
+    return bool(value and not contains_thai(value) and any(term in value for term in PRODUCTION_DIRECTION_TERMS))
+
+
+def sanitize_production_tag_residue(full_lyrics: str) -> str:
+    """Remove inline double-parenthetical production residue without touching sung parentheses."""
+    cleaned_lines: List[str] = []
+    for raw in str(full_lyrics or "").replace("\r\n", "\n").splitlines():
+        stripped = raw.strip()
+        standalone = DOUBLE_PAREN_PATTERN.fullmatch(stripped)
+        if standalone and _looks_like_production_direction(standalone.group(1)):
+            cleaned_lines.append(f"({standalone.group(1).strip()})")
+            continue
+
+        def remove_residue(match: re.Match[str]) -> str:
+            return "" if _looks_like_production_direction(match.group(1)) else match.group(0)
+
+        cleaned = DOUBLE_PAREN_PATTERN.sub(remove_residue, raw)
+        cleaned = re.sub(r"[ \t]+$", "", cleaned)
+        cleaned_lines.append(cleaned)
+    return "\n".join(cleaned_lines)
+
+
 def normalize_instrument_tag(tag_text: str, section_name: str | None = None, artist_preset: Dict[str, Any] | None = None) -> str:
     value = (tag_text or "").strip()
     if not contains_thai(value):
@@ -70,7 +128,7 @@ def normalize_instrument_tag(tag_text: str, section_name: str | None = None, art
 def normalize_lyrics_tags(full_lyrics: str, artist_preset: Dict[str, Any] | None = None) -> str:
     lines = []
     current_section = None
-    for line in (full_lyrics or "").splitlines():
+    for line in sanitize_production_tag_residue(full_lyrics).splitlines():
         section_match = SECTION_PATTERN.match(line)
         if section_match:
             current_section = section_match.group(1).strip()

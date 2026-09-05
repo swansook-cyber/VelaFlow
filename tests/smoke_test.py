@@ -171,8 +171,8 @@ from core.artist_presets import (
     set_default_artist_preset,
     validate_artist_preset,
 )
-from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, validate_english_only_tags
-from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, resolve_final_generation_title, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
+from core.instrument_tag_normalizer import contains_thai, normalize_lyrics_tags, sanitize_production_tag_residue, validate_english_only_tags
+from core.song_workflow import _extract_json, build_title_context_fingerprint, detect_best_song_hook, generate_hook_candidates, generate_hook_candidates_with_provider, normalize_song_metadata, resolve_final_generation_title, resolve_fresh_generation_title, resolve_song_generation_context, resolve_title_provenance, save_song_state, select_best_hook, song_project_widget_state
 from core.song_production_profile import GENRE_CATALOG, MOOD_CATALOG, VOCAL_CATALOG, catalog_with_saved_value, production_profile_in_range, resolve_song_production_profile, resolve_vocal_profile
 from core.production_intelligence_profiles import extract_production_cues
 from core.song_structure_intelligence import (
@@ -185,7 +185,7 @@ from core.song_structure_intelligence import (
 )
 from core.song_title_engine import clean_generated_song_title, generate_contextual_title_candidates, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title, resolve_song_title, score_song_title_candidate, title_is_valid
 from core.thai_quality_filter import clean_thai_output, detect_thai_quality_issues
-from core.suno_export import build_release_package_data, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, normalize_hashtag, resolve_export_txt_filename, resolve_lyrics_download_filename, safe_txt_filename
+from core.suno_export import build_release_package_data, build_suno_full_package, export_creator_final_assets, extract_song_title_from_export_text, export_txt_filename, normalize_hashtag, resolve_export_txt_filename, resolve_lyrics_download_filename, resolve_release_mood_family, safe_txt_filename
 from core.shorts_factory import build_shorts_comparison, generate_shorts_factory, list_shorts_variations
 from core.project_io import ProjectLockPermissionError, _read_lock_snapshot, _release_owned_lock, _remove_lock_if_unchanged, atomic_write_text, load_project, new_project, project_file_lock, project_state_fingerprint, read_project_json, save_project, save_project_folder, save_project_if_dirty
 from core.project_manager import (
@@ -1486,6 +1486,16 @@ def main():
     thai_tag_lyrics = "[Intro]\n(กีต้าร์โปร่งคลอเบาๆ คลอด้วยแพดนุ่มๆ)\nยังคิดถึงเธอทุกคืน\n[Outro]\n(ดนตรีค่อยๆ เฟด)"
     normalized_tags = normalize_lyrics_tags(thai_tag_lyrics, vela_moon)
     tag_validation = validate_english_only_tags(normalized_tags)
+    leaked_final_chorus = "ให้ชีวิตได้พัก หายใจเพื่อตัวเอง ((big final chorus, stacked harmonies, stronger drums))"
+    leaked_outro = "เชื่อใจตัวเองนะ ((emotional fade out, polished pop drums echoes))"
+    sung_parentheses = "(Woo-hoo-hoo) สุขใจ ไม่ต้องกลัวอะไรเลย\n(Yeah-eh-eh) ปล่อยมันไป"
+    standalone_tag = "(big final chorus, stacked harmonies, stronger drums, wide cinematic lift)"
+    assert_true(sanitize_production_tag_residue(leaked_final_chorus) == "ให้ชีวิตได้พัก หายใจเพื่อตัวเอง", "Final Chorus production residue was not removed")
+    assert_true(sanitize_production_tag_residue(leaked_outro) == "เชื่อใจตัวเองนะ", "Outro production residue was not removed")
+    assert_true(sanitize_production_tag_residue(sung_parentheses) == sung_parentheses, "legitimate sung parentheses were removed")
+    assert_true(sanitize_production_tag_residue(standalone_tag) == standalone_tag, "standalone production tag was not preserved")
+    canonical_tag_song = normalize_song_metadata({"complete_lyrics": f"[Final Chorus]\n{leaked_final_chorus}\n\n[Outro]\n{leaked_outro}", "artist_preset": "vela_moon"}, vela_moon)
+    assert_true("((" not in canonical_tag_song["normalized_song_output"] and canonical_tag_song["complete_lyrics"] == canonical_tag_song["normalized_song_output"], "canonical Song state retained production residue")
     short_song = "[Intro]\nคืนฝนพรำ\n\n[Verse 1]\nยังคิดถึงเธอ\n\n[Chorus]\nยังรักเธอ"
     expanded_song = ensure_full_song_structure(short_song, hook_text="ยังรักเธอ", idea="เพลงเศร้าที่ลืมคนรักไม่ได้", artist_preset=vela_moon)
     expanded_report = analyze_song_completeness(expanded_song["lyrics"])
@@ -1681,6 +1691,39 @@ def main():
     assert_true(all(normalize_hashtag(label) == expected for label, expected in expected_genre_hashtags.items()), "canonical Genre hashtag normalization failed")
     assert_true("#RnB" in release_profile["hashtags"] and "#RnB" in release_profile["tiktok_caption"] and "#RnB" in release_profile["youtube_description"], "R&B hashtag did not propagate through release outputs")
     assert_true(release_profile["song_metadata"]["genre"] == "R&B" and "#RB" not in release_profile["hashtags"], "hashtag normalization changed Genre metadata or retained #RB")
+    release_cases = {
+        "uplifting": ("Smooth", "R&B", "ให้กำลังใจ", "เชื่อใจตัวเอง"),
+        "bright": ("ใช้ชีวิตให้สุขใจ", "Pop", "สดใส", "ออกไปใช้ชีวิตกัน"),
+        "sad": ("คืนที่ไม่มีเรา", "Pop", "เศร้า", "คืนนี้ไม่มีเธอ"),
+        "lonely": ("ตีสอง", "City Pop", "เหงากลางคืน", "ไฟเมืองยังไม่ดับ"),
+        "nostalgic": ("ภาพวันเก่า", "Acoustic Pop", "คิดถึง", "ร้านเดิมยังเปิดเพลงเดิม"),
+    }
+    release_results = {}
+    for family, (case_title, case_genre, case_mood, case_hook) in release_cases.items():
+        case_song = {
+            "title": case_title,
+            "artist_name": "Vela Moon",
+            "selected_hook_text": case_hook,
+            "normalized_song_output": f"[Final Chorus]\n{leaked_final_chorus}\n\n[Outro]\n{leaked_outro}",
+            "generation_resolution": {
+                "resolved_genre": case_genre,
+                "resolved_mood": case_mood,
+                "resolved_vocal": "clear emotional vocal",
+                "resolved_style_prompt": f"{case_genre} production",
+            },
+        }
+        release_results[family] = build_release_package_data(case_song)
+        assert_true(resolve_release_mood_family(case_mood) == family, f"release Mood family resolution failed for {case_mood}")
+        assert_true(release_results[family]["song_metadata"]["genre"] == case_genre and release_results[family]["song_metadata"]["mood"] == case_mood and release_results[family]["song_metadata"]["vocal_style"] == "clear emotional vocal", f"release metadata changed for {case_mood}")
+    for family in ("uplifting", "bright"):
+        social_text = "\n".join([release_results[family]["tiktok_caption"], release_results[family]["youtube_description"], " ".join(release_results[family]["hashtags"])])
+        assert_true(all(term not in social_text for term in ("💔", "#เพลงเศร้า", "#เพลงอกหัก")), f"{family} Release Pack retained heartbreak copy")
+    assert_true("#RnB" in release_results["uplifting"]["hashtags"] and "#เพลงให้กำลังใจ" in release_results["uplifting"]["hashtags"] and "เชื่อในตัวเอง" in release_results["uplifting"]["tiktok_caption"], "Smooth uplifting R&B release copy failed")
+    assert_true("#เพลงสดใส" in release_results["bright"]["hashtags"] and "ออกไปใช้ชีวิต" in release_results["bright"]["tiktok_caption"], "bright Pop release copy failed")
+    assert_true("💔" in release_results["sad"]["tiktok_caption"] and "#เพลงเศร้า" in release_results["sad"]["hashtags"], "sad release copy lost allowed heartbreak language")
+    assert_true("#เพลงอกหัก" not in release_results["lonely"]["hashtags"] and "#เพลงอกหัก" not in release_results["nostalgic"]["hashtags"] and "คิดถึงใครบางคน" not in " ".join(release_results["uplifting"]["shorts_hooks"]), "night, nostalgic, or uplifting Shorts/hashtags used a universal heartbreak template")
+    clean_suno_package = build_suno_full_package({**case_song, "title": "เชื่อใจตัวเอง", "generation_resolution": {"resolved_genre": "Pop", "resolved_mood": "ให้กำลังใจ", "resolved_vocal": "clear emotional vocal", "resolved_style_prompt": "Pop production"}})
+    assert_true("((big final chorus" not in clean_suno_package and "((emotional fade out" not in clean_suno_package and "ให้ชีวิตได้พัก หายใจเพื่อตัวเอง" in clean_suno_package and "เชื่อใจตัวเองนะ" in clean_suno_package, "canonical Suno export retained inline production residue")
     assert_true(catalog_with_saved_value(GENRE_CATALOG, "Night Drive")[-1] == "Night Drive" and resolve_song_production_profile(genre="Night Drive", mood="คิดถึง", vocal="male vocal")["genre"] == "Night Drive", "legacy saved Genre compatibility failed")
     profile_direction = build_music_direction(genre="R&B", mood="เหงากลางคืน", vocal="soft intimate female vocal")
     assert_true(profile_direction["bpm"] == production_matrix["B"]["recommended_bpm"] and profile_direction["production_profile"]["genre"] == "R&B" and "electric piano" in profile_direction["master_music_style_prompt"], "music direction did not consume the centralized production profile")
