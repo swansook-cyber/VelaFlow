@@ -38,6 +38,7 @@ FINAL_TRUE_PEAK_CEILING_DB = -1.0
 SAFETY_MEASUREMENT_MARGIN_DB = 0.1
 MAX_SAFETY_ATTEMPTS = 3
 EFFECTIVE_SILENCE_DBFS = -90.0
+PREVIEW_TRUE_PEAK_CEILING_DB = -1.0
 
 REFERENCE_GUIDED_PRESET = "Reference-Guided Master"
 REFERENCE_MIN_DURATION_SEC = 30.0
@@ -998,6 +999,68 @@ def build_remaster_quality_comparison(
     }
 
 
+def render_safe_preview_mp3(
+    ffmpeg: str,
+    source: Path,
+    target: Path,
+    *,
+    start: float,
+    duration: float,
+    ceiling: float = PREVIEW_TRUE_PEAK_CEILING_DB,
+) -> dict[str, Any]:
+    """Encode and measure one preview, retrying from the float segment when MP3 overs."""
+    intermediate = target.with_name(f"{target.stem}_safety_float.wav")
+    target.unlink(missing_ok=True)
+    intermediate.unlink(missing_ok=True)
+    limiter = f"aresample=48000,alimiter=limit={10 ** (ceiling / 20):.9f}:level=false:latency=true"
+    try:
+        extracted = _run([
+            ffmpeg, "-y", "-ss", str(start), "-t", str(duration), "-i", str(source),
+            "-vn", "-af", limiter, "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le", str(intermediate),
+        ], timeout=120)
+        baseline = measure_remaster_artifact(intermediate, ffmpeg) if extracted.get("ok") else {}
+        if not baseline.get("ok"):
+            return {"ok": False, "error": "preview_safety_intermediate_failed", "attempts": []}
+        baseline_peak = max(
+            baseline["true_peak_dbtp"] if baseline.get("true_peak_dbtp") is not None else -300.0,
+            baseline["sample_peak_dbfs"],
+        )
+        gain_db = min(0.0, ceiling - SAFETY_MEASUREMENT_MARGIN_DB - baseline_peak)
+        attempts: list[dict[str, Any]] = []
+        measurement: dict[str, Any] = {}
+        for attempt in range(MAX_SAFETY_ATTEMPTS):
+            encoded = _run([
+                ffmpeg, "-y", "-i", str(intermediate), "-vn", "-af", f"volume={gain_db:.6f}dB",
+                "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k",
+                "-ar", "48000", "-ac", "2", "-write_xing", "0", str(target),
+            ], timeout=120)
+            measurement = measure_remaster_artifact(target, ffmpeg) if encoded.get("ok") else {}
+            checks = validate_remaster_signal(measurement, baseline, ceiling)
+            attempts.append({"attempt": attempt + 1, "gain_db": gain_db, "measurement": measurement, "checks": checks})
+            if all(checks.values()):
+                return {
+                    "ok": True,
+                    "path": str(target),
+                    "format": "audio/mpeg",
+                    "duration": duration,
+                    "ceiling_dbtp": ceiling,
+                    "applied_gain_db": gain_db,
+                    "measurement": measurement,
+                    "attempts": attempts,
+                }
+            if not measurement.get("ok") or measurement.get("effectively_silent"):
+                break
+            observed_peak = max(
+                measurement.get("true_peak_dbtp") if measurement.get("true_peak_dbtp") is not None else -300.0,
+                measurement["sample_peak_dbfs"],
+            )
+            gain_db += min(-SAFETY_MEASUREMENT_MARGIN_DB, ceiling - SAFETY_MEASUREMENT_MARGIN_DB - observed_peak)
+        target.unlink(missing_ok=True)
+        return {"ok": False, "error": "preview_safety_validation_failed", "attempts": attempts}
+    finally:
+        intermediate.unlink(missing_ok=True)
+
+
 def build_remaster_ab_previews(original_path: str | Path, mastered_path: str | Path, output_dir: str | Path, *, ffmpeg_path: str = "", preview_duration: float = 15.0) -> dict[str, Any]:
     ffmpeg = ffmpeg_path or find_ffmpeg()
     selected = select_remaster_preview_range(original_path, ffmpeg_path=ffmpeg, preview_duration=preview_duration)
@@ -1007,19 +1070,24 @@ def build_remaster_ab_previews(original_path: str | Path, mastered_path: str | P
     output.mkdir(parents=True, exist_ok=True)
     original_preview = output / "quality_preview_original.mp3"
     mastered_preview = output / "quality_preview_mastered.mp3"
-    results = []
+    results: dict[str, dict[str, Any]] = {}
     for source, target in ((Path(original_path), original_preview), (Path(mastered_path), mastered_preview)):
-        results.append(_run([ffmpeg, "-y", "-ss", str(selected["start"]), "-t", str(selected["duration"]), "-i", str(source), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-ar", "48000", "-ac", "2", str(target)], timeout=120))
-    ok = all(item.get("ok") for item in results) and original_preview.is_file() and mastered_preview.is_file()
+        label = "original" if target == original_preview else "mastered"
+        results[label] = render_safe_preview_mp3(
+            ffmpeg, source, target,
+            start=float(selected["start"]), duration=float(selected["duration"]),
+        )
+    ok = all(item.get("ok") for item in results.values()) and original_preview.is_file() and mastered_preview.is_file()
     return {
         "ok": ok,
         "start": selected["start"],
         "duration": selected["duration"],
-        "original_preview": str(original_preview) if original_preview.is_file() else "",
-        "mastered_preview": str(mastered_preview) if mastered_preview.is_file() else "",
+        "original_preview": str(original_preview) if results["original"].get("ok") else "",
+        "mastered_preview": str(mastered_preview) if results["mastered"].get("ok") else "",
         "format": "audio/mpeg",
         "selection_method": selected.get("method", ""),
-        "error": "" if ok else "preview_generation_failed",
+        "safety": results,
+        "error": "" if ok else "preview_safety_failed",
     }
 
 
@@ -1109,6 +1177,17 @@ def _report_text(report: dict[str, Any]) -> str:
         f"Processing date/time: {report.get('processing_date_time', '')}",
     ]
     recommendation = report.get("remaster_recommendation") or {}
+    preservation = report.get("preservation_assessment") or {}
+    if preservation:
+        lines += [
+            "",
+            "Preservation Assessment:",
+            f"Mode: {preservation.get('mode', 'normal_processing')}",
+            f"Score: {preservation.get('score', 0)}",
+            f"Reason: {preservation.get('reason', '')}",
+            f"Quality claim: {preservation.get('quality_claim', False)}",
+            str(preservation.get("note", "")),
+        ]
     custom_settings = report.get("custom_settings") or {}
     if custom_settings:
         lines += ["", "Resolved Custom Settings:"]
@@ -1189,13 +1268,54 @@ def remaster_source_metadata(source_context: dict[str, Any] | None, metadata: di
     return dict(metadata) if isinstance(metadata, dict) else str(metadata or "")
 
 
-def should_preserve_master(analysis: dict[str, Any]) -> bool:
+def assess_master_preservation(
+    analysis: dict[str, Any],
+    source_measurement: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Decide whether Auto should use minimal processing, without claiming tonal quality."""
     loudness = analysis.get("loudness") or {}
     values = [_finite_metric(loudness.get(key)) for key in ("integrated_lufs", "true_peak_dbtp", "lra_lu")]
     if loudness.get("status") != "measured" or any(value is None for value in values):
-        return False
+        return {"preserve": False, "mode": "normal_processing", "score": 0, "quality_claim": False, "reason": "missing_reliable_loudness"}
     level, peak, lra = values
-    return -15.0 <= level <= -13.0 and -12.0 <= peak <= -1.2 and 3.5 <= lra <= 11.0
+    guards: list[str] = []
+    if not -16.0 <= level <= -11.0:
+        guards.append("loudness_outside_preservation_range")
+    if not -18.0 <= peak <= -0.8:
+        guards.append("true_peak_outside_safe_preservation_range")
+    if not 2.5 <= lra <= 12.0:
+        guards.append("lra_outside_preservation_range")
+    measured = source_measurement or {}
+    if source_measurement is not None:
+        measured_peak = _finite_metric(measured.get("true_peak_dbtp"))
+        if not measured.get("ok"):
+            guards.append("source_measurement_unavailable")
+        if measured.get("effectively_silent") is True:
+            guards.append("effectively_silent_source")
+        if int(measured.get("rail_hits") or 0) > 0:
+            guards.append("decoded_full_scale_rails")
+        if measured_peak is None or measured_peak > -0.8:
+            guards.append("decoded_true_peak_not_safe")
+
+    loudness_score = 45 if -15.5 <= level <= -11.5 else 30
+    peak_score = 30 if peak <= -1.0 else 20
+    dynamics_score = 25 if 3.0 <= lra <= 11.0 else 15
+    score = loudness_score + peak_score + dynamics_score
+    preserve = not guards and score >= 75
+    return {
+        "preserve": preserve,
+        "mode": "minimal_processing" if preserve else "normal_processing",
+        "score": score,
+        "quality_claim": False,
+        "reason": "aggressive_mastering_unnecessary" if preserve else (guards[0] if guards else "preservation_confidence_too_low"),
+        "guards": guards,
+        "metrics": {"integrated_lufs": level, "true_peak_dbtp": peak, "lra_lu": lra},
+        "note": "Loudness metrics select minimal processing only; they do not certify tonal or mastering quality.",
+    }
+
+
+def should_preserve_master(analysis: dict[str, Any], source_measurement: dict[str, Any] | None = None) -> bool:
+    return bool(assess_master_preservation(analysis, source_measurement).get("preserve"))
 
 
 def measure_remaster_artifact(path: str | Path, ffmpeg: str) -> dict[str, Any]:
@@ -1414,6 +1534,13 @@ def remaster_song_audio(
     if not source_measurement.get("ok"):
         return {"ok": False, "status": "failed", "error": "source_measurement_failed", "message": "Source audio could not be measured safely.", "data": {}}
     preservation = False
+    preservation_assessment: dict[str, Any] = {
+        "preserve": False,
+        "mode": "not_evaluated",
+        "score": 0,
+        "quality_claim": False,
+        "reason": "manual_mode",
+    }
     if resolved_preset_mode == "auto":
         analysis_ready = source_analysis.get("analysis_depth") == "deep" and (source_analysis.get("metadata") or {}).get("status") in {"measured", "partial"}
         loudness_ready = (source_analysis.get("loudness") or {}).get("status") == "measured" or source_measurement.get("effectively_silent")
@@ -1422,7 +1549,8 @@ def remaster_song_audio(
         decision = recommend_remaster_preset(source_analysis, metadata=remaster_source_metadata(resolved_source_context, source_metadata))
         recommendation = build_remaster_recommendation(decision, source_analysis)
         requested_style = decision["preset"]
-        preservation = should_preserve_master(source_analysis)
+        preservation_assessment = assess_master_preservation(source_analysis, source_measurement)
+        preservation = bool(preservation_assessment["preserve"])
     requested_reference_plan = dict(reference_plan or {}) if requested_style == REFERENCE_GUIDED_PRESET else {}
     if requested_style == REFERENCE_GUIDED_PRESET and (
         requested_reference_plan.get("mode") != "reference"
@@ -1577,6 +1705,7 @@ def remaster_song_audio(
             "no_clipping_above_0db": no_clipping,
             "clipping_validation": clipping_validation,
             "final_output_safety": safety,
+            "preservation_assessment": preservation_assessment,
             "remaster_recommendation": recommendation,
             "error": "master_wav_failed" if wav.get("ok") else wav.get("output", "master_wav_failed")[:1200],
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -1635,6 +1764,8 @@ def remaster_song_audio(
         if output_validation["mp3_status"] == "pass"
         else {"ok": False, "error": "mastered_distribution_mp3_unavailable"}
     )
+    if not ab_previews.get("ok"):
+        warnings.append("A/B preview was withheld because decoded preview safety validation failed.")
     processing_steps = [
         "Input validation",
         "Source copy preserved in original/",
@@ -1659,7 +1790,7 @@ def remaster_song_audio(
         "WAV + MP3 export",
     ]
     if preservation:
-        processing_steps = ["Input validation", "Source copy preserved in original/", "48 kHz stereo PCM 24-bit conversion", "Established click/DC/band-edge cleanup", "Already-mastered preservation: no EQ boosts, compression, width change, or loudness normalization"]
+        processing_steps = ["Input validation", "Source copy preserved in original/", "48 kHz stereo PCM 24-bit conversion", "Established click/DC/band-edge cleanup", "Minimal-processing preservation: no EQ boosts, compression, width change, or loudness normalization"]
     processing_steps.extend(["Final 48 kHz safety limiter", "Measured WAV and decoded MP3 ceiling validation"])
     report = {
         "ok": overall_status == "success",
@@ -1695,6 +1826,7 @@ def remaster_song_audio(
         "remaster_recommendation": recommendation,
         "processing_steps_applied": processing_steps,
         "already_mastered_preservation": preservation,
+        "preservation_assessment": preservation_assessment,
         "final_output_safety": safety,
         "output_wav_settings": {"format": "WAV", "codec": "pcm_s24le", "bit_depth": "24-bit", "sample_rate_hz": 48000, "channels": "stereo", "lossless": True},
         "output_mp3_settings": {"format": "MP3", "codec": "libmp3lame", "bitrate": "320 kbps", "mode": "CBR", "channels": "stereo"},

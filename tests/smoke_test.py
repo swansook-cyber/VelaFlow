@@ -27,7 +27,7 @@ import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
 import core.project_io as project_io_module
 import core.remaster_engine as remaster_engine_module
-from core.remaster_engine import measure_remaster_artifact, remaster_source_metadata, should_preserve_master, validate_remaster_signal
+from core.remaster_engine import assess_master_preservation, measure_remaster_artifact, remaster_source_metadata, should_preserve_master, validate_remaster_signal
 from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, resolve_agent_provider, select_best_workflow, think
 from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
@@ -405,6 +405,16 @@ def verify_remaster_safety(out: Path, ffmpeg: str) -> dict[str, Any]:
         measured = measure_remaster_artifact(result["data"]["mastered_" + kind], ffmpeg)
         assert_true(measured["rail_hits"] == 0 and measured["sample_peak_dbfs"] <= -1.0 and measured["true_peak_dbtp"] <= -1.0 and not measured["effectively_silent"], f"Final {kind} ceiling regression: {measured}")
         assert_true(measured == safety[kind], "Safety report must describe delivered artifact")
+    ab_previews = report.get("ab_previews") or {}
+    assert_true(ab_previews.get("ok"), f"A/B preview safety failed: {ab_previews}")
+    for label in ("original", "mastered"):
+        preview_safety = (ab_previews.get("safety") or {}).get(label) or {}
+        measured = measure_remaster_artifact(ab_previews[f"{label}_preview"], ffmpeg)
+        assert_true(
+            preview_safety.get("ok") and measured["true_peak_dbtp"] <= -1.0
+            and measured["sample_peak_dbfs"] <= -1.0 and measured["rail_hits"] == 0,
+            f"{label} A/B preview is not decoded-playback safe: {measured}",
+        )
     assert_true(hashlib.sha256(source.read_bytes()).hexdigest() == original_hash, "Remaster changed source")
     rail_source = qa / "rail.wav"
     subprocess.run([ffmpeg, "-y", "-f", "lavfi", "-i", "aevalsrc=1:s=48000:d=1", "-c:a", "pcm_s24le", str(rail_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -426,6 +436,8 @@ def verify_remaster_safety(out: Path, ffmpeg: str) -> dict[str, Any]:
     expected = recommend_remaster_preset(cold_report["audio_intelligence"]["before"], metadata={})["preset"]
     assert_true(cold_report["selected_preset"] == expected and expected != "Loud Modern" and cold_report["remaster_recommendation"]["source"] == "audio_analysis", "Cold Auto must replace stale metadata preset using deep measurements")
     assert_true(not any(item in cold_report["filters"] for item in ("equalizer=", "acompressor=", "stereotools=", "loudnorm=")) and "adeclick" in cold_report["filters"] and "highpass=" in cold_report["filters"], "Preservation must retain cleanup without creative processing")
+    assessment = cold_report.get("preservation_assessment") or {}
+    assert_true(assessment.get("mode") == "minimal_processing" and assessment.get("quality_claim") is False, "Preservation must not claim source tonal/mastering quality")
     preserved = cold_report["final_output_safety"]
     assert_true(abs(preserved["source"]["integrated_lufs"] - preserved["wav"]["integrated_lufs"]) < 0.5 and abs(preserved["source"]["lra_lu"] - preserved["wav"]["lra_lu"]) < 0.5, "Preservation changed measured level or dynamics unnecessarily")
     quiet_source = qa / "quiet_dynamic.wav"
@@ -434,6 +446,37 @@ def verify_remaster_safety(out: Path, ffmpeg: str) -> dict[str, Any]:
     quiet_report = (quiet.get("data") or {}).get("report") or {}
     assert_true(quiet.get("ok") and not quiet_report.get("already_mastered_preservation") and "loudnorm=" in quiet_report["filters"], "Quiet dynamic source must still receive normal processing")
     assert_true(quiet_report["final_output_safety"]["wav"]["integrated_lufs"] > quiet_report["final_output_safety"]["source"]["integrated_lufs"], "Quiet source loudness was not improved")
+
+    edge_analysis = {"loudness": {"status": "measured", "integrated_lufs": -14.0, "true_peak_dbtp": -1.5, "lra_lu": 3.0}}
+    near_ceiling_analysis = {"loudness": {"status": "measured", "integrated_lufs": -14.0, "true_peak_dbtp": -1.0, "lra_lu": 6.0}}
+    edge_signal = dict(safety["source"], ok=True, effectively_silent=False, rail_hits=0, true_peak_dbtp=-1.5, sample_peak_dbfs=-2.0)
+    near_ceiling_signal = dict(edge_signal, true_peak_dbtp=-1.0, sample_peak_dbfs=-1.1)
+    assert_true(should_preserve_master(edge_analysis, edge_signal), "LRA 3 mastered source should use minimal processing")
+    assert_true(should_preserve_master(near_ceiling_analysis, near_ceiling_signal), "Safe mastered source near -1 dBTP should use minimal processing")
+
+    noisy_source = qa / "noise_candidate.wav"
+    subprocess.run([ffmpeg, "-y", "-f", "lavfi", "-i", "anoisesrc=color=white:amplitude=0.2:r=48000:d=12", "-af", "loudnorm=I=-14:TP=-1.5:LRA=6", "-ac", "2", "-c:a", "pcm_s24le", str(noisy_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    noisy_analysis = analyze_audio_source(noisy_source, {"kind": "test_fixture"}, depth="deep", ffmpeg_path=ffmpeg)
+    noisy_assessment = assess_master_preservation(noisy_analysis, measure_remaster_artifact(noisy_source, ffmpeg))
+    assert_true(not noisy_assessment.get("preserve") and noisy_assessment.get("quality_claim") is False, f"Stationary noise must not receive preservation classification: {noisy_assessment}")
+
+    mastered_download = Path(result["data"]["mastered_mp3"])
+    mastered_hash = hashlib.sha256(mastered_download.read_bytes()).hexdigest()
+    repeated_previews = remaster_engine_module.build_remaster_ab_previews(source, mastered_download, qa / "repeat_previews", ffmpeg_path=ffmpeg)
+    assert_true(repeated_previews.get("ok") and hashlib.sha256(mastered_download.read_bytes()).hexdigest() == mastered_hash, "Preview generation modified final download artifact")
+
+    original_run = remaster_engine_module._run
+    original_measure = remaster_engine_module.measure_remaster_artifact
+    unsafe_preview = dict(edge_signal, true_peak_dbtp=0.2, sample_peak_dbfs=0.1, rail_hits=2)
+    measurements = iter([edge_signal, unsafe_preview, unsafe_preview, unsafe_preview])
+    try:
+        remaster_engine_module._run = lambda *args, **kwargs: {"ok": True}
+        remaster_engine_module.measure_remaster_artifact = lambda *args, **kwargs: next(measurements)
+        failed_preview = remaster_engine_module.render_safe_preview_mp3(ffmpeg, source, qa / "unsafe_preview.mp3", start=0.0, duration=10.0)
+    finally:
+        remaster_engine_module._run = original_run
+        remaster_engine_module.measure_remaster_artifact = original_measure
+    assert_true(not failed_preview.get("ok") and len(failed_preview.get("attempts") or []) == 3 and not (qa / "unsafe_preview.mp3").exists(), "Preview safety retry must fail closed")
     return {"stress": safety, "preservation": cold_report["already_mastered_preservation"], "auto_preset": expected, "quiet_pass": quiet.get("ok")}
 
 
