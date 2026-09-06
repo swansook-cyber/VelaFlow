@@ -265,7 +265,7 @@ from core.storage_cleanup import cleanup_project_storage
 from core.real_clip_pipeline import ensure_parent_dir, find_ffmpeg, probe_media, render_image_motion_scene, render_real_hook_clip, trim_audio_clip, validate_mp4
 from core.render_engine import run_render
 from core.rendering_presets import ASPECT_RATIOS, MOTION_INTENSITIES, RENDER_DURATIONS, RENDER_QUALITIES, get_render_preset_bundle, list_render_preset_bundles, list_rendering_providers
-from core.remaster_engine import REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, sanitize_custom_remaster_settings
+from core.remaster_engine import REFERENCE_GUIDED_PRESET, REMASTER_RECOMMENDATION_MODES, REMASTER_STYLES, analyze_audio_for_remaster_recommendation, analyze_reference_guided_master, build_remaster_recommendation, default_custom_remaster_settings, recommend_remaster_preset, recommend_remaster_preset_from_metadata, remaster_recommendation_matches_source, remaster_song_audio, remaster_source_metadata, sanitize_custom_remaster_settings
 from core.render_profiles import RENDER_PROFILES
 from core.render_recovery import export_diagnostic_bundle, latest_failed_render, recover_render_temp
 from core.safe_mode import open_project_safe_mode
@@ -2751,7 +2751,7 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
         horizontal=True,
         key="remaster_preset_selection_mode",
     )
-    project_metadata = _project_song_metadata_for_remaster(project)
+    project_metadata = remaster_source_metadata(source_analysis_context, _project_song_metadata_for_remaster(project))
     if selection_mode == "Auto Recommended":
         remaster_state["manual_override_active"] = False
         remaster_state["preset_mode"] = "auto"
@@ -2872,7 +2872,13 @@ def _render_remaster_studio(project: dict[str, Any]) -> None:
                 custom_settings=custom_settings,
                 source_context=source_analysis_context,
                 reference_plan=reference_plan,
+                source_metadata=project_metadata,
             )
+        resolved_report = (result.get("data") or {}).get("report") or {}
+        if resolved_report.get("selected_preset"):
+            style = resolved_report["selected_preset"]
+            remaster_state["remaster_recommendation"] = resolved_report.get("remaster_recommendation") or {}
+            remaster_state["preset_name"] = style
         remaster_state["last_result"] = result.get("data", {})
         result_status = str(result.get("status") or (result.get("data") or {}).get("overall_status") or ("success" if result.get("ok") else "failed"))
         remaster_state["last_status"] = result_status

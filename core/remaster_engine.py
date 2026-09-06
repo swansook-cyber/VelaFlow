@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import shutil
 import subprocess
+import sys
+import tempfile
 import zipfile
 from array import array
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from threading import Timer
 
-from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, analyze_audio_source
+from core.audio_intelligence import ANALYZER_VERSION as AUDIO_INTELLIGENCE_ANALYZER_VERSION, analyze_audio_source, parse_loudnorm_output
 from core.file_naming import build_asset_export_filename, ensure_unique_path, sanitize_filename
 from core.paths import ROOT
 from core.project_io import safe_name
@@ -30,6 +34,10 @@ REMASTER_STYLES = [
     "Custom",
 ]
 REMASTER_RECOMMENDATION_MODES = ["Auto Recommended", "Manual"]
+FINAL_TRUE_PEAK_CEILING_DB = -1.0
+SAFETY_MEASUREMENT_MARGIN_DB = 0.1
+MAX_SAFETY_ATTEMPTS = 3
+EFFECTIVE_SILENCE_DBFS = -90.0
 
 REFERENCE_GUIDED_PRESET = "Reference-Guided Master"
 REFERENCE_MIN_DURATION_SEC = 30.0
@@ -1037,7 +1045,7 @@ def analyze_audio_for_remaster_recommendation(
         probe = probe_media(source, ffmpeg_path=ffmpeg)
     if not probe.get("ok") or not probe.get("has_audio", True):
         return {"ok": False, "message": "Invalid or corrupt audio file", "error": "invalid_audio", "data": {"probe": probe}}
-    decision = recommend_remaster_preset(analysis, metadata=metadata)
+    decision = recommend_remaster_preset(analysis, metadata=remaster_source_metadata(source_context, metadata))
     recommendation = build_remaster_recommendation(decision, analysis)
     return {"ok": True, "data": recommendation, "error": ""}
 
@@ -1148,6 +1156,9 @@ def _report_text(report: dict[str, Any]) -> str:
             f"Dynamics / crest proxy: {(comparison.get('summary') or {}).get('dynamics', 'Unknown')}",
             f"Stereo width proxy: {(comparison.get('summary') or {}).get('stereo_width', 'Unknown')}",
         ]
+    safety = report.get("final_output_safety") or {}
+    if safety:
+        lines += ["", "Final Output Safety:", f"True peak ceiling: {safety.get('ceiling_dbtp')} dBTP", f"Measured safety gain: {safety.get('applied_gain_db')} dB", f"WAV: {safety.get('wav', {})}", f"Decoded MP3: {safety.get('mp3', {})}", f"Already-mastered preservation: {report.get('already_mastered_preservation', False)}"]
     return "\n".join(lines)
 
 
@@ -1171,6 +1182,130 @@ def build_clipping_validation(max_volume_db: Any) -> dict[str, Any]:
     }
 
 
+def remaster_source_metadata(source_context: dict[str, Any] | None, metadata: dict[str, Any] | str | None) -> dict[str, Any] | str:
+    """Only project-owned audio may inherit project creative metadata."""
+    if (source_context or {}).get("kind") not in {"project_master", "project_audio"}:
+        return {}
+    return dict(metadata) if isinstance(metadata, dict) else str(metadata or "")
+
+
+def should_preserve_master(analysis: dict[str, Any]) -> bool:
+    loudness = analysis.get("loudness") or {}
+    values = [_finite_metric(loudness.get(key)) for key in ("integrated_lufs", "true_peak_dbtp", "lra_lu")]
+    if loudness.get("status") != "measured" or any(value is None for value in values):
+        return False
+    level, peak, lra = values
+    return -15.0 <= level <= -13.0 and -12.0 <= peak <= -1.2 and 3.5 <= lra <= 11.0
+
+
+def measure_remaster_artifact(path: str | Path, ffmpeg: str) -> dict[str, Any]:
+    """Measure decoded final samples in bounded memory, including positive PCM24 rails."""
+    source = Path(path)
+    if not source.is_file():
+        return {"ok": False, "error": "missing_audio"}
+    count = rails = nonfinite = 0
+    peak = square_sum = 0.0
+    try:
+        with tempfile.TemporaryFile() as errors:
+            proc = subprocess.Popen(
+                [ffmpeg, "-v", "error", "-i", str(source), "-map", "0:a:0", "-vn", "-c:a", "pcm_f32le", "-f", "f32le", "-"],
+                stdout=subprocess.PIPE, stderr=errors,
+            )
+            watchdog = Timer(180, proc.kill)
+            watchdog.start()
+            try:
+                while chunk := proc.stdout.read(262144):
+                    samples = array("f")
+                    samples.frombytes(chunk)
+                    if sys.byteorder != "little":
+                        samples.byteswap()
+                    for value in samples:
+                        if not math.isfinite(value):
+                            nonfinite += 1
+                            continue
+                        count += 1
+                        peak = max(peak, abs(value))
+                        square_sum += value * value
+                        rails += int(value >= 1.0 - 2.0 ** -23 or value <= -1.0)
+                code = proc.wait(timeout=5)
+            finally:
+                watchdog.cancel()
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait()
+                proc.stdout.close()
+        if code or not count or nonfinite:
+            return {"ok": False, "error": "invalid_decoded_audio"}
+        loudness_run = _run([ffmpeg, "-hide_banner", "-i", str(source), "-af", "loudnorm=I=-14:TP=-1:LRA=11:print_format=json", "-f", "null", "-"], timeout=180)
+        loudness = parse_loudnorm_output(loudness_run.get("output", ""))
+        rms_db = 10 * math.log10(max(square_sum / count, 1e-30))
+        silent = rms_db <= EFFECTIVE_SILENCE_DBFS and peak <= 10 ** (-70 / 20)
+        return {
+            "ok": bool(loudness_run.get("ok") and loudness.get("found") and (silent or loudness.get("true_peak_dbtp") is not None)),
+            "sample_peak_dbfs": 20 * math.log10(max(peak, 1e-15)),
+            "rms_dbfs": rms_db, "rail_hits": rails, "sample_count": count,
+            "effectively_silent": silent,
+            "integrated_lufs": loudness.get("integrated_lufs"),
+            "true_peak_dbtp": loudness.get("true_peak_dbtp"),
+            "lra_lu": loudness.get("lra_lu"),
+        }
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return {"ok": False, "error": "audio_measurement_failed"}
+
+
+def validate_remaster_signal(measurement: dict[str, Any] | None, source_measurement: dict[str, Any] | None, ceiling: float = FINAL_TRUE_PEAK_CEILING_DB) -> dict[str, bool]:
+    measured, original = measurement or {}, source_measurement or {}
+    silent_allowed = measured.get("effectively_silent") is True and original.get("effectively_silent") is True
+    peak = _finite_metric(measured.get("sample_peak_dbfs"))
+    true_peak = _finite_metric(measured.get("true_peak_dbtp"))
+    return {
+        "measured": bool(measured.get("ok") and original.get("ok")),
+        "no_rail_hits": measured.get("rail_hits") == 0,
+        "sample_peak_safe": peak is not None and peak <= ceiling,
+        "true_peak_safe": bool(silent_allowed or (true_peak is not None and true_peak <= ceiling)),
+        "audio_preserved": bool(silent_allowed or measured.get("effectively_silent") is False),
+    }
+
+
+def render_safe_remaster_outputs(ffmpeg: str, converted: Path, wav_path: Path, mp3_path: Path, filters: str, source_measurement: dict[str, Any], ceiling: float) -> dict[str, Any]:
+    """Retry from float audio, never from clipped PCM or a lossy re-encode."""
+    intermediate = wav_path.parent / "master_safety_float.wav"
+    final_filters = f"{filters},aresample=48000,alimiter=limit={10 ** (ceiling / 20):.9f}:level=false:latency=true"
+    rendered = _run([ffmpeg, "-y", "-i", str(converted), "-vn", "-af", final_filters, "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le", str(intermediate)])
+    baseline = measure_remaster_artifact(intermediate, ffmpeg) if rendered.get("ok") else {}
+    if not baseline.get("ok"):
+        return {"ok": False, "filters": final_filters, "error": "safety_intermediate_failed", "wav_ok": False, "mp3_ok": False}
+    baseline_peak = max(baseline["true_peak_dbtp"] if baseline.get("true_peak_dbtp") is not None else -300.0, baseline["sample_peak_dbfs"])
+    gain_db = min(0.0, ceiling - SAFETY_MEASUREMENT_MARGIN_DB - baseline_peak)
+    attempts = []
+    wav_measurement, mp3_measurement = {}, {}
+    wav_ok = mp3_ok = False
+    for attempt in range(MAX_SAFETY_ATTEMPTS):
+        wav = _run([ffmpeg, "-y", "-i", str(intermediate), "-vn", "-af", f"volume={gain_db:.6f}dB", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(wav_path)])
+        wav_ok = bool(wav.get("ok"))
+        wav_measurement = measure_remaster_artifact(wav_path, ffmpeg) if wav_ok else {}
+        if not all(validate_remaster_signal(wav_measurement, source_measurement, ceiling).values()):
+            break
+        mp3 = _run([ffmpeg, "-y", "-i", str(wav_path), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2", "-write_xing", "0", str(mp3_path)])
+        mp3_ok = bool(mp3.get("ok"))
+        mp3_measurement = measure_remaster_artifact(mp3_path, ffmpeg) if mp3_ok else {}
+        attempts.append({"attempt": attempt + 1, "gain_db": gain_db, "wav": wav_measurement, "mp3": mp3_measurement})
+        if all(validate_remaster_signal(mp3_measurement, source_measurement, ceiling).values()):
+            break
+        if not mp3_measurement.get("ok") or mp3_measurement.get("effectively_silent"):
+            break
+        observed_peak = max(mp3_measurement.get("true_peak_dbtp") or 0.0, mp3_measurement["sample_peak_dbfs"])
+        gain_db += min(-SAFETY_MEASUREMENT_MARGIN_DB, ceiling - SAFETY_MEASUREMENT_MARGIN_DB - observed_peak)
+    return {
+        "ok": all(validate_remaster_signal(wav_measurement, source_measurement, ceiling).values()) and all(validate_remaster_signal(mp3_measurement, source_measurement, ceiling).values()),
+        "filters": final_filters, "ceiling_dbtp": ceiling,
+        "measurement_margin_db": SAFETY_MEASUREMENT_MARGIN_DB, "attempts": attempts,
+        "applied_gain_db": attempts[-1]["gain_db"] if attempts else gain_db,
+        "wav": wav_measurement, "mp3": mp3_measurement, "source": source_measurement,
+        "wav_ok": wav_ok, "mp3_ok": mp3_ok,
+    }
+
+
 def validate_remaster_outputs(
     source_probe: dict[str, Any],
     wav_path: str | Path,
@@ -1181,6 +1316,10 @@ def validate_remaster_outputs(
     wav_command_ok: bool = True,
     mp3_command_ok: bool = True,
     duration_tolerance: float = 0.25,
+    source_measurement: dict[str, Any] | None = None,
+    wav_measurement: dict[str, Any] | None = None,
+    mp3_measurement: dict[str, Any] | None = None,
+    ceiling: float = FINAL_TRUE_PEAK_CEILING_DB,
 ) -> dict[str, Any]:
     """Classify required remaster deliverables as success, partial, or failed."""
     source_duration = float(source_probe.get("duration") or 0.0)
@@ -1189,7 +1328,7 @@ def validate_remaster_outputs(
         path = Path(path_value)
         codec = str(probe.get("audio_codec") or "").lower()
         duration = float(probe.get("duration") or 0.0)
-        codec_ok = codec.startswith("pcm") if expected == "wav" else codec == "mp3"
+        codec_ok = codec == "pcm_s24le" if expected == "wav" else codec == "mp3"
         delta = abs(source_duration - duration) if source_duration > 0 and duration > 0 else None
         duration_ok = delta is not None and delta <= duration_tolerance
         checks = {
@@ -1199,6 +1338,10 @@ def validate_remaster_outputs(
             "probe_ok": bool(probe.get("ok") and probe.get("has_audio", True)),
             "codec_ok": codec_ok,
             "duration_ok": duration_ok,
+            "sample_rate_ok": probe.get("sample_rate") == 48000,
+            "channels_ok": probe.get("channels") == 2,
+            "bitrate_ok": expected == "wav" or probe.get("audio_bit_rate") == 320000,
+            **validate_remaster_signal(wav_measurement if expected == "wav" else mp3_measurement, source_measurement, ceiling),
         }
         return {
             "status": "pass" if all(checks.values()) else "fail",
@@ -1240,6 +1383,7 @@ def remaster_song_audio(
     custom_settings: dict[str, Any] | None = None,
     source_context: dict[str, Any] | None = None,
     reference_plan: dict[str, Any] | None = None,
+    source_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     source = Path(source_audio_path)
     ffmpeg = ffmpeg_path or find_ffmpeg()
@@ -1256,6 +1400,29 @@ def remaster_song_audio(
         }
 
     requested_style = _normalize_style(remaster_style)
+    recommendation = dict(recommendation_data or {})
+    # Legacy callers pass a chosen style; the studio passes its Auto/Manual mode explicitly.
+    resolved_preset_mode = str(preset_mode or recommendation.get("preset_mode") or "manual").strip().lower()
+    if resolved_preset_mode not in {"auto", "manual"}:
+        resolved_preset_mode = "manual"
+    resolved_source_context = dict(source_context or {})
+    resolved_source_context.setdefault("kind", "file")
+    resolved_source_context.setdefault("project_id", project_name)
+    resolved_source_context.setdefault("path_role", "remaster_source")
+    source_analysis = analyze_audio_source(source, resolved_source_context, depth="deep", ffmpeg_path=ffmpeg)
+    source_measurement = measure_remaster_artifact(source, ffmpeg)
+    if not source_measurement.get("ok"):
+        return {"ok": False, "status": "failed", "error": "source_measurement_failed", "message": "Source audio could not be measured safely.", "data": {}}
+    preservation = False
+    if resolved_preset_mode == "auto":
+        analysis_ready = source_analysis.get("analysis_depth") == "deep" and (source_analysis.get("metadata") or {}).get("status") in {"measured", "partial"}
+        loudness_ready = (source_analysis.get("loudness") or {}).get("status") == "measured" or source_measurement.get("effectively_silent")
+        if not analysis_ready or not loudness_ready:
+            return {"ok": False, "status": "failed", "error": "auto_analysis_unavailable", "message": "Auto recommendation requires complete source analysis. Analyze the source again.", "data": {"audio_intelligence": {"before": source_analysis}}}
+        decision = recommend_remaster_preset(source_analysis, metadata=remaster_source_metadata(resolved_source_context, source_metadata))
+        recommendation = build_remaster_recommendation(decision, source_analysis)
+        requested_style = decision["preset"]
+        preservation = should_preserve_master(source_analysis)
     requested_reference_plan = dict(reference_plan or {}) if requested_style == REFERENCE_GUIDED_PRESET else {}
     if requested_style == REFERENCE_GUIDED_PRESET and (
         requested_reference_plan.get("mode") != "reference"
@@ -1324,10 +1491,6 @@ def remaster_song_audio(
     else:
         resolved_custom_settings = sanitize_custom_remaster_settings(custom_settings) if style == "Custom" else {}
         style_config = build_custom_remaster_config(resolved_custom_settings) if style == "Custom" else STYLE_FILTERS[style]
-    recommendation = dict(recommendation_data or {})
-    resolved_preset_mode = str(preset_mode or recommendation.get("preset_mode") or ("manual" if style in {"Custom", REFERENCE_GUIDED_PRESET} or recommendation.get("source") == "manual" else "auto")).strip().lower()
-    if resolved_preset_mode not in {"auto", "manual"}:
-        resolved_preset_mode = "manual" if style in {"Custom", REFERENCE_GUIDED_PRESET} else "auto"
     resolved_preset_name = "reference-guided" if reference_mode else "custom" if style == "Custom" else style
     if recommendation:
         recommendation["selected_preset"] = style
@@ -1339,11 +1502,6 @@ def remaster_song_audio(
         if reference_mode:
             recommendation["source"] = "reference"
             recommendation["reference_source_id"] = resolved_reference_plan.get("reference_source_id", "")
-    resolved_source_context = dict(source_context or {})
-    resolved_source_context.setdefault("kind", "file")
-    resolved_source_context.setdefault("project_id", project_name)
-    resolved_source_context.setdefault("path_role", "remaster_source")
-    source_analysis = analyze_audio_source(source, resolved_source_context, depth="deep", ffmpeg_path=ffmpeg)
     if reference_mode and str((source_analysis.get("source") or {}).get("source_id") or "") != str(resolved_reference_plan.get("source_source_id") or ""):
         return {
             "ok": False,
@@ -1371,7 +1529,14 @@ def remaster_song_audio(
         return {"ok": False, "status": "failed", "message": "Audio conversion failed", "data": {"overall_status": "failed", "command": convert.get("command", [])}, "error": "audio_convert_failed"}
 
     filters = style_config["filters"]
-    wav = _run([ffmpeg, "-y", "-i", str(converted_path), "-vn", "-af", filters, "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(wav_path)])
+    target_match = re.search(r"TP=([-\d.]+)", filters)
+    safety_ceiling = min(FINAL_TRUE_PEAK_CEILING_DB, float(target_match.group(1)) if target_match else FINAL_TRUE_PEAK_CEILING_DB)
+    if preservation:
+        # Retain established click/DC/band-edge cleanup; omit creative/dynamics processing.
+        filters = ",".join(item for item in filters.split(",") if item.startswith(("adeclick", "highpass=", "lowpass=")))
+    safety = render_safe_remaster_outputs(ffmpeg, converted_path, wav_path, mp3_path, filters, source_measurement, safety_ceiling)
+    filters = safety["filters"]
+    wav = {"ok": safety.get("wav_ok"), "output": safety.get("error", "final_wav_safety_failed")}
     master_context = {
         "kind": "remaster_master",
         "project_id": str(resolved_source_context.get("project_id") or project_name),
@@ -1383,10 +1548,10 @@ def remaster_song_audio(
     if wav_path.is_file() and not wav_probe.get("ok"):
         wav_probe = probe_media(wav_path, ffmpeg_path=ffmpeg)
         wav_probe_fallback_used = True
-    max_volume = _max_volume_db(ffmpeg, wav_path) if wav_path.is_file() else None
+    max_volume = (safety.get("wav") or {}).get("sample_peak_dbfs")
     clipping_validation = build_clipping_validation(max_volume)
     no_clipping = clipping_validation["no_clipping_above_0db"]
-    if not wav.get("ok") or not wav_probe.get("ok") or clipping_validation["status"] == "fail":
+    if not wav.get("ok") or not wav_probe.get("ok") or not all(validate_remaster_signal(safety.get("wav"), source_measurement, safety_ceiling).values()):
         report = {
             "ok": False,
             "overall_status": "failed",
@@ -1411,6 +1576,7 @@ def remaster_song_audio(
             "max_volume_db": max_volume,
             "no_clipping_above_0db": no_clipping,
             "clipping_validation": clipping_validation,
+            "final_output_safety": safety,
             "remaster_recommendation": recommendation,
             "error": "master_wav_failed" if wav.get("ok") else wav.get("output", "master_wav_failed")[:1200],
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -1420,7 +1586,7 @@ def remaster_song_audio(
         ensure_parent_dir(report_txt_path).write_text(_report_text(report), encoding="utf-8")
         return {"ok": False, "status": "failed", "message": "Mastered WAV failed validation", "data": {"overall_status": "failed", "report_path": str(report_path), "report": report}, "error": "master_wav_failed"}
 
-    mp3 = _run([ffmpeg, "-y", "-i", str(wav_path), "-vn", "-c:a", "libmp3lame", "-b:a", "320k", "-minrate", "320k", "-maxrate", "320k", "-ar", "48000", "-ac", "2", "-write_xing", "0", str(mp3_path)])
+    mp3 = {"ok": safety.get("mp3_ok")}
     mp3_probe = probe_media(mp3_path, ffmpeg_path=ffmpeg) if mp3_path.is_file() else {"ok": False}
     output_validation = validate_remaster_outputs(
         source_probe,
@@ -1430,10 +1596,16 @@ def remaster_song_audio(
         mp3_probe,
         wav_command_ok=bool(wav.get("ok")),
         mp3_command_ok=bool(mp3.get("ok")),
+        source_measurement=source_measurement,
+        wav_measurement=safety.get("wav"),
+        mp3_measurement=safety.get("mp3"),
+        ceiling=safety_ceiling,
     )
     overall_status = output_validation["overall_status"]
     duration_delta = output_validation["wav_validation"].get("duration_delta_seconds")
     warnings: list[str] = list(resolved_reference_plan.get("warnings") or [])
+    if safety.get("applied_gain_db", 0) < 0:
+        warnings.append(f"Final codec safety required {safety['applied_gain_db']:.2f} dB gain adjustment; delivered loudness may be below the preset target.")
     if source_analysis.get("errors") or (source_analysis.get("loudness") or {}).get("status") != "measured":
         warnings.append(_analysis_warning(source_analysis, "Source"))
     if master_analysis.get("errors") or (master_analysis.get("loudness") or {}).get("status") != "measured":
@@ -1486,6 +1658,9 @@ def remaster_song_audio(
         "True-peak style limiting",
         "WAV + MP3 export",
     ]
+    if preservation:
+        processing_steps = ["Input validation", "Source copy preserved in original/", "48 kHz stereo PCM 24-bit conversion", "Established click/DC/band-edge cleanup", "Already-mastered preservation: no EQ boosts, compression, width change, or loudness normalization"]
+    processing_steps.extend(["Final 48 kHz safety limiter", "Measured WAV and decoded MP3 ceiling validation"])
     report = {
         "ok": overall_status == "success",
         "overall_status": overall_status,
@@ -1519,6 +1694,8 @@ def remaster_song_audio(
         "analysis_provenance": resolved_reference_plan.get("analysis_provenance", AUDIO_INTELLIGENCE_ANALYZER_VERSION if reference_mode else ""),
         "remaster_recommendation": recommendation,
         "processing_steps_applied": processing_steps,
+        "already_mastered_preservation": preservation,
+        "final_output_safety": safety,
         "output_wav_settings": {"format": "WAV", "codec": "pcm_s24le", "bit_depth": "24-bit", "sample_rate_hz": 48000, "channels": "stereo", "lossless": True},
         "output_mp3_settings": {"format": "MP3", "codec": "libmp3lame", "bitrate": "320 kbps", "mode": "CBR", "channels": "stereo"},
         "loudness_result": (master_analysis.get("loudness") or {}).get("integrated_lufs"),
@@ -1532,8 +1709,8 @@ def remaster_song_audio(
         "source_path": str(source_copy),
         "converted_wav": str(converted_path),
         "mastered_wav": str(wav_path),
-        "mp3_preview": str(mp3_path) if mp3_path.is_file() else "",
-        "mastered_mp3": str(mp3_path) if mp3_path.is_file() else "",
+        "mp3_preview": str(mp3_path) if output_validation["mp3_status"] == "pass" else "",
+        "mastered_mp3": str(mp3_path) if output_validation["mp3_status"] == "pass" else "",
         "source_probe": source_probe,
         "wav_probe": wav_probe,
         "mp3_probe": mp3_probe,
@@ -1558,7 +1735,12 @@ def remaster_song_audio(
     ensure_parent_dir(report_txt_path).write_text(_report_text(report), encoding="utf-8")
     if overall_status in {"success", "partial"}:
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
-            for path in [source_copy, wav_path, mp3_path, report_path, report_txt_path]:
+            deliverables = [source_copy, report_path, report_txt_path]
+            if output_validation["wav_status"] == "pass":
+                deliverables.append(wav_path)
+            if output_validation["mp3_status"] == "pass":
+                deliverables.append(mp3_path)
+            for path in deliverables:
                 if path.is_file():
                     archive.write(path, str(path.relative_to(base_dir)))
     if overall_status == "success":

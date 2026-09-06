@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import re
+import random
 import shutil
 import socket
 import subprocess
@@ -26,6 +27,7 @@ import core.agent_memory as agent_memory_module
 import core.agent_tools as agent_tools_module
 import core.project_io as project_io_module
 import core.remaster_engine as remaster_engine_module
+from core.remaster_engine import measure_remaster_artifact, remaster_source_metadata, should_preserve_master, validate_remaster_signal
 from core.agent_brain import AGENT_AI_PROVIDERS, analyze_user_goal, resolve_agent_provider, select_best_workflow, think
 from core.agent_coordinator import run_multi_agent_workflow
 from core.agent_executor import run_agent_workflow
@@ -372,6 +374,67 @@ def audio_envelope_points(path: str | Path, *, ffmpeg_path: str, duration: float
         "last_50ms": (duration - 0.05, duration),
     }
     return {label: round(audio_window_rms_db(samples, sample_rate, start, end), 3) for label, (start, end) in points.items()}
+
+
+def verify_remaster_safety(out: Path, ffmpeg: str) -> dict[str, Any]:
+    qa = out / "remaster_final_safety"
+    qa.mkdir(parents=True, exist_ok=True)
+    source = qa / "transient.wav"
+    samples = array("f")
+    rng = random.Random(7381)
+    for index in range(48000 * 24):
+        t = index / 48000
+        base = math.sin(2 * math.pi * 220 * t) + 0.4 * math.sin(2 * math.pi * 440 * t) + 0.18 * math.sin(2 * math.pi * 3300 * t)
+        value = 0.7 * rng.gauss(0, 1) * math.exp(-(t % 0.5) / 0.002) + 0.002 * base
+        side = 0.0001 * math.sin(2 * math.pi * 331 * t)
+        samples.extend((value + side, value - side))
+    scale = 0.999 / max(abs(value) for value in samples)
+    samples = array("f", (value * scale for value in samples))
+    if sys.byteorder != "little":
+        samples.byteswap()
+    subprocess.run([ffmpeg, "-y", "-f", "f32le", "-ar", "48000", "-ac", "2", "-i", "pipe:0", "-c:a", "pcm_s24le", str(source)], input=samples.tobytes(), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    original_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    legacy = qa / "legacy_unsafe.wav"
+    subprocess.run([ffmpeg, "-y", "-i", str(source), "-af", STYLE_FILTERS["Streaming Balanced"]["filters"], "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(legacy)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    assert_true(measure_remaster_artifact(legacy, ffmpeg)["true_peak_dbtp"] > 0.0, "Transient fixture must reproduce the pre-fix ceiling failure")
+    result = remaster_song_audio(source, project_name="Safety Transient", preset_mode="manual", ffmpeg_path=ffmpeg)
+    report = (result.get("data") or {}).get("report") or {}
+    assert_true(result.get("ok"), f"Production transient output failed: {result.get('error')} {report.get('final_output_safety')}")
+    safety = report["final_output_safety"]
+    for kind in ("wav", "mp3"):
+        measured = measure_remaster_artifact(result["data"]["mastered_" + kind], ffmpeg)
+        assert_true(measured["rail_hits"] == 0 and measured["sample_peak_dbfs"] <= -1.0 and measured["true_peak_dbtp"] <= -1.0 and not measured["effectively_silent"], f"Final {kind} ceiling regression: {measured}")
+        assert_true(measured == safety[kind], "Safety report must describe delivered artifact")
+    assert_true(hashlib.sha256(source.read_bytes()).hexdigest() == original_hash, "Remaster changed source")
+    rail_source = qa / "rail.wav"
+    subprocess.run([ffmpeg, "-y", "-f", "lavfi", "-i", "aevalsrc=1:s=48000:d=1", "-c:a", "pcm_s24le", str(rail_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    assert_true(measure_remaster_artifact(rail_source, ffmpeg)["rail_hits"] > 0, "Positive PCM24 full-scale rail must be detected")
+    silent_source = qa / "silence.wav"
+    subprocess.run([ffmpeg, "-y", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo:d=1", "-c:a", "pcm_s24le", str(silent_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    measured_silence = measure_remaster_artifact(silent_source, ffmpeg)
+    assert_true(not all(validate_remaster_signal(measured_silence, safety["source"]).values()) and all(validate_remaster_signal(measured_silence, measured_silence).values()), "Decoded silence must be accepted only for silent input")
+    good_source = qa / "already_mastered.wav"
+    raw_master = qa / "mastering_fixture_raw.wav"
+    subprocess.run([ffmpeg, "-y", "-f", "lavfi", "-i", "aevalsrc=(0.35+0.65*lt(mod(t\\,12)\\,6))*0.3*sin(2*PI*440*t):s=48000:d=24", "-af", "loudnorm=I=-14:TP=-1.5:LRA=8", "-ar", "48000", "-ac", "2", "-c:a", "pcm_s24le", str(raw_master)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    fixture_gain = -14.0 - measure_remaster_artifact(raw_master, ffmpeg)["integrated_lufs"]
+    subprocess.run([ffmpeg, "-y", "-i", str(raw_master), "-af", f"volume={fixture_gain}dB", "-c:a", "pcm_s24le", str(good_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # Cold, unique source identity: prior metadata recommendation deliberately disagrees.
+    cold_context = {"kind": "external_upload", "project_id": "safety-cold", "upload_id": str(time.time_ns())}
+    cold = remaster_song_audio(good_source, project_name="Safety Preserve", preset_mode="auto", remaster_style="Loud Modern", recommendation_data={"source": "project_metadata", "recommended_preset": "Loud Modern"}, source_context=cold_context, source_metadata={"genre": "stadium cheer crowd chant edm"}, ffmpeg_path=ffmpeg)
+    cold_report = (cold.get("data") or {}).get("report") or {}
+    assert_true(cold.get("ok") and cold_report.get("already_mastered_preservation"), f"Already-mastered preservation failed: {cold.get('error')} {cold_report.get('input_loudness')} {cold_report.get('input_true_peak_dbtp')} {cold_report.get('input_lra_lu')}")
+    expected = recommend_remaster_preset(cold_report["audio_intelligence"]["before"], metadata={})["preset"]
+    assert_true(cold_report["selected_preset"] == expected and expected != "Loud Modern" and cold_report["remaster_recommendation"]["source"] == "audio_analysis", "Cold Auto must replace stale metadata preset using deep measurements")
+    assert_true(not any(item in cold_report["filters"] for item in ("equalizer=", "acompressor=", "stereotools=", "loudnorm=")) and "adeclick" in cold_report["filters"] and "highpass=" in cold_report["filters"], "Preservation must retain cleanup without creative processing")
+    preserved = cold_report["final_output_safety"]
+    assert_true(abs(preserved["source"]["integrated_lufs"] - preserved["wav"]["integrated_lufs"]) < 0.5 and abs(preserved["source"]["lra_lu"] - preserved["wav"]["lra_lu"]) < 0.5, "Preservation changed measured level or dynamics unnecessarily")
+    quiet_source = qa / "quiet_dynamic.wav"
+    subprocess.run([ffmpeg, "-y", "-i", str(good_source), "-af", "volume=-24dB", "-c:a", "pcm_s24le", str(quiet_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    quiet = remaster_song_audio(quiet_source, project_name="Safety Quiet", preset_mode="auto", source_context={"kind": "external_upload"}, ffmpeg_path=ffmpeg)
+    quiet_report = (quiet.get("data") or {}).get("report") or {}
+    assert_true(quiet.get("ok") and not quiet_report.get("already_mastered_preservation") and "loudnorm=" in quiet_report["filters"], "Quiet dynamic source must still receive normal processing")
+    assert_true(quiet_report["final_output_safety"]["wav"]["integrated_lufs"] > quiet_report["final_output_safety"]["source"]["integrated_lufs"], "Quiet source loudness was not improved")
+    return {"stress": safety, "preservation": cold_report["already_mastered_preservation"], "auto_preset": expected, "quiet_pass": quiet.get("ok")}
 
 
 def wait_job(job_id: str, timeout: float = 10.0):
@@ -1526,13 +1589,26 @@ def main():
     validation_wav.write_bytes(b"RIFF-wave-output")
     validation_mp3.write_bytes(b"ID3-mp3-output")
     source_probe_fixture = {"ok": True, "has_audio": True, "duration": 30.0}
-    wav_probe_fixture = {"ok": True, "has_audio": True, "audio_codec": "pcm_s24le", "duration": 30.0}
-    mp3_probe_fixture = {"ok": True, "has_audio": True, "audio_codec": "mp3", "duration": 30.0}
-    remaster_full = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, mp3_probe_fixture)
-    remaster_partial = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, remaster_validation_dir / "missing.mp3", {"ok": False}, mp3_command_ok=False)
-    remaster_failed = validate_remaster_outputs(source_probe_fixture, remaster_validation_dir / "missing.wav", {"ok": False}, validation_mp3, mp3_probe_fixture, wav_command_ok=False)
+    wav_probe_fixture = {"ok": True, "has_audio": True, "audio_codec": "pcm_s24le", "duration": 30.0, "sample_rate": 48000, "channels": 2}
+    mp3_probe_fixture = {"ok": True, "has_audio": True, "audio_codec": "mp3", "duration": 30.0, "sample_rate": 48000, "channels": 2, "audio_bit_rate": 320000}
+    safe_signal = {"ok": True, "rail_hits": 0, "sample_peak_dbfs": -1.5, "true_peak_dbtp": -1.2, "effectively_silent": False}
+    signal_kwargs = {"source_measurement": safe_signal, "wav_measurement": safe_signal, "mp3_measurement": safe_signal}
+    remaster_full = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, mp3_probe_fixture, **signal_kwargs)
+    remaster_partial = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, remaster_validation_dir / "missing.mp3", {"ok": False}, mp3_command_ok=False, **signal_kwargs)
+    remaster_failed = validate_remaster_outputs(source_probe_fixture, remaster_validation_dir / "missing.wav", {"ok": False}, validation_mp3, mp3_probe_fixture, wav_command_ok=False, **signal_kwargs)
     duration_mismatch_probe = dict(mp3_probe_fixture, duration=28.0)
-    remaster_duration_mismatch = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, duration_mismatch_probe)
+    remaster_duration_mismatch = validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, duration_mismatch_probe, **signal_kwargs)
+    assert_true(not validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, mp3_probe_fixture)["ok"], "Unmeasured final audio must not pass validation")
+    for invalid_probe in [dict(mp3_probe_fixture, sample_rate=44100), dict(mp3_probe_fixture, audio_bit_rate=128000), dict(mp3_probe_fixture, audio_codec="aac")]:
+        assert_true(not validate_remaster_outputs(source_probe_fixture, validation_wav, wav_probe_fixture, validation_mp3, invalid_probe, **signal_kwargs)["ok"], "Wrong final MP3 format must fail")
+    assert_true(not validate_remaster_outputs(source_probe_fixture, validation_wav, dict(wav_probe_fixture, audio_codec="pcm_s16le"), validation_mp3, mp3_probe_fixture, **signal_kwargs)["ok"], "Wrong final WAV bit depth must fail")
+    for unsafe in [dict(safe_signal, rail_hits=1), dict(safe_signal, true_peak_dbtp=-0.9), dict(safe_signal, sample_peak_dbfs=0.0), dict(safe_signal, effectively_silent=True), dict(safe_signal, ok=False)]:
+        assert_true(not all(validate_remaster_signal(unsafe, safe_signal).values()), "Unsafe or silent final audio must fail")
+    silent_signal = dict(safe_signal, effectively_silent=True, sample_peak_dbfs=-300.0, true_peak_dbtp=None)
+    assert_true(all(validate_remaster_signal(silent_signal, silent_signal).values()), "Genuinely silent input may remain silent")
+    assert_true(remaster_source_metadata({"kind": "external_upload"}, {"genre": "stadium cheer"}) == {} and remaster_source_metadata({"kind": "project_master"}, {"genre": "acoustic"}) == {"genre": "acoustic"}, "Only associated project audio may inherit metadata")
+    preservation_analysis = {"loudness": {"status": "measured", "integrated_lufs": -14.0, "true_peak_dbtp": -1.5, "lra_lu": 6.0}}
+    assert_true(should_preserve_master(preservation_analysis) and not should_preserve_master({}) and not should_preserve_master({"loudness": dict(preservation_analysis["loudness"], integrated_lufs=-22.0)}), "Preservation must require safe measured mastering envelope")
     assert_true(remaster_full["overall_status"] == "success" and remaster_full["wav_status"] == "pass" and remaster_full["mp3_status"] == "pass", "full remaster validation should require valid WAV and MP3")
     assert_true(not remaster_partial["ok"] and remaster_partial["overall_status"] == "partial" and remaster_partial["wav_status"] == "pass" and remaster_partial["mp3_status"] == "fail", "WAV success plus MP3 failure must be partial and not ok")
     assert_true(remaster_failed["overall_status"] == "failed", "invalid WAV must fail remaster output validation")
@@ -4369,6 +4445,7 @@ def main():
         silent_source = out / "hook_clip_projects" / "silent_remaster_source.mp3"
         subprocess.run([find_ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo:d=12", "-c:a", "libmp3lame", str(silent_source)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         quiet_recommend = analyze_audio_for_remaster_recommendation(silent_source, ffmpeg_path=find_ffmpeg())
+        remaster_safety_results = verify_remaster_safety(out, find_ffmpeg())
         assert_true(quiet_recommend["ok"] and quiet_recommend.get("data", {}).get("recommended_preset") == "Streaming Balanced" and quiet_recommend.get("data", {}).get("confidence") == "Low", "low-confidence remaster recommendation failed")
         original_remaster_analyzer = remaster_engine_module.analyze_audio_source
         try:
@@ -4386,7 +4463,9 @@ def main():
                 }
 
             remaster_engine_module.analyze_audio_source = unavailable_audio_intelligence
-            degraded_analysis_remaster = remaster_song_audio(silent_source, project_name="Smoke Analysis Failure", remaster_style="Streaming Balanced", ffmpeg_path=find_ffmpeg())
+            blocked_auto_remaster = remaster_song_audio(silent_source, project_name="Smoke Auto Analysis Failure", preset_mode="auto", ffmpeg_path=find_ffmpeg())
+            assert_true(not blocked_auto_remaster.get("ok") and blocked_auto_remaster.get("error") == "auto_analysis_unavailable", "Auto must block incomplete deep analysis")
+            degraded_analysis_remaster = remaster_song_audio(silent_source, project_name="Smoke Analysis Failure", remaster_style="Streaming Balanced", preset_mode="manual", ffmpeg_path=find_ffmpeg())
         finally:
             remaster_engine_module.analyze_audio_source = original_remaster_analyzer
         degraded_report = (degraded_analysis_remaster.get("data") or {}).get("report") or {}
@@ -4416,7 +4495,7 @@ def main():
         assert_true("Preset mode: manual" in custom_report_text and "Preset name: custom" in custom_report_text and "Resolved Custom Settings:" in custom_report_text, "Custom Remaster TXT report missing resolved settings")
         manual_recommendation = dict(audio_recommend.get("data", {}))
         manual_recommendation["selected_preset"] = "Vocal Focus"
-        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation, source_context=remaster_source_context)
+        remaster = remaster_song_audio(long_hook_source, project_name="Smoke Remaster Studio", remaster_style="Vocal Focus", preset_mode="manual", ffmpeg_path=find_ffmpeg(), recommendation_data=manual_recommendation, source_context=remaster_source_context)
         remaster_data = remaster.get("data", {})
         mastered_wav = Path(remaster_data.get("mastered_wav", ""))
         mastered_mp3 = Path(remaster_data.get("mastered_mp3", "") or remaster_data.get("mp3_preview", ""))
