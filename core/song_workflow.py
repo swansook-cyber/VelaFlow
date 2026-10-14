@@ -624,6 +624,18 @@ def select_best_hook(candidates: List[Dict[str, Any]]) -> Dict[str, Any]:
     )
 
 
+
+def choose_existing_hook(candidates: List[Dict[str, Any]], selected_index: int | None) -> Dict[str, Any] | None:
+    """Choose a saved candidate by stable index, without mutating any candidate."""
+    if selected_index is None or not isinstance(selected_index, int) or isinstance(selected_index, bool):
+        return None
+    if selected_index < 0 or selected_index >= len(candidates):
+        return None
+    hook = candidates[selected_index]
+    if not isinstance(hook, dict) or not str(hook.get("hook_text") or "").strip():
+        return None
+    return dict(hook)
+
 def _strip_song_markup(line: str) -> str:
     cleaned = re.sub(r"\[[^\]]+\]", "", str(line or ""))
     cleaned = re.sub(r"\([^)]*\)", "", cleaned)
