@@ -314,6 +314,7 @@ from core.song_structure_intelligence import (
     structure_plan_prompt,
     validate_structure_plan,
 )
+from core.song_editor_state import build_song_editor_export, commit_song_editor_values, resolve_song_editor_values, song_editor_dirty_fields, stage_song_editor_draft
 from core.song_title_engine import clean_generated_song_title, generate_song_title_candidates, generate_song_title_from_idea, is_placeholder_song_title
 from core.song_quality_core import SongGenerationDiagnosticAttempt, build_song_blueprint, build_targeted_repair_prompt, merge_repaired_sections, production_diagnostic_logger, safe_diagnostic_label, safe_exception_summary, snapshot_song_lyrics
 from core.suno_export import export_creator_final_assets, export_suno_files, resolve_export_txt_filename, resolve_lyrics_download_filename
@@ -709,6 +710,37 @@ setTimeout(() => {{
         height=38,
     )
     return True
+
+
+def _render_suno_copy_fields(
+    *,
+    lyrics: str,
+    style_prompt: str,
+    key_prefix: str,
+    lyrics_key: str | None = None,
+    style_key: str | None = None,
+    on_change: Callable[..., None] | None = None,
+    on_change_args: tuple[Any, ...] = (),
+) -> tuple[str, str]:
+    """Shared Quick Song/Creator Mode A+B copy-ready editor."""
+    resolved_lyrics_key = lyrics_key or f"{key_prefix}_lyrics"
+    resolved_style_key = style_key or f"{key_prefix}_style"
+    st.session_state.setdefault(resolved_lyrics_key, str(lyrics or ""))
+    st.session_state.setdefault(resolved_style_key, str(style_prompt or ""))
+    change_kwargs: dict[str, Any] = {}
+    if on_change is not None:
+        change_kwargs = {"on_change": on_change, "args": on_change_args}
+
+    st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>Copy this into the Suno Lyrics box.</p></div>', unsafe_allow_html=True)
+    st.text_area("A. Lyrics", height=360, key=resolved_lyrics_key, **change_kwargs)
+    current_lyrics = str(st.session_state.get(resolved_lyrics_key, lyrics) or "")
+    _copy_to_clipboard_button("Copy Lyrics", current_lyrics, key=f"{key_prefix}_copy_lyrics")
+
+    st.markdown('<div class="vf-output-card"><h4>B. Style Prompt</h4><p>Copy this into the Suno Style of Music box.</p></div>', unsafe_allow_html=True)
+    st.text_area("B. Style Prompt", height=150, key=resolved_style_key, **change_kwargs)
+    current_style = str(st.session_state.get(resolved_style_key, style_prompt) or "")
+    _copy_to_clipboard_button("Copy Style Prompt", current_style, key=f"{key_prefix}_copy_style")
+    return current_lyrics, current_style
 
 
 def _restore_local_api_state() -> None:
@@ -4592,13 +4624,19 @@ def _render_quick_song(project: dict[str, Any]) -> None:
     st.text_area("Hook", value=pack.get("Hook", ""), height=110, key="quick_song_hook")
     st.markdown('<div class="vf-section-title"><h3>Suno Package</h3><span>A goes to Lyrics · B goes to Style</span></div>', unsafe_allow_html=True)
     lyrics = pack.get("SUNO LYRICS FIELD", pack.get("Full lyrics", ""))
-    st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>Copy this into the Suno Lyrics box.</p></div>', unsafe_allow_html=True)
-    st.text_area("A. Lyrics", value=lyrics, height=320, key="quick_song_lyrics")
-    _copy_to_clipboard_button("Copy Lyrics", str(st.session_state.get("quick_song_lyrics", lyrics) or ""), key="quick_song_copy_lyrics")
     style_prompt = pack.get("SUNO STYLE OF MUSIC FIELD", "")
-    st.markdown('<div class="vf-output-card"><h4>B. Music Style Prompt</h4><p>Copy this into the Suno Style of Music box.</p></div>', unsafe_allow_html=True)
-    st.text_area("B. Music Style Prompt", value=style_prompt, height=150, key="quick_song_style")
-    _copy_to_clipboard_button("Copy Music Style Prompt", str(st.session_state.get("quick_song_style", style_prompt) or ""), key="quick_song_copy_style")
+    quick_source_id = hashlib.sha1(f"{lyrics}\0{style_prompt}".encode("utf-8")).hexdigest()
+    if st.session_state.get("quick_song_copy_source_id") != quick_source_id:
+        st.session_state["quick_song_lyrics"] = str(lyrics or "")
+        st.session_state["quick_song_style"] = str(style_prompt or "")
+        st.session_state["quick_song_copy_source_id"] = quick_source_id
+    _render_suno_copy_fields(
+        lyrics=str(lyrics or ""),
+        style_prompt=str(style_prompt or ""),
+        key_prefix="quick_song",
+        lyrics_key="quick_song_lyrics",
+        style_key="quick_song_style",
+    )
 
 
 PRESET_LABELS_TH = {
@@ -5759,6 +5797,26 @@ def _save_project() -> dict[str, Any]:
     return result
 
 
+def _creator_song_project_source_id(project: dict[str, Any]) -> str:
+    return str(
+        st.session_state.get("current_project")
+        or project.get("created_at")
+        or f"unsaved:{project.get('workflow_type', 'song')}"
+    )
+
+
+def _persist_creator_song_draft(project_source_id: str) -> None:
+    """Persist editor recovery data from a widget callback before navigation/rerun."""
+    project = _project()
+    if _creator_song_project_source_id(project) != project_source_id:
+        return
+    song = project.get("song", {}) or {}
+    lyrics = str(st.session_state.get("simple_song_lyrics", resolve_song_editor_values(song)["lyrics"]) or "")
+    style_prompt = str(st.session_state.get("simple_song_style_prompt", resolve_song_editor_values(song)["style_prompt"]) or "")
+    project["song"] = stage_song_editor_draft(song, lyrics, style_prompt)
+    _save_project()
+
+
 def _render_project_health_card(project_name: str, workflow_type: str = "song", key_prefix: str = "project_health") -> None:
     health = project_health_summary(project_name, workflow_type)
     if not health.get("ok"):
@@ -6234,10 +6292,25 @@ def _render_artist_preset_manager() -> None:
 
 def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], active_provider: str, active_api_key: str, active_model: str) -> None:
     project_values = song_project_widget_state(project, song)
-    project_source_id = str(
-        st.session_state.get("current_project")
-        or project.get("created_at")
-        or f"unsaved:{project.get('workflow_type', 'song')}"
+    project_source_id = _creator_song_project_source_id(project)
+    st.markdown(
+        """
+        <style>
+        @media (max-width: 640px) {
+          .st-key-vf_song_form [data-testid="stHorizontalBlock"],
+          .st-key-vf_creator_suno_package [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: .5rem; }
+          .st-key-vf_song_form [data-testid="column"],
+          .st-key-vf_creator_suno_package [data-testid="column"] { min-width: 100% !important; flex: 1 1 100% !important; }
+          .st-key-vf_song_form textarea,
+          .st-key-vf_song_form input,
+          .st-key-vf_creator_suno_package textarea { font-size: 16px !important; }
+          .st-key-vf_song_form button,
+          .st-key-vf_creator_suno_package button { min-height: 44px; }
+          .st-key-vf_creator_suno_package textarea { min-height: 150px; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
     if st.session_state.get("simple_song_project_source_id") != project_source_id:
         for key in (
@@ -6678,19 +6751,56 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             st.rerun()
 
     song = normalize_song_metadata(project.get("song", {}) or {}, get_artist_preset((project.get("song", {}) or {}).get("artist_preset") or load_default_artist_id()))
-    lyrics = str(song.get("normalized_song_output") or song.get("complete_lyrics") or "")
+    editor_values = resolve_song_editor_values(song)
+    lyrics = editor_values["lyrics"]
+    style_prompt = editor_values["style_prompt"]
     if not lyrics:
         return
-    lyrics_source_id = hashlib.sha1(lyrics.encode("utf-8")).hexdigest()
-    if st.session_state.get("simple_song_lyrics_source_id") != lyrics_source_id:
+    editor_source_id = hashlib.sha1(f"{project_source_id}\0{lyrics}\0{style_prompt}".encode("utf-8")).hexdigest()
+    if st.session_state.get("simple_song_editor_source_id") != editor_source_id:
         st.session_state["simple_song_lyrics"] = lyrics
-        st.session_state["simple_song_lyrics_source_id"] = lyrics_source_id
-    edited_lyrics = st.text_area("Lyrics", key="simple_song_lyrics", height=420)
-    check_cols = st.columns(2)
-    if check_cols[0].button("Lyrics Check", use_container_width=True, key="simple_song_check_lyrics"):
+        st.session_state["simple_song_style_prompt"] = style_prompt
+        st.session_state["simple_song_editor_source_id"] = editor_source_id
+
+    selected_hook = song.get("selected_hook")
+    selected_hook_text = str(selected_hook.get("hook_text") if isinstance(selected_hook, dict) else song.get("selected_hook_text") or selected_hook or "")
+    with st.container(border=True, key="vf_creator_suno_package"):
+        st.markdown('<div class="vf-section-title"><h3>Suno Package</h3><span>A goes to Lyrics · B goes to Style</span></div>', unsafe_allow_html=True)
+        st.markdown("**Selected Hook**")
+        st.text(selected_hook_text or "No selected hook")
+        edited_lyrics, edited_style_prompt = _render_suno_copy_fields(
+            lyrics=lyrics,
+            style_prompt=style_prompt,
+            key_prefix="simple_song",
+            lyrics_key="simple_song_lyrics",
+            style_key="simple_song_style_prompt",
+            on_change=_persist_creator_song_draft,
+            on_change_args=(project_source_id,),
+        )
+        dirty_fields = song_editor_dirty_fields(song, edited_lyrics, edited_style_prompt)
+        if dirty_fields:
+            st.warning("Unsaved Changes · recovery draft saved automatically")
+        else:
+            st.caption("Saved · lyrics and style prompt are up to date")
+        action_cols = st.columns(3)
+        check_clicked = action_cols[0].button("Lyrics Check", use_container_width=True, key="simple_song_check_lyrics")
+        save_clicked = action_cols[1].button("Save", use_container_width=True, key="simple_song_save")
+        export_clicked = action_cols[2].button("Export to Suno", type="primary", use_container_width=True, key="simple_song_export_suno")
+
+    if check_clicked:
         st.session_state["simple_song_quality_review"] = check_lyrics_quality(edited_lyrics)
-    if check_cols[1].button("Export to Suno", type="primary", use_container_width=True, key="simple_song_export_suno"):
-        export_song = {**song, "complete_lyrics": edited_lyrics, "normalized_song_output": edited_lyrics}
+    if save_clicked:
+        if "lyrics" in dirty_fields:
+            snapshot_song_lyrics(project, reason="manual_save")
+        project["song"] = commit_song_editor_values(song, edited_lyrics, edited_style_prompt)
+        save_result = _save_project()
+        if save_result.get("ok"):
+            st.success("Song saved")
+            st.rerun()
+        else:
+            st.error(save_result.get("error") or save_result.get("message") or "Song could not be saved.")
+    if export_clicked:
+        export_song = build_song_editor_export(song, edited_lyrics, edited_style_prompt)
         blueprint = export_song.get("song_blueprint") if isinstance(export_song.get("song_blueprint"), dict) else {}
         if blueprint:
             export_validation = check_song_production_quality(

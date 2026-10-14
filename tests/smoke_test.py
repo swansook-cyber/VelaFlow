@@ -52,6 +52,8 @@ from providers.base_provider import LocalFallbackProvider
 from providers.gemini_provider import GeminiProvider, GeminiTextProvider
 import providers.gemini_provider as gemini_provider_module
 from providers.openai_provider import OpenAITextProvider
+import providers.ai_provider as ai_provider_module
+import providers.openai_provider as openai_provider_module
 from core.analytics import beta_analytics_summary, cleanup_old_temp_exports, ensure_beta_runtime_dirs, load_beta_analytics, log_beta_event
 from core.affiliate_engine import (
     AFFILIATE_MODES,
@@ -76,6 +78,7 @@ from core.licensing import LicenseService
 from core.file_naming import audio_source_export_name, build_asset_export_filename, build_export_filename, build_lyrics_download_filename, ensure_unique_path, export_name_base, initialize_export_name_state, make_safe_filename, sanitize_filename
 from core.lyrics_expander import analyze_song_completeness, ensure_full_song_structure, prepare_validated_song_lyrics, validate_song_structure
 from core.music_direction_engine import build_music_direction, export_music_direction_files
+from core.song_editor_state import build_song_editor_export, commit_song_editor_values, resolve_song_editor_values, song_editor_dirty_fields, stage_song_editor_draft
 from core.marketing_package import build_marketing_package, export_marketing_package
 from core.mv_storyboard_generator import export_mv_storyboard, generate_mv_storyboard, storyboard_to_text
 from core.clip_studio_v2 import build_clip_studio_v2_shot_prompts, generate_clip_studio_v2, split_veo_shot_durations
@@ -3204,6 +3207,74 @@ def main():
     resolved_gemini = resolve_agent_provider("Gemini", provider_api_key="smoke-test-key")
     assert_true(resolved_gemini.available and resolved_gemini.name == "gemini", "agent Gemini provider explicit key failed")
     assert_true(OpenAITextProvider(api_key="").generate_text("test") == "", "openai missing-key fallback failed")
+
+    captured_openai_requests = []
+    saved_openai_urlopen = openai_provider_module.urllib.request.urlopen
+
+    class FakeOpenAIResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"choices": [{"message": {"content": "OpenAI contract OK"}}]}).encode("utf-8")
+
+    def fake_openai_urlopen(request, timeout=0):
+        captured_openai_requests.append({
+            "url": request.full_url,
+            "headers": dict(request.header_items()),
+            "payload": json.loads(request.data.decode("utf-8")),
+            "timeout": timeout,
+        })
+        return FakeOpenAIResponse()
+
+    try:
+        openai_provider_module.urllib.request.urlopen = fake_openai_urlopen
+        openai_contract_text = openai_provider_module.generate_text(
+            "contract prompt",
+            system_prompt="system contract",
+            temperature=0.25,
+            api_key="openai-transport-secret",
+            model_name="gpt-contract-test",
+            timeout=37,
+        )
+        assert_true(openai_contract_text == "OpenAI contract OK", "OpenAI module generation contract failed")
+        openai_adapter_text = ai_provider_module.generate_text(
+            "adapter prompt",
+            system_prompt="adapter system",
+            temperature=0.35,
+            provider="openai",
+            api_key="openai-adapter-secret",
+            model_name="gpt-adapter-test",
+            timeout=41,
+        )
+        assert_true(openai_adapter_text == "OpenAI contract OK", "shared OpenAI adapter contract failed")
+        module_request, adapter_request = captured_openai_requests[-2:]
+        assert_true(module_request["payload"]["model"] == "gpt-contract-test" and module_request["payload"]["messages"][0]["content"] == "system contract" and module_request["payload"]["temperature"] == 0.25 and module_request["timeout"] == 37, "OpenAI module options contract failed")
+        assert_true(adapter_request["payload"]["model"] == "gpt-adapter-test" and adapter_request["payload"]["messages"][0]["content"] == "adapter system" and adapter_request["timeout"] == 41, "OpenAI shared adapter options were not forwarded")
+        assert_true("openai-transport-secret" not in json.dumps(module_request["payload"]) and "openai-adapter-secret" not in json.dumps(adapter_request["payload"]), "OpenAI request body leaked the API key")
+    finally:
+        openai_provider_module.urllib.request.urlopen = saved_openai_urlopen
+
+    editor_song = {
+        "title": "Editor Contract",
+        "complete_lyrics": "saved lyrics",
+        "normalized_song_output": "saved lyrics",
+        "music_style_prompt": "saved style",
+        "selected_hook": {"hook_text": "selected hook", "score": 91},
+        "advanced_settings": {"weirdness": 12},
+    }
+    staged_editor_song = stage_song_editor_draft(editor_song, "edited lyrics", "edited style")
+    assert_true(editor_song["complete_lyrics"] == "saved lyrics" and staged_editor_song["complete_lyrics"] == "saved lyrics", "staging an editor draft overwrote saved lyrics")
+    assert_true(resolve_song_editor_values(staged_editor_song) == {"lyrics": "edited lyrics", "style_prompt": "edited style"}, "reload-safe editor draft resolution failed")
+    assert_true(song_editor_dirty_fields(staged_editor_song, "edited lyrics", "edited style") == ["lyrics", "style_prompt"], "unsaved field detection failed")
+    saved_editor_song = commit_song_editor_values(staged_editor_song, "edited lyrics", "edited style")
+    export_editor_song = build_song_editor_export(staged_editor_song, "export lyrics", "export style")
+    assert_true(saved_editor_song["complete_lyrics"] == saved_editor_song["normalized_song_output"] == "edited lyrics" and saved_editor_song["music_style_prompt"] == "edited style" and "creator_editor_draft" not in saved_editor_song, "creator Save state consistency failed")
+    assert_true(export_editor_song["complete_lyrics"] == export_editor_song["normalized_song_output"] == "export lyrics" and export_editor_song["music_style_prompt"] == "export style", "creator Export state consistency failed")
+    assert_true(export_editor_song["selected_hook"] == editor_song["selected_hook"] and export_editor_song["advanced_settings"] == editor_song["advanced_settings"] and staged_editor_song["complete_lyrics"] == "saved lyrics", "creator editor update mutated unrelated or source state")
     brain_result = think("เพลงเศร้าเกี่ยวกับแฟนเก่า", "Auto", "General Creative Package", use_memory=False, provider_name="Local Template")
     assert_true(brain_result["selected_workflow"] == "Spotify Commercial Mode" and brain_result["execution_plan"], "agent brain auto workflow failed")
     explicit_workflow = select_best_workflow("ทำพอดแคสต์", "Podcast Episode Mode")
@@ -5105,6 +5176,12 @@ def main():
         visual_workspace_source = main_source[main_source.find("def _render_visual_studio_workspace"):main_source.find("def _render_release_pack_workspace")]
         release_workspace_source = main_source[main_source.find("def _render_release_pack_workspace"):main_source.find("def _render_ai_creative_pack_generator")]
         assert_true(all(label in simple_song_source for label in ["Project / Song Title", "Artist", "Song Idea / Story", "Genre", "Mood", "Vocal", "Generate Title", "Generate Lyrics", "Lyrics Check", "Export to Suno", 'expander("Advanced"']), "simplified Song Studio controls missing")
+        assert_true(all(label in simple_song_source for label in ["Selected Hook", "Unsaved Changes", "recovery draft saved automatically", 'button("Save"', "simple_song_style_prompt", "build_song_editor_export", "commit_song_editor_values"]), "Creator Mode hook/save/draft/export state wiring missing")
+        assert_true("_render_suno_copy_fields(" in simple_song_source and all(label in main_source[main_source.find("def _render_suno_copy_fields"):main_source.find("def _restore_local_api_state")] for label in ["A. Lyrics", "B. Style Prompt", "Copy Lyrics", "Copy Style Prompt"]), "Creator Mode does not reuse the Quick Song A/B copy component")
+        assert_true("vf_creator_suno_package" in simple_song_source and "@media (max-width: 640px)" in simple_song_source and "font-size: 16px" in simple_song_source and "min-height: 44px" in simple_song_source, "Creator Mode scoped iPhone Safari layout safeguards missing")
+        quick_song_start = main_source.find("def _render_quick_song")
+        quick_song_source = main_source[quick_song_start:main_source.find("PRESET_LABELS_TH =", quick_song_start)]
+        assert_true("_render_suno_copy_fields(" in quick_song_source and "quick_song_copy_source_id" in quick_song_source, "Quick Song shared copy component or generated-output refresh guard missing")
         assert_true('st.container(border=True, key="vf_song_form")' in simple_song_source and 'song_form.button("Generate Lyrics"' in simple_song_source and 'song_form.expander("Advanced", expanded=False)' in simple_song_source and "vf-workspace-card-title" in simple_song_source and "vf-title-row-marker" in simple_song_source and "Creative direction" in simple_song_source, "Song Studio creation panel or primary CTA styling hook missing")
         assert_true("simple_song_project_source_id" in simple_song_source and all(key in simple_song_source for key in ["simple_song_genre", "simple_song_mood", "simple_song_vocal", "simple_song_style_override"]), "Song Studio project state isolation wiring is incomplete")
         assert_true(all(event in simple_song_source for event in ["generation_start", "hook_call_started", "hook_result", "full_song_call_started", "full_song_result", "repair_attempt", "repair_result"]) and "diagnostics.succeed" in simple_song_source and "diagnostic_id=generation_id" in simple_song_source, "Song Studio production diagnostic stages are incomplete")
