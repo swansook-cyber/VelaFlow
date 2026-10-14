@@ -6834,9 +6834,12 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
         lyrics_filename = export_data.get("lyrics_download_filename") or resolve_lyrics_download_filename(song, project.get("title") or song.get("title") or "")
         suno_filename = export_data.get("suno_full_filename") or resolve_export_txt_filename(song, project.get("title") or "", st.session_state.get("workflow_mode", "Song Studio Only"), export_data.get("suno_full_text") or "")
         download_scope = hashlib.sha1(f"{project.get('project_id') or project.get('title') or ''}|{lyrics_filename}|{suno_filename}".encode("utf-8")).hexdigest()[:12]
-        export_cols = st.columns(2)
-        export_cols[0].download_button("Download Lyrics", data=export_data.get("lyrics_only_text") or edited_lyrics, file_name=lyrics_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_lyrics_{download_scope}")
-        export_cols[1].download_button("Download Suno TXT", data=export_data.get("suno_full_text") or edited_lyrics, file_name=suno_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_suno_{download_scope}")
+        export_cols = st.columns(3)
+        export_cols[0].download_button("Lyrics TXT", data=export_data.get("lyrics_only_text") or edited_lyrics, file_name=lyrics_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_lyrics_{download_scope}")
+        export_cols[1].download_button("Style TXT", data=export_data.get("suno_style_only_text") if export_data.get("suno_style_only_text") is not None else edited_style_prompt, file_name=export_data.get("suno_style_only_filename") or "Suno_Style_Ready.txt", mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_style_{download_scope}")
+        export_cols[2].download_button("Release Package", data=export_data.get("suno_full_text") or edited_lyrics, file_name=suno_filename, mime="text/plain; charset=utf-8", use_container_width=True, key=f"simple_download_suno_{download_scope}")
+        if export_data.get("pre_intro_direction_warning"):
+            st.warning("Review opening production direction: a parenthesized instruction appears before the first song section. The export keeps your original lyrics unchanged.")
 
 
 def _render_song_studio(project: dict[str, Any]) -> None:
