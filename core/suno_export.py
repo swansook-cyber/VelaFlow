@@ -894,6 +894,12 @@ def export_suno_files(
         full_path = ensure_unique_path(folder / resolve_export_txt_filename(song, project_name, workflow_mode, full_text))
         full_path.write_text(full_text, encoding="utf-8-sig")
         lyrics_path.write_text(lyrics, encoding="utf-8")
+        # Separate paste-ready Suno fields from the complete creator release package.
+        # Keep the legacy full package unchanged for existing callers.
+        style_prompt = str(song.get("music_style_prompt") or (song.get("generation_resolution") or {}).get("resolved_style_prompt") or "").strip()
+        style_path = ensure_unique_path(folder / build_export_filename(canonical_title, _artist_name(song), "Suno_Style_Ready", "txt"))
+        style_path.write_text(style_prompt, encoding="utf-8")
+
         release = build_release_package_data(song, project_name)
         export_sections = ["Lyrics", "Style Prompt", "Hook Info", "TikTok Caption", "YouTube Caption", "Hashtags", "Cover Prompts", "Release Assets"]
         debug = {
@@ -918,6 +924,10 @@ def export_suno_files(
                 "lyrics_download_filename": resolve_lyrics_download_filename(song, project_name),
                 "suno_full_text": full_path.read_text(encoding="utf-8-sig"),
                 "lyrics_only_text": lyrics,
+                "suno_style_only": str(style_path),
+                "suno_style_only_filename": style_path.name,
+                "suno_style_only_text": style_prompt,
+                "pre_intro_direction_warning": bool(re.match(r"^\\s*\\([^\\n]*\\)\\s*(?:\\n|$)", lyrics)),
                 "release_package": release,
                 "workflow_mode": workflow_mode,
                 "export_sections": export_sections,
