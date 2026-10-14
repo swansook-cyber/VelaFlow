@@ -6333,6 +6333,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             "simple_song_pending_title_provenance",
             "simple_song_title_provenance",
             "simple_song_title_source_value",
+            "simple_song_hook_choice",
+            "simple_song_reuse_hook",
         ):
             st.session_state.pop(key, None)
         st.session_state["simple_song_project_source_id"] = project_source_id
@@ -6452,9 +6454,28 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 st.session_state["simple_suggested_title"] = title_candidates[index]["title"]
                 st.rerun()
 
+    # A hook choice affects only the next generation, never an existing saved song.
+    existing_hooks = song.get("hook_candidates") or song.get("candidate_hooks") or []
+    available_hooks = [h for h in existing_hooks if isinstance(h, dict) and str(h.get("hook_text") or "").strip()]
+    reuse_hook = False
+    chosen_hook_label = ""
+    hook_labels = [f"{i + 1}. {h['hook_text']}" for i, h in enumerate(available_hooks)]
+    if available_hooks:
+        with song_form.expander("Hook options for next generation", expanded=False):
+            chosen_hook_label = st.selectbox("Choose hook", hook_labels, key="simple_song_hook_choice")
+            reuse_hook = st.checkbox("Use this hook when regenerating the song", key="simple_song_reuse_hook")
+            st.caption("The existing lyrics stay unchanged until you generate and save a new version.")
+    editor_values_before = resolve_song_editor_values(song)
+    unsaved_now = song_editor_dirty_fields(
+        song,
+        st.session_state.get("simple_song_lyrics", editor_values_before["lyrics"]),
+        st.session_state.get("simple_song_style_prompt", editor_values_before["style_prompt"]),
+    ) if editor_values_before["lyrics"] else []
+    if unsaved_now:
+        song_form.warning("Save your current lyrics and style before generating a replacement.")
     if not active_api_key:
         _warn_missing_provider_key(active_provider, active_api_key)
-    if song_form.button("Generate Lyrics", type="primary", use_container_width=True, key="simple_generate_lyrics"):
+    if song_form.button("Generate Lyrics", type="primary", use_container_width=True, disabled=bool(unsaved_now), key="simple_generate_lyrics"):
         if not idea.strip():
             st.warning("Add a song idea before generating lyrics.")
         else:
@@ -6495,7 +6516,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 safe_diagnostic_label(active_provider, limit=32),
                 safe_diagnostic_label(active_model, limit=64),
             )
-            hook_result = generate_hook_candidates_with_provider(
+            chosen_existing_hook = available_hooks[hook_labels.index(chosen_hook_label)] if reuse_hook and chosen_hook_label in hook_labels else None
+            hook_result = {"ok": True, "data": {"hooks": available_hooks, "provenance": {"reused_candidate": True}}} if chosen_existing_hook else generate_hook_candidates_with_provider(
                 api_key=active_api_key,
                 model_name=active_model,
                 provider=active_provider,
@@ -6516,7 +6538,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 _show_song_generation_failure("hook_provider", hook_result.get("error") or hook_result.get("message"), generation_id=generation_id, diagnostics=diagnostics)
                 return
             candidates = hook_result.get("data", {}).get("hooks", [])
-            hook = select_best_hook(candidates)
+            hook = chosen_existing_hook if chosen_existing_hook else select_best_hook(candidates)
             hook_provenance = hook_result.get("data", {}).get("provenance") if isinstance(hook_result.get("data", {}).get("provenance"), dict) else {}
             SONG_STUDIO_LOGGER.info(
                 "SongStudio hook_result id=%s success=true candidates=%s selected=%s synthetic=%s fallback=%s",
@@ -6542,7 +6564,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             style_prompt = generation_context["resolved_style_prompt"]
             idea_with_hook = (
                 f"{idea}\n\n"
-                f"Selected Hook: {hook.get('hook_text', '')}\nUse this hook in the chorus and final chorus. Keep Thai lyrics natural."
+                f"Selected Hook: {hook.get('hook_text', '')}\nUse this hook in the chorus and final chorus. Keep Thai lyrics natural.\n"
+                f"Generation variation ID: {generation_id}. Write a fresh interpretation, not a repeated draft."
             )
             title_was_manual = manual_title_requested
             blueprint = build_song_blueprint(
