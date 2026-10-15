@@ -722,6 +722,8 @@ def _render_suno_copy_fields(
     style_key: str | None = None,
     on_change: Callable[..., None] | None = None,
     on_change_args: tuple[Any, ...] = (),
+    story_idea: str = "",
+    selected_hook: str = "",
 ) -> tuple[str, str]:
     """Shared Quick Song/Creator Mode A+B copy-ready editor."""
     resolved_lyrics_key = lyrics_key or f"{key_prefix}_lyrics"
@@ -738,7 +740,7 @@ def _render_suno_copy_fields(
     _copy_to_clipboard_button("Copy Lyrics", current_lyrics, key=f"{key_prefix}_copy_lyrics")
     from core.thai_lyric_coherence import review_thai_story_coherence
 
-    narrative_review = review_thai_story_coherence(current_lyrics)
+    narrative_review = review_thai_story_coherence(current_lyrics, idea=story_idea, selected_hook=selected_hook)
     if narrative_review["warnings"]:
         with st.expander("ตรวจความต่อเนื่องของเรื่องราว (คำแนะนำ)", expanded=False):
             for warning in narrative_review["warnings"]:
@@ -4644,6 +4646,8 @@ def _render_quick_song(project: dict[str, Any]) -> None:
         lyrics=str(lyrics or ""),
         style_prompt=str(style_prompt or ""),
         key_prefix="quick_song",
+        story_idea=str(state.get("idea") or ""),
+        selected_hook=str(st.session_state.get("quick_song_hook") or ""),
         lyrics_key="quick_song_lyrics",
         style_key="quick_song_style",
     )
@@ -6805,6 +6809,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             lyrics=lyrics,
             style_prompt=style_prompt,
             key_prefix="simple_song",
+            story_idea=str(song.get("idea") or song.get("song_idea") or ""),
+            selected_hook=selected_hook_text,
             lyrics_key="simple_song_lyrics",
             style_key="simple_song_style_prompt",
             on_change=_persist_creator_song_draft,
