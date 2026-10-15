@@ -30,7 +30,7 @@ def test_ignore_english_production_tags_and_preserve_input():
 
 def test_long_line_warning_is_advisory_not_syllable_count():
     line = "ฉัน" * 30
-    result = review_thai_story_coherence("[Verse]\\n" + line)
+    result = review_thai_story_coherence("[Verse]\n" + line)
     assert result["warnings"][0]["code"] == "long_lyric_lines"
     assert result["long_lines"][0]["characters"] == 90
     assert result["method"] == "conservative_rule_based_v2"
@@ -38,7 +38,7 @@ def test_long_line_warning_is_advisory_not_syllable_count():
 
 def test_short_lyric_lines_not_flagged():
     result = review_thai_story_coherence(
-        "[Verse]\\nวันที่เธออ่อนแอ ต้องการใครสักคน\\n[Chorus]\\nพอเขากลับมา ฉันก็แค่ส่วนเกิน"
+        "[Verse]\nวันที่เธออ่อนแอ ต้องการใครสักคน\n[Chorus]\nพอเขากลับมา ฉันก็แค่ส่วนเกิน"
     )
     assert result["warnings"] == []
     assert result["long_lines"] == []
