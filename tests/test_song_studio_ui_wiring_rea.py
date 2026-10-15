@@ -19,7 +19,7 @@ def _function_tree():
 def test_shared_editor_receives_story_context():
     functions = _function_tree()
     editor = functions["_render_suno_copy_fields"]
-    parameters = {argument.arg for argument in editor.args.args}
+    parameters = {argument.arg for argument in (*editor.args.args, *editor.args.kwonlyargs)}
     assert {"story_idea", "selected_hook"} <= parameters
     reviews = [
         node for node in ast.walk(editor)
