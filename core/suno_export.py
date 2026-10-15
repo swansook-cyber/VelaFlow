@@ -927,7 +927,7 @@ def export_suno_files(
                 "suno_style_only": str(style_path),
                 "suno_style_only_filename": style_path.name,
                 "suno_style_only_text": style_prompt,
-                "pre_intro_direction_warning": bool(re.match(r"^\\s*\\([^\\n]*\\)\\s*(?:\\n|$)", lyrics)),
+                "pre_intro_direction_warning": bool(re.match(r"^\s*\([^\n]*\)\s*(?:\n|$)", lyrics)),
                 "release_package": release,
                 "workflow_mode": workflow_mode,
                 "export_sections": export_sections,
