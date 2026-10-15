@@ -202,8 +202,6 @@ def safe_txt_filename(song_title: str | None, suffix: str) -> str:
 
 def _is_placeholder_title(value: str | None) -> bool:
     return is_placeholder_song_title(value)
-    normalized = str(value or "").strip().lower()
-    return normalized in {"", "untitled song", "project", "current session", "เพลงใหม่ของฉัน"}
 
 
 def extract_song_title_from_export_text(export_text: str) -> str:
