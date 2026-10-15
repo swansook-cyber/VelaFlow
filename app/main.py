@@ -736,6 +736,15 @@ def _render_suno_copy_fields(
     st.text_area("A. Lyrics", height=360, key=resolved_lyrics_key, **change_kwargs)
     current_lyrics = str(st.session_state.get(resolved_lyrics_key, lyrics) or "")
     _copy_to_clipboard_button("Copy Lyrics", current_lyrics, key=f"{key_prefix}_copy_lyrics")
+    from core.thai_lyric_coherence import review_thai_story_coherence
+
+    narrative_review = review_thai_story_coherence(current_lyrics)
+    if narrative_review["warnings"]:
+        with st.expander("ตรวจความต่อเนื่องของเรื่องราว (คำแนะนำ)", expanded=False):
+            for warning in narrative_review["warnings"]:
+                st.warning(warning["message"])
+            st.caption("ระบบให้คำเตือนเท่านั้น ไม่แก้เนื้อเพลงของคุณอัตโนมัติ")
+
 
     st.caption("คัดลอกคำอธิบายแนวดนตรีด้านล่างไปใส่ในช่อง Style of Music ของ Suno")
     st.text_area("B. Style Prompt", height=150, key=resolved_style_key, **change_kwargs)
