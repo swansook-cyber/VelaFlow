@@ -31,7 +31,7 @@ def review_thai_story_coherence(lyrics: str, idea: str = "", selected_hook: str 
     lines = _lyric_lines(lyrics)
     chorus = [line for section, line in lines if "chorus" in section and "pre" not in section and "post" not in section]
     hook = str(selected_hook or "").strip() or (chorus[0] if chorus else "")
-    norm = lambda text: re.sub(r"\\s+", "", str(text or ""))
+    norm = lambda text: re.sub(r"\s+", "", str(text or ""))
     narrative = norm(idea) + "".join(norm(line) for _, line in lines)
     warnings: list[dict[str, str]] = []
 
