@@ -42,3 +42,24 @@ def test_short_lyric_lines_not_flagged():
     )
     assert result["warnings"] == []
     assert result["long_lines"] == []
+
+
+def test_detects_hook_on_third_chorus_line_without_explicit_selection():
+    lyrics = (
+        "[Verse 1]\nตัวจริงกลับมาแล้ว\n"
+        "[Chorus]\nความรักก็เหมือนเกมกีฬา\n"
+        "ตัวสำรองมีค่าเฉพาะวันที่ตัวจริงเจ็บ\n"
+        "พอเขาหาย ฉันก็แค่ส่วนเกิน"
+    )
+    review = review_thai_story_coherence(lyrics)
+    assert [item["code"] for item in review["warnings"]] == [
+        "hook_return_disappearance_ambiguity"
+    ]
+
+
+def test_does_not_override_explicit_selected_hook_with_other_chorus_lines():
+    lyrics = "[Verse]\nตัวจริงกลับมาแล้ว\n[Chorus]\nพอเขาหาย ฉันก็แค่ส่วนเกิน"
+    review = review_thai_story_coherence(
+        lyrics, selected_hook="พอเขากลับมา ฉันก็แค่ส่วนเกิน"
+    )
+    assert review["warnings"] == []
