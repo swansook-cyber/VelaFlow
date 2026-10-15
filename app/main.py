@@ -732,12 +732,12 @@ def _render_suno_copy_fields(
     if on_change is not None:
         change_kwargs = {"on_change": on_change, "args": on_change_args}
 
-    st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>Copy this into the Suno Lyrics box.</p></div>', unsafe_allow_html=True)
+    st.caption("คัดลอกเนื้อเพลงด้านล่างไปใส่ในช่อง Lyrics ของ Suno")
     st.text_area("A. Lyrics", height=360, key=resolved_lyrics_key, **change_kwargs)
     current_lyrics = str(st.session_state.get(resolved_lyrics_key, lyrics) or "")
     _copy_to_clipboard_button("Copy Lyrics", current_lyrics, key=f"{key_prefix}_copy_lyrics")
 
-    st.markdown('<div class="vf-output-card"><h4>B. Style Prompt</h4><p>Copy this into the Suno Style of Music box.</p></div>', unsafe_allow_html=True)
+    st.caption("คัดลอกคำอธิบายแนวดนตรีด้านล่างไปใส่ในช่อง Style of Music ของ Suno")
     st.text_area("B. Style Prompt", height=150, key=resolved_style_key, **change_kwargs)
     current_style = str(st.session_state.get(resolved_style_key, style_prompt) or "")
     _copy_to_clipboard_button("Copy Style Prompt", current_style, key=f"{key_prefix}_copy_style")
