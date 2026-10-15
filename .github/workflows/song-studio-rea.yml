@@ -28,4 +28,4 @@ jobs:
           python -m py_compile core/thai_lyric_coherence.py core/song_title_engine.py core/suno_export.py app/main.py
       - name: REA regression suite
         run: |
-          python -m pytest -q tests/test_thai_lyric_coherence_rea.py tests/test_song_studio_placeholder_titles_rea.py tests/test_song_studio_release_export_rea.py tests/test_song_studio_ui_wiring_rea.py tests/test_song_editor_flow_rea.py
+          python -m pytest -q tests/test_thai_lyric_coherence_rea.py tests/test_song_studio_placeholder_titles_rea.py tests/test_song_studio_release_export_rea.py tests/test_song_studio_ui_wiring_rea.py tests/test_song_editor_flow_rea.py tests/test_song_studio_export_integration_rea.py
