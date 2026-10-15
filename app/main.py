@@ -289,6 +289,7 @@ from core.settings import get_settings
 from core.stable_build import STABLE_FREEZE_NAME, create_stable_candidate_snapshot
 from core.song_workflow import (
     compare_song_to_draft,
+    choose_existing_hook,
     detect_best_song_hook,
     generate_hook_candidates,
     generate_hook_candidates_with_provider,
@@ -6516,7 +6517,7 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
                 safe_diagnostic_label(active_provider, limit=32),
                 safe_diagnostic_label(active_model, limit=64),
             )
-            chosen_existing_hook = available_hooks[hook_labels.index(chosen_hook_label)] if reuse_hook and chosen_hook_label in hook_labels else None
+            chosen_existing_hook = choose_existing_hook(available_hooks, hook_labels.index(chosen_hook_label)) if reuse_hook and chosen_hook_label in hook_labels else None
             hook_result = {"ok": True, "data": {"hooks": available_hooks, "provenance": {"reused_candidate": True}}} if chosen_existing_hook else generate_hook_candidates_with_provider(
                 api_key=active_api_key,
                 model_name=active_model,
