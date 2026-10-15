@@ -722,6 +722,8 @@ def _render_suno_copy_fields(
     style_key: str | None = None,
     on_change: Callable[..., None] | None = None,
     on_change_args: tuple[Any, ...] = (),
+    story_idea: str = "",
+    selected_hook: str = "",
 ) -> tuple[str, str]:
     """Shared Quick Song/Creator Mode A+B copy-ready editor."""
     resolved_lyrics_key = lyrics_key or f"{key_prefix}_lyrics"
@@ -732,12 +734,21 @@ def _render_suno_copy_fields(
     if on_change is not None:
         change_kwargs = {"on_change": on_change, "args": on_change_args}
 
-    st.markdown('<div class="vf-output-card"><h4>A. Lyrics</h4><p>Copy this into the Suno Lyrics box.</p></div>', unsafe_allow_html=True)
+    st.caption("คัดลอกเนื้อเพลงด้านล่างไปใส่ในช่อง Lyrics ของ Suno")
     st.text_area("A. Lyrics", height=360, key=resolved_lyrics_key, **change_kwargs)
     current_lyrics = str(st.session_state.get(resolved_lyrics_key, lyrics) or "")
     _copy_to_clipboard_button("Copy Lyrics", current_lyrics, key=f"{key_prefix}_copy_lyrics")
+    from core.thai_lyric_coherence import review_thai_story_coherence
 
-    st.markdown('<div class="vf-output-card"><h4>B. Style Prompt</h4><p>Copy this into the Suno Style of Music box.</p></div>', unsafe_allow_html=True)
+    narrative_review = review_thai_story_coherence(current_lyrics, idea=story_idea, selected_hook=selected_hook)
+    if narrative_review["warnings"]:
+        with st.expander("ตรวจความต่อเนื่องของเรื่องราว (คำแนะนำ)", expanded=False):
+            for warning in narrative_review["warnings"]:
+                st.warning(warning["message"])
+            st.caption("ระบบให้คำเตือนเท่านั้น ไม่แก้เนื้อเพลงของคุณอัตโนมัติ")
+
+
+    st.caption("คัดลอกคำอธิบายแนวดนตรีด้านล่างไปใส่ในช่อง Style of Music ของ Suno")
     st.text_area("B. Style Prompt", height=150, key=resolved_style_key, **change_kwargs)
     current_style = str(st.session_state.get(resolved_style_key, style_prompt) or "")
     _copy_to_clipboard_button("Copy Style Prompt", current_style, key=f"{key_prefix}_copy_style")
@@ -4635,6 +4646,8 @@ def _render_quick_song(project: dict[str, Any]) -> None:
         lyrics=str(lyrics or ""),
         style_prompt=str(style_prompt or ""),
         key_prefix="quick_song",
+        story_idea=str(state.get("idea") or ""),
+        selected_hook=str(st.session_state.get("quick_song_hook") or ""),
         lyrics_key="quick_song_lyrics",
         style_key="quick_song_style",
     )
@@ -6796,6 +6809,8 @@ def _render_simple_song_studio(project: dict[str, Any], song: dict[str, Any], ac
             lyrics=lyrics,
             style_prompt=style_prompt,
             key_prefix="simple_song",
+            story_idea=str(song.get("idea") or song.get("song_idea") or ""),
+            selected_hook=selected_hook_text,
             lyrics_key="simple_song_lyrics",
             style_key="simple_song_style_prompt",
             on_change=_persist_creator_song_draft,
