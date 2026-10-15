@@ -24,6 +24,11 @@ def main() -> None:
                 assert response is not None and response.status == 200, (label, response)
                 page.locator('[data-testid="stApp"]').wait_for(timeout=30000)
                 page.wait_for_timeout(1800)
+                # The Streamlit shell can load successfully while the app body
+                # is empty; require user-visible content before calling it PASS.
+                page.locator('[data-testid="stAppViewContainer"] [data-testid="stVerticalBlock"]').first.wait_for(timeout=30000)
+                visible_text = page.locator('[data-testid="stAppViewContainer"]').inner_text().strip()
+                assert len(visible_text) >= 20, (label, "Streamlit app did not render meaningful visible text")
                 assert not page.locator('[data-testid="stException"]').count(), (
                     label, page.locator('[data-testid="stException"]').all_text_contents()
                 )
