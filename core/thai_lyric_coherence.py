@@ -30,14 +30,14 @@ def review_thai_story_coherence(lyrics: str, idea: str = "", selected_hook: str 
     """
     lines = _lyric_lines(lyrics)
     chorus = [line for section, line in lines if "chorus" in section and "pre" not in section and "post" not in section]
-    hook = str(selected_hook or "").strip() or (chorus[0] if chorus else "")
+    hook_candidates = [str(selected_hook).strip()] if str(selected_hook or "").strip() else chorus
     norm = lambda text: re.sub(r"\s+", "", str(text or ""))
     narrative = norm(idea) + "".join(norm(line) for _, line in lines)
     warnings: list[dict[str, str]] = []
 
     return_signals = ("เขากลับมา", "คนรักเก่ากลับมา", "ตัวจริงกลับมา")
     disappearance_signals = ("พอเขาหาย", "เมื่อเขาหาย", "เขาหายไป")
-    if any(term in narrative for term in return_signals) and any(term in norm(hook) for term in disappearance_signals):
+    if any(term in narrative for term in return_signals) and any(term in norm(line) for line in hook_candidates for term in disappearance_signals):
         warnings.append({
             "code": "hook_return_disappearance_ambiguity",
             "severity": "review",
