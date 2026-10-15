@@ -45,3 +45,10 @@ jobs:
           done
           curl --fail http://127.0.0.1:8502/_stcore/health || { cat /tmp/streamlit-song-rea.log; exit 1; }
           python tests/song_studio_browser_smoke.py || { cat /tmp/streamlit-song-rea.log; exit 1; }
+      - name: Upload desktop and mobile browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: song-studio-browser-screenshots
+          path: test-artifacts/song-studio-browser/
+          if-no-files-found: warn
