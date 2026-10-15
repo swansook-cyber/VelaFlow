@@ -18,7 +18,7 @@ def test_placeholder_project_name_does_not_become_release_title():
     title = release["song_metadata"]["song_title"]
     assert title
     assert not is_placeholder_song_title(title)
-    assert not is_placeholder_song_title(resolve_export_txt_filename(song, "โปรเจกต์เพลงใหม่").split("_")[0])
+    assert "โปรเจกต์เพลงใหม่" not in resolve_export_txt_filename(song, "โปรเจกต์เพลงใหม่")
     assert "โปรเจกต์เพลงใหม่" not in resolve_lyrics_download_filename(song, "โปรเจกต์เพลงใหม่")
 
 
