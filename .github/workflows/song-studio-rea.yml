@@ -7,6 +7,7 @@ on:
       - "core/**"
       - "tests/test_*rea.py"
       - ".github/workflows/song-studio-rea.yml"
+      - "tests/song_studio_browser_smoke.py"
   workflow_dispatch:
 
 jobs:
@@ -29,3 +30,18 @@ jobs:
       - name: REA regression suite
         run: |
           python -m pytest -q tests/test_thai_lyric_coherence_rea.py tests/test_song_studio_placeholder_titles_rea.py tests/test_song_studio_release_export_rea.py tests/test_song_studio_ui_wiring_rea.py tests/test_song_editor_flow_rea.py tests/test_song_studio_export_integration_rea.py tests/test_song_studio_export_files_rea.py
+      - name: Install Chromium smoke dependencies
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Smoke test desktop and mobile Streamlit viewports
+        run: |
+          python -m streamlit run app/main.py --server.headless true --server.port 8502 --server.address 127.0.0.1 > /tmp/streamlit-song-rea.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8502/_stcore/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail http://127.0.0.1:8502/_stcore/health || { cat /tmp/streamlit-song-rea.log; exit 1; }
+          python tests/song_studio_browser_smoke.py || { cat /tmp/streamlit-song-rea.log; exit 1; }
