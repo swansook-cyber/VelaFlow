@@ -23,28 +23,47 @@ def _lyric_lines(lyrics: str) -> list[tuple[str, str]]:
 
 
 def review_thai_story_coherence(lyrics: str, idea: str = "", selected_hook: str = "") -> dict[str, Any]:
-    """Return explainable, low-confidence warnings; never mutate authored text.
+    """Review likely narrative ambiguities, without changing authored lyrics.
 
-    A narrow contradiction heuristic flags a hook about someone disappearing
-    when the user's story explicitly says that person *returns*. It cannot
-    reliably identify every speaker or pronoun reference in Thai.
+    Heuristics are deliberately conservative: Thai subjects are often omitted
+    and only the songwriter can decide whether a metaphor is intentional.
     """
     lines = _lyric_lines(lyrics)
-    context = str(idea or "").replace(" ", "")
-    hook = str(selected_hook or "").strip()
-    chorus_lines = [line for section, line in lines if "chorus" in section and "pre" not in section]
-    if not hook and chorus_lines:
-        hook = chorus_lines[0]
+    chorus = [line for section, line in lines if "chorus" in section and "pre" not in section and "post" not in section]
+    hook = str(selected_hook or "").strip() or (chorus[0] if chorus else "")
+    norm = lambda text: re.sub(r"\\s+", "", str(text or ""))
+    narrative = norm(idea) + "".join(norm(line) for _, line in lines)
     warnings: list[dict[str, str]] = []
-    return_signals = ("เขากลับมา", "เขากลับไปหาเธอ", "คนรักเก่ากลับมา", "ตัวจริงกลับมา")
+
+    return_signals = ("เขากลับมา", "คนรักเก่ากลับมา", "ตัวจริงกลับมา")
     disappearance_signals = ("พอเขาหาย", "เมื่อเขาหาย", "เขาหายไป")
-    story_lines = " ".join(line for _, line in lines)
-    story_context = (context + story_lines.replace(" ", ""))
-    if any(signal in story_context for signal in return_signals) and any(signal in hook.replace(" ", "") for signal in disappearance_signals):
+    if any(term in narrative for term in return_signals) and any(term in norm(hook) for term in disappearance_signals):
         warnings.append({
             "code": "hook_return_disappearance_ambiguity",
             "severity": "review",
-            "message": "Hook พูดถึงการหายไป แต่เรื่องหลักกล่าวถึงการกลับมา ควรตรวจว่าหมายถึงเหตุการณ์เดียวกันหรือไม่",
-            "suggestion": "ตรวจสรรพนามและลำดับเหตุการณ์ด้วยตนเองก่อนเผยแพร่",
+            "message": "Hook พูดถึงการหายไป แต่เนื้อเรื่องกล่าวถึงการกลับมา ควรตรวจว่าหมายถึงเหตุการณ์เดียวกันหรือไม่",
+            "suggestion": "ตรวจลำดับเหตุการณ์และสรรพนามก่อนเผยแพร่",
         })
-    return {"passed": not warnings, "warnings": warnings, "checked_lines": len(lines), "advisory_only": True}
+
+    # Report long lines as *visual* character counts; this does NOT assert
+    # syllable count or whether the line fits any particular melody or BPM.
+    long_lines = [
+        {"section": section, "text": line, "characters": len(norm(line))}
+        for section, line in lines
+        if len(norm(line)) >= 55
+    ]
+    if long_lines:
+        warnings.append({
+            "code": "long_lyric_lines",
+            "severity": "review",
+            "message": f"มี {len(long_lines)} บรรทัดยาวตั้งแต่ 55 ตัวอักษรขึ้นไป ควรทดลองร้องกับเมโลดี้จริง",
+            "suggestion": "พิจารณาแบ่งวรรคหรือพักหายใจ โดยไม่ตัดคำอัตโนมัติ",
+        })
+    return {
+        "passed": not warnings,
+        "warnings": warnings,
+        "checked_lines": len(lines),
+        "advisory_only": True,
+        "long_lines": long_lines,
+        "method": "conservative_rule_based_v2",
+    }
