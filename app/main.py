@@ -4393,6 +4393,12 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
         export_card.warning(str(editor_state.get("last_error")))
 
 
+def _render_stem_mixer(project: dict[str, Any], *, ffmpeg_ready: bool, max_upload_mb: int) -> None:
+    from app.stem_mix_ui import render_stem_mixer
+    render_stem_mixer(project, ffmpeg_ready=ffmpeg_ready, max_upload_mb=max_upload_mb,
+                      ffmpeg_path=settings.ffmpeg_path)
+
+
 def _render_audio_editor(project: dict[str, Any]) -> None:
     _page_header("Audio Editor", "Cut or join audio with a focused, touch-friendly workflow.", project_context=project)
     max_upload_mb = int(os.getenv("VELAFLOW_AUDIO_EDITOR_MAX_UPLOAD_MB", "200") or 200)
@@ -4405,8 +4411,10 @@ def _render_audio_editor(project: dict[str, Any]) -> None:
         '<p>Cut one precise section or join multiple audio files.</p></div></div>',
         unsafe_allow_html=True,
     )
-    mode = mode_card.radio("Mode", ["Cut", "Join"], horizontal=True, index=0, key="audio_editor_mode")
-    if mode == "Join":
+    mode = mode_card.radio("Mode", ["Cut", "Join", "Mix stems"], horizontal=True, index=0, key="audio_editor_mode")
+    if mode == "Mix stems":
+        _render_stem_mixer(project, ffmpeg_ready=bool(ffmpeg_probe.get("ok")), max_upload_mb=max_upload_mb)
+    elif mode == "Join":
         _render_audio_joiner(project, ffmpeg_ready=bool(ffmpeg_probe.get("ok")), max_upload_mb=max_upload_mb)
     else:
         _render_audio_cutter(project, ffmpeg_ready=bool(ffmpeg_probe.get("ok")), max_upload_mb=max_upload_mb)

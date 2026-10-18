@@ -38,6 +38,8 @@ Tagline: Music. Software. Stories.
 - **Affiliate Studio:** Lightweight product analysis, hook/script generation, trend ideas, and affiliate creator package export.
 - **Agent Studio:** Assistant-style creative package generation with optional memory, tools, provider fallback, and multi-agent orchestration.
 - **Optional Creator Mastering:** Local ffmpeg-based audio polish for AI-generated songs, kept out of the simple normal flow unless needed.
+- **Optional supplied-stem mixing:** Audio Editor's Mix stems mode uses core/stem_mixer.py for aligned vocal/instrumental gain mixing and measured PCM24 WAV export. Existing mastering remains in Remaster Studio; no automatic stem separation or master replacement.
+- **Mix Stems lifecycle:** app/stem_mix_ui.py uses core/stem_uploads.py for request-owned temporary files, per-process render/download quotas and session-owned expiring downloads. Inputs are limited to 64 MiB/5 minutes; existing persistent exports are not swept. See docs/MIX_STEMS_QA.md for validation and limitations.
 
 ## UX Principles
 - Default experience should be understandable in one screen.
