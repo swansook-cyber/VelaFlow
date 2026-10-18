@@ -12,3 +12,28 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m compileall -q core app
       - run: python -m unittest discover -s tests -p 'test_*.py'
+  upload-download-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: python -m pip install -r requirements.txt
+      # Browser driver is QA-only, isolated from production dependencies/source tree.
+      - run: |
+          npm install --prefix "$RUNNER_TEMP/vela-browser" --no-package-lock playwright@1.62.1
+          "$RUNNER_TEMP/vela-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - run: python tests/run_mix_e2e.py --output outputs/mix-e2e
+        env:
+          NODE_PATH: ${{ runner.temp }}/vela-browser/node_modules
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mix-stems-e2e
+          path: outputs/mix-e2e

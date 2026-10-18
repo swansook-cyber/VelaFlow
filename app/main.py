@@ -4394,53 +4394,9 @@ def _render_audio_cutter(project: dict[str, Any], *, ffmpeg_ready: bool, max_upl
 
 
 def _render_stem_mixer(project: dict[str, Any], *, ffmpeg_ready: bool, max_upload_mb: int) -> None:
-    from core.stem_mixer import mix_stems
-
-    st.caption("Mix two aligned stems from the same song. Both start at 0:00; the longer stem sets the duration.")
-    st.caption("Supply separate vocal and instrumental files. Mastering presets remain in Remaster Studio.")
-    scope = hashlib.sha256(str(project.get('project_id') or project.get('path') or project.get('title') or 'project').encode()).hexdigest()[:12]
-    vocal = st.file_uploader("Vocal stem", type=["wav", "mp3"], key=f"stem_vocal_{scope}")
-    music = st.file_uploader("Instrumental stem", type=["wav", "mp3"], key=f"stem_music_{scope}")
-    vocal_db = st.slider("Vocal level (dB)", -24.0, 6.0, -6.0, 0.5, key=f"stem_vgain_{scope}")
-    music_db = st.slider("Instrumental level (dB)", -24.0, 6.0, -6.0, 0.5, key=f"stem_igain_{scope}")
-    ready = bool(ffmpeg_ready and vocal and music)
-    if vocal and music and max(vocal.size, music.size) > max_upload_mb * 1024 * 1024:
-        st.warning(f"Each stem must be at most {max_upload_mb} MB.")
-        ready = False
-    fingerprint = hashlib.sha256()
-    for upload in (vocal, music):
-        if upload:
-            fingerprint.update(upload.getbuffer())
-    fingerprint.update(f"{vocal_db}|{music_db}".encode())
-    identity = fingerprint.hexdigest()
-    result_key = f"stem_mix_result_{scope}"
-    if st.button("Create WAV mix", disabled=not ready, key=f"stem_render_{scope}"):
-        import uuid
-        folder = ROOT / "exports" / "stem_mixes" / uuid.uuid4().hex
-        folder.mkdir(parents=True, exist_ok=False)
-        sources = []
-        for name, upload in (("vocal", vocal), ("instrumental", music)):
-            path = folder / f"{name}{Path(upload.name).suffix.lower()}"
-            path.write_bytes(upload.getbuffer())
-            sources.append(path)
-        with st.spinner("Mixing and measuring WAV…"):
-            result = mix_stems(*sources, folder, vocal_db=vocal_db, instrumental_db=music_db,
-                               ffmpeg_path=settings.ffmpeg_path)
-        st.session_state[result_key] = {"identity": identity, "result": result}
-    saved = st.session_state.get(result_key) or {}
-    if saved.get("identity") != identity:
-        return
-    result = saved.get("result") or {}
-    if not result.get("ok"):
-        st.error(result.get("error") or "Mix failed")
-        return
-    measurement = result["measurement"]
-    st.success("WAV mix ready · 48 kHz stereo · 24-bit")
-    st.write({"Integrated LUFS": measurement.get("integrated_lufs"),
-              "True peak (dBTP)": measurement.get("true_peak_dbtp"),
-              "Clipped samples": measurement.get("rail_hits")})
-    st.download_button("Download WAV mix", Path(result["path"]).read_bytes(),
-                       file_name="stem_mix.wav", mime="audio/wav", key=f"stem_download_{scope}")
+    from app.stem_mix_ui import render_stem_mixer
+    render_stem_mixer(project, ffmpeg_ready=ffmpeg_ready, max_upload_mb=max_upload_mb,
+                      ffmpeg_path=settings.ffmpeg_path)
 
 
 def _render_audio_editor(project: dict[str, Any]) -> None:
