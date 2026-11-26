@@ -13,6 +13,30 @@ from core.full_song_mv_production import import_scene_media
 
 
 class FullSongMVProductionUITests(unittest.TestCase):
+    def test_landscape_plan_shows_render_readiness_without_incompatible_generate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            audio = root / "song.wav"
+            with wave.open(str(audio), "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(8000)
+                output.writeframes(b"\0\0" * 8000 * 180)
+            project = {"title": "Landscape UI", "mv": {}}
+            scenes = create_full_song_storyboard({}, project, 180, 2)["scenes"]
+            project["mv"]["full_song"] = {"audio": {"path": str(audio), "duration_seconds": 180},
+                                             "scenes": scenes, "target_aspect_ratio": "16:9"}
+            app = AppTest.from_string("""
+import streamlit as st
+from app.full_song_mv_ui import render_full_song_planner
+render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda *a, **k: {'ok': False})
+""")
+            app.session_state["project"] = project
+            app.run()
+            self.assertFalse(app.exception)
+            self.assertTrue(next(button for button in app.button if button.label == "Render full-song MV").disabled)
+            self.assertFalse(any(button.label == "Generate this shot" for button in app.button))
+
     def test_review_qc_accept_without_cloud_key(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

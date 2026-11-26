@@ -8,11 +8,15 @@ on:
       - "app/full_song_mv_production_ui.py"
       - "core/full_song_mv.py"
       - "core/full_song_mv_production.py"
+      - "core/full_song_mv_render.py"
+      - "core/render_engine.py"
+      - "providers/image_ai.py"
       - "core/project_io.py"
       - "core/mv_storyboard_generator.py"
       - "tests/test_full_song_mv.py"
       - "tests/test_full_song_mv_production.py"
       - "tests/test_full_song_mv_production_ui.py"
+      - "tests/test_full_song_mv_render.py"
       - "tests/test_suno_ready_export.py"
       - "tests/test_song_studio_hook_control.py"
       - ".github/workflows/full-song-mv.yml"
@@ -36,5 +40,5 @@ jobs:
           ffprobe -version
       - name: Compile modules
         run: python -m compileall -q app core providers tests
-      - name: Full-song planning and Song Studio regression
-        run: python -m unittest tests.test_full_song_mv tests.test_full_song_mv_production tests.test_full_song_mv_production_ui tests.test_suno_ready_export tests.test_song_studio_hook_control -v
+      - name: Full-song planning, render, and Song Studio regression
+        run: python -m unittest tests.test_full_song_mv tests.test_full_song_mv_production tests.test_full_song_mv_production_ui tests.test_full_song_mv_render tests.test_suno_ready_export tests.test_song_studio_hook_control -v

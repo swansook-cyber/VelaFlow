@@ -146,7 +146,7 @@ def import_scene_media(scenes: list[dict[str, Any]], scene_id: str, filename: st
         inspected["path"] = str(destination)
         record = _asset_record(scene, inspected, provider="external_import", prompt=str(scene.get("visual_prompt") or ""),
                                reference=str(scene.get("reference_asset") or ""),
-                               shot_duration=min(8.0, float(scene.get("duration_seconds") or 5)))
+                               shot_duration=min(8.0, float(inspected["duration_seconds"])) if kind == "video" else 0.0)
         _production(scene)["assets"].append(record)
         scene["asset_status"] = "Needs QC"
         return {"ok": True, "scenes": updated, "asset_id": record["asset_id"]}
@@ -255,7 +255,8 @@ def run_generation(scenes: list[dict[str, Any]], scene_id: str, attempt_id: str,
     return finish_generation(scenes, scene_id, attempt_id, result, output_dir)
 
 
-def qc_scene_asset(scenes: list[dict[str, Any]], scene_id: str, asset_id: str) -> dict[str, Any]:
+def qc_scene_asset(scenes: list[dict[str, Any]], scene_id: str, asset_id: str,
+                   target_aspect_ratio: str = "9:16") -> dict[str, Any]:
     updated = deepcopy(scenes)
     scene = _find(updated, scene_id)
     if scene is None:
@@ -264,18 +265,20 @@ def qc_scene_asset(scenes: list[dict[str, Any]], scene_id: str, asset_id: str) -
     if record is None:
         return {"ok": False, "error": "Asset was not found for this scene."}
     media = inspect_media(record["path"], record["kind"])
+    if target_aspect_ratio not in {"16:9", "9:16"}:
+        return {"ok": False, "scenes": updated, "error": "Unsupported target aspect ratio."}
     revision_ok = record["scene_revision"] == int(scene["revision"]) and scene.get("approval_status") == "Approved"
     provider_ok = record["provider_status"] in {"complete", "imported"}
     if record["kind"] == "video":
         requested = float(record.get("shot_duration_seconds") or min(8, scene.get("duration_seconds") or 5))
         duration_ok = bool(media.get("ok")) and max(1, requested - 1.5) <= media["duration_seconds"] <= requested + 1.5
-        resolution_ok = bool(media.get("ok")) and media["width"] >= 480 and media["height"] >= 720
+        resolution_ok = bool(media.get("ok")) and (media["width"] >= 720 and media["height"] >= 480 if target_aspect_ratio == "16:9" else media["width"] >= 480 and media["height"] >= 720)
     else:
         duration_ok = True
         resolution_ok = bool(media.get("ok")) and media["width"] >= 512 and media["height"] >= 512
-    aspect_ok = bool(media.get("ok")) and abs(media["aspect_ratio"] - 9 / 16) <= 0.09
+    aspect_ok = bool(media.get("ok")) and abs(media["aspect_ratio"] - (16 / 9 if target_aspect_ratio == "16:9" else 9 / 16)) <= 0.09
     checks = {"readable_file": bool(media.get("ok")), "supported_type": bool(media.get("ok")),
-              "duration": duration_ok, "resolution": resolution_ok, "aspect_ratio_9_16": aspect_ok,
+              "duration": duration_ok, "resolution": resolution_ok, "aspect_ratio_9_16" if target_aspect_ratio == "9:16" else "aspect_ratio_16_9": aspect_ok,
               "provider_job": provider_ok, "current_scene_revision": revision_ok}
     passed = all(checks.values())
     if not revision_ok:
@@ -286,13 +289,14 @@ def qc_scene_asset(scenes: list[dict[str, Any]], scene_id: str, asset_id: str) -
         checks["readable_file"] = False
         passed = False
     if record.get("status") == "Accepted":
-        if passed and digest == record.get("qc_result", {}).get("file_sha256"):
+        if passed and digest == record.get("qc_result", {}).get("file_sha256") and record.get("qc_result", {}).get("target_aspect_ratio", "9:16") == target_aspect_ratio:
             return {"ok": True, "scenes": updated, "qc_result": record["qc_result"], "error": ""}
         scene["qc_status"] = "Missing Asset" if not media.get("ok") else "Needs Review"
         scene["asset_status"] = "Missing" if not media.get("ok") else "Needs Review"
         return {"ok": False, "scenes": updated, "qc_result": {"passed": False, "checks": checks},
                 "error": "The accepted file no longer passes QC. Its previous approval history was preserved."}
     record["qc_result"] = {"passed": passed, "checks": checks, "human_accepted": False,
+                           "target_aspect_ratio": target_aspect_ratio,
                            "file_sha256": digest,
                            "review_notes": {"character": scene.get("character", ""), "costume": scene.get("costume", ""),
                                             "location": scene.get("location", ""), "visual_style": scene.get("visual_style", ""),

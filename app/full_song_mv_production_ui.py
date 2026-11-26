@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import importlib.util
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable
 
@@ -32,6 +33,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                             scene: dict[str, Any], commit: Callable[[dict[str, Any]], bool],
                             provider_key: Callable[[str], str] | None = None) -> None:
     scene_id = scene["scene_id"]
+    target_aspect = plan.get("target_aspect_ratio", "9:16")
     prefix = f"mv_prod_{scene_id}"
     production = scene.get("production") or {}
     assets = production.get("assets") or []
@@ -97,7 +99,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                                key=f"{prefix}_{asset_id}_{qc.get('file_sha256', 'unchecked')}_human_review")
         actions = st.columns(2)
         if actions[0].button("Run file QC", disabled=not current_revision, key=f"{prefix}_qc"):
-            result = qc_scene_asset(scenes, scene_id, asset_id)
+            result = qc_scene_asset(scenes, scene_id, asset_id, target_aspect)
             if commit({**plan, "scenes": result["scenes"]}):
                 if not result["ok"]:
                     st.error(result["error"])
@@ -111,10 +113,46 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
             elif commit({**plan, "scenes": result["scenes"]}):
                 st.rerun()
 
+    accepted = [row for row in assets if row.get("status") == "Accepted" and
+                row.get("scene_revision") == scene.get("revision") and
+                (row.get("qc_result") or {}).get("target_aspect_ratio", "9:16") == target_aspect]
+    if approved and accepted:
+        st.caption("Choose accepted shots in playback order. A still image can fill the remaining scene time.")
+        available = [row["asset_id"] for row in accepted]
+        selected_ids = [key for key in (production.get("render_asset_ids") or [production.get("active_asset_id")]) if key in available]
+        shot_ids = st.multiselect("Shots for render (in order)", available, default=selected_ids,
+                                  format_func=lambda key: next((f"{row['kind'].title()} · {Path(row['path']).name}" for row in accepted if row["asset_id"] == key), key),
+                                  key=f"{prefix}_render_shots")
+        policy_options = ["Require full shot coverage", "Hold last video frame", "Loop last video"]
+        current_policy = 2 if production.get("allow_video_loop") else 1 if production.get("hold_last_frame") else 0
+        policy = st.selectbox("If the last video is short", policy_options, index=current_policy, key=f"{prefix}_video_fill")
+        if st.button("Save shot assembly", disabled=not shot_ids, key=f"{prefix}_save_shots"):
+            updated = deepcopy(scenes)
+            changed = next(row for row in updated if row["scene_id"] == scene_id)
+            settings = changed.setdefault("production", {})
+            settings["render_asset_ids"] = shot_ids
+            settings["hold_last_frame"] = policy == policy_options[1]
+            settings["allow_video_loop"] = policy == policy_options[2]
+            if commit({**plan, "scenes": updated}):
+                st.rerun()
+
+    if approved and (assets or attempts) and not production.get("pending_attempt_id") and int(scene.get("retry_count") or 0) < MAX_RETRIES:
+        st.caption(f"Retries used: {scene.get('retry_count', 0)}/{MAX_RETRIES}. A new provider request may incur another charge.")
+        if st.button("Retry this scene", key=f"{prefix}_retry"):
+            result = request_scene_retry(scenes, scene_id)
+            if not result.get("ok"):
+                st.error(result["error"])
+            elif commit({**plan, "scenes": result["scenes"]}):
+                st.rerun()
+
     with st.expander("Generate this scene", expanded=False):
-        choices = {"Image · OpenAI": ("image", "openai_images", "openai"),
-                   "Image · Gemini": ("image", "gemini_image", "gemini"),
-                   "Video shot · Veo": ("video", "gemini_veo", "gemini")}
+        choices = ({"Image · OpenAI": ("image", "openai_images", "openai")}
+                   if target_aspect == "9:16" else {})
+        if target_aspect == "9:16":
+            st.caption("The Gemini image and Veo connectors need a verified current model before paid generation is offered here. Import their finished assets for QC instead.")
+        if not choices:
+            st.info("16:9: import an existing landscape image or MP4. The current generation connectors target 9:16 and are not offered for this format.")
+            return
         chosen = st.selectbox("Provider", list(choices), key=f"{prefix}_provider")
         kind, provider, key_name = choices[chosen]
         key = (provider_key(key_name) if provider_key else "") or ""
@@ -123,6 +161,9 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                  "provider selects from configured image models" if provider == "gemini_image" else
                  os.getenv("VEO_MODEL", DEFAULT_VEO_MODEL))
         st.write(f"Model: {model}")
+        model_supported = model in {"gpt-image-1.5", "gpt-image-1-mini", "gpt-image-2"}
+        if not model_supported:
+            st.info("This image model has not been verified for 1024×1536 in this connector. Choose a supported model in Settings or import an existing asset.")
         if not configured:
             st.info("API key or provider SDK missing. Check Settings / API Key before generating.")
         else:
@@ -148,7 +189,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
             st.caption("Choose Retry below before making another paid request for this scene.")
         confirm = st.checkbox("I confirm one provider request for this scene and accept possible charges",
                               key=f"{prefix}_{provider}_{len(attempts)}_paid_confirm")
-        can_generate = (approved and configured and confirm and bool(str(scene.get("visual_prompt") or "").strip())
+        can_generate = (approved and configured and model_supported and confirm and bool(str(scene.get("visual_prompt") or "").strip())
                         and not production.get("pending_attempt_id") and
                         (not attempts or production.get("generation_status") == "Retry Requested"))
         if st.button("Generate this shot", type="primary", disabled=not can_generate, key=f"{prefix}_generate"):
@@ -161,7 +202,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                             "openai_api_key": key if key_name == "openai" else "",
                             "openai_image_model": model if provider == "openai_images" else "",
                             "model": model if kind == "video" else "",
-                            "size": "1024x1536", "cache_enabled": False}
+                            "size": "1024x1536", "strict_image_model": True, "cache_enabled": False}
                 with st.spinner("Generating only this shot…"):
                     result = run_generation(begun["scenes"], scene_id, begun["attempt_id"], folder, settings)
                 if result.get("scenes") and commit({**plan, "scenes": result["scenes"]}):
@@ -169,12 +210,3 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                         st.rerun()
                     else:
                         st.error("Provider attempt failed or returned invalid media. Existing accepted assets remain unchanged.")
-
-    if approved and (assets or attempts) and not production.get("pending_attempt_id") and int(scene.get("retry_count") or 0) < MAX_RETRIES:
-        st.caption(f"Retries used: {scene.get('retry_count', 0)}/{MAX_RETRIES}. A new provider request may incur another charge.")
-        if st.button("Retry this scene", key=f"{prefix}_retry"):
-            result = request_scene_retry(scenes, scene_id)
-            if not result.get("ok"):
-                st.error(result["error"])
-            elif commit({**plan, "scenes": result["scenes"]}):
-                st.rerun()

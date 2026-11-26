@@ -114,6 +114,8 @@ def _gemini_image_model_candidates(settings: Dict[str, Any]) -> list[str]:
 
 
 def _openai_image_model_candidates(settings: Dict[str, Any]) -> list[str]:
+    if settings.get("strict_image_model"):
+        return _dedupe([settings.get("openai_image_model", "")])
     configured = [
         settings.get("openai_image_model", ""),
         os.getenv("OPENAI_IMAGE_MODEL", ""),

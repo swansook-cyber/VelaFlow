@@ -43,6 +43,10 @@ def _scene_cache_key(item: Dict[str, Any], aspect: str, width: int, height: int,
         "source": stat_payload,
         "source_type": item.get("source_type", ""),
         "scene_id": item.get("scene_id", ""),
+        "asset_id": item.get("asset_id", ""),
+        "asset_sha256": item.get("asset_sha256", ""),
+        "scene_revision": item.get("scene_revision", 0),
+        "video_fill_mode": item.get("video_fill_mode", ""),
         "duration_seconds": item.get("duration_seconds", 0),
         "motion_effect": item.get("motion_effect", ""),
         "aspect": aspect,
@@ -77,12 +81,13 @@ def _render_scene_clip(
     width = max(2, int(int(spec["width"]) * scale_factor) // 2 * 2)
     height = max(2, int(int(spec["height"]) * scale_factor) // 2 * 2)
     source_path = Path(item.get("source_path", ""))
-    duration = max(1.0, float(item.get("duration_seconds", 1) or 1))
+    duration = max(0.001 if item.get("full_song_mode") else 1.0, float(item.get("duration_seconds", 1) or 1))
     source_type = item.get("source_type", "placeholder")
     color_filter = color_grade_filter(profile.get("color_grade", "none"))
     transition_filter = scene_transition_filter(item.get("transition", profile.get("transition_mode", "none")), duration)
     cache_key = _scene_cache_key(item, aspect, width, height, fps, profile)
-    shared_cache_dir = ROOT / "outputs" / "renders" / "_scene_cache" / aspect.replace(":", "x")
+    cache_root = log_path.parents[2] if item.get("full_song_mode") else ROOT / "outputs" / "renders"
+    shared_cache_dir = cache_root / "_scene_cache" / aspect.replace(":", "x")
     shared_cache_dir.mkdir(parents=True, exist_ok=True)
     shared_cache_path = shared_cache_dir / f"{cache_key}.mp4"
     scene_meta = scene_output.with_suffix(".json")
@@ -106,6 +111,10 @@ def _render_scene_clip(
     scene_output.parent.mkdir(parents=True, exist_ok=True)
     if source_type == "video" and source_path.is_file():
         vf_parts = [normalize_scene_filter(width, height, fps)]
+        if item.get("full_song_mode") and item.get("video_fill_mode") == "hold":
+            extra = max(0.0, duration - float(item.get("source_duration_seconds") or 0))
+            if extra:
+                vf_parts.append(f"tpad=stop_mode=clone:stop_duration={extra:.3f}")
         if color_filter:
             vf_parts.append(color_filter)
         if transition_filter:
@@ -114,8 +123,7 @@ def _render_scene_clip(
         command = [
             ffmpeg_path,
             "-y",
-            "-stream_loop",
-            "-1",
+            *(["-stream_loop", "-1"] if not item.get("full_song_mode") or item.get("video_fill_mode") == "loop" else []),
             "-i",
             str(source_path),
             "-t",
@@ -191,6 +199,7 @@ def _concat_scene_clips(
     ass_path: str = "",
     profile: Dict[str, Any] | None = None,
     total_duration: float = 0.0,
+    loop_visual: bool = True,
 ) -> Dict[str, Any]:
     profile = profile or get_render_profile("Standard")
     spec = ASPECT_RATIOS[aspect]
@@ -206,7 +215,7 @@ def _concat_scene_clips(
 
     has_audio = bool(audio_path and Path(audio_path).is_file())
     command: List[str] = [ffmpeg_path, "-y"]
-    if has_audio:
+    if has_audio and loop_visual:
         command += ["-stream_loop", "-1"]
     command += ["-i", str(temp_concat)]
     if has_audio:
@@ -243,6 +252,12 @@ def run_render(
     options = options or {}
     selected_aspects = [aspect for aspect in options.get("aspect_ratios", ["16:9"]) if aspect in ASPECT_RATIOS] or ["16:9"]
     profile = get_render_profile(options.get("render_profile") or options.get("profile") or "Standard")
+    full_song_timeline = options.get("full_song_timeline")
+    full_song_mode = isinstance(full_song_timeline, list)
+    if full_song_mode and "scale_factor" in options:
+        profile["scale_factor"] = float(options["scale_factor"])
+    if full_song_mode:
+        profile["audio_fade_seconds"] = 0
     render_id = options.get("render_id") or new_render_id()
     render_dir = render_folder(project.get("title", "project"), render_id, options.get("base_dir"))
     log_path = render_dir / "render_log.txt"
@@ -266,8 +281,14 @@ def run_render(
     save_manifest(manifest, render_dir)
     _progress(progress_callback, 3, "Building timeline")
     try:
-        audio_intelligence = options.get("audio_intelligence") if isinstance(options.get("audio_intelligence"), dict) else None
-        if audio_intelligence is None and audio_path:
+        if full_song_mode:
+            timeline = full_song_timeline
+            timeline_data = {"items": timeline, "total_duration_seconds": sum(float(item["duration_seconds"]) for item in timeline)}
+            (render_dir / "timeline.json").write_text(json.dumps(timeline_data, ensure_ascii=False, indent=2), encoding="utf-8")
+            beat_map = {"ok": False, "data": {"beats": []}}
+        else:
+            audio_intelligence = options.get("audio_intelligence") if isinstance(options.get("audio_intelligence"), dict) else None
+        if not full_song_mode and audio_intelligence is None and audio_path:
             source_context = options.get("audio_intelligence_context") or {
                 "kind": "visual_render",
                 "project_id": str(project.get("project_id") or project.get("path") or project.get("title") or ""),
@@ -278,9 +299,10 @@ def run_render(
             except Exception as error:
                 append_log(log_path, f"[WARN] Audio Intelligence unavailable; using visual fallback timing: {error}")
                 audio_intelligence = None
-        beat_map = analyze_audio(audio_path, ffmpeg_path, render_dir) if audio_path else {"ok": False, "data": {"beats": []}, "error": "no audio"}
-        timeline_data = build_timeline(project, render_dir, motion_style, beat_map=beat_map, beat_sync=beat_sync, audio_intelligence=audio_intelligence)
-        timeline = timeline_data.get("items", [])
+        if not full_song_mode:
+            beat_map = analyze_audio(audio_path, ffmpeg_path, render_dir) if audio_path else {"ok": False, "data": {"beats": []}, "error": "no audio"}
+            timeline_data = build_timeline(project, render_dir, motion_style, beat_map=beat_map, beat_sync=beat_sync, audio_intelligence=audio_intelligence)
+            timeline = timeline_data.get("items", [])
         write_assets_used(render_dir, timeline, project)
         subtitle_result = generate_subtitles(timeline, render_dir, subtitle_mode)
         ass_path = subtitle_result.get("data", {}).get("ass", "") if subtitle_result.get("ok") else ""
@@ -321,12 +343,12 @@ def run_render(
             else:
                 errors.append(f"Scene {scene_id} {aspect}: {result['error']}")
                 mark_scene_failed(render_dir, aspect, scene_id, str(result.get("error", "")))
-        if not clip_paths:
+        if not clip_paths or (full_song_mode and len(clip_paths) != len(timeline)):
             errors.append(f"No scene clips rendered for {aspect}")
             continue
         _progress(progress_callback, 82, f"Concatenating {aspect}")
         try:
-            final_result = _concat_scene_clips(ffmpeg_path, clip_paths, aspect, render_dir, log_path, audio_path, ass_path, profile, timeline_data.get("total_duration_seconds", 0))
+            final_result = _concat_scene_clips(ffmpeg_path, clip_paths, aspect, render_dir, log_path, audio_path, ass_path, profile, timeline_data.get("total_duration_seconds", 0), loop_visual=not full_song_mode)
         except Exception as error:
             final_result = {"ok": False, "message": "Final concat exception", "data": {}, "error": str(error)}
         if final_result.get("data", {}).get("command"):

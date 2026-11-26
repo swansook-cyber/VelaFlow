@@ -10,6 +10,7 @@ import streamlit as st
 
 from app.full_song_mv_production_ui import render_scene_production
 from core.full_song_mv import create_full_song_storyboard, edit_scene, move_scene, probe_song_audio, validate_storyboard
+from core.full_song_mv_render import prepare_full_song_render, render_full_song
 
 
 def render_full_song_planner(
@@ -51,7 +52,7 @@ def render_full_song_planner(
                 metadata = probe_song_audio(saved["data"]["path"])
                 if not metadata.get("ok"):
                     st.error(metadata["error"])
-                elif commit({"audio": {**metadata, "upload_id": saved["data"].get("upload_id", "")}, "scenes": []}):
+                elif commit({"audio": {**metadata, "upload_id": saved["data"].get("upload_id", "")}, "scenes": [], "target_aspect_ratio": "16:9"}):
                     st.rerun()
         return
 
@@ -64,6 +65,14 @@ def render_full_song_planner(
     if abs(duration - float(audio.get("duration_seconds") or 0)) > 0.05:
         st.error("The audio duration changed after import. Restore the original file before editing this plan.")
         return
+    target_aspect = plan.get("target_aspect_ratio", "9:16")
+    selected_aspect = st.selectbox("MV format", ["16:9", "9:16"],
+                                   index=0 if target_aspect == "16:9" else 1,
+                                   help="16:9 for a full music video; 9:16 for vertical clips.",
+                                   key="mv_full_target_aspect")
+    if selected_aspect != target_aspect:
+        if commit({**plan, "target_aspect_ratio": selected_aspect}):
+            st.rerun()
     st.audio(audio["path"])
     st.caption(f"Audio duration: {duration:.1f}s ({duration / 60:.2f} min). Song sections are estimated from lyric headings and can be edited below.")
     if not scenes:
@@ -163,3 +172,28 @@ def render_full_song_planner(
         save_scene(direction=1)
     st.caption(f"Asset: {scene.get('asset_status', 'Planned')} · QC: {scene.get('qc_status', 'Pending')} · retries: {scene.get('retry_count', 0)}")
     render_scene_production(project, plan, scenes, scene, commit, provider_key)
+    st.subheader("Full-song render")
+    readiness = prepare_full_song_render(project, selected_aspect)
+    if not readiness.get("ok"):
+        st.info(readiness.get("error") or "Finish scene review before rendering.")
+        if readiness.get("missing_scenes"):
+            st.dataframe(readiness["missing_scenes"], hide_index=True, use_container_width=True)
+    else:
+        st.caption(f"Ready: {readiness['scene_count']} approved scenes, {len(readiness['timeline'])} shots, {duration:.1f}s of audio.")
+    if st.button("Render full-song MV", disabled=not readiness.get("ok"), key="mv_full_render"):
+        progress = st.progress(0, text="Preparing render")
+        def on_progress(percent: int, message: str) -> None:
+            progress.progress(percent, text=message)
+        with st.spinner("Rendering approved scenes locally with FFmpeg…"):
+            result = render_full_song(project, selected_aspect, progress_callback=on_progress)
+        if result.get("ok"):
+            if commit({**plan, "last_render": {"render_id": result["data"]["render_id"],
+                                                  "path": result["data"]["outputs"][selected_aspect],
+                                                  "final_qc": result["final_qc"]}}):
+                st.success("Full-song MP4 passed FFprobe QC.")
+                st.video(result["data"]["outputs"][selected_aspect])
+        else:
+            st.error(result.get("error") or "Render failed. Review the scene list and render log.")
+    last_render = plan.get("last_render") or {}
+    if last_render.get("path") and Path(last_render["path"]).is_file():
+        st.caption(f"Last verified render: {last_render['path']}")
