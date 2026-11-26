@@ -104,6 +104,26 @@ def _reflow(scenes: list[dict[str, Any]], duration: float) -> None:
         cursor = end
 
 
+def _record_timeline_changes(
+    before: list[dict[str, Any]], after: list[dict[str, Any]], *, already_revised: set[str] | None = None,
+    explicitly_approved: set[str] | None = None,
+) -> None:
+    previous = {scene["scene_id"]: scene for scene in before}
+    already_revised = already_revised or set()
+    explicitly_approved = explicitly_approved or set()
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    timing_fields = ("scene_order", "start_seconds", "end_seconds", "duration_seconds")
+    for scene in after:
+        old = previous[scene["scene_id"]]
+        if not any(scene[field] != old[field] for field in timing_fields):
+            continue
+        if scene["scene_id"] not in already_revised:
+            scene["revision"] = int(scene.get("revision") or 0) + 1
+            scene["updated_at"] = now
+        if scene.get("approval_status") == "Approved" and scene["scene_id"] not in explicitly_approved:
+            scene["approval_status"] = "Needs Revision"
+
+
 def create_full_song_storyboard(song: dict[str, Any], project: dict[str, Any], duration: float, scene_count: int) -> dict[str, Any]:
     if not math.isfinite(duration) or duration <= 0 or not 2 <= scene_count <= 120 or duration / scene_count < 1:
         return {"ok": False, "error": "Choose 2–120 scenes with at least one second per scene."}
@@ -141,8 +161,13 @@ def edit_scene(scenes: list[dict[str, Any]], scene_id: str, changes: dict[str, A
     allowed = {"song_section", "scene_description", "visual_prompt", "character", "costume", "location", "visual_style", "reference_asset", "shot_strategy", "approval_status"}
     if "approval_status" in changes and changes["approval_status"] not in APPROVAL_STATES:
         return {"ok": False, "error": "Invalid approval status."}
-    new_duration = float(changes.get("duration_seconds", updated[index]["duration_seconds"]))
+    try:
+        new_duration = float(changes.get("duration_seconds", updated[index]["duration_seconds"]))
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "Duration must be a finite number of seconds."}
     old_duration = float(updated[index]["duration_seconds"])
+    if not math.isfinite(new_duration):
+        return {"ok": False, "error": "Duration must be a finite number of seconds."}
     delta = round(new_duration - old_duration, 3)
     neighbor = index + 1 if index + 1 < len(updated) else index - 1
     if new_duration < 1 or (delta and (neighbor < 0 or float(updated[neighbor]["duration_seconds"]) - delta < 1)):
@@ -159,6 +184,10 @@ def edit_scene(scenes: list[dict[str, Any]], scene_id: str, changes: dict[str, A
     updated[index]["revision"] = int(updated[index].get("revision") or 0) + 1
     updated[index]["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     _reflow(updated, duration)
+    _record_timeline_changes(
+        scenes, updated, already_revised={scene_id},
+        explicitly_approved={scene_id} if changes.get("approval_status") == "Approved" else set(),
+    )
     validation = validate_storyboard(updated, duration)
     return {"ok": True, "scenes": updated} if validation["ok"] else validation
 
@@ -171,6 +200,7 @@ def move_scene(scenes: list[dict[str, Any]], scene_id: str, direction: int, dura
         return {"ok": False, "error": "Scene cannot move further in that direction."}
     updated[index], updated[target] = updated[target], updated[index]
     _reflow(updated, duration)
+    _record_timeline_changes(scenes, updated)
     return {"ok": True, "scenes": updated} if validate_storyboard(updated, duration)["ok"] else {"ok": False, "error": "Scene order could not be validated."}
 
 

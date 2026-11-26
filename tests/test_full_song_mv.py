@@ -63,7 +63,7 @@ class FullSongMVTest(unittest.TestCase):
             self.assertEqual(final[1]["scene_id"], first_id)
             self.assertEqual(final[0]["scene_id"], second_id)
             self.assertEqual(final[1]["asset_path"], str(asset))
-            self.assertEqual(final[1]["approval_status"], "Approved")
+            self.assertEqual(final[1]["approval_status"], "Needs Revision")
             self.assertEqual(final[0]["approval_status"], "Planned")
             self.assertTrue(validate_storyboard(final, 180)["ok"])
             revised = edit_scene(final, first_id, {"visual_prompt": "Different visual"}, 180)
@@ -79,6 +79,80 @@ class FullSongMVTest(unittest.TestCase):
             self.assertEqual(restored_scenes[1]["visual_prompt"], "Revised visual")
             self.assertEqual(restored_scenes[1]["duration_seconds"], 7.5)
             self.assertEqual(json.loads((folder / "full_song_scene_manifest.json").read_text(encoding="utf-8"))["scenes"], restored_scenes)
+
+    def test_duration_change_revises_only_affected_approval_and_preserves_qc_asset(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            asset = root / "passed-qc.png"
+            asset.write_bytes(b"qc-passed original")
+            scenes = create_full_song_storyboard({}, {"title": "Test"}, 180, 30)["scenes"]
+            for scene in scenes[:3]:
+                scene["approval_status"] = "Approved"
+            scenes[1].update(reference_asset=str(asset), asset_path=str(asset), asset_status="Asset Ready", qc_status="QC Passed")
+            original = [dict(scene) for scene in scenes]
+            result = edit_scene(scenes, scenes[0]["scene_id"], {"duration_seconds": 7.5}, 180)
+            self.assertTrue(result["ok"], result)
+            changed = result["scenes"]
+            self.assertEqual([scene["approval_status"] for scene in changed[:3]], ["Needs Revision", "Needs Revision", "Approved"])
+            self.assertEqual((changed[0]["start_seconds"], changed[0]["end_seconds"]), (0, 7.5))
+            self.assertEqual((changed[1]["start_seconds"], changed[1]["end_seconds"]), (7.5, 12))
+            self.assertEqual(changed[2], original[2])
+            self.assertEqual(changed[1]["revision"], original[1]["revision"] + 1)
+            self.assertEqual((changed[1]["scene_id"], changed[1]["reference_asset"], changed[1]["asset_path"], changed[1]["qc_status"]),
+                             (original[1]["scene_id"], str(asset), str(asset), "QC Passed"))
+            self.assertEqual(asset.read_bytes(), b"qc-passed original")
+            self.assertTrue(validate_storyboard(changed, 180)["ok"])
+            invalid = edit_scene(changed, changed[0]["scene_id"], {"duration_seconds": 12}, 180)
+            self.assertFalse(invalid["ok"])
+            self.assertFalse(edit_scene(changed, changed[0]["scene_id"], {"duration_seconds": float("nan")}, 180)["ok"])
+            explicitly_approved = edit_scene(scenes, scenes[0]["scene_id"],
+                                             {"duration_seconds": 7.5, "approval_status": "Approved"}, 180)
+            self.assertTrue(explicitly_approved["ok"])
+            self.assertEqual([scene["approval_status"] for scene in explicitly_approved["scenes"][:3]],
+                             ["Approved", "Needs Revision", "Approved"])
+
+    def test_last_scene_duration_revises_previous_approved_scene(self) -> None:
+        scenes = create_full_song_storyboard({}, {"title": "Test"}, 180, 30)["scenes"]
+        scenes[-2]["approval_status"] = "Approved"
+        scenes[-1]["approval_status"] = "Approved"
+        unchanged = [dict(scene) for scene in scenes[:-2]]
+        result = edit_scene(scenes, scenes[-1]["scene_id"], {"duration_seconds": 5}, 180)
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["scenes"][:-2], unchanged)
+        self.assertEqual([scene["approval_status"] for scene in result["scenes"][-2:]],
+                         ["Needs Revision", "Needs Revision"])
+        self.assertTrue(validate_storyboard(result["scenes"], 180)["ok"])
+
+    def test_reorder_revises_only_swapped_scenes_and_restores_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            asset = root / "approved.png"
+            asset.write_bytes(b"approved original")
+            project = {"title": "Reorder Test", "workflow_type": "song", "mv": {}}
+            scenes = create_full_song_storyboard({}, project, 180, 30)["scenes"]
+            scenes = edit_scene(scenes, scenes[0]["scene_id"], {"duration_seconds": 7.5}, 180)["scenes"]
+            for scene in scenes[:3]:
+                scene["approval_status"] = "Approved"
+            scenes[0].update(reference_asset=str(asset), asset_path=str(asset), asset_status="Asset Ready", qc_status="QC Passed")
+            original = {scene["scene_id"]: dict(scene) for scene in scenes}
+            moved = move_scene(scenes, scenes[0]["scene_id"], 1, 180)
+            self.assertTrue(moved["ok"], moved)
+            final = moved["scenes"]
+            self.assertEqual([scene["approval_status"] for scene in final[:3]], ["Needs Revision", "Needs Revision", "Approved"])
+            self.assertEqual(final[2], original[final[2]["scene_id"]])
+            for scene in final[:2]:
+                self.assertEqual(scene["revision"], original[scene["scene_id"]]["revision"] + 1)
+            self.assertEqual((final[1]["scene_id"], final[1]["reference_asset"], final[1]["asset_path"], final[1]["qc_status"]),
+                             (scenes[0]["scene_id"], str(asset), str(asset), "QC Passed"))
+            self.assertEqual(asset.read_bytes(), b"approved original")
+            self.assertTrue(validate_storyboard(final, 180)["ok"])
+            project["mv"]["full_song"] = {"audio": {"duration_seconds": 180}, "scenes": final}
+            folder = save_project_folder(project, root / "projects")
+            manifest = json.loads((folder / "full_song_scene_manifest.json").read_text(encoding="utf-8"))
+            restored = read_project_json(folder / "project.json")
+            self.assertTrue(restored["ok"])
+            self.assertEqual(restored["project"]["mv"]["full_song"], manifest)
+            self.assertTrue(validate_storyboard(manifest["scenes"], 180)["ok"])
 
     def test_invalid_audio_and_missing_asset_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
