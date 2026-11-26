@@ -74,6 +74,7 @@ Tagline: Music. Software. Stories.
 - Affiliate Trend Finder.
 - Project workspace and asset pipeline.
 - Advanced legacy production/render sections visible only in advanced/developer contexts.
+- Full-song MV planning in Visual Studio: local audio import, continuous scene timeline, per-scene review/approval, and an atomic project manifest. Image/video generation and full-song rendering remain separate future work.
 
 ## Future Roadmap
 - Better quality scoring for commercial Thai lyrics and hooks.

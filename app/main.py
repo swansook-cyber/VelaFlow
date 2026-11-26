@@ -114,6 +114,7 @@ from core.beta_testing import (
 from core.branding import APP_TITLE, BRAND_NAME, DEFAULT_ARTIST, PRODUCT_TAGLINE, WINDOW_TITLE
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.character_consistency import apply_character_to_storyboard, build_character_prompt, normalize_character
+from app.full_song_mv_ui import render_full_song_planner
 from core.character_studio import (
     CHARACTER_STYLES,
     DEFAULT_CHARACTER_INPUTS,
@@ -4709,6 +4710,8 @@ def _thai_option_label(labels: dict[str, str]):
 
 
 def _render_visual_studio_workspace(project: dict[str, Any]) -> None:
+    render_full_song_planner(project, _save_project, _save_uploaded_audio)
+    st.divider()
     state = project.get("creative_pack_v1", {}) or {}
     result = state.get("release_pack") or {}
     pack = result.get("pack") or {}
@@ -10092,6 +10095,10 @@ elif page == "Song Library":
 
 elif page == "MV Director":
     _page_header("MV Director", "Turn lyrics into a storyboard and scene plan.", project)
+    render_full_song_planner(project, _save_project, _save_uploaded_audio)
+    st.divider()
+    with st.expander("Short-form MV planning", expanded=False):
+        st.caption("The existing short-form storyboard and render controls remain available below.")
     mv_existing = project.get("mv", {}) or {}
     _, mv_bundle_visual, mv_bundle_render = _bundle_controls("mv_director", mv_existing.get("render_settings") or {"bundle_name": "Cinematic Sad"})
     if mv_bundle_render and not mv_existing.get("render_settings"):

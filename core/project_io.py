@@ -542,6 +542,8 @@ def save_project_folder(project: Dict[str, Any], base_dir: str = "project_data/m
         _backup_if_exists(folder / "project.json")
         atomic_write_json(folder / "song.json", normalized_song)
         atomic_write_json(folder / "storyboard.json", storyboard)
+        if isinstance(mv.get("full_song"), dict) and mv["full_song"]:
+            atomic_write_json(folder / "full_song_scene_manifest.json", mv["full_song"])
         atomic_write_json(folder / "prompts.json", prompts)
         atomic_write_json(folder / "settings.json", settings)
         atomic_write_json(folder / "character.json", character)
