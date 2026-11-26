@@ -8,19 +8,21 @@ from typing import Any, Callable
 
 import streamlit as st
 
-from core.full_song_mv import attach_approved_asset, create_full_song_storyboard, edit_scene, move_scene, probe_song_audio, validate_storyboard
+from app.full_song_mv_production_ui import render_scene_production
+from core.full_song_mv import create_full_song_storyboard, edit_scene, move_scene, probe_song_audio, validate_storyboard
 
 
 def render_full_song_planner(
     project: dict[str, Any],
     save_project: Callable[[], dict[str, Any]],
     save_audio: Callable[..., dict[str, Any]],
+    provider_key: Callable[[str], str] | None = None,
 ) -> None:
     mv = project.setdefault("mv", {})
     plan = mv.get("full_song") or {}
     scenes = plan.get("scenes") or []
     st.subheader("Full-Song MV Plan")
-    st.caption("Import the finished song, review each scene, then approve it. Planning does not generate images or video.")
+    st.caption("Import the finished song, approve each scene, then produce and review one shot at a time.")
 
     def commit(new_plan: dict[str, Any]) -> bool:
         previous = deepcopy(mv.get("full_song"))
@@ -79,6 +81,8 @@ def render_full_song_planner(
     if not validation.get("ok"):
         st.error(validation["error"])
         return
+    if validation.get("missing_assets"):
+        st.warning(f"{len(validation['missing_assets'])} previous asset file(s) are missing. The timeline remains editable; review or replace these files per scene.")
     approved_count = sum(scene.get("approval_status") == "Approved" for scene in scenes)
     st.caption(f"{len(scenes)} scenes · {approved_count} approved · timeline covers {duration:.1f}s")
     st.dataframe(
@@ -158,10 +162,4 @@ def render_full_song_planner(
     if order_actions[1].button("Move down", disabled=scene["scene_order"] == len(scenes), key=f"{prefix}_down"):
         save_scene(direction=1)
     st.caption(f"Asset: {scene.get('asset_status', 'Planned')} · QC: {scene.get('qc_status', 'Pending')} · retries: {scene.get('retry_count', 0)}")
-    if reference and reference in references and not scene.get("asset_path"):
-        if st.button("Use this approved asset for scene", key=f"{prefix}_asset"):
-            attached = attach_approved_asset(scenes, selected, reference, duration)
-            if not attached.get("ok"):
-                st.error(attached["error"])
-            elif commit({**plan, "scenes": attached["scenes"]}):
-                st.rerun()
+    render_scene_production(project, plan, scenes, scene, commit, provider_key)

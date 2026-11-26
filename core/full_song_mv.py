@@ -78,6 +78,7 @@ def validate_storyboard(scenes: list[dict[str, Any]], duration: float) -> dict[s
     if not scenes or not math.isfinite(duration) or duration <= 0:
         return {"ok": False, "error": "Storyboard or audio duration is missing."}
     ids: set[str] = set()
+    missing_assets: list[str] = []
     cursor = 0.0
     for order, scene in enumerate(scenes, start=1):
         scene_id = str(scene.get("scene_id") or "")
@@ -88,12 +89,13 @@ def validate_storyboard(scenes: list[dict[str, Any]], duration: float) -> dict[s
         if abs(start - cursor) > 0.002 or end <= start or abs((end - start) - float(scene.get("duration_seconds", 0))) > 0.002:
             return {"ok": False, "error": f"Scene {order} has a gap, overlap, or invalid duration."}
         if scene.get("asset_path") and not Path(str(scene["asset_path"])).is_file():
-            return {"ok": False, "error": f"Scene {order} refers to a missing asset."}
+            missing_assets.append(scene_id)
         ids.add(scene_id)
         cursor = end
     if abs(cursor - duration) > 0.002:
         return {"ok": False, "error": "Storyboard does not cover the full audio duration."}
-    return {"ok": True, "scene_count": len(scenes), "duration_seconds": duration}
+    return {"ok": True, "scene_count": len(scenes), "duration_seconds": duration,
+            "missing_assets": missing_assets}
 
 
 def _reflow(scenes: list[dict[str, Any]], duration: float) -> None:
@@ -122,6 +124,9 @@ def _record_timeline_changes(
             scene["updated_at"] = now
         if scene.get("approval_status") == "Approved" and scene["scene_id"] not in explicitly_approved:
             scene["approval_status"] = "Needs Revision"
+        if scene.get("asset_path"):
+            scene["qc_status"] = "Needs Revision"
+            scene["asset_status"] = "Needs Review"
 
 
 def create_full_song_storyboard(song: dict[str, Any], project: dict[str, Any], duration: float, scene_count: int) -> dict[str, Any]:
@@ -172,20 +177,25 @@ def edit_scene(scenes: list[dict[str, Any]], scene_id: str, changes: dict[str, A
     neighbor = index + 1 if index + 1 < len(updated) else index - 1
     if new_duration < 1 or (delta and (neighbor < 0 or float(updated[neighbor]["duration_seconds"]) - delta < 1)):
         return {"ok": False, "error": "Duration needs at least one second in this scene and its neighbor."}
+    changed_content = any(str(changes[field]) != str(scenes[index].get(field, "")) for field in (allowed - {"approval_status"}) & changes.keys())
     for field in allowed & changes.keys():
         updated[index][field] = str(changes[field])
     if updated[index].get("approval_status") == "Approved" and "approval_status" not in changes:
-        changed_content = any(str(changes[field]) != str(scenes[index].get(field, "")) for field in allowed & changes.keys()) or bool(delta)
-        if changed_content:
+        if changed_content or delta:
             updated[index]["approval_status"] = "Needs Revision"
     if delta:
         updated[index]["duration_seconds"] = new_duration
         updated[neighbor]["duration_seconds"] = round(float(updated[neighbor]["duration_seconds"]) - delta, 3)
-    updated[index]["revision"] = int(updated[index].get("revision") or 0) + 1
-    updated[index]["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if changed_content or delta:
+        updated[index]["revision"] = int(updated[index].get("revision") or 0) + 1
+        if updated[index].get("asset_path"):
+            updated[index]["qc_status"] = "Needs Revision"
+            updated[index]["asset_status"] = "Needs Review"
+    if changed_content or delta or updated[index].get("approval_status") != scenes[index].get("approval_status"):
+        updated[index]["updated_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     _reflow(updated, duration)
     _record_timeline_changes(
-        scenes, updated, already_revised={scene_id},
+        scenes, updated, already_revised={scene_id} if changed_content or delta else set(),
         explicitly_approved={scene_id} if changes.get("approval_status") == "Approved" else set(),
     )
     validation = validate_storyboard(updated, duration)
@@ -214,6 +224,6 @@ def attach_approved_asset(scenes: list[dict[str, Any]], scene_id: str, asset_pat
         return {"ok": False, "error": "Scene was not found."}
     if scene.get("asset_path") and scene["asset_path"] != str(source):
         return {"ok": False, "error": "This scene already has an asset. Its approved file was preserved."}
-    scene.update(asset_path=str(source), asset_status="Asset Ready", qc_status="Pending", revision=int(scene.get("revision") or 0) + 1,
+    scene.update(asset_path=str(source), asset_status="Asset Ready", qc_status="Pending",
                  updated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
     return {"ok": True, "scenes": updated} if validate_storyboard(updated, duration)["ok"] else {"ok": False, "error": "Asset could not be attached."}

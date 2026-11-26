@@ -99,7 +99,7 @@ class FullSongMVTest(unittest.TestCase):
             self.assertEqual(changed[2], original[2])
             self.assertEqual(changed[1]["revision"], original[1]["revision"] + 1)
             self.assertEqual((changed[1]["scene_id"], changed[1]["reference_asset"], changed[1]["asset_path"], changed[1]["qc_status"]),
-                             (original[1]["scene_id"], str(asset), str(asset), "QC Passed"))
+                             (original[1]["scene_id"], str(asset), str(asset), "Needs Revision"))
             self.assertEqual(asset.read_bytes(), b"qc-passed original")
             self.assertTrue(validate_storyboard(changed, 180)["ok"])
             invalid = edit_scene(changed, changed[0]["scene_id"], {"duration_seconds": 12}, 180)
@@ -143,7 +143,7 @@ class FullSongMVTest(unittest.TestCase):
             for scene in final[:2]:
                 self.assertEqual(scene["revision"], original[scene["scene_id"]]["revision"] + 1)
             self.assertEqual((final[1]["scene_id"], final[1]["reference_asset"], final[1]["asset_path"], final[1]["qc_status"]),
-                             (scenes[0]["scene_id"], str(asset), str(asset), "QC Passed"))
+                             (scenes[0]["scene_id"], str(asset), str(asset), "Needs Revision"))
             self.assertEqual(asset.read_bytes(), b"approved original")
             self.assertTrue(validate_storyboard(final, 180)["ok"])
             project["mv"]["full_song"] = {"audio": {"duration_seconds": 180}, "scenes": final}

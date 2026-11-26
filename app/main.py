@@ -4710,11 +4710,13 @@ def _thai_option_label(labels: dict[str, str]):
 
 
 def _render_visual_studio_workspace(project: dict[str, Any]) -> None:
-    render_full_song_planner(project, _save_project, _save_uploaded_audio)
-    st.divider()
+    render_full_song_planner(project, _save_project, _save_uploaded_audio, _user_api_key)
     state = project.get("creative_pack_v1", {}) or {}
     result = state.get("release_pack") or {}
     pack = result.get("pack") or {}
+    if not pack and (project.get("mv") or {}).get("full_song", {}).get("scenes"):
+        return
+    st.divider()
     if not pack:
         st.info("Create a song package first, then return here for visual prompts.")
         if st.button("Open Song Studio", use_container_width=True, key="visual_open_song_studio"):
@@ -10095,7 +10097,7 @@ elif page == "Song Library":
 
 elif page == "MV Director":
     _page_header("MV Director", "Turn lyrics into a storyboard and scene plan.", project)
-    render_full_song_planner(project, _save_project, _save_uploaded_audio)
+    render_full_song_planner(project, _save_project, _save_uploaded_audio, _user_api_key)
     st.divider()
     with st.expander("Short-form MV planning", expanded=False):
         st.caption("The existing short-form storyboard and render controls remain available below.")
