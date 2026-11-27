@@ -200,6 +200,49 @@ class CharacterReferenceTests(unittest.TestCase):
             self.assertNotIn("mock-only", sidecar)
             self.assertNotIn("reference_images", sidecar)
 
+    def test_sunburst_keeps_four_views_and_direct_16_by_9(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            refs = load_character_references(self._reference(root), root)["images"]
+            image = io.BytesIO()
+            Image.new("RGB", (1536, 864), "#334455").save(image, format="PNG")
+            response_data = {"data": [{"b64_json": base64.b64encode(image.getvalue()).decode("ascii")}]}
+            class FakeResponse:
+                def raise_for_status(self): pass
+                def json(self): return response_data
+            with patch("providers.image_ai.requests.post", return_value=FakeResponse()) as post:
+                result = generate_image_with_diagnostics("openai_images", "band performance",
+                    str(root / "scene.jpg"), {"openai_api_key": "mock-only",
+                    "openai_image_model": "gpt-image-2.6-sunburst", "strict_image_model": True,
+                    "reference_images": refs, "size": "1536x864", "target_aspect_ratio": "16:9"})
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(post.call_count, 1)
+            self.assertEqual(len(post.call_args.kwargs["files"]), 4)
+            self.assertEqual(post.call_args.kwargs["data"]["size"], "1536x864")
+            self.assertNotIn("input_fidelity", post.call_args.kwargs["data"])
+            self.assertEqual(result["data"]["reference_sha256s"], [item["sha256"] for item in refs])
+            with Image.open(result["data"]["path"]) as output:
+                self.assertEqual(output.size, (1536, 864))
+
+    def test_sunburst_rejects_unexpected_size_without_cropping(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            refs = load_character_references(self._reference(root), root)["images"]
+            image = io.BytesIO()
+            Image.new("RGB", (1536, 1024), "#334455").save(image, format="PNG")
+            response_data = {"data": [{"b64_json": base64.b64encode(image.getvalue()).decode("ascii")}]}
+            class FakeResponse:
+                def raise_for_status(self): pass
+                def json(self): return response_data
+            with patch("providers.image_ai.requests.post", return_value=FakeResponse()):
+                result = generate_image_with_diagnostics("openai_images", "band performance",
+                    str(root / "scene.jpg"), {"openai_api_key": "mock-only",
+                    "openai_image_model": "gpt-image-2.6-sunburst", "strict_image_model": True,
+                    "reference_images": refs, "size": "1536x864", "target_aspect_ratio": "16:9"})
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["error"], "unexpected_image_dimensions")
+            self.assertFalse((root / "scene.jpg").exists())
+
     def test_reference_provider_error_does_not_retry_models_or_make_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

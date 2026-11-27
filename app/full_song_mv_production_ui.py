@@ -151,7 +151,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
         if target_aspect == "9:16":
             st.caption("The Gemini image and Veo connectors need a verified current model before paid generation is offered here. Import their finished assets for QC instead.")
         else:
-            st.caption("16:9: OpenAI image edits can use the selected character views. The landscape provider output is cropped to 16:9 after generation.")
+            st.caption("16:9: OpenAI image edits can use the selected character views. GPT Image 2.6 requests the final 16:9 frame directly; older models may need a local crop.")
         chosen = st.selectbox("Provider", list(choices), key=f"{prefix}_provider")
         kind, provider, key_name = choices[chosen]
         references = (project.get("assets") or {}).get("character_references") or {}
@@ -189,18 +189,26 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
         st.write(f"Model: {model}")
         if model == "gpt-image-1.5":
             st.caption("GPT Image 1.5 is deprecated and scheduled to shut down on 1 December 2026. Reference edits request high input fidelity.")
-        model_supported = model in {"gpt-image-1.5", "gpt-image-1-mini", "gpt-image-2"}
+        model_supported = model in {"gpt-image-2.6-sunburst", "gpt-image-1.5", "gpt-image-1-mini", "gpt-image-2"}
         if not model_supported:
             st.info("This image model has not been verified for the selected output format. Choose a supported model in Settings or import an existing asset.")
         if not configured:
             st.info("OpenAI API key missing. Check Settings / API Key before generating.")
         else:
             st.caption("Provider is locally configured; live access is checked when you request generation.")
-        st.caption("Output: 1536×1024 from OpenAI, then cropped locally to 1536×864 (16:9). One image per request.")
+        direct_landscape = target_aspect == "16:9" and model == "gpt-image-2.6-sunburst"
+        if direct_landscape:
+            st.caption("Output: 1536×864 directly from OpenAI; no crop. One image per request.")
+        elif target_aspect == "16:9":
+            st.caption("Output: 1536×1024 from OpenAI, then cropped locally to 1536×864 (16:9). One image per request; inspect framing before acceptance.")
+        else:
+            st.caption("Output: portrait frame, then normalized locally for QC. One image per request.")
         quality = os.getenv("OPENAI_IMAGE_QUALITY", "medium")
         output_price = {"low": 0.013, "medium": 0.05, "high": 0.20}.get(quality.lower()) if model == "gpt-image-1.5" else None
         if output_price is not None:
             st.warning(f"Published output-image price at {quality} quality: about ${output_price:.3f} USD. Four reference images and prompt add variable input-token charges; total cost cannot be known before the request. Check current provider pricing before confirming.")
+        elif model == "gpt-image-2.6-sunburst":
+            st.warning(f"Quality: {quality}. Published standard rates (USD): 8 per million image input tokens, 5 per million text input tokens, and 30 per million image output tokens. Total for one image depends on actual token use; check current provider pricing before confirming.")
         else:
             st.warning("Estimated cost is unavailable for this model/quality. Your provider may charge your account for each request; actual cost is not tracked here.")
         if kind == "video":
@@ -239,7 +247,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                             "openai_api_key": key if key_name == "openai" else "",
                             "openai_image_model": model if provider == "openai_images" else "",
                             "model": model if kind == "video" else "",
-                            "size": "1536x1024" if target_aspect == "16:9" else "1024x1536",
+                            "size": ("1536x864" if model == "gpt-image-2.6-sunburst" else "1536x1024") if target_aspect == "16:9" else "1024x1536",
                             "target_aspect_ratio": target_aspect,
                             "strict_image_model": True, "cache_enabled": False}
                 with st.spinner("Generating only this shot…"):

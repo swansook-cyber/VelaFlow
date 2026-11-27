@@ -121,7 +121,7 @@ def _openai_image_model_candidates(settings: Dict[str, Any]) -> list[str]:
         os.getenv("OPENAI_IMAGE_MODEL", ""),
         *os.getenv("OPENAI_IMAGE_MODELS", "").split(","),
     ]
-    return _dedupe([*configured, "gpt-image-1", "gpt-image-1-mini", "gpt-image-1.5", "dall-e-3"])
+    return _dedupe([*configured, "gpt-image-2.6-sunburst", "gpt-image-2", "gpt-image-1.5"])
 
 
 def _model_name(value: Any) -> str:
@@ -658,6 +658,10 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             raise ImageProviderError("unsupported_provider", f"{provider} is not supported for image generation.", provider)
         generated_path = Path(generated)
         if not fallback_used:
+            if references and actual_model == "gpt-image-2.6-sunburst" and target_aspect == "16:9":
+                with Image.open(generated_path) as image:
+                    if image.size != (1536, 864):
+                        raise ImageProviderError("unexpected_image_dimensions", "OpenAI returned a different size; no automatic crop was applied to this reference-aware image.", provider)
             generated = _normalize_to_jpg(generated_path, output, target_aspect)
             if generated_path != output and generated_path.exists():
                 try:

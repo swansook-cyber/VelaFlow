@@ -29,7 +29,7 @@ class AppSettings:
     xai_api_key: str = os.getenv("XAI_API_KEY", "")
     xai_text_model: str = os.getenv("XAI_TEXT_MODEL", "grok-4.3")
     xai_fallback_text_model: str = os.getenv("XAI_FALLBACK_TEXT_MODEL", "")
-    openai_image_model: str = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-1.5")
+    openai_image_model: str = os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2.6-sunburst")
     openai_image_size: str = os.getenv("OPENAI_IMAGE_SIZE", "1024x1024")
     openai_image_quality: str = os.getenv("OPENAI_IMAGE_QUALITY", "medium")
     flux_api_url: str = os.getenv("FLUX_API_URL", "")

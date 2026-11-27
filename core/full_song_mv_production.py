@@ -236,7 +236,7 @@ def begin_generation(scenes: list[dict[str, Any]], scene_id: str, kind: str, pro
             return {"ok": False, "error": checked["error"]}
         prompt += " Use the supplied character reference images to keep the same face, hairstyle, and recognizable identity. Do not invent a different person."
         if scene_id == "scene_010":
-            prompt += " Wardrobe Look B: charcoal T-shirt, dark denim jacket, black jeans; intimate band rehearsal. Compose as a 16:9 cinematic frame."
+            prompt += " Wardrobe Look B: charcoal T-shirt, dark denim jacket, black jeans; intimate band rehearsal. Compose as a medium-wide 16:9 cinematic frame with warm amber lighting. Keep the full head, face, hands, and guitar inside the frame with safe margins."
     attempt_id = uuid4().hex
     attempt = {"attempt_id": attempt_id, "scene_id": scene_id, "scene_revision": int(scene["revision"]),
                "kind": kind, "provider": provider, "prompt_used": prompt,

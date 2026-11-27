@@ -38,6 +38,7 @@ Tagline: Music. Software. Stories.
 - **Affiliate Studio:** Lightweight product analysis, hook/script generation, trend ideas, and affiliate creator package export.
 - **Agent Studio:** Assistant-style creative package generation with optional memory, tools, provider fallback, and multi-agent orchestration.
 - **Optional Creator Mastering:** Local ffmpeg-based audio polish for AI-generated songs, kept out of the simple normal flow unless needed.
+- **Full-song first-image path:** Scene production uses OpenAI image edits with the approved Vela Moon Master Character views. GPT-Image-2.6 Sunburst is the default and requests 1536×864 directly for 16:9; reference bytes and hashes are validated and pinned for retries. The generation and asset acceptance gates remain separate from storyboard approval.
 
 ## UX Principles
 - Default experience should be understandable in one screen.

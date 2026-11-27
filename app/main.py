@@ -1359,7 +1359,7 @@ def _creator_image_settings() -> tuple[str, dict[str, Any]]:
         "cache_enabled": False,
         "openai_api_key": _user_api_key("openai"),
         "gemini_api_key": _user_api_key("gemini"),
-        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-2.6-sunburst"),
     }
     if image_settings["gemini_api_key"]:
         return "gemini_image", image_settings
@@ -5376,7 +5376,7 @@ def _image_provider_controls(key_prefix: str) -> tuple[str, dict[str, Any]]:
         "cache_enabled": False,
         "openai_api_key": _user_api_key("openai"),
         "gemini_api_key": _user_api_key("gemini"),
-        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-2.6-sunburst"),
     }
     if provider == "openai_images" and not settings_payload["openai_api_key"]:
         st.info("OpenAI key missing. Placeholder images will be used.")
