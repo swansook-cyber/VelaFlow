@@ -70,7 +70,7 @@ render_full_song_planner(st.session_state.project, save, lambda *a, **k: {'ok': 
             self.assertNotIn("save_count", app.session_state)
             next(box for box in app.selectbox if box.label == "Jump to scene").set_value("scene_003")
             app.run()
-            next(button for button in app.button if button.label == "Go to scene").click()
+            next(button for button in app.button if button.label == "Go").click()
             app.run()
             self.assertFalse(app.exception)
             self.assertEqual(app.session_state["mv_full_active_scene"], "scene_003")

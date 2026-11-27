@@ -94,7 +94,6 @@ def render_full_song_planner(
     if validation.get("missing_assets"):
         st.warning(f"{len(validation['missing_assets'])} previous asset file(s) are missing. The timeline remains editable; review or replace these files per scene.")
     approved_count = sum(item.get("approval_status") == "Approved" for item in scenes)
-    st.caption(f"{len(scenes)} scenes · {approved_count} approved · timeline covers {duration:.1f}s")
     options = [item["scene_id"] for item in scenes]
     identity = (str(audio.get("path")), tuple(options))
     if st.session_state.get("mv_full_plan_identity") != identity:
@@ -185,25 +184,45 @@ def render_full_song_planner(
     .mv-scene-card .mv-timing { font-variant-numeric: tabular-nums; font-weight: 650; }
     @media (max-width: 640px) {
       .mv-scene-card { padding: .9rem; }
-      .st-key-mv_full_review_nav [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
-      .st-key-mv_full_review_nav [data-testid="column"] { min-width: 100%; }
+      .st-key-mv_full_scene_step [data-testid="stHorizontalBlock"],
+      .st-key-mv_full_jump_row [data-testid="stHorizontalBlock"] { flex-wrap: nowrap; gap: .5rem; }
+      .st-key-mv_full_scene_step [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; flex: 1 1 0 !important; }
+      .st-key-mv_full_jump_row [data-testid="stColumn"] { min-width: 0 !important; width: auto !important; flex: 1 1 0 !important; }
+      .st-key-mv_full_jump_row [data-testid="stColumn"]:last-child { flex: 0 0 72px !important; }
+      .st-key-mv_full_jump_row [data-baseweb="select"] { min-height: 44px; }
+      .st-key-mv_full_scene_step [data-testid="stVerticalBlock"],
+      .st-key-mv_full_scene_step [data-testid="stElementContainer"],
+      .st-key-mv_full_scene_step [data-testid="stButton"],
+      .st-key-mv_full_jump_row [data-testid="stVerticalBlock"],
+      .st-key-mv_full_jump_row [data-testid="stElementContainer"],
+      .st-key-mv_full_jump_row [data-testid="stSelectbox"],
+      .st-key-mv_full_jump_row [data-testid="stButton"] { width: 100% !important; }
+    }
+    @media (max-width: 350px) {
+      .st-key-mv_full_jump_row [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+      .st-key-mv_full_jump_row [data-testid="stColumn"],
+      .st-key-mv_full_jump_row [data-testid="stColumn"]:last-child { flex: 1 1 100% !important; }
     }
     </style>""", unsafe_allow_html=True)
     with st.container(key="mv_full_review_nav"):
         position = options.index(selected)
         st.markdown(f"**Scene {position + 1} / {len(scenes)}** · {approved_count} approved")
-        nav = st.columns(2)
-        if nav[0].button("Previous scene", disabled=position == 0, key="mv_full_previous", use_container_width=True):
-            request_scene(options[position - 1])
-        if nav[1].button("Next scene", disabled=position == len(options) - 1, key="mv_full_next", use_container_width=True):
-            request_scene(options[position + 1])
+        with st.container(key="mv_full_scene_step"):
+            nav = st.columns(2, gap="small")
+            if nav[0].button("Previous scene", disabled=position == 0, key="mv_full_previous", use_container_width=True):
+                request_scene(options[position - 1])
+            if nav[1].button("Next scene", type="primary", disabled=position == len(options) - 1,
+                             key="mv_full_next", use_container_width=True):
+                request_scene(options[position + 1])
         if st.session_state.get("mv_full_jump_target") not in options:
             st.session_state["mv_full_jump_target"] = selected
-        jump = st.selectbox("Jump to scene", options, format_func=lambda key: next(
-            (f"{item['scene_order']}. {item.get('song_section', '')} · {item.get('scene_description', '')}" for item in scenes if item["scene_id"] == key), key),
-            key="mv_full_jump_target")
-        if st.button("Go to scene", key="mv_full_jump", use_container_width=True):
-            request_scene(jump)
+        with st.container(key="mv_full_jump_row"):
+            jump_cols = st.columns([5, 1], gap="small", vertical_alignment="bottom")
+            jump = jump_cols[0].selectbox("Jump to scene", options, format_func=lambda key: next(
+                (f"{item['scene_order']}. {item.get('song_section', '')} · {item.get('scene_description', '')}" for item in scenes if item["scene_id"] == key), key),
+                key="mv_full_jump_target")
+            if jump_cols[1].button("Go", help="Go to selected scene", key="mv_full_jump", use_container_width=True):
+                request_scene(jump)
         pending = st.session_state.get("mv_full_pending_scene")
         if pending in options:
             st.warning("This scene has unsaved changes. Save or discard them before switching scenes.")
@@ -222,7 +241,7 @@ def render_full_song_planner(
         unsafe_allow_html=True,
     )
     st.caption(f"ID {selected} · revision {scene.get('revision', 1)} · exact timing {scene['start_seconds']:.2f}–{scene['end_seconds']:.2f}s")
-    with st.expander("Scene details", expanded=True):
+    with st.expander("Scene details"):
         section = st.text_input("Song section", value=scene.get("song_section", ""), key=f"{prefix}_section")
         shot_strategy = st.selectbox("Shot strategy", ["New shot", "Reuse approved asset", "Hold shot"],
                                      index=["New shot", "Reuse approved asset", "Hold shot"].index(scene.get("shot_strategy", "New shot"))
@@ -264,6 +283,7 @@ def render_full_song_planner(
     st.caption(f"Asset: {scene.get('asset_status', 'Planned')} · QC: {scene.get('qc_status', 'Pending')} · retries: {scene.get('retry_count', 0)}")
     render_scene_production(project, plan, scenes, scene, commit, provider_key)
     with st.expander("View all scenes"):
+        st.caption(f"{len(scenes)} scenes · {approved_count} approved · timeline covers {duration:.1f}s")
         st.dataframe(
             [{"Order": item["scene_order"], "Start": item["start_seconds"], "End": item["end_seconds"],
               "Duration": item["duration_seconds"], "Section": item.get("song_section", ""),
