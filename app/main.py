@@ -5467,6 +5467,12 @@ def _user_api_key(provider: str) -> str:
     normalized = normalize_provider(provider)
     if normalized == "gemini":
         return str(resolve_gemini_api_key(settings=settings, session_state=st.session_state).get("api_key", "") or "")
+    if normalized == "openai":
+        return str(resolve_provider_credentials(
+            settings=settings, provider=normalized,
+            api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY),
+            user_api_keys=st.session_state.get("user_api_keys", {}),
+        ).get("api_key", "") or "")
     return str((st.session_state.get("user_api_keys", {}) or {}).get(normalized, "") or "")
 
 

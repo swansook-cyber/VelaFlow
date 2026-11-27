@@ -417,6 +417,8 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> t
         }
         if settings.get("background"):
             body["background"] = settings["background"]
+        if references and model_name == "gpt-image-1.5":
+            body["input_fidelity"] = "high"
         try:
             if references:
                 response = requests.post(

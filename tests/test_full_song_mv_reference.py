@@ -169,6 +169,7 @@ class CharacterReferenceTests(unittest.TestCase):
             self.assertEqual(len(kwargs["files"]), 4)
             self.assertEqual([part[1][1] for part in kwargs["files"]], [item["content"] for item in refs])
             self.assertEqual(kwargs["data"]["size"], "1536x1024")
+            self.assertEqual(kwargs["data"]["input_fidelity"], "high")
             unsupported = generate_image_with_diagnostics("gemini_image", "test", str(root / "unsupported.jpg"),
                                                            {"reference_images": refs})
             self.assertFalse(unsupported["ok"])

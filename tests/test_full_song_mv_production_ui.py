@@ -57,6 +57,7 @@ render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda 
                              "vela_moon_master_v1_0")
             self.assertTrue(next(button for button in app.button if button.label == "Generate this shot").disabled)
             self.assertTrue(any("Wardrobe Look B" in item.value for item in app.info))
+            self.assertTrue(any("$0.050" in item.value for item in app.warning))
             self.assertEqual(project["mv"]["full_song"]["scenes"][9]["approval_status"], "Planned")
 
     def test_landscape_plan_shows_render_readiness_without_incompatible_generate(self) -> None:
