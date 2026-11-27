@@ -86,6 +86,6 @@ render_full_song_planner(st.session_state.project, save, save_audio, lambda prov
             next(box for box in app.checkbox if box.label.startswith("I confirm one provider request")).set_value(True)
             app.run()
             self.assertFalse(next(button for button in app.button if button.label == "Generate this shot").disabled)
-            next(box for box in app.selectbox if box.label == "Review scene").set_value("scene_002")
+            next(button for button in app.button if button.label == "Next scene").click()
             app.run()
             self.assertTrue(next(button for button in app.button if button.label == "Generate this shot").disabled)
