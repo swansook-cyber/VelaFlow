@@ -294,7 +294,7 @@ def _placeholder_image(output_path: Path, prompt: str, provider: str, size: str 
 
 
 def _normalize_to_jpg(input_path: Path, output_path: Path, target_ratio: str = "9:16") -> str:
-    width, height = (1080, 1920) if target_ratio == "9:16" else _parse_size("1024x1536")
+    width, height = (1080, 1920) if target_ratio == "9:16" else (1536, 864)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(input_path) as image:
         image = image.convert("RGB")
@@ -339,7 +339,7 @@ def validate_image_file(path: str | Path, *, expected_aspect_ratio: str = "9:16"
     if result["width"] <= 0 or result["height"] <= 0:
         result["error"] = "invalid_dimensions"
         return result
-    target = 9 / 16 if expected_aspect_ratio == "9:16" else result["aspect_ratio"]
+    target = 9 / 16 if expected_aspect_ratio == "9:16" else 16 / 9 if expected_aspect_ratio == "16:9" else result["aspect_ratio"]
     if abs(float(result["aspect_ratio"]) - target) > 0.09:
         result["error"] = "aspect_ratio_needs_normalization"
     result["ok"] = result["error"] in {"", "aspect_ratio_needs_normalization"}
@@ -403,6 +403,9 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> t
     if not api_key:
         raise ImageProviderError("missing_api_key", "OpenAI API key is missing.", "openai_images")
     models = _openai_image_model_candidates(settings)
+    references = settings.get("reference_images") or []
+    if references:
+        models = models[:1]  # One confirmed reference-aware request; never try another billable model.
     last_error: Exception | None = None
     for model_name in models:
         body = {
@@ -415,12 +418,21 @@ def _openai_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> t
         if settings.get("background"):
             body["background"] = settings["background"]
         try:
-            response = requests.post(
-                "https://api.openai.com/v1/images/generations",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json=body,
-                timeout=int(settings.get("timeout") or os.getenv("IMAGE_REQUEST_TIMEOUT", "180")),
-            )
+            if references:
+                response = requests.post(
+                    "https://api.openai.com/v1/images/edits",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    data=body,
+                    files=[("image[]", (item["filename"], item["content"], item["mime_type"])) for item in references],
+                    timeout=int(settings.get("timeout") or os.getenv("IMAGE_REQUEST_TIMEOUT", "180")),
+                )
+            else:
+                response = requests.post(
+                    "https://api.openai.com/v1/images/generations",
+                    headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                    json=body,
+                    timeout=int(settings.get("timeout") or os.getenv("IMAGE_REQUEST_TIMEOUT", "180")),
+                )
             response.raise_for_status()
             decoded = _decode_image_payload(response.json(), output_path)
             if not decoded:
@@ -578,6 +590,8 @@ def generate_image(provider: str, prompt: str, output_path: str, settings: Dict[
 
 def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str, settings: Dict[str, Any] | None = None) -> Dict[str, Any]:
     settings = settings or {}
+    references = settings.get("reference_images") or []
+    target_aspect = settings.get("target_aspect_ratio", "9:16")
     provider = (provider or "offline").lower()
     output = Path(output_path).with_suffix(".jpg")
     raw_output = output.with_suffix(".raw")
@@ -586,7 +600,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
     character_note = settings.get("character_note", "")
     if character_note and character_note not in prompt:
         prompt = f"{prompt}, character consistency: {character_note}"
-    _write_prompt_sidecar(output, prompt, negative_prompt, {"provider": provider, **{k: v for k, v in settings.items() if "key" not in k.lower()}})
+    _write_prompt_sidecar(output, prompt, negative_prompt, {"provider": provider, **{k: v for k, v in settings.items() if "key" not in k.lower() and k != "reference_images"}})
     provider_used = provider
     fallback_used = False
     fallback_reason = ""
@@ -600,6 +614,8 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
     sdk_version = ""
     primary_diagnostics: Dict[str, Any] = {}
     try:
+        if references and provider != "openai_images":
+            raise ImageProviderError("reference_unsupported", "Selected provider cannot send reference images.", provider)
         if provider in {"manual", "offline"}:
             fallback_used = True
             fallback_reason = "offline_placeholder_selected"
@@ -640,7 +656,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             raise ImageProviderError("unsupported_provider", f"{provider} is not supported for image generation.", provider)
         generated_path = Path(generated)
         if not fallback_used:
-            generated = _normalize_to_jpg(generated_path, output, "9:16")
+            generated = _normalize_to_jpg(generated_path, output, target_aspect)
             if generated_path != output and generated_path.exists():
                 try:
                     generated_path.unlink()
@@ -654,22 +670,34 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             safe_error_message = error.safe_message
         exception_type = getattr(error, "exception_type", "") or type(error).__name__
         fallback_reason = error_type
+        if references:
+            return {"ok": False, "error": error_type, "data": {
+                "path": "", "provider_requested": provider, "provider_used": provider,
+                "fallback_used": False, "reference_sent_to_provider": False,
+                "reference_sha256s": [], "error_type": error_type,
+                "safe_error_message": safe_error_message}}
         provider_used = "offline"
         actual_model = "offline_placeholder"
         generated = _placeholder_image(output, prompt, f"{provider}_{error_type}", settings.get("size", "1024x1536"))
-    validation = validate_image_file(generated, expected_aspect_ratio="9:16")
+    validation = validate_image_file(generated, expected_aspect_ratio=target_aspect)
     if validation.get("error") == "aspect_ratio_needs_normalization":
-        generated = _normalize_to_jpg(Path(generated), output, "9:16")
-        validation = validate_image_file(generated, expected_aspect_ratio="9:16")
+        generated = _normalize_to_jpg(Path(generated), output, target_aspect)
+        validation = validate_image_file(generated, expected_aspect_ratio=target_aspect)
     ok = bool(validation.get("ok"))
     if not ok and not fallback_used:
+        if references:
+            return {"ok": False, "error": validation.get("error", "validation_failed"), "data": {
+                "path": str(generated), "provider_requested": provider, "provider_used": provider,
+                "fallback_used": False, "reference_sent_to_provider": True,
+                "reference_sha256s": [item["sha256"] for item in references],
+                "validation": validation}}
         fallback_used = True
         fallback_reason = validation.get("error", "validation_failed")
         error_type = fallback_reason
         safe_error_message = "Generated image failed validation; placeholder was used for this scene."
         provider_used = "offline"
         generated = _placeholder_image(output, prompt, f"{provider}_{fallback_reason}", settings.get("size", "1024x1536"))
-        validation = validate_image_file(generated, expected_aspect_ratio="9:16")
+        validation = validate_image_file(generated, expected_aspect_ratio=target_aspect)
         ok = bool(validation.get("ok"))
     return {
         "ok": ok,
@@ -694,6 +722,8 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             "provider_diagnostics": primary_diagnostics,
             "validation": validation,
             "prompt": prompt,
+            "reference_sent_to_provider": bool(references and provider == "openai_images" and not fallback_used and ok),
+            "reference_sha256s": [item["sha256"] for item in references] if references and not fallback_used and ok else [],
         },
         "error": "" if ok else validation.get("error", "image_generation_failed"),
     }

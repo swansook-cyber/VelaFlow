@@ -11,7 +11,7 @@ import streamlit as st
 
 from core.full_song_mv_production import (
     MAX_RETRIES, accept_scene_asset, begin_generation, import_scene_media, qc_scene_asset,
-    release_stalled_attempt, request_scene_retry, run_generation,
+    release_stalled_attempt, request_scene_retry, run_generation, load_character_references,
 )
 from core.paths import resolve_project_folder
 from core.settings import get_settings
@@ -38,7 +38,8 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
     production = scene.get("production") or {}
     assets = production.get("assets") or []
     attempts = production.get("attempts") or []
-    folder = resolve_project_folder(project.get("title") or "mv_project", project.get("workflow_type") or "song") / "assets" / "full_song_mv"
+    project_folder = resolve_project_folder(project.get("title") or "mv_project", project.get("workflow_type") or "song")
+    folder = project_folder / "assets" / "full_song_mv"
     approved = scene.get("approval_status") == "Approved"
     st.subheader("Scene production")
     st.caption("Produce or import one shot, preview it, run file checks, then accept it. Existing accepted files are kept.")
@@ -146,15 +147,40 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                 st.rerun()
 
     with st.expander("Generate this scene", expanded=False):
-        choices = ({"Image · OpenAI": ("image", "openai_images", "openai")}
-                   if target_aspect == "9:16" else {})
+        choices = {"Image · OpenAI": ("image", "openai_images", "openai")}
         if target_aspect == "9:16":
             st.caption("The Gemini image and Veo connectors need a verified current model before paid generation is offered here. Import their finished assets for QC instead.")
-        if not choices:
-            st.info("16:9: import an existing landscape image or MP4. The current generation connectors target 9:16 and are not offered for this format.")
-            return
+        else:
+            st.caption("16:9: OpenAI image edits can use the selected character views. The landscape provider output is cropped to 16:9 after generation.")
         chosen = st.selectbox("Provider", list(choices), key=f"{prefix}_provider")
         kind, provider, key_name = choices[chosen]
+        references = (project.get("assets") or {}).get("character_references") or {}
+        prior_reference = (attempts[-1].get("reference_snapshot") or {}) if attempts else {}
+        options = ["None", *references.keys()]
+        default_reference = next((name for name, item in references.items() if item.get("character_name") == "Vela Moon"), "None") if scene_id == "scene_010" else "None"
+        selected_name = st.selectbox("Character reference", options,
+                                     index=options.index(default_reference), key=f"{prefix}_character_reference")
+        reference_record = references.get(selected_name)
+        active_reference = prior_reference or reference_record
+        retry_reference_mismatch = bool(prior_reference and reference_record and (
+            reference_record.get("source_zip_sha256") != prior_reference.get("source_zip_sha256")
+            or reference_record.get("version") != prior_reference.get("version")
+            or [item.get("sha256") for item in (reference_record.get("images") or {}).values()]
+               != [item.get("sha256") for item in (prior_reference.get("images") or {}).values()]))
+        reference_check = load_character_references(active_reference, project_folder) if active_reference else {"ok": False, "error": "Select an imported character reference."}
+        if active_reference:
+            st.write(f"**{active_reference.get('character_name', 'Character')} · Master V{active_reference.get('version', '?')} · {len(active_reference.get('images') or {})} views** · {active_reference.get('reference_asset_status', 'Pending validation')}")
+            st.caption("Reference images are sent only to the chosen OpenAI image edits request. Identity similarity is not guaranteed.")
+            if prior_reference:
+                st.info("Retry is pinned to the reference version used by the previous attempt.")
+            if retry_reference_mismatch:
+                st.error("Select the same reference version for this retry.")
+            if not reference_check["ok"]:
+                st.error(reference_check["error"])
+        if scene_id == "scene_010":
+            st.info("Scene 010 plan: band performance · Wardrobe Look B · 16:9 · same face and hairstyle as Master Character V1.0. Storyboard approval remains required.")
+        if target_aspect == "16:9" and not active_reference:
+            st.info("Select the imported Master Character reference to enable 16:9 generation.")
         key = (provider_key(key_name) if provider_key else "") or ""
         configured = _locally_available(provider, key)
         model = (get_settings().openai_image_model if provider == "openai_images" else
@@ -163,9 +189,9 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
         st.write(f"Model: {model}")
         model_supported = model in {"gpt-image-1.5", "gpt-image-1-mini", "gpt-image-2"}
         if not model_supported:
-            st.info("This image model has not been verified for 1024×1536 in this connector. Choose a supported model in Settings or import an existing asset.")
+            st.info("This image model has not been verified for the selected output format. Choose a supported model in Settings or import an existing asset.")
         if not configured:
-            st.info("API key or provider SDK missing. Check Settings / API Key before generating.")
+            st.info("OpenAI API key missing. Check Settings / API Key before generating.")
         else:
             st.caption("Provider is locally configured; live access is checked when you request generation.")
         st.warning("Estimated cost is unavailable for this model. Your provider may charge your account for each request; actual cost is not tracked here.")
@@ -176,7 +202,7 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
             st.caption("Veo generates a 3–8 second shot. Longer scenes need another shot, a reused asset, or a held shot.")
         else:
             shot_duration = 0.0
-        if scene.get("reference_asset"):
+        if scene.get("reference_asset") and not active_reference:
             st.caption("Reference selected: " + Path(scene["reference_asset"]).name +
                        ". This provider connector uses text prompts only; the reference file is shown for manual review and is not uploaded to the provider.")
         if production.get("pending_attempt_id"):
@@ -190,11 +216,14 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
         confirm = st.checkbox("I confirm one provider request for this scene and accept possible charges",
                               key=f"{prefix}_{provider}_{len(attempts)}_paid_confirm")
         can_generate = (approved and configured and model_supported and confirm and bool(str(scene.get("visual_prompt") or "").strip())
+                        and (not active_reference or reference_check["ok"]) and not retry_reference_mismatch
+                        and (target_aspect != "16:9" or bool(active_reference))
                         and not production.get("pending_attempt_id") and
                         (not attempts or production.get("generation_status") == "Retry Requested"))
         if st.button("Generate this shot", type="primary", disabled=not can_generate, key=f"{prefix}_generate"):
             begun = begin_generation(scenes, scene_id, kind, provider, confirmed=confirm,
-                                     configured=configured, shot_duration=shot_duration)
+                                     configured=configured, shot_duration=shot_duration,
+                                     reference_record=reference_record, reference_root=project_folder)
             if not begun.get("ok"):
                 st.error(begun["error"])
             elif commit({**plan, "scenes": begun["scenes"]}):
@@ -202,11 +231,13 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
                             "openai_api_key": key if key_name == "openai" else "",
                             "openai_image_model": model if provider == "openai_images" else "",
                             "model": model if kind == "video" else "",
-                            "size": "1024x1536", "strict_image_model": True, "cache_enabled": False}
+                            "size": "1536x1024" if target_aspect == "16:9" else "1024x1536",
+                            "target_aspect_ratio": target_aspect,
+                            "strict_image_model": True, "cache_enabled": False}
                 with st.spinner("Generating only this shot…"):
                     result = run_generation(begun["scenes"], scene_id, begun["attempt_id"], folder, settings)
                 if result.get("scenes") and commit({**plan, "scenes": result["scenes"]}):
                     if result.get("ok"):
                         st.rerun()
                     else:
-                        st.error("Provider attempt failed or returned invalid media. Existing accepted assets remain unchanged.")
+                        st.error(f"Generation stopped: {result.get('error') or 'provider_failed_or_invalid_media'}. Existing accepted assets remain unchanged.")

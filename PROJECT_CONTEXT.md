@@ -76,7 +76,7 @@ Tagline: Music. Software. Stories.
 - Advanced legacy production/render sections visible only in advanced/developer contexts.
 - Full-song MV planning in Visual Studio: local audio import, continuous scene timeline, per-scene review/approval, and an atomic project manifest.
 - Full-song scene production in Visual Studio: explicit one-scene generation where the connector supports the target format, or media import, revision-bound file QC, human acceptance, and retry history in the existing scene manifest.
-- Full-song MV rendering in Visual Studio: an opt-in, local FFmpeg path takes only accepted and current-revision assets, preserves storyboard timing, supports multiple shots and explicit hold/loop choices, and checks the resulting MP4 with FFprobe. The default new-project format is 16:9; 9:16 remains available. The current provider connectors do not offer landscape generation, so landscape assets must be imported.
+- Full-song MV rendering in Visual Studio: an opt-in, local FFmpeg path takes only accepted and current-revision assets, preserves storyboard timing, supports multiple shots and explicit hold/loop choices, and checks the resulting MP4 with FFprobe. The default new-project format is 16:9; 9:16 remains available. OpenAI image edits can send the saved Master Character views and crop landscape output to 16:9; other landscape media can be imported. Paid requests still require scene approval and explicit confirmation.
 
 ## Future Roadmap
 - Better quality scoring for commercial Thai lyrics and hooks.

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import io
 import subprocess
 import tempfile
 from copy import deepcopy
@@ -21,6 +22,7 @@ IMAGE_PROVIDERS = {"openai_images", "gemini_image"}
 VIDEO_PROVIDERS = {"gemini_veo"}
 ALLOWED_SUFFIXES = {"image": {".jpg", ".jpeg", ".png", ".webp"}, "video": {".mp4"}}
 MAX_RETRIES = 3
+MAX_REFERENCE_BYTES = 20 * 1024 * 1024
 
 
 def _now() -> str:
@@ -36,6 +38,39 @@ def _digest(path: str | Path) -> str:
         return hasher.hexdigest()
     except OSError:
         return ""
+
+
+def load_character_references(record: dict[str, Any], project_folder: str | Path) -> dict[str, Any]:
+    """Validate a saved reference version and return its exact image bytes."""
+    try:
+        root = Path(project_folder).resolve(strict=True)
+        if not record or record.get("reference_asset_status") not in {"Imported / Pending Technical Validation", "Validated"}:
+            raise ValueError("Select an imported character reference version.")
+        if record.get("creative_design_status") != "Approved by User":
+            raise ValueError("Character identity is not approved by the user.")
+        images = record.get("images") or {}
+        if not 1 <= len(images) <= 4:
+            raise ValueError("Choose one to four approved master views for this workflow.")
+        payload = []
+        for name, metadata in images.items():
+            path = Path(str(metadata.get("path") or "")).resolve(strict=True)
+            if not path.is_relative_to(root) or path.suffix.lower() != ".png" or path.name != name:
+                raise ValueError("Reference path is outside this project or has an unexpected type.")
+            data = path.read_bytes()
+            if not 0 < len(data) <= MAX_REFERENCE_BYTES or len(data) != metadata.get("size_bytes"):
+                raise ValueError("Reference size does not match the saved version.")
+            if hashlib.sha256(data).hexdigest() != metadata.get("sha256"):
+                raise ValueError("Reference SHA-256 does not match the saved version.")
+            with Image.open(io.BytesIO(data)) as image:
+                image.verify()
+            with Image.open(io.BytesIO(data)) as image:
+                if image.format != "PNG" or image.size != (metadata.get("width"), metadata.get("height")):
+                    raise ValueError("Reference MIME or dimensions do not match the saved version.")
+            payload.append({"filename": name, "mime_type": "image/png", "content": data,
+                            "sha256": metadata["sha256"]})
+        return {"ok": True, "images": payload, "error": ""}
+    except (OSError, ValueError, TypeError) as exc:
+        return {"ok": False, "images": [], "error": str(exc) or "Reference validation failed."}
 
 
 def _find(scenes: list[dict[str, Any]], scene_id: str) -> dict[str, Any] | None:
@@ -155,7 +190,9 @@ def import_scene_media(scenes: list[dict[str, Any]], scene_id: str, filename: st
 
 
 def begin_generation(scenes: list[dict[str, Any]], scene_id: str, kind: str, provider: str, *,
-                     confirmed: bool, configured: bool, shot_duration: float = 5.0) -> dict[str, Any]:
+                     confirmed: bool, configured: bool, shot_duration: float = 5.0,
+                     reference_record: dict[str, Any] | None = None,
+                     reference_root: str | Path | None = None) -> dict[str, Any]:
     updated, scene, error = _ready_scene(scenes, scene_id)
     if error:
         return {"ok": False, "error": error}
@@ -173,10 +210,38 @@ def begin_generation(scenes: list[dict[str, Any]], scene_id: str, kind: str, pro
         return {"ok": False, "error": "Add a visual prompt before generating this scene."}
     if kind == "video" and not 3 <= shot_duration <= 8:
         return {"ok": False, "error": "Veo shots must be 3–8 seconds; a scene may use multiple shots or a hold."}
+    previous = production["attempts"][-1] if production["attempts"] else {}
+    prior_reference = previous.get("reference_snapshot") or {}
+    if prior_reference and reference_record and (
+        reference_record.get("source_zip_sha256") != prior_reference.get("source_zip_sha256")
+        or reference_record.get("version") != prior_reference.get("version")
+        or [item.get("sha256") for item in (reference_record.get("images") or {}).values()]
+           != [item.get("sha256") for item in (prior_reference.get("images") or {}).values()]
+    ):
+        return {"ok": False, "error": "Retry must use the same character reference version."}
+    reference_snapshot = deepcopy(prior_reference)
+    if reference_record and not reference_snapshot:
+        if kind != "image" or provider != "openai_images" or not reference_root:
+            return {"ok": False, "error": "This provider cannot send character reference images."}
+        checked = load_character_references(reference_record, reference_root)
+        if not checked["ok"]:
+            return {"ok": False, "error": checked["error"]}
+        reference_snapshot = deepcopy(reference_record)
+        reference_snapshot["project_folder"] = str(Path(reference_root).resolve())
+    if reference_snapshot:
+        if kind != "image" or provider != "openai_images":
+            return {"ok": False, "error": "Retry must keep the original reference-aware provider."}
+        checked = load_character_references(reference_snapshot, reference_snapshot["project_folder"])
+        if not checked["ok"]:
+            return {"ok": False, "error": checked["error"]}
+        prompt += " Use the supplied character reference images to keep the same face, hairstyle, and recognizable identity. Do not invent a different person."
+        if scene_id == "scene_010":
+            prompt += " Wardrobe Look B: charcoal T-shirt, dark denim jacket, black jeans; intimate band rehearsal. Compose as a 16:9 cinematic frame."
     attempt_id = uuid4().hex
     attempt = {"attempt_id": attempt_id, "scene_id": scene_id, "scene_revision": int(scene["revision"]),
                "kind": kind, "provider": provider, "prompt_used": prompt,
                "reference_used": "", "reference_selected": str(scene.get("reference_asset") or ""),
+               "reference_snapshot": reference_snapshot,
                "shot_duration_seconds": shot_duration,
                "status": "Running", "job_id": "", "error": "", "started_at": _now(), "updated_at": _now(),
                "estimated_cost": None, "actual_cost": None}
@@ -202,6 +267,10 @@ def finish_generation(scenes: list[dict[str, Any]], scene_id: str, attempt_id: s
         provider_ok = provider_ok and bool(data.get("real_ai_video_used")) and data.get("provider_status") == "complete"
     else:
         provider_ok = provider_ok and data.get("provider_used") == attempt["provider"]
+    reference_snapshot = attempt.get("reference_snapshot") or {}
+    if reference_snapshot:
+        expected_hashes = [item["sha256"] for item in reference_snapshot["images"].values()]
+        provider_ok = provider_ok and data.get("reference_sent_to_provider") is True and data.get("reference_sha256s") == expected_hashes
     path = Path(str(data.get("path") or ""))
     in_folder = path.is_file() and path.resolve().parent == (Path(output_dir) / scene_id).resolve()
     inspected = inspect_media(path, attempt["kind"]) if provider_ok and in_folder else {"ok": False}
@@ -211,7 +280,10 @@ def finish_generation(scenes: list[dict[str, Any]], scene_id: str, attempt_id: s
     attempt["updated_at"] = _now()
     if not provider_ok or not in_folder or not inspected.get("ok") or not current_revision:
         attempt["status"] = "Failed"
-        attempt["error"] = "scene_revision_changed" if not current_revision else "provider_failed_or_invalid_media"
+        attempt["error"] = "scene_revision_changed" if not current_revision else (
+            str(result.get("error") or "provider_failed_or_invalid_media")
+            if str(result.get("error") or "") in {"reference_validation_failed", "reference_unsupported", "validation_failed"}
+            else "provider_failed_or_invalid_media")
         production["generation_status"] = "Failed"
         production["error_history"].append({"attempt_id": attempt_id, "error": attempt["error"], "at": _now()})
         return {"ok": False, "error": attempt["error"], "scenes": updated}
@@ -222,6 +294,12 @@ def finish_generation(scenes: list[dict[str, Any]], scene_id: str, attempt_id: s
                            model=str(data.get("actual_model") or data.get("model") or (data.get("payload") or {}).get("model") or ""),
                            prompt=actual_prompt, reference=attempt["reference_selected"], job_id=attempt["job_id"],
                            provider_status="complete", shot_duration=attempt["shot_duration_seconds"])
+    if reference_snapshot:
+        record.update({"reference_used": reference_snapshot.get("character_name", ""),
+                       "reference_selected": reference_snapshot.get("version", ""),
+                       "reference_version": reference_snapshot.get("version", ""),
+                       "reference_sha256s": data["reference_sha256s"],
+                       "reference_sent_to_provider": True})
     production["assets"].append(record)
     scene["asset_status"] = "Needs QC"
     return {"ok": True, "scenes": updated, "asset_id": record["asset_id"]}
@@ -238,13 +316,22 @@ def run_generation(scenes: list[dict[str, Any]], scene_id: str, attempt_id: str,
         return finish_generation(scenes, scene_id, attempt_id, {"ok": False}, output_dir)
     if attempt["kind"] == "video" and not settings.get("gemini_api_key"):
         return finish_generation(scenes, scene_id, attempt_id, {"ok": False}, output_dir)
+    reference_snapshot = attempt.get("reference_snapshot") or {}
+    reference_images = []
+    if reference_snapshot:
+        checked = load_character_references(reference_snapshot, reference_snapshot.get("project_folder", ""))
+        if not checked["ok"]:
+            return finish_generation(scenes, scene_id, attempt_id, {"ok": False, "error": "reference_validation_failed"}, output_dir)
+        reference_images = checked["images"]
     folder = Path(output_dir) / scene_id
     folder.mkdir(parents=True, exist_ok=True)
     destination = folder / f"generated_{attempt_id}{'.jpg' if attempt['kind'] == 'image' else '.mp4'}"
     try:
         if attempt["kind"] == "image":
             result = image_generator(attempt["provider"], attempt["prompt_used"], str(destination),
-                                     {**settings, "cache_enabled": False, "allow_env_key": False})
+                                     {**settings, "cache_enabled": False, "allow_env_key": False,
+                                      "reference_images": reference_images,
+                                      "target_aspect_ratio": settings.get("target_aspect_ratio", "9:16")})
         else:
             prompt = (f"{attempt['prompt_used']}. single continuous cinematic video shot, ultra realistic live-action, "
                       "vertical 9:16, natural human motion, cinematic camera movement, no text, no subtitles")
