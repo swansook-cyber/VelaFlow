@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Dict, Iterable, List
 
@@ -8,7 +9,19 @@ from core.project_io import safe_name
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_FOLDER_SLUG = "velaflow"
-PROJECT_DATA_ROOT = ROOT / "project_data"
+
+
+def _project_data_root() -> Path:
+    configured = os.environ.get("VELAFLOW_PROJECT_DATA_ROOT", "").strip()
+    if not configured:
+        return ROOT / "project_data"
+    path = Path(configured).expanduser()
+    if not path.is_absolute() or not path.is_dir():
+        raise ValueError("VELAFLOW_PROJECT_DATA_ROOT must be an existing absolute directory")
+    return path.resolve()
+
+
+PROJECT_DATA_ROOT = _project_data_root()
 LEGACY_PROJECTS_ROOT = PROJECT_DATA_ROOT / "projects"
 
 WORKFLOW_PROJECT_ROOTS: Dict[str, Path] = {
