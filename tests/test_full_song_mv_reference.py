@@ -14,6 +14,7 @@ from PIL import Image
 from core.full_song_mv import create_full_song_storyboard
 from core.full_song_mv_production import (
     begin_generation, load_character_references, qc_scene_asset, request_scene_retry, run_generation,
+    generate_scene_010_concept_preview, SCENE_010_CONCEPT_PROMPT,
 )
 from core.project_io import new_project, read_project_json, save_project_folder
 from providers.image_ai import _openai_image, generate_image_with_diagnostics
@@ -39,6 +40,70 @@ class CharacterReferenceTests(unittest.TestCase):
         scenes = create_full_song_storyboard({}, {"title": "Test"}, 120, 20)["scenes"]
         scenes[9]["approval_status"] = "Approved"
         return scenes
+
+    def test_concept_preview_is_separate_from_planned_scene_and_restores(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self._reference(root)
+            project = new_project("Concept Preview Test", "Vela Moon")
+            project["assets"]["character_references"] = {"vela_moon_master_v1_0": record}
+            scenes = create_full_song_storyboard({}, project, 120, 20)["scenes"]
+            project["mv"]["full_song"] = {"scenes": scenes, "audio": {"duration_seconds": 120}}
+            before = deepcopy(project)
+            with patch("core.full_song_mv_production.generate_image_with_diagnostics") as provider:
+                dry = generate_scene_010_concept_preview(root, record)
+            provider.assert_not_called()
+            self.assertTrue(dry["ok"], dry)
+            self.assertTrue(dry["dry_run"])
+            self.assertEqual(dry["plan"]["reference_count"], 4)
+            self.assertEqual(dry["plan"]["prompt"], SCENE_010_CONCEPT_PROMPT)
+            self.assertFalse((root / "assets" / "concept_previews").exists())
+            self.assertFalse(generate_scene_010_concept_preview(root, record, dry_run=False)["ok"])
+
+            def fake(provider, prompt, path, settings):
+                self.assertEqual(provider, "openai_images")
+                self.assertEqual(prompt, SCENE_010_CONCEPT_PROMPT)
+                self.assertEqual(settings["openai_image_model"], "gpt-image-2.6-sunburst")
+                self.assertEqual(settings["size"], "1536x864")
+                self.assertEqual(settings["quality"], "medium")
+                refs = settings["reference_images"]
+                self.assertEqual(len(refs), 4)
+                for item in refs:
+                    self.assertTrue(item["content"].startswith(b"\x89PNG"))
+                    self.assertEqual(hashlib.sha256(item["content"]).hexdigest(), item["sha256"])
+                image_path = Path(path)
+                image_path.parent.mkdir(parents=True)
+                Image.new("RGB", (1536, 864), "#334455").save(image_path)
+                return {"ok": True, "data": {"path": str(image_path), "fallback_used": False,
+                        "reference_sent_to_provider": True,
+                        "reference_sha256s": [item["sha256"] for item in refs]}}
+
+            result = generate_scene_010_concept_preview(root, record, api_key="mock-only", confirmed=True,
+                                                        dry_run=False, image_generator=fake)
+            self.assertTrue(result["ok"], result)
+            self.assertTrue(Path(result["path"]).is_relative_to(root / "assets" / "concept_previews" / "scene_010"))
+            self.assertFalse(result["scene_asset_created"])
+            self.assertEqual(project, before)
+            self.assertEqual(scenes[9]["approval_status"], "Planned")
+            self.assertEqual(scenes[9]["revision"], before["mv"]["full_song"]["scenes"][9]["revision"])
+            self.assertNotIn("production", scenes[9])
+            folder = save_project_folder(project, root / "projects")
+            restored = read_project_json(folder / "project.json")
+            self.assertTrue(restored["ok"])
+            self.assertEqual(restored["project"]["mv"]["full_song"], before["mv"]["full_song"])
+            self.assertEqual(restored["project"]["assets"]["character_references"]["vela_moon_master_v1_0"], record)
+
+    def test_concept_preview_rejects_changed_reference_before_request(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self._reference(root)
+            next(iter(record["images"].values()))["sha256"] = "0" * 64
+            with patch("core.full_song_mv_production.generate_image_with_diagnostics") as provider:
+                result = generate_scene_010_concept_preview(root, record, api_key="mock-only", confirmed=True,
+                                                            dry_run=False)
+            provider.assert_not_called()
+            self.assertFalse(result["ok"])
+            self.assertFalse((root / "assets" / "concept_previews").exists())
 
     def test_reference_payload_retry_restore_and_qc_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

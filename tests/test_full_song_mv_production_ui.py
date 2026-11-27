@@ -24,14 +24,18 @@ class FullSongMVProductionUITests(unittest.TestCase):
                 output.setsampwidth(2)
                 output.setframerate(8000)
                 output.writeframes(b"\0\0" * 8000 * 60)
-            reference = root / "master.png"
-            Image.new("RGB", (64, 64), "#223344").save(reference)
-            data = reference.read_bytes()
+            reference_images = {}
+            for n in range(4):
+                reference = root / f"master_{n}.png"
+                Image.new("RGB", (64, 64), "#223344").save(reference)
+                data = reference.read_bytes()
+                reference_images[reference.name] = {"path": str(reference), "size_bytes": len(data),
+                                                    "sha256": hashlib.sha256(data).hexdigest(),
+                                                    "width": 64, "height": 64}
             record = {"character_name": "Vela Moon", "version": "1.0",
                       "creative_design_status": "Approved by User",
                       "reference_asset_status": "Imported / Pending Technical Validation",
-                      "images": {reference.name: {"path": str(reference), "size_bytes": len(data),
-                                 "sha256": hashlib.sha256(data).hexdigest(), "width": 64, "height": 64}}}
+                      "images": reference_images}
             project = {"title": "Scene 010 UI", "workflow_type": "song", "mv": {},
                        "assets": {"character_references": {"vela_moon_master_v1_0": record}}}
             scenes = create_full_song_storyboard({}, project, 60, 10)["scenes"]
@@ -56,6 +60,10 @@ render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda 
             self.assertEqual(next(box for box in app.selectbox if box.label == "Character reference").value,
                              "vela_moon_master_v1_0")
             self.assertTrue(next(button for button in app.button if button.label == "Generate this shot").disabled)
+            self.assertTrue(next(button for button in app.button if button.label == "Generate concept preview").disabled)
+            self.assertTrue(any("Dry run ready" in item.value for item in app.success))
+            self.assertEqual(project["mv"]["full_song"]["scenes"][9]["revision"], 1)
+            self.assertFalse((root / "assets" / "concept_previews").exists())
             self.assertTrue(any("Wardrobe Look B" in item.value for item in app.info))
             self.assertTrue(any("30 per million image output tokens" in item.value for item in app.warning))
             self.assertTrue(any("1536×864 directly" in item.value for item in app.caption))

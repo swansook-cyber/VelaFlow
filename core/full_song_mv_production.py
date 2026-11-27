@@ -24,6 +24,15 @@ ALLOWED_SUFFIXES = {"image": {".jpg", ".jpeg", ".png", ".webp"}, "video": {".mp4
 MAX_RETRIES = 3
 MAX_REFERENCE_BYTES = 20 * 1024 * 1024
 
+SCENE_010_CONCEPT_PROMPT = (
+    "Cinematic Thai pop-rock music video, 16:9 medium-wide composition inside an intimate rehearsal studio. "
+    "Vela Moon performs as lead singer with his natural wood acoustic guitar, accompanied by a small band. "
+    "Preserve the recognizable facial identity, hairstyle and proportions from the four approved Master Character V1.0 references. "
+    "Wardrobe Look B: charcoal T-shirt and dark denim jacket. Warm amber practical lighting, subtle blue shadows, "
+    "realistic instruments, natural performance emotion, photorealistic cinematic texture. "
+    "Keep the full head, face, hands and acoustic guitar safely inside the frame. No text, no watermark."
+)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -71,6 +80,46 @@ def load_character_references(record: dict[str, Any], project_folder: str | Path
         return {"ok": True, "images": payload, "error": ""}
     except (OSError, ValueError, TypeError) as exc:
         return {"ok": False, "images": [], "error": str(exc) or "Reference validation failed."}
+
+
+def generate_scene_010_concept_preview(project_folder: str | Path, reference_record: dict[str, Any], *,
+                                       api_key: str = "", confirmed: bool = False,
+                                       dry_run: bool = True,
+                                       image_generator: Callable[..., dict[str, Any]] = generate_image_with_diagnostics) -> dict[str, Any]:
+    """Prepare or generate a standalone concept image without touching scene production state."""
+    checked = load_character_references(reference_record, project_folder)
+    if not checked["ok"]:
+        return {"ok": False, "error": checked["error"]}
+    if len(checked["images"]) != 4 or reference_record.get("character_name") != "Vela Moon" or reference_record.get("version") != "1.0":
+        return {"ok": False, "error": "Select the four-view Vela Moon Master Character V1.0."}
+    plan = {"provider": "openai_images", "model": "gpt-image-2.6-sunburst", "quality": "medium",
+            "size": "1536x864", "target_aspect_ratio": "16:9", "reference_version": "1.0",
+            "reference_sha256s": [item["sha256"] for item in checked["images"]],
+            "reference_count": 4, "prompt": SCENE_010_CONCEPT_PROMPT,
+            "pricing": "Standard USD rates per million tokens: image input 8, text input 5, image output 30; total depends on usage."}
+    if dry_run:
+        return {"ok": True, "dry_run": True, "plan": plan, "path": ""}
+    if not confirmed or not api_key:
+        return {"ok": False, "error": "Configure an OpenAI API key and confirm possible charges before generating."}
+    root = Path(project_folder).resolve(strict=True)
+    folder = root / "assets" / "concept_previews" / "scene_010"
+    output = folder / f"concept_{uuid4().hex}.jpg"
+    result = image_generator("openai_images", SCENE_010_CONCEPT_PROMPT, str(output),
+                             {"openai_api_key": api_key, "openai_image_model": plan["model"],
+                              "strict_image_model": True, "reference_images": checked["images"],
+                              "size": plan["size"], "quality": plan["quality"],
+                              "target_aspect_ratio": "16:9", "cache_enabled": False})
+    data = result.get("data") or {}
+    if not result.get("ok") or data.get("fallback_used") or not data.get("reference_sent_to_provider") or data.get("reference_sha256s") != plan["reference_sha256s"]:
+        return {"ok": False, "error": result.get("error") or "Reference-aware concept generation was not verified.", "plan": plan}
+    try:
+        path = Path(str(data.get("path") or "")).resolve(strict=True)
+    except (OSError, ValueError):
+        return {"ok": False, "error": "Concept image was not saved in the preview folder.", "plan": plan}
+    if not path.is_relative_to(folder.resolve()) or not path.is_file():
+        return {"ok": False, "error": "Concept image was not saved in the preview folder.", "plan": plan}
+    return {"ok": True, "dry_run": False, "plan": plan, "path": str(path),
+            "sha256": _digest(path), "scene_asset_created": False}
 
 
 def _find(scenes: list[dict[str, Any]], scene_id: str) -> dict[str, Any] | None:

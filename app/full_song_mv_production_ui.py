@@ -12,6 +12,7 @@ import streamlit as st
 from core.full_song_mv_production import (
     MAX_RETRIES, accept_scene_asset, begin_generation, import_scene_media, qc_scene_asset,
     release_stalled_attempt, request_scene_retry, run_generation, load_character_references,
+    generate_scene_010_concept_preview, SCENE_010_CONCEPT_PROMPT,
 )
 from core.paths import resolve_project_folder
 from core.settings import get_settings
@@ -29,6 +30,45 @@ def _locally_available(provider: str, key: str) -> bool:
         return False
 
 
+def _render_scene_010_concept_preview(project: dict[str, Any], project_folder: Path,
+                                      provider_key: Callable[[str], str] | None) -> None:
+    references = (project.get("assets") or {}).get("character_references") or {}
+    record = next((item for item in references.values() if item.get("character_name") == "Vela Moon"
+                   and item.get("version") == "1.0"), None)
+    with st.expander("Scene 010 concept preview · separate from production", expanded=False):
+        st.caption("Test the approved character design before storyboard approval. A concept image is stored separately and is never a scene asset or an accepted QC result.")
+        st.write("Provider: OpenAI Image Edits · Model: gpt-image-2.6-sunburst · Quality: medium · Output: 1536×864 (16:9) · One image")
+        st.caption("Four Master Character V1.0 PNG views are sent only to OpenAI if you later confirm a paid request. An identical face is not guaranteed.")
+        st.warning("Published standard rates (USD per million tokens): image input 8, text input 5, image output 30. Four reference images and the output make the total unknown before usage.")
+        st.code(SCENE_010_CONCEPT_PROMPT, language="text")
+        if not record:
+            st.error("Vela Moon Master Character V1.0 with four views was not found in this project.")
+            return
+        checked = generate_scene_010_concept_preview(project_folder, record, dry_run=True)
+        if not checked["ok"]:
+            st.error(checked["error"])
+            return
+        st.success("Dry run ready: four PNG views and their saved SHA-256 values match. No API request or project save was made.")
+        key = (provider_key("openai") if provider_key else "") or ""
+        if not key:
+            st.info("OpenAI API key missing. Configure it in Settings / API Key before a paid preview request.")
+        confirm = st.checkbox("I confirm one paid OpenAI concept preview request and accept possible charges",
+                              key="mv_scene_010_concept_paid_confirm")
+        if st.button("Generate concept preview", disabled=not (key and confirm),
+                     key="mv_scene_010_concept_generate"):
+            with st.spinner("Generating one concept image…"):
+                result = generate_scene_010_concept_preview(project_folder, record, api_key=key,
+                                                            confirmed=confirm, dry_run=False)
+            if result["ok"]:
+                st.session_state["mv_scene_010_concept_path"] = result["path"]
+                st.success("Concept preview saved separately. Scene approval and asset acceptance are unchanged.")
+            else:
+                st.error(result["error"])
+        saved = Path(str(st.session_state.get("mv_scene_010_concept_path") or ""))
+        if saved.is_file() and saved.resolve().is_relative_to((project_folder / "assets" / "concept_previews" / "scene_010").resolve()):
+            st.image(str(saved), caption="Concept preview · not a production scene asset", use_container_width=True)
+
+
 def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scenes: list[dict[str, Any]],
                             scene: dict[str, Any], commit: Callable[[dict[str, Any]], bool],
                             provider_key: Callable[[str], str] | None = None) -> None:
@@ -41,6 +81,8 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
     project_folder = resolve_project_folder(project.get("title") or "mv_project", project.get("workflow_type") or "song")
     folder = project_folder / "assets" / "full_song_mv"
     approved = scene.get("approval_status") == "Approved"
+    if scene_id == "scene_010":
+        _render_scene_010_concept_preview(project, project_folder, provider_key)
     st.subheader("Scene production")
     st.caption("Produce or import one shot, preview it, run file checks, then accept it. Existing accepted files are kept.")
     if not approved:
