@@ -114,6 +114,7 @@ from core.beta_testing import (
 from core.branding import APP_TITLE, BRAND_NAME, DEFAULT_ARTIST, PRODUCT_TAGLINE, WINDOW_TITLE
 from core.beta_access import load_beta_access, register_beta_activity, save_beta_access
 from core.character_consistency import apply_character_to_storyboard, build_character_prompt, normalize_character
+from app.full_song_mv_ui import render_full_song_planner
 from core.character_studio import (
     CHARACTER_STYLES,
     DEFAULT_CHARACTER_INPUTS,
@@ -1358,7 +1359,7 @@ def _creator_image_settings() -> tuple[str, dict[str, Any]]:
         "cache_enabled": False,
         "openai_api_key": _user_api_key("openai"),
         "gemini_api_key": _user_api_key("gemini"),
-        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-2.6-sunburst"),
     }
     if image_settings["gemini_api_key"]:
         return "gemini_image", image_settings
@@ -4709,9 +4710,13 @@ def _thai_option_label(labels: dict[str, str]):
 
 
 def _render_visual_studio_workspace(project: dict[str, Any]) -> None:
+    render_full_song_planner(project, _save_project, _save_uploaded_audio, _user_api_key)
     state = project.get("creative_pack_v1", {}) or {}
     result = state.get("release_pack") or {}
     pack = result.get("pack") or {}
+    if not pack and (project.get("mv") or {}).get("full_song", {}).get("scenes"):
+        return
+    st.divider()
     if not pack:
         st.info("Create a song package first, then return here for visual prompts.")
         if st.button("Open Song Studio", use_container_width=True, key="visual_open_song_studio"):
@@ -5371,7 +5376,7 @@ def _image_provider_controls(key_prefix: str) -> tuple[str, dict[str, Any]]:
         "cache_enabled": False,
         "openai_api_key": _user_api_key("openai"),
         "gemini_api_key": _user_api_key("gemini"),
-        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-1.5"),
+        "openai_image_model": getattr(settings, "openai_image_model", "gpt-image-2.6-sunburst"),
     }
     if provider == "openai_images" and not settings_payload["openai_api_key"]:
         st.info("OpenAI key missing. Placeholder images will be used.")
@@ -5462,6 +5467,12 @@ def _user_api_key(provider: str) -> str:
     normalized = normalize_provider(provider)
     if normalized == "gemini":
         return str(resolve_gemini_api_key(settings=settings, session_state=st.session_state).get("api_key", "") or "")
+    if normalized == "openai":
+        return str(resolve_provider_credentials(
+            settings=settings, provider=normalized,
+            api_mode=st.session_state.get("api_mode", API_MODE_OWN_KEY),
+            user_api_keys=st.session_state.get("user_api_keys", {}),
+        ).get("api_key", "") or "")
     return str((st.session_state.get("user_api_keys", {}) or {}).get(normalized, "") or "")
 
 
@@ -10092,6 +10103,10 @@ elif page == "Song Library":
 
 elif page == "MV Director":
     _page_header("MV Director", "Turn lyrics into a storyboard and scene plan.", project)
+    render_full_song_planner(project, _save_project, _save_uploaded_audio, _user_api_key)
+    st.divider()
+    with st.expander("Short-form MV planning", expanded=False):
+        st.caption("The existing short-form storyboard and render controls remain available below.")
     mv_existing = project.get("mv", {}) or {}
     _, mv_bundle_visual, mv_bundle_render = _bundle_controls("mv_director", mv_existing.get("render_settings") or {"bundle_name": "Cinematic Sad"})
     if mv_bundle_render and not mv_existing.get("render_settings"):

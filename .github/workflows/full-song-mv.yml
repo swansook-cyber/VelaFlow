@@ -1,0 +1,45 @@
+name: Full-song MV planning
+
+on:
+  pull_request:
+    paths:
+      - "app/main.py"
+      - "app/full_song_mv_ui.py"
+      - "app/full_song_mv_production_ui.py"
+      - "core/full_song_mv.py"
+      - "core/full_song_mv_production.py"
+      - "core/full_song_mv_render.py"
+      - "core/render_engine.py"
+      - "providers/image_ai.py"
+      - "core/project_io.py"
+      - "core/mv_storyboard_generator.py"
+      - "tests/test_full_song_mv.py"
+      - "tests/test_full_song_mv_production.py"
+      - "tests/test_full_song_mv_production_ui.py"
+      - "tests/test_full_song_mv_review_ui.py"
+      - "tests/test_full_song_mv_render.py"
+      - "tests/test_suno_ready_export.py"
+      - "tests/test_song_studio_hook_control.py"
+      - ".github/workflows/full-song-mv.yml"
+  workflow_dispatch:
+
+jobs:
+  planning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install FFprobe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffprobe -version
+      - name: Compile modules
+        run: python -m compileall -q app core providers tests
+      - name: Full-song planning, render, and Song Studio regression
+        run: python -m unittest tests.test_full_song_mv tests.test_full_song_mv_production tests.test_full_song_mv_production_ui tests.test_full_song_mv_review_ui tests.test_full_song_mv_render tests.test_suno_ready_export tests.test_song_studio_hook_control -v

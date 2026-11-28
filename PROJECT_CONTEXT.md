@@ -38,6 +38,7 @@ Tagline: Music. Software. Stories.
 - **Affiliate Studio:** Lightweight product analysis, hook/script generation, trend ideas, and affiliate creator package export.
 - **Agent Studio:** Assistant-style creative package generation with optional memory, tools, provider fallback, and multi-agent orchestration.
 - **Optional Creator Mastering:** Local ffmpeg-based audio polish for AI-generated songs, kept out of the simple normal flow unless needed.
+- **Full-song first-image path:** Scene production retains OpenAI image edits with the approved Vela Moon Master Character views. The separate Scene 010 concept preview defaults to Gemini Nano Banana 2.1 with four validated views and 1K 16:9 output; OpenAI remains selectable. Both require an explicit paid confirmation and leave storyboard approval and production asset QC unchanged.
 
 ## UX Principles
 - Default experience should be understandable in one screen.
@@ -74,6 +75,9 @@ Tagline: Music. Software. Stories.
 - Affiliate Trend Finder.
 - Project workspace and asset pipeline.
 - Advanced legacy production/render sections visible only in advanced/developer contexts.
+- Full-song MV planning in Visual Studio: local audio import, continuous scene timeline, per-scene review/approval, and an atomic project manifest.
+- Full-song scene production in Visual Studio: explicit one-scene generation where the connector supports the target format, or media import, revision-bound file QC, human acceptance, and retry history in the existing scene manifest.
+- Full-song MV rendering in Visual Studio: an opt-in, local FFmpeg path takes only accepted and current-revision assets, preserves storyboard timing, supports multiple shots and explicit hold/loop choices, and checks the resulting MP4 with FFprobe. The default new-project format is 16:9; 9:16 remains available. OpenAI image edits can send the saved Master Character views and request a direct 1536×864 landscape output; other landscape media can be imported. Production scene requests still require scene approval and explicit confirmation. Scene 010 also offers a separate concept preview with four validated character views, an explicit paid confirmation, and storage outside the production asset manifest.
 
 ## Future Roadmap
 - Better quality scoring for commercial Thai lyrics and hooks.
