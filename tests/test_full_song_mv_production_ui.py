@@ -62,7 +62,14 @@ render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda 
             self.assertTrue(next(button for button in app.button if button.label == "Generate this shot").disabled)
             self.assertTrue(next(button for button in app.button if button.label == "Generate Concept Preview").disabled)
             self.assertTrue(any("Four reference images" in item.value for item in app.success))
+            self.assertTrue(any("Gemini API key: missing" in item.value for item in app.markdown))
+            self.assertEqual(next(box for box in app.selectbox if box.label == "Concept provider").value, "gemini_image")
+            next(box for box in app.selectbox if box.label == "Concept provider").set_value("openai_images")
+            with patch("app.full_song_mv_production_ui.resolve_project_folder", return_value=root):
+                app.run()
+            self.assertFalse(app.exception, app.exception)
             self.assertTrue(any("OpenAI API key: missing" in item.value for item in app.markdown))
+            self.assertTrue(next(button for button in app.button if button.label == "Generate Concept Preview").disabled)
             self.assertTrue(any("Scene 010 Concept Preview" in item.label for item in app.get("expander")))
             self.assertEqual(project["mv"]["full_song"]["scenes"][9]["revision"], 1)
             self.assertFalse((root / "assets" / "concept_previews").exists())
@@ -101,7 +108,7 @@ render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda 
             self.assertFalse(app.exception, app.exception)
             self.assertTrue(any("Scene 010 Concept Preview" in item.label for item in app.get("expander")))
             self.assertTrue(any("References unavailable" in item.value for item in app.error))
-            self.assertTrue(any("OpenAI API key: missing" in item.value for item in app.markdown))
+            self.assertTrue(any("Gemini API key: missing" in item.value for item in app.markdown))
             self.assertTrue(next(button for button in app.button if button.label == "Generate Concept Preview").disabled)
             self.assertEqual(project["mv"]["full_song"]["scenes"][9]["approval_status"], "Planned")
 

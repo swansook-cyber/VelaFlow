@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image
@@ -21,6 +22,46 @@ from providers.image_ai import _openai_image, generate_image_with_diagnostics
 
 
 class CharacterReferenceTests(unittest.TestCase):
+    def test_gemini_concept_sends_four_views_without_scene_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self._reference(root)
+            image = io.BytesIO()
+            Image.new("RGB", (1024, 576), "#334455").save(image, format="JPEG")
+            calls = []
+
+            def create(**kwargs):
+                calls.append(kwargs)
+                return SimpleNamespace(output_image=SimpleNamespace(data=base64.b64encode(image.getvalue()).decode("ascii")))
+
+            client = SimpleNamespace(interactions=SimpleNamespace(create=create))
+            with patch("google.genai.Client", return_value=client):
+                result = generate_scene_010_concept_preview(root, record, api_key="mock-only",
+                        confirmed=True, dry_run=False, provider="gemini_image")
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(calls[0]["model"], "gemini-nano-banana-2.1")
+            self.assertEqual(calls[0]["response_format"]["aspect_ratio"], "16:9")
+            self.assertEqual(calls[0]["response_format"]["image_size"], "1K")
+            self.assertEqual(len(calls[0]["input"]), 5)
+            for supplied, metadata in zip(calls[0]["input"][1:], record["images"].values()):
+                self.assertEqual(hashlib.sha256(base64.b64decode(supplied["data"])).hexdigest(), metadata["sha256"])
+            with Image.open(result["path"]) as output:
+                self.assertEqual(output.size, (1024, 576))
+            self.assertFalse(result["scene_asset_created"])
+
+    def test_gemini_quota_error_never_falls_back_or_creates_placeholder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            record = self._reference(root)
+            client = SimpleNamespace(interactions=SimpleNamespace(create=lambda **_: (_ for _ in ()).throw(RuntimeError("429 quota exceeded"))))
+            with patch("google.genai.Client", return_value=client):
+                result = generate_scene_010_concept_preview(root, record, api_key="mock-only",
+                        confirmed=True, dry_run=False, provider="gemini_image")
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["error"], "quota_exceeded")
+            self.assertFalse(list((root / "assets" / "concept_previews" / "scene_010").glob("*.jpg")))
+
     def _reference(self, root: Path) -> dict:
         folder = root / "assets" / "character_references" / "vela_moon_master_v1_0"
         folder.mkdir(parents=True)

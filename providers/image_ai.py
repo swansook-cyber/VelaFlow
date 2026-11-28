@@ -506,6 +506,31 @@ def _gemini_image(prompt: str, output_path: Path, settings: Dict[str, Any]) -> t
         from google.genai import types  # type: ignore
 
         client = genai.Client(api_key=api_key)
+        references = settings.get("reference_images") or []
+        if references:
+            model_name = str(settings.get("gemini_image_model") or "gemini-nano-banana-2.1")
+            if model_name != "gemini-nano-banana-2.1":
+                raise ImageProviderError("reference_unsupported", "This Gemini model is not configured for four-view concept references.", "gemini_image")
+            if len(references) != 4:
+                raise ImageProviderError("reference_invalid", "Four Master Character views are required.", "gemini_image")
+            inputs = [{"type": "text", "text": prompt}]
+            for item in references:
+                content = item["content"]
+                if item.get("mime_type") != "image/png" or hashlib.sha256(content).hexdigest() != item.get("sha256"):
+                    raise ImageProviderError("reference_invalid", "Master Character reference changed before sending.", "gemini_image")
+                inputs.append({"type": "image", "data": base64.b64encode(content).decode("ascii"), "mime_type": "image/png"})
+            response = client.interactions.create(
+                model=model_name, input=inputs,
+                response_format={"type": "image", "mime_type": "image/jpeg", "aspect_ratio": "16:9", "image_size": "1K"},
+            )
+            image = getattr(response, "output_image", None)
+            data = getattr(image, "data", None)
+            if not data:
+                raise ImageProviderError("empty_image_response", "Gemini returned no concept image. Check model access or try again.", "gemini_image")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(base64.b64decode(data))
+            capability.update({"actual_model": model_name, "image_generation_supported": True})
+            return str(output_path), model_name, capability
         available_models = _gemini_list_available_models(client)
         capability["available_models"] = available_models
         candidates = _gemini_image_model_candidates(settings)
@@ -616,7 +641,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
     sdk_version = ""
     primary_diagnostics: Dict[str, Any] = {}
     try:
-        if references and provider != "openai_images":
+        if references and provider not in {"openai_images", "gemini_image"}:
             raise ImageProviderError("reference_unsupported", "Selected provider cannot send reference images.", provider)
         if provider in {"manual", "offline"}:
             fallback_used = True
@@ -631,7 +656,8 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             provider_available = True
             image_generation_supported = True
         elif provider in {"gemini_image", "gemini_images"}:
-            primary_diagnostics = detect_image_provider_capability("gemini_image", settings)
+            primary_diagnostics = ({"provider": "gemini_image", "requested_model": settings.get("gemini_image_model", "")}
+                                   if references else detect_image_provider_capability("gemini_image", settings))
             requested_model = str(primary_diagnostics.get("requested_model") or "")
             try:
                 generated, actual_model, gemini_capability = _gemini_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
@@ -640,7 +666,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
                 image_generation_supported = True
             except Exception as gemini_error:
                 openai_key = settings.get("openai_api_key") or (os.getenv("OPENAI_API_KEY", "") if settings.get("allow_env_key") else "")
-                if openai_key:
+                if openai_key and not references:
                     fallback_reason = _safe_error_message(gemini_error, "Gemini")[0]
                     primary_diagnostics["fallback_reason"] = fallback_reason
                     generated, actual_model = _openai_image(prompt, raw_output, {**settings, "size": settings.get("size", "1024x1536")})
@@ -662,7 +688,15 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
                 with Image.open(generated_path) as image:
                     if image.size != (1536, 864):
                         raise ImageProviderError("unexpected_image_dimensions", "OpenAI returned a different size; no automatic crop was applied to this reference-aware image.", provider)
-            generated = _normalize_to_jpg(generated_path, output, target_aspect)
+            if references and provider == "gemini_image":
+                measured = validate_image_file(generated_path, expected_aspect_ratio="16:9")
+                if not measured.get("ok"):
+                    raise ImageProviderError("unexpected_image_dimensions", "Gemini did not return a 16:9 image; no crop was applied. Try again.", provider)
+                with Image.open(generated_path) as image:
+                    image.convert("RGB").save(output, "JPEG", quality=92)
+                generated = str(output)
+            else:
+                generated = _normalize_to_jpg(generated_path, output, target_aspect)
             if generated_path != output and generated_path.exists():
                 try:
                     generated_path.unlink()
@@ -728,7 +762,7 @@ def generate_image_with_diagnostics(provider: str, prompt: str, output_path: str
             "provider_diagnostics": primary_diagnostics,
             "validation": validation,
             "prompt": prompt,
-            "reference_sent_to_provider": bool(references and provider == "openai_images" and not fallback_used and ok),
+            "reference_sent_to_provider": bool(references and provider in {"openai_images", "gemini_image"} and not fallback_used and ok),
             "reference_sha256s": [item["sha256"] for item in references] if references and not fallback_used and ok else [],
         },
         "error": "" if ok else validation.get("error", "image_generation_failed"),

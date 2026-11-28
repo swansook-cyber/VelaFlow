@@ -85,6 +85,7 @@ def load_character_references(record: dict[str, Any], project_folder: str | Path
 def generate_scene_010_concept_preview(project_folder: str | Path, reference_record: dict[str, Any], *,
                                        api_key: str = "", confirmed: bool = False,
                                        dry_run: bool = True,
+                                       provider: str = "openai_images",
                                        image_generator: Callable[..., dict[str, Any]] = generate_image_with_diagnostics) -> dict[str, Any]:
     """Prepare or generate a standalone concept image without touching scene production state."""
     checked = load_character_references(reference_record, project_folder)
@@ -92,20 +93,26 @@ def generate_scene_010_concept_preview(project_folder: str | Path, reference_rec
         return {"ok": False, "error": checked["error"]}
     if len(checked["images"]) != 4 or reference_record.get("character_name") != "Vela Moon" or reference_record.get("version") != "1.0":
         return {"ok": False, "error": "Select the four-view Vela Moon Master Character V1.0."}
-    plan = {"provider": "openai_images", "model": "gpt-image-2.6-sunburst", "quality": "medium",
-            "size": "1536x864", "target_aspect_ratio": "16:9", "reference_version": "1.0",
+    if provider not in {"openai_images", "gemini_image"}:
+        return {"ok": False, "error": "Select Gemini or OpenAI for this concept preview."}
+    gemini = provider == "gemini_image"
+    plan = {"provider": provider, "model": "gemini-nano-banana-2.1" if gemini else "gpt-image-2.6-sunburst",
+            "quality": "model default" if gemini else "medium",
+            "size": "1K" if gemini else "1536x864", "target_aspect_ratio": "16:9", "reference_version": "1.0",
             "reference_sha256s": [item["sha256"] for item in checked["images"]],
             "reference_count": 4, "prompt": SCENE_010_CONCEPT_PROMPT,
-            "pricing": "Standard USD rates per million tokens: image input 8, text input 5, image output 30; total depends on usage."}
+            "pricing": ("About USD $0.0336 for one 1K output image, plus four image inputs and text/thinking tokens; actual bill depends on usage."
+                        if gemini else "Standard USD rates per million tokens: image input 8, text input 5, image output 30; total depends on usage.")}
     if dry_run:
         return {"ok": True, "dry_run": True, "plan": plan, "path": ""}
     if not confirmed or not api_key:
-        return {"ok": False, "error": "Configure an OpenAI API key and confirm possible charges before generating."}
+        return {"ok": False, "error": f"Configure a {'Gemini' if gemini else 'OpenAI'} API key and confirm possible charges before generating."}
     root = Path(project_folder).resolve(strict=True)
     folder = root / "assets" / "concept_previews" / "scene_010"
     output = folder / f"concept_{uuid4().hex}.jpg"
-    result = image_generator("openai_images", SCENE_010_CONCEPT_PROMPT, str(output),
-                             {"openai_api_key": api_key, "openai_image_model": plan["model"],
+    result = image_generator(provider, SCENE_010_CONCEPT_PROMPT, str(output),
+                             {"gemini_api_key" if gemini else "openai_api_key": api_key,
+                              "gemini_image_model" if gemini else "openai_image_model": plan["model"],
                               "strict_image_model": True, "reference_images": checked["images"],
                               "size": plan["size"], "quality": plan["quality"],
                               "target_aspect_ratio": "16:9", "cache_enabled": False})

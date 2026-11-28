@@ -38,36 +38,50 @@ def _render_scene_010_concept_preview(project: dict[str, Any], project_folder: P
     with st.expander("Scene 010 Concept Preview · separate from production", expanded=True):
         st.caption("Preview the approved character design while this storyboard scene remains Planned. Concept images stay outside production asset QC.")
         st.write("Character: Vela Moon Master Character V1.0 · References: 4 PNG views")
-        st.write("Provider: OpenAI Image Edits · Model: gpt-image-2.6-sunburst")
-        st.write("Output: one 1536×864 image (16:9) · Quality: medium")
-        checked = (generate_scene_010_concept_preview(project_folder, record, dry_run=True)
+        provider = st.selectbox("Concept provider", ["gemini_image", "openai_images"],
+                                format_func=lambda value: "Gemini (default)" if value == "gemini_image" else "OpenAI",
+                                key="mv_scene_010_concept_provider")
+        gemini = provider == "gemini_image"
+        checked = (generate_scene_010_concept_preview(project_folder, record, dry_run=True, provider=provider)
                    if record else {"ok": False, "error": "Master Character V1.0 is missing from this project."})
+        plan = checked.get("plan") or {}
+        st.write(f"Model: {plan.get('model') or 'unavailable'} · Resolution: {plan.get('size') or 'unavailable'} · Aspect: 16:9 · Quality: {plan.get('quality') or 'unavailable'}")
         if checked["ok"]:
             st.success("Four reference images and their saved SHA-256 values match. Dry run made no API request or project save.")
         else:
             st.error(f"References unavailable: {checked['error']}")
         try:
-            key = (provider_key("openai") if provider_key else "") or ""
+            key = (provider_key("gemini" if gemini else "openai") if provider_key else "") or ""
         except Exception:
             key = ""
             st.warning("API key status could not be checked. Review Settings / API Keys before generating.")
-        st.write("OpenAI API key: configured" if key else "OpenAI API key: missing")
+        label = "Gemini" if gemini else "OpenAI"
+        st.write(f"{label} API key: {'configured' if key else 'missing'}")
         if not key:
-            st.info("Add an OpenAI API key in Settings / API Keys to enable this concept preview.")
-        st.caption("Published standard rates (USD per million tokens): image input 8, text input 5, image output 30. Total cost depends on usage. An identical face is not guaranteed.")
+            st.info(f"Add a {label} API key in Settings / API Keys to enable this concept preview.")
+        elif gemini:
+            st.caption("Gemini model access and billing tier are checked by Google when you generate; a configured key alone does not confirm access.")
+        st.caption(f"Estimated cost: {plan.get('pricing') or 'unavailable'} An identical face is not guaranteed.")
         st.text_area("Concept prompt", value=SCENE_010_CONCEPT_PROMPT, height=110, disabled=True)
-        confirm = st.checkbox("I confirm one paid OpenAI concept preview request and accept possible charges",
-                              key="mv_scene_010_concept_paid_confirm")
+        confirm = st.checkbox(f"I confirm one paid {label} concept preview request and accept possible charges",
+                              key=f"mv_scene_010_concept_paid_confirm_{provider}")
         if st.button("Generate Concept Preview", disabled=not (checked["ok"] and key and confirm),
                      key="mv_scene_010_concept_generate"):
             with st.spinner("Generating one concept image…"):
                 result = generate_scene_010_concept_preview(project_folder, record, api_key=key,
-                                                            confirmed=confirm, dry_run=False)
+                                                            confirmed=confirm, dry_run=False, provider=provider)
             if result["ok"]:
                 st.session_state["mv_scene_010_concept_path"] = result["path"]
                 st.success("Concept preview saved separately. Scene approval and asset acceptance are unchanged.")
             else:
-                st.error(result["error"])
+                cause = result.get("error") or "provider_error"
+                guidance = {
+                    "quota_exceeded": f"{label} quota or rate limit is exhausted. Check billing and limits in the provider console, then retry.",
+                    "auth_failed": f"{label} rejected the API key or image access. Check the key and model access in Settings / API Keys.",
+                    "model_unavailable": f"This image model is unavailable for the key. Check model access in the provider console.",
+                    "empty_image_response": f"{label} returned no image. Try again or review the prompt and model access.",
+                }.get(cause, str(cause))
+                st.error(guidance)
         saved = Path(str(st.session_state.get("mv_scene_010_concept_path") or ""))
         if saved.is_file() and saved.resolve().is_relative_to((project_folder / "assets" / "concept_previews" / "scene_010").resolve()):
             st.image(str(saved), caption="Concept preview · not a production scene asset", use_container_width=True)
