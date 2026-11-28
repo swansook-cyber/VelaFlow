@@ -240,7 +240,9 @@ def render_full_song_planner(
         f'<p>{escape(scene.get("shot_strategy", "New shot"))} · {escape(scene.get("approval_status", "Planned"))}</p></div>',
         unsafe_allow_html=True,
     )
-    st.caption(f"ID {selected} · revision {scene.get('revision', 1)} · exact timing {scene['start_seconds']:.2f}–{scene['end_seconds']:.2f}s")
+    st.caption(f"ID {selected} · revision {scene.get('revision', 1)} · exact timing {scene['start_seconds']:.3f}–{scene['end_seconds']:.3f}s")
+    if "estimated" in str((scene.get("asset_plan") or {}).get("timing_confidence", "")).lower():
+        st.caption("Section and vocal timing are estimated; listening confirmation is pending.")
     with st.expander("Scene details"):
         section = st.text_input("Song section", value=scene.get("song_section", ""), key=f"{prefix}_section")
         shot_strategy = st.selectbox("Shot strategy", ["New shot", "Reuse approved asset", "Hold shot"],
