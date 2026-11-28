@@ -35,26 +35,30 @@ def _render_scene_010_concept_preview(project: dict[str, Any], project_folder: P
     references = (project.get("assets") or {}).get("character_references") or {}
     record = next((item for item in references.values() if item.get("character_name") == "Vela Moon"
                    and item.get("version") == "1.0"), None)
-    with st.expander("Scene 010 concept preview · separate from production", expanded=False):
-        st.caption("Test the approved character design before storyboard approval. A concept image is stored separately and is never a scene asset or an accepted QC result.")
-        st.write("Provider: OpenAI Image Edits · Model: gpt-image-2.6-sunburst · Quality: medium · Output: 1536×864 (16:9) · One image")
-        st.caption("Four Master Character V1.0 PNG views are sent only to OpenAI if you later confirm a paid request. An identical face is not guaranteed.")
-        st.warning("Published standard rates (USD per million tokens): image input 8, text input 5, image output 30. Four reference images and the output make the total unknown before usage.")
-        st.code(SCENE_010_CONCEPT_PROMPT, language="text")
-        if not record:
-            st.error("Vela Moon Master Character V1.0 with four views was not found in this project.")
-            return
-        checked = generate_scene_010_concept_preview(project_folder, record, dry_run=True)
-        if not checked["ok"]:
-            st.error(checked["error"])
-            return
-        st.success("Dry run ready: four PNG views and their saved SHA-256 values match. No API request or project save was made.")
-        key = (provider_key("openai") if provider_key else "") or ""
+    with st.expander("Scene 010 Concept Preview · separate from production", expanded=True):
+        st.caption("Preview the approved character design while this storyboard scene remains Planned. Concept images stay outside production asset QC.")
+        st.write("Character: Vela Moon Master Character V1.0 · References: 4 PNG views")
+        st.write("Provider: OpenAI Image Edits · Model: gpt-image-2.6-sunburst")
+        st.write("Output: one 1536×864 image (16:9) · Quality: medium")
+        checked = (generate_scene_010_concept_preview(project_folder, record, dry_run=True)
+                   if record else {"ok": False, "error": "Master Character V1.0 is missing from this project."})
+        if checked["ok"]:
+            st.success("Four reference images and their saved SHA-256 values match. Dry run made no API request or project save.")
+        else:
+            st.error(f"References unavailable: {checked['error']}")
+        try:
+            key = (provider_key("openai") if provider_key else "") or ""
+        except Exception:
+            key = ""
+            st.warning("API key status could not be checked. Review Settings / API Keys before generating.")
+        st.write("OpenAI API key: configured" if key else "OpenAI API key: missing")
         if not key:
-            st.info("OpenAI API key missing. Configure it in Settings / API Key before a paid preview request.")
+            st.info("Add an OpenAI API key in Settings / API Keys to enable this concept preview.")
+        st.caption("Published standard rates (USD per million tokens): image input 8, text input 5, image output 30. Total cost depends on usage. An identical face is not guaranteed.")
+        st.text_area("Concept prompt", value=SCENE_010_CONCEPT_PROMPT, height=110, disabled=True)
         confirm = st.checkbox("I confirm one paid OpenAI concept preview request and accept possible charges",
                               key="mv_scene_010_concept_paid_confirm")
-        if st.button("Generate concept preview", disabled=not (key and confirm),
+        if st.button("Generate Concept Preview", disabled=not (checked["ok"] and key and confirm),
                      key="mv_scene_010_concept_generate"):
             with st.spinner("Generating one concept image…"):
                 result = generate_scene_010_concept_preview(project_folder, record, api_key=key,
@@ -223,7 +227,11 @@ def render_scene_production(project: dict[str, Any], plan: dict[str, Any], scene
             st.info("Scene 010 plan: band performance · Wardrobe Look B · 16:9 · same face and hairstyle as Master Character V1.0. Storyboard approval remains required.")
         if target_aspect == "16:9" and not active_reference:
             st.info("Select the imported Master Character reference to enable 16:9 generation.")
-        key = (provider_key(key_name) if provider_key else "") or ""
+        try:
+            key = (provider_key(key_name) if provider_key else "") or ""
+        except Exception:
+            key = ""
+            st.warning("Provider key status could not be checked. Review Settings / API Keys before generating.")
         configured = _locally_available(provider, key)
         model = (get_settings().openai_image_model if provider == "openai_images" else
                  "provider selects from configured image models" if provider == "gemini_image" else

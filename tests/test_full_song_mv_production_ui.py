@@ -60,13 +60,49 @@ render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda 
             self.assertEqual(next(box for box in app.selectbox if box.label == "Character reference").value,
                              "vela_moon_master_v1_0")
             self.assertTrue(next(button for button in app.button if button.label == "Generate this shot").disabled)
-            self.assertTrue(next(button for button in app.button if button.label == "Generate concept preview").disabled)
-            self.assertTrue(any("Dry run ready" in item.value for item in app.success))
+            self.assertTrue(next(button for button in app.button if button.label == "Generate Concept Preview").disabled)
+            self.assertTrue(any("Four reference images" in item.value for item in app.success))
+            self.assertTrue(any("OpenAI API key: missing" in item.value for item in app.markdown))
+            self.assertTrue(any("Scene 010 Concept Preview" in item.label for item in app.get("expander")))
             self.assertEqual(project["mv"]["full_song"]["scenes"][9]["revision"], 1)
             self.assertFalse((root / "assets" / "concept_previews").exists())
             self.assertTrue(any("Wardrobe Look B" in item.value for item in app.info))
             self.assertTrue(any("30 per million image output tokens" in item.value for item in app.warning))
             self.assertTrue(any("1536×864 directly" in item.value for item in app.caption))
+            self.assertEqual(project["mv"]["full_song"]["scenes"][9]["approval_status"], "Planned")
+
+    def test_concept_controls_remain_visible_when_reference_or_key_check_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            audio = root / "song.wav"
+            with wave.open(str(audio), "wb") as output:
+                output.setnchannels(1)
+                output.setsampwidth(2)
+                output.setframerate(8000)
+                output.writeframes(b"\0\0" * 8000 * 60)
+            project = {"title": "Missing reference", "workflow_type": "song", "mv": {}, "assets": {}}
+            scenes = create_full_song_storyboard({}, project, 60, 10)["scenes"]
+            project["mv"]["full_song"] = {"audio": {"path": str(audio), "duration_seconds": 60},
+                                              "scenes": scenes, "target_aspect_ratio": "16:9"}
+            app = AppTest.from_string("""
+import streamlit as st
+from app.full_song_mv_ui import render_full_song_planner
+def broken_key(provider):
+    raise RuntimeError('unavailable')
+render_full_song_planner(st.session_state.project, lambda: {'ok': True}, lambda *a, **k: {'ok': False}, broken_key)
+""")
+            app.session_state["project"] = project
+            with patch("app.full_song_mv_production_ui.resolve_project_folder", return_value=root):
+                app.run()
+                next(box for box in app.selectbox if box.label == "Jump to scene").set_value("scene_010")
+                app.run()
+                next(button for button in app.button if button.label == "Go").click()
+                app.run()
+            self.assertFalse(app.exception, app.exception)
+            self.assertTrue(any("Scene 010 Concept Preview" in item.label for item in app.get("expander")))
+            self.assertTrue(any("References unavailable" in item.value for item in app.error))
+            self.assertTrue(any("OpenAI API key: missing" in item.value for item in app.markdown))
+            self.assertTrue(next(button for button in app.button if button.label == "Generate Concept Preview").disabled)
             self.assertEqual(project["mv"]["full_song"]["scenes"][9]["approval_status"], "Planned")
 
     def test_landscape_plan_shows_render_readiness_without_incompatible_generate(self) -> None:
